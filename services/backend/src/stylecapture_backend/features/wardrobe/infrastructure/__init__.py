@@ -1,0 +1,1 @@
+"""Wardrobe persistence adapters."""

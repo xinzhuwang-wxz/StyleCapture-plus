@@ -260,7 +260,9 @@
 - Keep one Product API and one private Worker API over the same domain implementation; do not build a separate Partner platform for the demo.
 - Publish OpenAPI documentation and generate the frontend TypeScript client from the same schemas; provide concise Python/cURL examples for other callers.
 - Represent long-running work as `202 Accepted` jobs with query and SSE completion modes.
-- Use pre-signed upload URLs and object keys rather than moving large image/video payloads through every service.
+- Use short-lived signed upload credentials and object keys rather than moving
+  large image/video payloads through every service; credentials travel in a
+  request header, never in a URL or query string.
 - Use normal user sessions for product access and scoped service keys for private Worker calls.
 - Enforce user-level data isolation, upload limits and GPU queue concurrency without building multi-tenant billing or partner quota systems.
 - Require request IDs and idempotency keys for mutations; return trace IDs and stable machine-readable errors.

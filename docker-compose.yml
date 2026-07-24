@@ -1,0 +1,248 @@
+name: stylecapture
+
+x-backend-environment: &backend-environment
+  STYLECAPTURE_DATABASE_URL: postgresql+asyncpg://stylecapture:stylecapture@postgres:5432/stylecapture
+  STYLECAPTURE_LITELLM_API_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
+  STYLECAPTURE_LITELLM_BASE_URL: http://litellm:4000/v1
+  STYLECAPTURE_REDIS_URL: redis://redis:6379/0
+  STYLECAPTURE_CAPTURE_QUEUE: ${STYLECAPTURE_CAPTURE_QUEUE:-capture}
+  STYLECAPTURE_UPLOAD_ROOT: /data/uploads
+  STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:-replace-with-at-least-24-random-characters}
+  STYLECAPTURE_SESSION_SIGNING_SECRET: ${STYLECAPTURE_SESSION_SIGNING_SECRET:-replace-with-a-distinct-session-signing-secret}
+
+services:
+  h5:
+    build:
+      context: .
+      dockerfile: apps/h5/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5173:80"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  api:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    command:
+      - sh
+      - -c
+      - >-
+        python -m stylecapture_backend.manage migrate &&
+        uvicorn stylecapture_backend.entrypoint:build_app
+        --factory --host 0.0.0.0 --port 8000 --no-access-log
+    environment:
+      <<: *backend-environment
+      STYLECAPTURE_CORS_ORIGINS: '["http://localhost:5173"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - stylecapture-uploads:/data/uploads
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  litellm:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      args:
+        INSTALL_GATEWAY: "true"
+    command:
+      - litellm
+      - --config
+      - /app/config/litellm.yaml
+      - --host
+      - 0.0.0.0
+      - --port
+      - "4000"
+    environment:
+      ARK_API_KEY: ${ARK_API_KEY:-}
+      ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:4000:4000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /home/stylecapture/.cache
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 768M
+
+  postgres:
+    image: pgvector/pgvector:pg17@sha256:d2ef61f42ef767baa5a1475393303cc235bcd92febd9d7014eddb48b41f3bad0
+    environment:
+      POSTGRES_DB: stylecapture
+      POSTGRES_PASSWORD: stylecapture
+      POSTGRES_USER: stylecapture
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stylecapture -d stylecapture"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - stylecapture-postgres:/var/lib/postgresql/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  redis:
+    image: redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "192mb", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - stylecapture-redis:/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    tmpfs:
+      - /tmp
+      - /run
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      args:
+        INSTALL_AI_LIGHT: ${STYLECAPTURE_INSTALL_AI_LIGHT:-false}
+    command:
+      - celery
+      - -A
+      - stylecapture_backend.worker:celery
+      - worker
+      - --loglevel=INFO
+      - --concurrency=1
+      - --queues=${STYLECAPTURE_CAPTURE_QUEUE:-capture}
+      - --without-gossip
+      - --without-mingle
+    environment:
+      <<: *backend-environment
+      STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-disabled}
+    depends_on:
+      litellm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - stylecapture-uploads:/data/uploads
+      - stylecapture-model-cache:/home/stylecapture/.cache/huggingface
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: ${STYLECAPTURE_WORKER_MEMORY_LIMIT:-1G}
+
+volumes:
+  stylecapture-model-cache:
+  stylecapture-postgres:
+  stylecapture-redis:
+  stylecapture-uploads:

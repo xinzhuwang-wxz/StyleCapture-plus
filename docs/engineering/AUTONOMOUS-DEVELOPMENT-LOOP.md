@@ -9,7 +9,7 @@ Use four coordinated layers:
 
 1. **Aggregate Goal** owns the terminal outcome and prevents premature stopping.
 2. **Continuous Issue Loop** implements one dependency-ordered vertical slice at a time without human handoffs between Issues.
-3. **Thread Heartbeat** returns to the same context every two hours to audit trajectory and steer the loop; it is not a concurrent second implementer.
+3. **Thread Heartbeat** returns to the same context every hour to audit trajectory and steer the loop; it is not a concurrent second implementer.
 4. **Milestone Quality Gate** runs after every Issue and at major UI/API/domain milestones.
 
 Goal is the engine. Scheduled automation is the metacognitive reviewer. GitHub Issues, ExecPlans, ADRs, tests, traces, screenshots, and PR history are durable memory.
@@ -46,7 +46,7 @@ The controller repeatedly:
 11. Updates the Issue, ExecPlan, ADRs, and PR evidence; merges only when clean.
 12. Immediately starts the next unblocked Issue.
 
-## Two-hour heartbeat
+## Hourly heartbeat
 
 The heartbeat inspects the same thread and checkout. It does not create a parallel implementation branch.
 

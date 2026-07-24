@@ -1,0 +1,65 @@
+name: product-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  product:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17@sha256:d2ef61f42ef767baa5a1475393303cc235bcd92febd9d7014eddb48b41f3bad0
+        env:
+          POSTGRES_DB: stylecapture
+          POSTGRES_PASSWORD: stylecapture
+          POSTGRES_USER: stylecapture
+        ports:
+          - "5434:5432"
+        options: >-
+          --health-cmd "pg_isready -U stylecapture -d stylecapture"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: uv sync --all-packages
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify Python architecture and behavior
+        run: |
+          uv run ruff check services/backend/src services/backend/tests scripts
+          uv run ruff format --check services/backend/src services/backend/tests scripts
+          uv run mypy services/backend/src services/backend/tests scripts
+          uv run python scripts/check_boundaries.py services/backend/src
+          uv run pytest -q
+
+      - name: Verify generated API contract
+        run: |
+          pnpm contracts:generate
+          git diff --exit-code -- apps/h5/openapi.json apps/h5/src/api/schema.d.ts
+
+      - name: Verify mobile application
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Validate Compose and backend image
+        run: |
+          docker compose config --quiet
+          docker build -f services/backend/Dockerfile -t stylecapture-backend:test .

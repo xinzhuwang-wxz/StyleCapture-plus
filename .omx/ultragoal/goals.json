@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-07-24T18:54:03.586Z",
-  "updatedAt": "2026-07-24T18:54:03.586Z",
+  "updatedAt": "2026-07-24T21:35:27.816Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -11,10 +11,11 @@
       "id": "G001-issue-1",
       "title": "Issue #1 上传入库纵向链",
       "objective": "完成 GitHub Issue #1 的全部验收条件，建立可复用的分层骨架、LiteLLM 视觉理解、异步资产入库、StyleCapture 衣橱和真实用户证据。",
-      "status": "pending",
-      "attempt": 0,
+      "status": "in_progress",
+      "attempt": 1,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T18:54:03.586Z"
+      "updatedAt": "2026-07-24T21:35:27.816Z",
+      "startedAt": "2026-07-24T21:35:27.816Z"
     },
     {
       "id": "G002-issue-2-feed",
@@ -62,5 +63,6 @@
       "updatedAt": "2026-07-24T18:54:03.586Z"
     }
   ],
-  "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail."
+  "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail.",
+  "activeGoalId": "G001-issue-1"
 }

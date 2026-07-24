@@ -16,10 +16,10 @@
 现在启动 StyleCapture-plus 连续工程 Loop，并持续运行到当前 Goal 完成。先读取 AGENTS.md、PLANS.md、CONTEXT.md、docs/product/PRD.md、docs/architecture/TECHNICAL-DECISIONS.md、docs/engineering/AUTONOMOUS-DEVELOPMENT-LOOP.md、docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md、docs/adr/ 和 .omx/ultragoal/，再读取 GitHub Issues/PR。选择第一个未阻塞 Issue，维护 living ExecPlan，完成一个可验证的纵向切片；测试、真实移动端操作、截图/trace、视觉审查、代码/安全/架构审查、清理和复验全部通过后再合并，并立即进入下一 Issue。发现当前验收缺口就在当前 Issue 修复；跨切片长期决策写 ADR 并同步相关 Issue；只有真正独立的工作才新增 Issue，不能用新 Issue 留尾巴。开发期间优先复用 _ref 和成熟开源能力，保持 Docker 可迁移性和笔记本资源保护。若 macOS 需要保持本地任务运行，可启动低开销 keep-awake，并在 Goal 完成或停止时清理。除不可逆、凭据受限的外部生产操作或真正改变产品方向的选择外，不要停下来询问。
 ```
 
-## 3. 创建同线程两小时 Heartbeat
+## 3. 创建同线程每小时 Heartbeat
 
 ```text
-请在当前 Codex 任务上创建并立即启用一个名为“StyleCapture 两小时质量巡检”的 Heartbeat automation，每两小时运行一次，不创建独立开发任务或并发分支。每次运行执行以下提示：
+请在当前 Codex 任务上创建并立即启用一个名为“StyleCapture 每小时质量巡检”的 Heartbeat automation，每小时运行一次，不创建独立开发任务或并发分支。每次运行执行以下提示：
 
 审计当前 StyleCapture-plus Goal、.omx/ultragoal 状态、GitHub Issue/PR、living ExecPlan、ADR、最近提交和 diff、测试输出、trace、真实移动端操作与截图证据。检查是否偏离 Goal，是否缺少验收证据，是否存在 hidden mock/fixed result、curated_seed 被冒充 AI、新用户输入绕过 LiteLLM、密钥或 provider 细节泄漏、前后端/合同/任务状态漂移、跨层依赖、万能 utils、重复或废弃代码、视觉和失败恢复问题，以及是否错误等待 GPU 服务器。检查 CPU、内存压力、温控、swap、磁盘和 Docker 用量；资源压力过高时停止重复进程、降并发或把重能力移到托管 provider。可运行时必须亲自按移动端用户路径操作并核对截图。安全且属于当前范围的 P0/P1 立即修复并复验；必要时修订当前 Issue/ExecPlan，长期跨切片决策写或更新 ADR，只有独立价值才新增 Issue。完成巡检后恢复连续工程 Loop。只报告实质纠正、真实 blocker 或简洁的 clean audit；Goal 完成后禁用此 Heartbeat。
 ```
