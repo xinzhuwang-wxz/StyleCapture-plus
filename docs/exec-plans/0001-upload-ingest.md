@@ -34,7 +34,7 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - [x] (2026-07-25 03:08 CST) Audited `video-branch-main`, `StyleCapture-main`, and `wardrowbe` reuse surfaces and licenses.
 - [x] (2026-07-25 03:08 CST) Selected `issue/1-upload-ingest`; confirmed only hourly-heartbeat documentation edits pre-existed on the branch.
 - [x] (2026-07-25 03:19 CST) Established the monorepo skeleton, dependency locks, architecture boundary checks, and green baseline in `a641916`.
-- [x] (2026-07-25 03:42 CST) Implemented and locally verified signed upload, HEIC validation, idempotent `Capture` persistence, broker redrive, generated OpenAPI contracts, and durable PostgreSQL job state.
+- [x] (2026-07-25 03:42 CST) Implemented and locally verified signed upload, HEIC validation, idempotent `Capture` persistence, broker redrive, generated OpenAPI contracts, and durable PostgreSQL job state in `2986791`.
 - [ ] Implement Celery processing through vision and embedding ports, guarded model updates, retry, and partial/error recovery.
 - [ ] Implement StyleCapture mobile capture and wardrobe UI using only the generated client.
 - [ ] Run contract, domain, worker, Compose, real-provider, mobile, visual, security, and architecture verification.
@@ -188,7 +188,7 @@ class JobDispatcher(Protocol):
 - [x] Implement thin HTTP adapters and error mapping.
 - [x] Run targeted tests, then `uv run pytest services/backend/tests -q`.
 - [x] Export OpenAPI and generate `apps/h5/src/api/schema.d.ts`; fail CI if regeneration changes tracked output.
-- [ ] Commit with Lore trailers and update `Progress`.
+- [x] Commit with Lore trailers and update `Progress`.
 
 ### Milestone 3: Real asynchronous understanding and guarded persistence
 
