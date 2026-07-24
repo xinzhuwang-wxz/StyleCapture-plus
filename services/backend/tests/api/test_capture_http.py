@@ -420,6 +420,155 @@ async def test_upload_and_capture_submission_are_real_and_idempotent(
 
 
 @pytest.mark.asyncio
+async def test_feed_capture_accepts_and_persists_normalized_selection_paths(
+    api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
+) -> None:
+    client, repository, _ = api
+    body = png_bytes()
+    async with client:
+        user_id = await start_session(client)
+        prepared = (
+            await client.post(
+                "/v1/uploads/prepare",
+                json={
+                    "file_name": "feed-frame.png",
+                    "content_type": "image/png",
+                    "byte_size": len(body),
+                    "sha256": sha256(body).hexdigest(),
+                },
+            )
+        ).json()
+        upload = await client.put(
+            prepared["upload_url"],
+            content=body,
+            headers={
+                "Content-Type": "image/png",
+                "X-Upload-Token": prepared["upload_token"],
+            },
+        )
+        assert upload.status_code == 201
+
+        response = await client.post(
+            "/v1/captures",
+            headers={"Idempotency-Key": "feed-http-001"},
+            json={
+                "object_key": prepared["object_key"],
+                "sha256": sha256(body).hexdigest(),
+                "source_kind": "feed",
+                "ownership": "inspiration",
+                "feed_context": {
+                    "video_ref": "feed://demo/http-look",
+                    "timestamp_ms": 1_250,
+                    "frame_width": 48,
+                    "frame_height": 64,
+                    "selections": [
+                        {
+                            "selection_key": "hat",
+                            "polygon": [
+                                {"x": 0.1, "y": 0.1},
+                                {"x": 0.4, "y": 0.1},
+                                {"x": 0.3, "y": 0.3},
+                            ],
+                        },
+                        {
+                            "selection_key": "top",
+                            "polygon": [
+                                {"x": 0.2, "y": 0.3},
+                                {"x": 0.8, "y": 0.3},
+                                {"x": 0.7, "y": 0.8},
+                            ],
+                        },
+                    ],
+                },
+            },
+        )
+
+    assert response.status_code == 202
+    stored = repository.submissions[(user_id, "feed-http-001")].capture
+    assert stored.source.origin_ref == "feed://demo/http-look"
+    assert stored.feed_context is not None
+    assert [selection.selection_key for selection in stored.feed_context.selections] == [
+        "hat",
+        "top",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_feed_capture_rejects_out_of_frame_points_with_stable_validation_error(
+    api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
+) -> None:
+    client, _, _ = api
+    async with client:
+        await start_session(client)
+        response = await client.post(
+            "/v1/captures",
+            headers={"Idempotency-Key": "feed-http-invalid-point"},
+            json={
+                "object_key": "originals/feed/invalid.webp",
+                "sha256": "a" * 64,
+                "source_kind": "feed",
+                "ownership": "inspiration",
+                "feed_context": {
+                    "video_ref": "feed://demo/invalid-point",
+                    "timestamp_ms": 1_250,
+                    "frame_width": 48,
+                    "frame_height": 64,
+                    "selections": [
+                        {
+                            "selection_key": "hat",
+                            "polygon": [
+                                {"x": -0.1, "y": 0.1},
+                                {"x": 0.4, "y": 0.1},
+                                {"x": 0.3, "y": 0.3},
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "request_invalid"
+
+
+@pytest.mark.asyncio
+async def test_feed_capture_rejects_duplicate_selection_keys_with_stable_error(
+    api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
+) -> None:
+    client, _, _ = api
+    selection = {
+        "selection_key": "same-key",
+        "polygon": [
+            {"x": 0.1, "y": 0.1},
+            {"x": 0.4, "y": 0.1},
+            {"x": 0.3, "y": 0.3},
+        ],
+    }
+    async with client:
+        await start_session(client)
+        response = await client.post(
+            "/v1/captures",
+            headers={"Idempotency-Key": "feed-http-duplicate-key"},
+            json={
+                "object_key": "originals/feed/duplicate.webp",
+                "sha256": "a" * 64,
+                "source_kind": "feed",
+                "ownership": "inspiration",
+                "feed_context": {
+                    "video_ref": "feed://demo/duplicate-key",
+                    "timestamp_ms": 1_250,
+                    "frame_width": 48,
+                    "frame_height": 64,
+                    "selections": [selection, selection],
+                },
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "feed_context_invalid"
+
+
+@pytest.mark.asyncio
 async def test_job_status_is_owner_scoped_and_unknown_job_uses_stable_error(
     api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
 ) -> None:

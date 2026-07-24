@@ -84,6 +84,74 @@
         "title": "ErrorEnvelope",
         "type": "object"
       },
+      "FeedFrameContextBody": {
+        "properties": {
+          "frame_height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Frame Height",
+            "type": "integer"
+          },
+          "frame_width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Frame Width",
+            "type": "integer"
+          },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/FeedSelectionBody"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Selections",
+            "type": "array"
+          },
+          "timestamp_ms": {
+            "minimum": 0.0,
+            "title": "Timestamp Ms",
+            "type": "integer"
+          },
+          "video_ref": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Video Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "video_ref",
+          "timestamp_ms",
+          "frame_width",
+          "frame_height",
+          "selections"
+        ],
+        "title": "FeedFrameContextBody",
+        "type": "object"
+      },
+      "FeedSelectionBody": {
+        "properties": {
+          "polygon": {
+            "items": {
+              "$ref": "#/components/schemas/NormalizedPointBody"
+            },
+            "maxItems": 256,
+            "minItems": 3,
+            "title": "Polygon",
+            "type": "array"
+          },
+          "selection_key": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Selection Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection_key",
+          "polygon"
+        ],
+        "title": "FeedSelectionBody",
+        "type": "object"
+      },
       "FieldProvenance": {
         "enum": [
           "model",
@@ -337,6 +405,28 @@
         "title": "JobState",
         "type": "string"
       },
+      "NormalizedPointBody": {
+        "properties": {
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "NormalizedPointBody",
+        "type": "object"
+      },
       "OwnershipState": {
         "enum": [
           "owned",
@@ -449,6 +539,16 @@
       },
       "SubmitCaptureBody": {
         "properties": {
+          "feed_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedFrameContextBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "object_key": {
             "maxLength": 512,
             "minLength": 1,

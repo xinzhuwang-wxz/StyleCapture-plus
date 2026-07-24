@@ -57,7 +57,9 @@ the stored mask asynchronously but is not the source of the user's save decision
 - [x] 2026-07-25: Reuse surfaces in `_ref/video-branch-main` audited.
 - [x] 2026-07-25: Lightweight-first provider topology accepted in ADR-0004.
 - [x] 2026-07-25: Public Feed corpus sources and fixed regression buckets researched.
-- [ ] Define Feed capture batch contracts and persistence invariants with failing tests.
+- [x] 2026-07-25: Defined Feed frame/selection contracts, stable API validation,
+  idempotent single-job submission, PostgreSQL round-trip, and generated TypeScript
+  contracts through red-green tests.
 - [ ] Add provenance-recorded Feed corpus manifest and at least 30 local review clips.
 - [ ] Integrate Feed browsing, pause, multi-lasso, lifted subject, and direct swipe.
 - [ ] Connect right-swipe to the real upload/capture/job API with idempotent batching.
@@ -80,6 +82,10 @@ the stored mask asynchronously but is not the source of the user's save decision
   arrive later.
 - 2026-07-25: The current 4 vCPU / 8 GiB host is viable for the core only when Feed and
   generated media are delivered by COS/CDN rather than its 5 Mbps public link.
+- 2026-07-25: A JSONB `source_metadata` envelope can persist the versionable Feed
+  selection context without leaking provider DTOs into the capture domain or forcing a
+  premature multi-table component model. Integration evidence: the exact two-selection
+  value survives PostgreSQL migration and round-trip.
 
 ## Decision Log
 

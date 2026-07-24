@@ -10,7 +10,10 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    FeedFrameContext,
+    FeedSelection,
     JobState,
+    NormalizedPoint,
     OwnershipState,
     ProcessingJob,
 )
@@ -124,6 +127,8 @@ def _capture_record(capture: Capture, idempotency_key: str) -> CaptureRecord:
         source_kind=capture.source.kind.value,
         object_key=capture.source.object_key,
         sha256=capture.source.sha256,
+        origin_ref=capture.source.origin_ref,
+        source_metadata=_feed_context_to_json(capture.feed_context),
         ownership=capture.ownership.value,
         idempotency_key=idempotency_key,
         created_at=capture.created_at,
@@ -151,9 +156,11 @@ def _capture_from_record(record: CaptureRecord) -> Capture:
             kind=CaptureSourceKind(record.source_kind),
             object_key=record.object_key,
             sha256=record.sha256,
+            origin_ref=record.origin_ref,
         ),
         ownership=OwnershipState(record.ownership),
         created_at=record.created_at,
+        feed_context=_feed_context_from_json(record.source_metadata),
     )
 
 
@@ -167,4 +174,59 @@ def _job_from_record(record: ProcessingJobRecord) -> ProcessingJob:
         updated_at=record.updated_at,
         error_code=record.error_code,
         error_message=record.error_message,
+    )
+
+
+def _feed_context_to_json(context: FeedFrameContext | None) -> dict[str, object]:
+    if context is None:
+        return {}
+    return {
+        "feed_context": {
+            "video_ref": context.video_ref,
+            "timestamp_ms": context.timestamp_ms,
+            "frame_width": context.frame_width,
+            "frame_height": context.frame_height,
+            "selections": [
+                {
+                    "selection_key": selection.selection_key,
+                    "polygon": [
+                        {"x": point.x, "y": point.y} for point in selection.polygon
+                    ],
+                }
+                for selection in context.selections
+            ],
+        }
+    }
+
+
+def _feed_context_from_json(payload: dict[str, object]) -> FeedFrameContext | None:
+    raw_context = payload.get("feed_context")
+    if not isinstance(raw_context, dict):
+        return None
+    raw_selections = raw_context["selections"]
+    if not isinstance(raw_selections, list):
+        raise ValueError("stored Feed selections must be a list")
+    selections: list[FeedSelection] = []
+    for raw_selection in raw_selections:
+        if not isinstance(raw_selection, dict):
+            raise ValueError("stored Feed selection must be an object")
+        raw_polygon = raw_selection["polygon"]
+        if not isinstance(raw_polygon, list):
+            raise ValueError("stored Feed selection polygon must be a list")
+        selections.append(
+            FeedSelection(
+                selection_key=str(raw_selection["selection_key"]),
+                polygon=tuple(
+                    NormalizedPoint(x=float(point["x"]), y=float(point["y"]))
+                    for point in raw_polygon
+                    if isinstance(point, dict)
+                ),
+            )
+        )
+    return FeedFrameContext(
+        video_ref=str(raw_context["video_ref"]),
+        timestamp_ms=int(raw_context["timestamp_ms"]),
+        frame_width=int(raw_context["frame_width"]),
+        frame_height=int(raw_context["frame_height"]),
+        selections=tuple(selections),
     )
