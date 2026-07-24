@@ -78,6 +78,7 @@
 10. 用户局部替换不满意的单品。
 11. 系统列出缺失单品并形成“补齐这套”清单。
 12. 用户保存最终 Look；像素封面异步生成。
+13. Demo Feed 提供至少 30 条有来源记录的多样化公开视频/图文样本供自由浏览，并保留固定回归子集。
 
 ### P1 能力
 
@@ -230,7 +231,8 @@
 - Use the user’s lasso as a segmentation prompt, not as the final mask.
 - Use SAM2 for image/video mask refinement and short temporal context.
 - Use Grounded-SAM2 integration patterns for open-vocabulary garment candidates inside a full Look.
-- Use a configurable Chinese multimodal provider through an OpenAI-compatible interface; keep Qwen3-VL as an open/self-hosted alternative.
+- Use LiteLLM as the server-side model gateway. Initial aliases map vision understanding to `doubao-seed-2-0-lite-260428`, general reasoning to the configured Ark endpoint, and image generation to `doubao-seedream-5-0-260128`; concrete names remain inside infrastructure configuration.
+- Keep Qwen3-VL as an open/self-hosted vision alternative behind the same capability contract.
 - Normalize VLM output through a stable taxonomy and schema validation.
 - Use Shopify Product Taxonomy as a base vocabulary, extended with fashion-specific functional categories and Chinese display labels.
 - Use FashionSigLIP for apparel image/text embeddings.
@@ -248,6 +250,9 @@
 - Use S3-compatible object storage, mapping to Tencent COS for the current domestic deployment.
 - Exchange object keys between services rather than large Base64 payloads.
 - Use idempotency keys for user mutations.
+- Enforce feature-local `domain/application/infrastructure/interface` boundaries; domain and application code must not import LiteLLM, FastAPI, SQLAlchemy, Celery, React, or provider payload types.
+- Keep HTTP handlers, workers, UI and Skill entry points thin and route all business behavior through typed application use cases.
+- Add static dependency checks and reject generic dumping grounds such as unowned `utils`, `helpers`, `common`, or `manager` modules.
 
 ### API product surface
 
@@ -292,6 +297,8 @@
 
 - Server provisioning is explicitly deferred until the product slices are implemented and the actual model set has been measured. Issues 1–5 must continue without a rented GPU server.
 - The development Compose profile runs H5, API, PostgreSQL/pgvector, Redis/Celery and normal workers locally. Optional AI providers use real hosted endpoints or lightweight local models through the same contracts; runtime mock/stub output remains prohibited.
+- Keep the portable core in Docker Compose with explicit health checks, named volumes and resource limits. Heavy VLM/try-on providers use optional profiles and must not run on the laptop by default.
+- During long local work, monitor CPU, memory pressure, thermal state, swap, disk and container usage; serialize work or move it to a hosted provider rather than sustaining full-machine load.
 - Deploy H5, API, PostgreSQL/pgvector, Redis/Celery and model containers through one Docker Compose project on one GPU server.
 - Treat one NVIDIA L40S/RTX 6000 Ada/A6000 48 GB GPU, 16 vCPU, 64 GB RAM and 300–500 GB NVMe as the safe upper recommendation only if the selected heavy providers require it. Measure first; a lighter host or hosted inference is acceptable when it passes the same real-provider evidence.
 - Run SAM2/Grounded-SAM2, FashionSigLIP, FastFit and FASHN in separate containers on that host, with GPU concurrency set to one for heavy jobs.
@@ -301,11 +308,14 @@
 - The existing 4 vCPU / 8 GiB CPU host is not part of the required demo topology once the GPU server is rented; it may be retired or retained only as a temporary development/backup host.
 - Reuse existing trace and Playground support before adding another observability platform.
 - Store provider keys only in secret management and never in client code.
+- Inject Volcengine/Ark credentials only into the server-side model gateway; never place them in the repository, Feed fixtures, client bundle, traces or logs.
 - Do not log raw images, face references, Base64 payloads or durable signed URLs.
 
 ### Runtime truthfulness
 
 - Runtime and judging environments must not use mock/stub or prompt-keyed fixtures as business results.
+- Feed seed items may be manually pre-tagged for browsing and regression without API calls, but every annotation must carry `curated_seed` provenance and cannot be reported as live/cached AI evidence.
+- New uploads, camera inputs and uncached Feed selections must invoke the real configured provider when AI processing is enabled; Codex is not part of the runtime inference path.
 - Automated tests may use provider fakes through the real provider interface.
 - Processing, partial, retry and error states must be visible and recoverable.
 - Cached outputs must be produced by a real previous run and traceable.
@@ -385,6 +395,7 @@
 ### Frontend tests
 
 - Run mobile E2E for Feed scrolling, pause, lasso, subject lift, left reject, right save and resume.
+- Save screenshot evidence for every changed initial, interaction, processing, success, failure and recovery state; DOM assertions alone are not visual acceptance.
 - Verify multiple local lassos group correctly after the inactivity window.
 - Verify full-person selection creates a Look-oriented save.
 - Verify save does not wait for AI and does not force navigation.

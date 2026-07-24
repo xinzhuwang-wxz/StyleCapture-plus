@@ -1,6 +1,8 @@
 .DS_Store
 .pnpm-store/
 .superpowers/
+.omx/state/
+.omx/logs/
 
 # Local reference repositories are audited in docs but are not vendored into
 # the product repository. Each project keeps its own Git history under _ref.

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "createdAt": "2026-07-24T18:54:03.586Z",
+  "updatedAt": "2026-07-24T18:54:03.586Z",
+  "briefPath": ".omx/ultragoal/brief.md",
+  "goalsPath": ".omx/ultragoal/goals.json",
+  "ledgerPath": ".omx/ultragoal/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-issue-1",
+      "title": "Issue #1 上传入库纵向链",
+      "objective": "完成 GitHub Issue #1 的全部验收条件，建立可复用的分层骨架、LiteLLM 视觉理解、异步资产入库、StyleCapture 衣橱和真实用户证据。",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-07-24T18:54:03.586Z",
+      "updatedAt": "2026-07-24T18:54:03.586Z"
+    },
+    {
+      "id": "G002-issue-2-feed",
+      "title": "Issue #2 Feed 圈选入库",
+      "objective": "完成 GitHub Issue #2 的全部验收条件，复用 Feed 容器实现多圈选、主体抬升、直接滑动、curated_seed 素材库与真实后台链路。",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-07-24T18:54:03.586Z",
+      "updatedAt": "2026-07-24T18:54:03.586Z"
+    },
+    {
+      "id": "G003-issue-3-look",
+      "title": "Issue #3 整套 Look 拆解",
+      "objective": "完成 GitHub Issue #3 的全部验收条件，把整套注册为 Look、可靠拆解 Items、保存搭配关系并保持来源可追溯。",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-07-24T18:54:03.586Z",
+      "updatedAt": "2026-07-24T18:54:03.586Z"
+    },
+    {
+      "id": "G004-issue-4",
+      "title": "Issue #4 搭配与补齐",
+      "objective": "完成 GitHub Issue #4 的全部验收条件，通过共享 Outfit Planning API 生成、替换、保存和补齐购买方案。",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-07-24T18:54:03.586Z",
+      "updatedAt": "2026-07-24T18:54:03.586Z"
+    },
+    {
+      "id": "G005-issue-5",
+      "title": "Issue #5 渲染与像素封面",
+      "objective": "完成 GitHub Issue #5 的全部验收条件，交付真实拼贴、诚实降级的试穿和可回到真实 Look 的 StyleCapture 像素封面。",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-07-24T18:54:03.586Z",
+      "updatedAt": "2026-07-24T18:54:03.586Z"
+    },
+    {
+      "id": "G006-issue-6",
+      "title": "Issue #6 部署与终验",
+      "objective": "完成 GitHub Issue #6 的全部验收条件，按测量结果部署可评审产品并通过真实移动端、截图、架构、安全、隐私和许可证终验。",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-07-24T18:54:03.586Z",
+      "updatedAt": "2026-07-24T18:54:03.586Z"
+    }
+  ],
+  "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail."
+}

@@ -46,7 +46,8 @@ flowchart LR
     subgraph Vision["视觉理解 Worker"]
         FFmpeg["FFmpeg 抽帧"]
         SAM["SAM2 / Grounded-SAM2"]
-        VLM["方舟多模态模型 / Qwen3-VL 备选"]
+        Gateway["LiteLLM Gateway"]
+        VLM["豆包视觉理解 / Qwen3-VL 备选"]
         Embed["FashionSigLIP"]
         Taxonomy["Shopify taxonomy + 服装扩展"]
     end
@@ -71,6 +72,7 @@ flowchart LR
     Core --> Object
     Redis --> Vision
     Redis --> GPU
+    Gateway --> VLM
     Vision --> PG
     Vision --> Object
     GPU --> Object
@@ -304,6 +306,30 @@ sequenceDiagram
 - 复用 `wardrowbe` 的 SQLAlchemy 模型、迁移、AI provider 和异步任务生命周期，但统一接入 Celery 并转换成当前领域语言。
 - 不拆用户服务、衣橱服务、推荐服务等多套独立微服务。
 
+### 9.1.1 代码边界
+
+代码按业务能力纵向组织，每个能力内部保持四层依赖方向：
+
+```text
+interface -> application -> domain
+infrastructure -> application/domain ports
+```
+
+- `domain`：实体、值对象、不变量、策略和领域事件；保持纯净，不依赖 FastAPI、SQLAlchemy、Celery、LiteLLM、React 或云厂商 SDK。
+- `application`：用例、事务边界、端口和结果类型；负责编排，不包含 provider DTO。
+- `infrastructure`：数据库、队列、对象存储、LiteLLM、SAM2、embedding、商品与渲染适配器。
+- `interface`：HTTP/SSE、Worker 消费入口、Skill/Agent 入口和 UI feature；只做验证、映射、调用用例和呈现。
+
+前后端从同一 OpenAPI 合同生成类型；领域规则不能复制到路由、Worker 或页面。禁止把业务逻辑堆进 `utils/helpers/common/manager`，禁止 provider 类型穿透 Product API，禁止为了未来可能出现的第二实现提前建设抽象。以静态架构测试、循环依赖检查、文件复杂度和公开 API 文档作为合并门禁。
+
+### 9.1.2 模型网关
+
+- 统一通过 LiteLLM 适配器访问语言、视觉和生图能力，应用层只使用 `reasoning`、`vision_understanding`、`image_generation` 等能力别名。
+- 初始配置为：`reasoning -> ${ARK_REASONING_ENDPOINT_ID}`，`vision_understanding -> doubao-seed-2-0-lite-260428`，`image_generation -> doubao-seedream-5-0-260128`。具体方舟端点 ID 与 API key 同样只从服务端环境注入。
+- 具体模型 ID、base URL、鉴权、重试、超时和响应归一化只存在于基础设施层；图片生成若需要 provider 专用传输，由同一适配器合同吸收差异。
+- `VOLCENGINE_API_KEY` 等密钥只从服务端环境或 secret manager 注入。
+- 上线能力必须保存真实调用的 provider/model/schema/latency/trace；密钥和完整敏感媒体不得进入 trace。
+
 ### 9.2 主要接口
 
 - `POST /v1/captures`：提交 Feed/上传/拍照输入，立即返回资产占位与 job。
@@ -372,6 +398,8 @@ Product API 必须满足：
 
 - 服务器采购和正式部署推迟到产品切片开发完成、真实模型组合与显存峰值有测量结果之后。
 - Issue 1–5 的开发不得以“没有 GPU 服务器”为阻塞理由。开发环境先运行 H5、FastAPI、PostgreSQL/pgvector、Redis/Celery 和普通 Worker。
+- Docker Compose 划分 `core`、`ai-light` 和 `ai-heavy` profiles；默认笔记本只运行带健康检查、持久卷和资源限制的 core，CUDA 与重模型镜像不进入默认 profile。
+- 长时构建、E2E 或媒体任务每五分钟检查 CPU、内存压力、温控、swap、磁盘和容器资源；触发 `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md` 时立即降并发或停止昂贵任务。
 - 视觉理解、分割、试穿和像素生成统一通过 provider contract 调用；开发期优先选择真实托管 API、Apple Silicon/CPU 可运行的轻量模型或已有 StyleCapture provider。
 - runtime 仍禁止 mock、stub 和固定结果。某个重 provider 暂时不可运行时，必须使用真实轻量 provider、真实托管 provider，或明确降级为真实单品拼贴，而不是伪造 AI 产物。
 - FastFit/FASHN 的适配器、合同测试和容器配置可以先完成；自托管重模型的 live smoke 放到最终部署 Issue，不阻塞前端、领域、API、任务编排和完整交互开发。
@@ -399,12 +427,14 @@ Product API 必须满足：
 - 首个真实试点仍可沿用单机 GPU 架构；只有监控数据证明数据库、API 或 GPU 互相争抢资源时才拆分。
 - 数据增长后优先把 PostgreSQL 迁移到托管服务，计算层仍保持同一领域 API。
 - 媒体层保持 S3-compatible 适配器，当前部署使用 COS，避免上层领域 API 绑定某个厂商。
-- 多模态理解默认通过可配置中文 VLM API，紧急情况下可在 48 GB 主机运行紧凑型本地 VLM。
+- 多模态理解默认由 LiteLLM 路由到豆包视觉模型，紧急情况下可在 48 GB 主机把相同别名切换到紧凑型本地 VLM。
 - GPU 镜像保持平台无关，未来可以原样迁移到其他国内 GPU 资源。
 
 ## 12. 真实链路与降级规则
 
 - 运行时禁止 mock、stub、prompt-keyed 假结果。
+- Demo Feed 的基础标签由开发阶段人工策展时，必须记录为 `curated_seed`、保存来源和复核信息，且不得作为实时或缓存 AI 调用证据。
+- 用户上传、拍照和未命中真实缓存的 Feed 圈选必须走实际启用的模型能力；Codex 不参与运行时推理。
 - 自动化测试允许 fake provider，但必须通过同一接口合同。
 - AI 不可用时展示 processing/error/retry，不能伪造标签或试穿图。
 - 分割失败时保留用户粗选区和 Capture，允许后台重试或衣橱内补充确认。
@@ -457,7 +487,10 @@ Product API 必须满足：
 | 视频帧与上下文 | FFmpeg；PySceneDetect 按需 |
 | 圈选分割 | SAM2 |
 | 整套拆件候选 | Grounded-SAM2 |
-| 中文细粒度理解 | 方舟可配置视觉模型；Qwen3-VL 备选 |
+| 模型网关 | LiteLLM，业务仅依赖能力别名 |
+| 中文细粒度理解 | `doubao-seed-2-0-lite-260428`；Qwen3-VL 备选 |
+| 通用推理 | 环境注入的方舟端点 `ARK_REASONING_ENDPOINT_ID` |
+| 生图 | `doubao-seedream-5-0-260128`，通过统一适配器合同 |
 | 分类与属性词表 | Shopify Product Taxonomy + 本项目服装扩展 |
 | 服装相似检索 | Marqo FashionSigLIP + pgvector |
 | 搭配推荐 | SQL/向量召回 + 硬约束规则 + LLM/VLM 重排 |
@@ -466,5 +499,5 @@ Product API 必须满足：
 | 像素封面 | StyleCapture pixel provider router |
 | 异步任务 | Redis + Celery |
 | 开发/部署 | 本地或真实轻量/托管 provider 先开发；测量后再决定是否使用单台 48 GB GPU 主机 |
-| 国内对象存储/模型 | 腾讯 COS + 可配置中文 VLM API |
+| 国内对象存储/模型 | 腾讯 COS + LiteLLM 路由的豆包/方舟能力 |
 | 3D | 不进入当前范围 |
