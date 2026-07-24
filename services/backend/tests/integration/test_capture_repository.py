@@ -1,3 +1,4 @@
+import asyncio
 import os
 from uuid import uuid4
 
@@ -47,9 +48,36 @@ async def test_repository_round_trips_submission_idempotency_and_job_state() -> 
 
     saved = await repository.save_submission(capture, job, "repo-idempotency-001")
     found = await repository.find_by_idempotency(user_id, "repo-idempotency-001")
+    found_capture = await repository.get_capture(capture.id)
+    found_job = await repository.get_job(job.id)
     processing = saved.job.transition(JobState.PROCESSING)
     await repository.update(processing)
     stored_job = await repository.get_for_user(job.id, user_id)
 
     assert found == saved
+    assert found_capture == capture
+    assert found_job == job
     assert stored_job == processing
+
+
+def test_worker_session_factory_is_safe_across_sequential_event_loops() -> None:
+    asyncio.run(run_migrations(TEST_DATABASE_URL))
+    sessions = build_session_factory(TEST_DATABASE_URL, pooled=False)
+    repository = SqlAlchemyCaptureRepository(sessions)
+    capture = Capture.create(
+        user_id=uuid4(),
+        source=CaptureSource(
+            kind=CaptureSourceKind.CAMERA,
+            object_key=f"originals/worker-loops/{uuid4()}.png",
+            sha256="a" * 64,
+        ),
+        ownership=OwnershipState.OWNED,
+    )
+    job = ProcessingJob.queued(capture_id=capture.id)
+
+    asyncio.run(repository.save_submission(capture, job, f"worker-loop-{uuid4()}"))
+    first = asyncio.run(repository.get_capture(capture.id))
+    second = asyncio.run(repository.get_capture(capture.id))
+
+    assert first == capture
+    assert second == capture

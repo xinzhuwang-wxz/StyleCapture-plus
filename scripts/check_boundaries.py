@@ -39,7 +39,7 @@ def imported_roots(tree: ast.AST) -> Iterable[str]:
 def policy_for(path: Path) -> frozenset[str] | None:
     if path.name == "domain.py" or "domain" in path.parts:
         return FORBIDDEN_DOMAIN_IMPORTS
-    if path.name in {"application.py", "ports.py"} or "application" in path.parts:
+    if path.name in {"application.py", "ports.py", "processing.py"} or "application" in path.parts:
         return FORBIDDEN_APPLICATION_IMPORTS
     return None
 

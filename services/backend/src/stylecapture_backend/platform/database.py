@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -28,21 +29,29 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-def build_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
-    return create_async_engine(
-        database_url,
-        echo=echo,
-        pool_pre_ping=True,
-    )
+def build_engine(
+    database_url: str,
+    *,
+    echo: bool = False,
+    pooled: bool = True,
+) -> AsyncEngine:
+    engine_options: dict[str, object] = {
+        "echo": echo,
+        "pool_pre_ping": True,
+    }
+    if not pooled:
+        engine_options["poolclass"] = NullPool
+    return create_async_engine(database_url, **engine_options)
 
 
 def build_session_factory(
     database_url: str,
     *,
     echo: bool = False,
+    pooled: bool = True,
 ) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(
-        build_engine(database_url, echo=echo),
+        build_engine(database_url, echo=echo, pooled=pooled),
         expire_on_commit=False,
     )
 

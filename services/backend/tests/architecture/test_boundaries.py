@@ -26,6 +26,17 @@ def test_domain_rejects_framework_and_provider_imports(tmp_path: Path) -> None:
     assert "features/capture/domain.py imports forbidden module fastapi" in result.stdout
 
 
+def test_processing_application_rejects_direct_provider_imports(tmp_path: Path) -> None:
+    processing_file = tmp_path / "features" / "capture" / "processing.py"
+    processing_file.parent.mkdir(parents=True)
+    processing_file.write_text("from litellm import acompletion\n", encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert "features/capture/processing.py imports forbidden module litellm" in result.stdout
+
+
 def test_current_backend_respects_architecture_boundaries() -> None:
     result = run_checker(REPOSITORY_ROOT / "services" / "backend" / "src")
 

@@ -21,8 +21,10 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
     serialized = settings.model_dump_json()
 
     assert "a-real-signing-secret" not in serialized
+    assert "local-litellm-gateway-key" not in serialized
     assert settings.upload_signing_secret.get_secret_value().startswith("a-real")
     assert settings.vision_model_alias == "vision-understanding"
+    assert settings.embedding_mode == "disabled"
 
 
 def test_production_settings_reject_the_documented_placeholder_secret(

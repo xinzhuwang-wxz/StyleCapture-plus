@@ -6,14 +6,16 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
-    FieldEnvelope,
-    FieldProvenance,
     InvalidJobTransition,
-    ItemAttributes,
     JobState,
-    ModelField,
     OwnershipState,
     ProcessingJob,
+)
+from stylecapture_backend.features.wardrobe.domain import (
+    FieldEnvelope,
+    FieldProvenance,
+    ItemAttributes,
+    ModelField,
 )
 
 

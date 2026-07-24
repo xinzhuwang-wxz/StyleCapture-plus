@@ -20,6 +20,7 @@ from stylecapture_backend.features.capture.ports import (
     StoredObject,
     UploadRequest,
 )
+from stylecapture_backend.features.capture.processing import ImagePayload
 
 register_heif_opener()
 
@@ -174,6 +175,15 @@ class LocalObjectStore:
 
     def read(self, object_key: str) -> bytes:
         return self._object_path(object_key).read_bytes()
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        stored = self.describe(object_key)
+        return ImagePayload(
+            object_key=stored.object_key,
+            content_type=stored.content_type,
+            body=self.read(object_key),
+            sha256=stored.sha256,
+        )
 
     def _decode_token(self, token: str) -> dict[str, Any]:
         try:

@@ -100,6 +100,28 @@
             "title": "Created At",
             "type": "string"
           },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
           "job_id": {
             "format": "uuid",
             "title": "Job Id",
@@ -119,6 +141,8 @@
           "capture_id",
           "state",
           "attempt",
+          "error_code",
+          "error_message",
           "created_at",
           "updated_at"
         ],

@@ -1,0 +1,15 @@
+model_list:
+  - model_name: vision_understanding
+    litellm_params:
+      model: openai/doubao-seed-2-0-lite-260428
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
+litellm_settings:
+  drop_params: true
+  num_retries: 2
+  request_timeout: 45
+  set_verbose: false
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

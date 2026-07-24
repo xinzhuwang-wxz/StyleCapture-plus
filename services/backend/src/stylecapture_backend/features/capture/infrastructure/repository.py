@@ -47,6 +47,11 @@ class SqlAlchemyCaptureRepository:
                 job=_job_from_record(row[1]),
             )
 
+    async def get_capture(self, capture_id: UUID) -> Capture | None:
+        async with self._sessions() as session:
+            record = await session.get(CaptureRecord, capture_id)
+            return _capture_from_record(record) if record is not None else None
+
     async def save_submission(
         self,
         capture: Capture,
@@ -76,6 +81,11 @@ class SqlAlchemyCaptureRepository:
             record = (await session.execute(statement)).scalar_one_or_none()
             return _job_from_record(record) if record is not None else None
 
+    async def get_job(self, job_id: UUID) -> ProcessingJob | None:
+        async with self._sessions() as session:
+            record = await session.get(ProcessingJobRecord, job_id)
+            return _job_from_record(record) if record is not None else None
+
     async def update(self, job: ProcessingJob) -> ProcessingJob:
         async with self._sessions() as session:
             record = await session.get(ProcessingJobRecord, job.id, with_for_update=True)
@@ -83,6 +93,8 @@ class SqlAlchemyCaptureRepository:
                 raise KeyError(job.id)
             record.state = job.state.value
             record.attempt = job.attempt
+            record.error_code = job.error_code
+            record.error_message = job.error_message
             record.updated_at = job.updated_at
             await session.commit()
         return job
@@ -107,6 +119,8 @@ def _job_record(job: ProcessingJob) -> ProcessingJobRecord:
         capture_id=job.capture_id,
         state=job.state.value,
         attempt=job.attempt,
+        error_code=job.error_code,
+        error_message=job.error_message,
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
@@ -134,4 +148,6 @@ def _job_from_record(record: ProcessingJobRecord) -> ProcessingJob:
         attempt=record.attempt,
         created_at=record.created_at,
         updated_at=record.updated_at,
+        error_code=record.error_code,
+        error_message=record.error_message,
     )

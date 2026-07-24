@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
-from types import MappingProxyType
 from uuid import UUID, uuid4
 
 
@@ -25,12 +24,6 @@ class JobState(StrEnum):
     PARTIAL = "partial"
     READY = "ready"
     ERROR = "error"
-
-
-class FieldProvenance(StrEnum):
-    MODEL = "model"
-    USER = "user"
-    CURATED_SEED = "curated_seed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +91,8 @@ class ProcessingJob:
     attempt: int
     created_at: datetime
     updated_at: datetime
+    error_code: str | None = None
+    error_message: str | None = None
 
     @classmethod
     def queued(cls, *, capture_id: UUID) -> ProcessingJob:
@@ -111,63 +106,32 @@ class ProcessingJob:
             updated_at=now,
         )
 
-    def transition(self, target: JobState) -> ProcessingJob:
+    def transition(
+        self,
+        target: JobState,
+        *,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> ProcessingJob:
         if target not in _ALLOWED_JOB_TRANSITIONS[self.state]:
             raise InvalidJobTransition(self.state, target)
+        if target in {JobState.ERROR, JobState.PARTIAL}:
+            if not error_code or not error_message:
+                error_code = error_code or "processing_failed"
+                error_message = error_message or "Processing did not complete"
+        else:
+            error_code = None
+            error_message = None
         attempt = (
             self.attempt + 1
             if self.state is JobState.ERROR and target is JobState.QUEUED
             else self.attempt
         )
-        return replace(self, state=target, attempt=attempt, updated_at=datetime.now(UTC))
-
-
-@dataclass(frozen=True, slots=True)
-class FieldEnvelope:
-    value: object
-    provenance: FieldProvenance
-    confidence: float
-    model_version: str | None
-    locked: bool
-
-    def __post_init__(self) -> None:
-        if not 0 <= self.confidence <= 1:
-            raise ValueError("confidence must be between 0 and 1")
-        if self.provenance is FieldProvenance.USER and not self.locked:
-            raise ValueError("user-provided fields must be locked")
-
-
-@dataclass(frozen=True, slots=True)
-class ModelField:
-    value: object
-    confidence: float
-    model_version: str
-
-    def __post_init__(self) -> None:
-        if not 0 <= self.confidence <= 1:
-            raise ValueError("confidence must be between 0 and 1")
-        if not self.model_version.strip():
-            raise ValueError("model_version must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class ItemAttributes:
-    fields: Mapping[str, FieldEnvelope] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
-
-    def merge_model(self, incoming: Mapping[str, ModelField]) -> ItemAttributes:
-        merged = dict(self.fields)
-        for name, model_field in incoming.items():
-            current = merged.get(name)
-            if current is not None and current.locked:
-                continue
-            merged[name] = FieldEnvelope(
-                value=model_field.value,
-                provenance=FieldProvenance.MODEL,
-                confidence=model_field.confidence,
-                model_version=model_field.model_version,
-                locked=False,
-            )
-        return ItemAttributes(fields=merged)
+        return replace(
+            self,
+            state=target,
+            attempt=attempt,
+            error_code=error_code,
+            error_message=error_message,
+            updated_at=datetime.now(UTC),
+        )

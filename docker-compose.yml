@@ -1,5 +1,13 @@
 name: stylecapture
 
+x-backend-environment: &backend-environment
+  STYLECAPTURE_DATABASE_URL: postgresql+asyncpg://stylecapture:stylecapture@postgres:5432/stylecapture
+  STYLECAPTURE_LITELLM_API_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
+  STYLECAPTURE_LITELLM_BASE_URL: http://litellm:4000/v1
+  STYLECAPTURE_REDIS_URL: redis://redis:6379/0
+  STYLECAPTURE_UPLOAD_ROOT: /data/uploads
+  STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:-local-compose-signing-secret-change-before-production}
+
 services:
   api:
     build:
@@ -13,11 +21,8 @@ services:
         uvicorn stylecapture_backend.entrypoint:build_app
         --factory --host 0.0.0.0 --port 8000
     environment:
+      <<: *backend-environment
       STYLECAPTURE_CORS_ORIGINS: '["http://localhost:5173"]'
-      STYLECAPTURE_DATABASE_URL: postgresql+asyncpg://stylecapture:stylecapture@postgres:5432/stylecapture
-      STYLECAPTURE_REDIS_URL: redis://redis:6379/0
-      STYLECAPTURE_UPLOAD_ROOT: /data/uploads
-      STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:-local-compose-signing-secret-change-before-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,6 +36,41 @@ services:
       resources:
         limits:
           cpus: "1.0"
+          memory: 768M
+
+  litellm:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    command:
+      - litellm
+      - --config
+      - /app/config/litellm.yaml
+      - --host
+      - 0.0.0.0
+      - --port
+      - "4000"
+    environment:
+      ARK_API_KEY: ${ARK_API_KEY:-}
+      ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "4000:4000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
           memory: 768M
 
   postgres:
@@ -72,7 +112,76 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  worker:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    command:
+      - celery
+      - -A
+      - stylecapture_backend.worker:celery
+      - worker
+      - --loglevel=INFO
+      - --concurrency=1
+      - --queues=capture
+      - --without-gossip
+      - --without-mingle
+    environment:
+      <<: *backend-environment
+      STYLECAPTURE_EMBEDDING_MODE: disabled
+    depends_on:
+      litellm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - stylecapture-uploads:/data/uploads
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  worker-ai-light:
+    profiles: ["ai-light"]
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      args:
+        INSTALL_AI_LIGHT: "true"
+    command:
+      - celery
+      - -A
+      - stylecapture_backend.worker:celery
+      - worker
+      - --loglevel=INFO
+      - --concurrency=1
+      - --queues=capture
+      - --without-gossip
+      - --without-mingle
+    environment:
+      <<: *backend-environment
+      STYLECAPTURE_EMBEDDING_MODE: fashion_siglip
+    depends_on:
+      litellm:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - stylecapture-uploads:/data/uploads
+      - stylecapture-model-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
 volumes:
+  stylecapture-model-cache:
   stylecapture-postgres:
   stylecapture-redis:
   stylecapture-uploads:

@@ -35,7 +35,7 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - [x] (2026-07-25 03:08 CST) Selected `issue/1-upload-ingest`; confirmed only hourly-heartbeat documentation edits pre-existed on the branch.
 - [x] (2026-07-25 03:19 CST) Established the monorepo skeleton, dependency locks, architecture boundary checks, and green baseline in `a641916`.
 - [x] (2026-07-25 03:42 CST) Implemented and locally verified signed upload, HEIC validation, idempotent `Capture` persistence, broker redrive, generated OpenAPI contracts, and durable PostgreSQL job state in `2986791`.
-- [ ] Implement Celery processing through vision and embedding ports, guarded model updates, retry, and partial/error recovery.
+- [x] (2026-07-25 04:08 CST) Implemented Celery processing through LiteLLM and FashionSigLIP ports, guarded model updates, bounded retry, and explicit partial/error recovery; a real HEIC failure-path smoke completed three broker retries without synthetic output.
 - [ ] Implement StyleCapture mobile capture and wardrobe UI using only the generated client.
 - [ ] Run contract, domain, worker, Compose, real-provider, mobile, visual, security, and architecture verification.
 - [ ] Update this plan’s outcomes, GitHub Issue/PR evidence, and merge before entering Issue #2.
@@ -49,6 +49,8 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - TypeScript project builds generate `*.tsbuildinfo` even with `noEmit`; it is now explicitly ignored after the first build exposed the artifact.
 - A production-wired API smoke accepted the real `/Users/bamboo/Downloads/IMG_2310.HEIC`, persisted its immutable source and queued job, and placed one JSON task on Redis without requiring an AI worker or GPU.
 - Pulling the Redis container image was unreliable on the current network, so the same broker contract was validated against the locally installed Redis binary. Redis remains in Compose and is not a development blocker.
+- A real Celery retry exposed that a process-global asyncpg pool cannot be reused across the fresh event loop created by each synchronous Celery task. Worker sessions now use SQLAlchemy `NullPool`, while the long-lived FastAPI process keeps normal pooling; a regression test runs the same worker session factory across sequential event loops.
+- With the LiteLLM gateway intentionally unavailable, the real HEIC workflow attempted the capability three times, ended with stable `vision_unavailable` state, left the Item without tags/metadata/embedding, and drained the Redis queue. This is the required no-fallback failure behavior, not a substitute for the pending credentialed provider smoke.
 
 ## Decision Log
 
@@ -225,13 +227,13 @@ The vision result schema includes category, subcategory, colors, material, patte
 
 **TDD cycle:**
 
-- [ ] Write tests using fakes only through `VisionTagger` and `ImageEmbedder` ports.
-- [ ] Verify red for success, vision retry, embedding-only failure → `partial`, final provider failure → `error`, user lock preservation, and retry from retained Capture.
-- [ ] Implement processing application logic and guarded field merge.
-- [ ] Implement Celery dispatch/retry and terminal event emission.
-- [ ] Implement LiteLLM adapter using the `vision-understanding` capability alias and structured response validation.
-- [ ] Implement lazy FashionSigLIP adapter using `Marqo/marqo-fashionSigLIP`; no model loads during import or `core` profile startup.
-- [ ] Run worker and contract tests.
+- [x] Write tests using fakes only through `VisionTagger` and `ImageEmbedder` ports.
+- [x] Verify red for success, vision retry, embedding-only failure → `partial`, final provider failure → `error`, user lock preservation, and retry from retained Capture.
+- [x] Implement processing application logic and guarded field merge.
+- [x] Implement Celery dispatch/retry and terminal event emission.
+- [x] Implement LiteLLM adapter using the `vision-understanding` capability alias and structured response validation.
+- [x] Implement lazy FashionSigLIP adapter using pinned `Marqo/marqo-fashionSigLIP`; no model loads during import or `core` profile startup.
+- [x] Run worker and contract tests, including a real broker/API/HEIC failure-path smoke.
 - [ ] If provider credentials exist, run the opt-in real-provider smoke with `/Users/bamboo/Downloads/IMG_2310.HEIC`; record model IDs, latency, output schema, and trace without secret values.
 - [ ] Run the FashionSigLIP smoke only if resource guardrails remain green; otherwise run it in the `ai-light` container with limited CPU/memory.
 - [ ] Commit with Lore trailers and update `Progress`.

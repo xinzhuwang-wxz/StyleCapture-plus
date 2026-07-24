@@ -1,0 +1,9 @@
+.git
+.omx
+.superpowers
+.venv
+_ref
+apps/h5/dist
+apps/h5/node_modules
+node_modules
+test-results

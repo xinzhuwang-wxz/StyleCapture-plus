@@ -20,6 +20,8 @@ dependencies = [
 
 [project.optional-dependencies]
 ai-light = [
+    "ftfy>=6.3,<7",
+    "open-clip-torch>=2.30,<3",
     "safetensors>=0.5,<1",
     "torch>=2.6,<3",
     "transformers>=4.48,<5",
@@ -31,4 +33,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/stylecapture_backend"]
-
