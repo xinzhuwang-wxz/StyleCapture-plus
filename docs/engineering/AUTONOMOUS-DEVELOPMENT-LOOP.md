@@ -36,15 +36,20 @@ The controller repeatedly:
 1. Reads the aggregate Goal, GitHub dependency graph, current Issue, ExecPlan, relevant ADRs, and latest merged evidence.
 2. Selects the first unblocked Issue.
 3. Creates an Issue branch and records the starting baseline.
-4. Executes vertical tracer bullets using public-interface tests.
-5. Exercises real provider boundaries without requiring a rented GPU server.
-6. Checks local CPU, memory pressure, thermal state, disk and Docker usage before and during expensive work; reduces concurrency instead of sustaining full-machine load.
-7. Runs automated checks and then operates the H5 as a real user.
-8. Captures mobile screenshots and interaction recordings for Feed, wardrobe, processing, failure, and recovery states.
-9. Runs independent spec, code/security, architecture, and UX/visual review.
-10. Fixes blocking findings in the same Issue, performs bounded cleanup, and repeats all affected checks.
-11. Updates the Issue, ExecPlan, ADRs, and PR evidence; merges only when clean.
-12. Immediately starts the next unblocked Issue.
+4. Before implementation, records the reuse audit in the living ExecPlan: capability,
+   inspected local/`_ref`/open-source/API candidates, reuse or rejection decision,
+   reason, source commit and license.
+5. Executes vertical tracer bullets using public-interface tests.
+6. Exercises real provider boundaries without requiring a rented GPU server.
+7. Checks local CPU, memory pressure, thermal state, disk and Docker usage before and during expensive work; reduces concurrency instead of sustaining full-machine load.
+8. Runs automated checks and then operates the H5 as a real user.
+9. Captures mobile screenshots and interaction recordings for Feed, wardrobe, processing, failure, and recovery states.
+10. Runs independent spec, reuse, code/security, architecture, and UX/visual review.
+11. Treats an omitted reuse audit, duplicated cross-layer contract/algorithm, or
+    unjustified hand-built replacement for a mature capability as a P1 merge blocker;
+    fixes it in the same Issue and repeats all affected checks.
+12. Updates the Issue, ExecPlan, ADRs, and PR evidence; merges only when clean.
+13. Immediately starts the next unblocked Issue.
 
 ## Hourly heartbeat
 
@@ -58,6 +63,9 @@ It checks:
 - curated Feed annotations being misrepresented as runtime AI, or new user inputs bypassing the LiteLLM provider boundary;
 - frontend/backend/schema/task-state drift;
 - dependency-direction violations, provider leakage, oversized or shallow modules, duplication, generic dumping grounds, and abstractions without a real boundary;
+- missing reuse audit; existing repository/`_ref`/open-source/API capability being
+  reimplemented; copied code without source commit/license; whole reference repositories
+  leaking into product code; unused large dependencies added under the name of reuse;
 - browser-visible UX problems at mobile viewports;
 - whether a discovery requires an Issue amendment, a new bounded Issue, or an ADR;
 - whether lack of GPU/server access is being incorrectly treated as a blocker.
@@ -74,9 +82,13 @@ Run after every Issue and whenever a public contract, domain invariant, or major
 3. `$visual-verdict`: compare approved Feed and StyleCapture references; target score ≥ 90 at recorded mobile viewports.
 4. `$code-review`: independent spec/security/quality review plus architecture devil’s-advocate lane.
 5. `$improve-codebase-architecture`: use only when real friction exists; apply the deletion test and respect ADRs.
-6. Bounded `ai-slop-cleaner` on changed files, followed by the full affected verification set again.
+6. Reuse gate: verify the ExecPlan/PR mapping, inspect the cited source and license,
+   compare the diff with existing implementations, and reject unjustified parallel
+   contracts or algorithms.
+7. Bounded `ai-slop-cleaner` on changed files, followed by the full affected verification set again.
 
-`APPROVE + CLEAR`, no P0/P1 defect, and fresh visual/user evidence are required before merge.
+`APPROVE + CLEAR`, a complete reuse audit, no P0/P1 defect, and fresh visual/user
+evidence are required before merge.
 
 ## ADR and Issue steering
 

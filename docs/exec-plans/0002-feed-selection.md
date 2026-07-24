@@ -140,6 +140,18 @@ Rejected reuse:
 - The old global `VideoScreen.tsx` state bag must be decomposed into Feed selection
   state, viewport mapping, and presentation components before extension.
 
+### Reuse audit
+
+| Capability | Candidates inspected | Decision | Reason | Source / license |
+| --- | --- | --- | --- | --- |
+| Capture/job/idempotency | Issue #1 capture module; `wardrowbe` | Adapt existing capture module | It already owns signed upload, session scope, durable jobs, retry, provider ports, and tests; Feed adds typed source metadata only | This repo baseline `a8c7f31`; `wardrowbe@c63ced9`, MIT |
+| Feed browsing and viewport math | `_ref/video-branch-main` Feed/VideoScreen | Adapt selected functions and behavior | Scroll snap, active playback, letterbox coordinate conversion, canvas frame capture, and lasso are proven; branch-response UI/data model conflicts with this product | Internal user-owned snapshot dated 2026-07-23; no external license file |
+| Wardrobe visual identity | `_ref/StyleCapture-main` | Adapt CSS/assets/page semantics | Preserves the approved purple-pixel identity without importing the global script/state architecture | Internal user-owned snapshot dated 2026-05-24; no external license file |
+| API contracts | Handwritten duplicate TypeScript types; OpenAPI generator | Reuse generated OpenAPI client types | One backend contract source prevents H5 drift | `openapi-typescript@7.13.0`, MIT |
+| Frame extraction | Browser seek logic; custom decoder; FFmpeg | Reuse FFmpeg | Mature timestamp-aware decoding avoids a custom media stack | Local FFmpeg 8.0.1; LGPL/GPL build terms retained with deployment |
+| Still-frame segmentation | Coarse polygon; MobileSAM; SAM2.1; Grounded-SAM2 | Coarse polygon truth + adapted MobileSAM default; heavier candidates quality-only | Keeps core CPU-compatible and preserves save intent when inference fails | `MobileSAM@f706ad9`, Apache-2.0; `sam2@2b90b9f`, Apache-2.0; `Grounded-SAM-2@b7a9c29`, Apache-2.0 |
+| Gesture animation | Handwritten animation engine; Motion; SVG/Canvas | Reuse Motion and browser primitives | Existing dependency supplies drag/spring behavior; Canvas/SVG supplies exact lasso visuals without a 3D engine | `motion@12.23.24`, MIT; browser standards |
+
 ## Plan of Work
 
 ### Milestone 1: Durable Feed selection tracer

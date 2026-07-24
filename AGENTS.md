@@ -72,7 +72,25 @@ Record evidence in the living ExecPlan under `Surprises & Discoveries` and decis
 
 ## Reuse before invention
 
-Audit `_ref/README.md` and the referenced source before adding new foundations. Reuse or adapt proven code, assets, schemas, tests, and provider contracts when licenses and product constraints permit. Do not import reference repositories wholesale or preserve their internal architecture when a smaller compatible extraction is sufficient.
+Audit the current repository, `_ref/README.md`, referenced source, selected open-source
+projects, mature packages, and available hosted APIs before adding a new foundation,
+algorithm, contract, component system, or provider implementation.
+
+Every Issue ExecPlan and PR must contain a compact reuse audit:
+
+`capability -> candidates inspected -> direct reuse / adapted reuse / rejected -> reason -> source commit and license`
+
+Missing this audit before a new implementation, duplicating an existing frontend,
+backend, Worker, or provider capability, or manually maintaining a contract that can be
+generated is a P1 merge blocker. Fix it in the current Issue; do not defer it.
+
+Prefer deletion and direct reuse first, then a thin feature-local adapter around a
+mature capability. Write a new implementation only when license incompatibility,
+contract semantics, security, measured quality, or measured performance makes reuse
+unsuitable, and record that evidence in the ExecPlan. Preserve source URL, exact commit,
+license, local modifications, and upstream tests for copied code. Do not import
+reference repositories wholesale, copy unused subsystems, or add a large dependency
+merely to claim reuse.
 
 ## Laptop resource safety and portability
 
