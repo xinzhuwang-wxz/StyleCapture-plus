@@ -2,11 +2,8 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
-from stylecapture_backend.features.capture.infrastructure.tasks import (
-    CAPTURE_TASK_NAME,
-    CeleryJobDispatcher,
-)
-from stylecapture_backend.features.capture.ports import JobDispatchError
+from stylecapture_backend.features.capture.infrastructure.tasks import CeleryJobDispatcher
+from stylecapture_backend.features.capture.ports import CAPTURE_TASK_NAME, JobDispatchError
 from stylecapture_backend.platform.celery import build_celery
 
 
@@ -14,7 +11,7 @@ def test_dispatcher_sends_a_json_task_with_a_stable_job_identity() -> None:
     sender = Mock()
     capture_id = uuid4()
     job_id = uuid4()
-    dispatcher = CeleryJobDispatcher(sender)
+    dispatcher = CeleryJobDispatcher(sender, queue="capture-ready")
 
     dispatcher.enqueue_capture(capture_id, job_id)
 
@@ -22,7 +19,7 @@ def test_dispatcher_sends_a_json_task_with_a_stable_job_identity() -> None:
         CAPTURE_TASK_NAME,
         kwargs={"capture_id": str(capture_id), "job_id": str(job_id)},
         task_id=str(job_id),
-        queue="capture",
+        queue="capture-ready",
     )
 
 

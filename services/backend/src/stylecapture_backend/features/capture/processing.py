@@ -6,26 +6,17 @@ from math import isclose, sqrt
 from typing import Protocol
 from uuid import UUID
 
-from stylecapture_backend.features.capture.domain import Capture, JobState, ProcessingJob
+from stylecapture_backend.features.capture.domain import (
+    Capture,
+    ImagePayload,
+    JobState,
+    ProcessingJob,
+)
 from stylecapture_backend.features.wardrobe.domain import (
     ItemStatus,
     ModelField,
     WardrobeItem,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ImagePayload:
-    object_key: str
-    content_type: str
-    body: bytes
-    sha256: str
-
-    def __post_init__(self) -> None:
-        if not self.body:
-            raise ValueError("image body must not be empty")
-        if not self.content_type.startswith("image/"):
-            raise ValueError("content_type must describe an image")
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,7 +170,23 @@ class CaptureProcessor:
             item = await self._wardrobe.save(WardrobeItem.processing(capture))
         else:
             item = await self._wardrobe.save(item.with_status(ItemStatus.PROCESSING))
-        image = self._objects.read_image(capture.source.object_key)
+        try:
+            image = self._objects.read_image(capture.source.object_key)
+        except (FileNotFoundError, KeyError):
+            error = ProviderError(
+                "source_unavailable",
+                "The original image is no longer available",
+                retryable=False,
+            )
+            await self._wardrobe.save(item.with_status(ItemStatus.ERROR))
+            await self._jobs.update(
+                job.transition(
+                    JobState.ERROR,
+                    error_code=error.code,
+                    error_message=error.message,
+                )
+            )
+            return ProcessingOutcome.error(error)
 
         try:
             analysis = await self._vision.describe(image)

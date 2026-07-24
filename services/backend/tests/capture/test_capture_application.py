@@ -75,6 +75,7 @@ class StoredObjectLookup:
 async def test_submit_creates_capture_and_dispatches_one_durable_job() -> None:
     user_id = uuid4()
     stored = StoredObject(
+        owner_id=user_id,
         object_key="originals/u/garment.png",
         content_type="image/png",
         byte_size=123,
@@ -111,6 +112,7 @@ async def test_submit_creates_capture_and_dispatches_one_durable_job() -> None:
 async def test_repeated_idempotency_key_returns_original_and_redrives_the_job() -> None:
     user_id = uuid4()
     stored = StoredObject(
+        owner_id=user_id,
         object_key="originals/u/inspiration.webp",
         content_type="image/webp",
         byte_size=456,
@@ -148,6 +150,7 @@ async def test_repeated_idempotency_key_returns_original_and_redrives_the_job() 
 async def test_broker_failure_retains_the_capture_for_idempotent_redrive() -> None:
     user_id = uuid4()
     stored = StoredObject(
+        owner_id=user_id,
         object_key="originals/u/retry.png",
         content_type="image/png",
         byte_size=123,
@@ -181,3 +184,36 @@ async def test_broker_failure_retains_the_capture_for_idempotent_redrive() -> No
         (recovered.capture.id, recovered.job.id),
         (recovered.capture.id, recovered.job.id),
     ]
+
+
+@pytest.mark.asyncio
+async def test_submit_cannot_claim_another_sessions_prepared_upload() -> None:
+    owner_id = uuid4()
+    stored = StoredObject(
+        owner_id=owner_id,
+        object_key="originals/u/private.png",
+        content_type="image/png",
+        byte_size=123,
+        sha256="f" * 64,
+        width=640,
+        height=960,
+    )
+    application = CaptureApplication(
+        captures=MemoryCaptureRepository(),
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=RecordingDispatcher(),
+    )
+
+    with pytest.raises(CaptureError) as error:
+        await application.submit(
+            SubmitCaptureCommand(
+                user_id=uuid4(),
+                object_key=stored.object_key,
+                sha256=stored.sha256,
+                source_kind=CaptureSourceKind.UPLOAD,
+                ownership=OwnershipState.INSPIRATION,
+                idempotency_key="cross-session-claim",
+            )
+        )
+
+    assert error.value.code == "upload_not_found"

@@ -36,8 +36,14 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - [x] (2026-07-25 03:19 CST) Established the monorepo skeleton, dependency locks, architecture boundary checks, and green baseline in `a641916`.
 - [x] (2026-07-25 03:42 CST) Implemented and locally verified signed upload, HEIC validation, idempotent `Capture` persistence, broker redrive, generated OpenAPI contracts, and durable PostgreSQL job state in `2986791`.
 - [x] (2026-07-25 04:08 CST) Implemented Celery processing through LiteLLM and FashionSigLIP ports, guarded model updates, bounded retry, and explicit partial/error recovery; a real HEIC failure-path smoke completed three broker retries without synthetic output.
-- [ ] Implement StyleCapture mobile capture and wardrobe UI using only the generated client.
-- [ ] Run contract, domain, worker, Compose, real-provider, mobile, visual, security, and architecture verification.
+- [x] (2026-07-25 04:48 CST) Implemented the generated-client mobile capture/wardrobe flow, item edit/retry/source-delete APIs, StyleCapture visual shell, and laptop-safe H5 container.
+- [x] (2026-07-25 04:48 CST) Personally completed the 390×844 real browser path from a real JPEG through PostgreSQL/Redis/Celery to explicit provider failure, retry, user correction, source deletion, reload, and privacy placeholder; visual verdict scored 92.
+- [x] (2026-07-25 05:55 CST) Replaced the browser-trusted UUID with a signed HttpOnly/SameSite session, bound uploads to the server principal, redacted provider IDs, made source deletion a durable tombstone, and strengthened internal architecture checks.
+- [x] (2026-07-25 05:55 CST) Ran the full Compose stack, migrations twice, generated-contract drift check, Python/cURL examples, a 1.7MB HEIC ownership/isolation probe, 57 Python tests, 4 H5 tests, production build, and the real mobile Playwright failure/delete/reload path.
+- [x] (2026-07-25 05:55 CST) Mobile E2E exposed a stale Worker save resurrecting a deleted source; split user-controlled and Worker persistence paths, added row locking/monotonic merge rules, and proved the deleted source and locked user truth survive concurrent Worker updates.
+- [x] (2026-07-25 06:12 CST) Security and architecture review moved upload credentials from URLs to `X-Upload-Token`, eliminated browser trace secret/media capture, bound Compose ports to loopback, upgraded the image parser stack, added pre-parser signature checks, made failed source deletion safely retryable, and reduced duplicate provider retry layers. Fresh verification is 61 Python tests and a 7.8-second real mobile E2E.
+- [x] (2026-07-25 06:25 CST) Bounded upload buffering/parsing to two off-event-loop tasks, made concurrent signed-upload replay atomic and idempotent, added reverse-proxy connection/rate limits, marked all private API responses non-cacheable, hardened every container with read-only filesystems/capability drops and digest-pinned images, cleared Python and pnpm dependency audits, and completed 66 Python tests plus a fresh 7.7-second real mobile E2E.
+- [x] (2026-07-25 06:31 CST) Independent architecture, code, and security gates returned APPROVE + CLEAR with P0/P1/P2 all zero; verifier marked the implementation READY for merge and separated the unavailable credentialed Doubao/FashionSigLIP success smoke as an external acceptance gate.
 - [ ] Update this plan’s outcomes, GitHub Issue/PR evidence, and merge before entering Issue #2.
 
 ## Surprises & Discoveries
@@ -51,14 +57,30 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - Pulling the Redis container image was unreliable on the current network, so the same broker contract was validated against the locally installed Redis binary. Redis remains in Compose and is not a development blocker.
 - A real Celery retry exposed that a process-global asyncpg pool cannot be reused across the fresh event loop created by each synchronous Celery task. Worker sessions now use SQLAlchemy `NullPool`, while the long-lived FastAPI process keeps normal pooling; a regression test runs the same worker session factory across sequential event loops.
 - With the LiteLLM gateway intentionally unavailable, the real HEIC workflow attempted the capability three times, ended with stable `vision_unavailable` state, left the Item without tags/metadata/embedding, and drained the Redis queue. This is the required no-fallback failure behavior, not a substitute for the pending credentialed provider smoke.
+- Real mobile QA found the detail sheet grew beyond its fixed viewport and made the destructive action unreachable. Constraining the sheet to `100dvh` restored scroll and is covered by screenshot evidence rather than being deferred.
+- Native `window.confirm` blocked the in-app WebView automation and produced a less coherent product interaction. Source deletion now uses an accessible in-page two-step confirmation with an explicit “保留原图” escape.
+- The first delete pass exposed a privacy gap: a previously loaded source remained visible from browser cache. Source responses and client fetches now use `no-store`, and the current UI immediately replaces a deleted source with a non-image placeholder while retaining the text asset.
+- Real mobile deletion during an automatic retry exposed a lost-update race: a stale Worker snapshot could restore `source_available=true` and could theoretically overwrite a user correction. Worker saves now preserve current ownership, locked fields, and the monotonic source tombstone; user-controlled saves update only ownership, locked fields, and deletion state under a row lock.
+- A raw Playwright trace captured the authenticated session cookie, the upload credential, and a copy of the test garment. Browser tracing is now disabled for authenticated product tests, the leaked artifact was deleted, and evidence uses explicit screenshots plus application-level redacted traces.
+- Nested LiteLLM/OpenAI retries multiplied each Celery attempt and delayed the visible failure state beyond the mobile acceptance timeout. The Worker now owns the retry budget; SDK and gateway retries are disabled, reducing the real failure/recovery E2E from 35.9 seconds to 7.8 seconds.
+- Image MIME allowlisting alone did not stop mismatched bytes from reaching Pillow. Magic signatures are now checked before parsing, Pillow/pillow-heif were upgraded, and the core environment has no known audited dependency vulnerabilities.
+- Committing the source tombstone before unlinking bytes could leave a private orphan after storage failure. Deletion now unlinks first; if storage fails, the Item remains visibly deletable so the same idempotent action can be retried.
+- Buffering and decoding uploads directly on the async API loop would let several large images stall unrelated users and multiply peak memory. The upload route now admits only two operations at once, moves parser work to a thread, and has matching Nginx connection/request limits; concurrency regressions prove both event-loop responsiveness and the bound.
+- Running the integration suite against the same local database intentionally cleans test rows, so real browser evidence is collected after the final test pass. Production data was not affected; future parallel test environments must use a dedicated test database.
 
 ## Decision Log
 
 - **2026-07-25 — One backend package, two process entrypoints.** FastAPI and Celery share feature modules but run as separate containers. This avoids duplicated contracts while keeping transport and worker adapters thin.
-- **2026-07-25 — Local signed upload adapter first.** The Product API issues an expiring HMAC-signed `PUT` URL served by the backend. The application depends on an `ObjectStore` port, so S3/OSS can replace it without changing capture contracts.
+- **2026-07-25 — Local signed upload adapter first.** The Product API issues an expiring HMAC upload credential used through `X-Upload-Token` on a fixed `PUT /v1/uploads` endpoint. The application depends on an `ObjectStore` port, so S3/OSS can replace it without changing capture contracts.
 - **2026-07-25 — Capture before Item.** Confirming an upload creates an immutable `Capture` and durable `ProcessingJob`; the worker creates or updates the canonical `Item`. A worker failure never deletes the capture or original object.
 - **2026-07-25 — Field envelopes protect corrections.** Model-derived attributes are stored as `{value, provenance, confidence, locked}`. Manual correction sets `provenance=user` and `locked=true`; worker merges skip locked fields.
 - **2026-07-25 — FashionSigLIP is opt-in locally, mandatory in AI validation.** The `core` profile remains responsive without loading the model. The `ai-light` profile installs and runs the real embedding adapter. Missing model capability produces an explicit `partial`, never a synthetic embedding.
+- **2026-07-25 — Source deletion is privacy-first and cache-free.** The server returns source images with `private, no-store`, the client bypasses browser cache, and the current UI hides a deleted image immediately while retaining locked text metadata.
+- **2026-07-25 — Destructive mobile actions stay in-product.** A two-step inline confirmation replaces native browser dialogs so the embedded WebView remains testable, accessible, and visually consistent.
+- **2026-07-25 — User truth and Worker state use separate persistence paths.** Worker writes may advance status/model data but preserve current ownership, locked fields, and a deleted-source tombstone. User writes change only user-controlled state. PostgreSQL row locks serialize the merge and prevent stale async snapshots from undoing privacy actions.
+- **2026-07-25 — Retry budget belongs to the durable Worker.** LiteLLM client and gateway retries are disabled; Celery owns bounded retries, persistence, and user-visible recovery timing.
+- **2026-07-25 — Browser traces are not product evidence.** Authenticated Playwright traces contain cookies, media, and headers. Keep them disabled and use explicit screenshots plus the redacted application trace contract.
+- **2026-07-25 — Private APIs are non-cacheable and container roots are immutable.** Every `/v1/` response carries `private, no-store` and `Vary: Cookie`; all services run with read-only root filesystems, no-new-privileges, and minimum capabilities. PostgreSQL, Redis, uploads, and model cache retain only their scoped writable state volumes.
 
 ## Context and Orientation
 
@@ -164,9 +186,11 @@ class ObjectStore(Protocol):
     def accept_upload(self, token: str, body: BinaryIO, content_type: str) -> StoredObject: ...
     def open(self, object_key: str) -> BinaryIO: ...
 
+
 class CaptureRepository(Protocol):
     def find_by_idempotency(self, user_id: UUID, key: str) -> CaptureSubmission | None: ...
     def save_submission(self, capture: Capture, job: ProcessingJob) -> CaptureSubmission: ...
+
 
 class JobDispatcher(Protocol):
     def enqueue_capture(self, capture_id: UUID, job_id: UUID) -> None: ...
@@ -174,8 +198,8 @@ class JobDispatcher(Protocol):
 
 **HTTP contract:**
 
-- `POST /v1/uploads/prepare` validates name, MIME, byte limit, and SHA-256; returns `upload_url`, `object_key`, `expires_at`.
-- `PUT /v1/uploads/{token}` validates signature, expiry, content length, MIME, decoded image, and hash; returns the stored object key.
+- `POST /v1/uploads/prepare` validates name, MIME, byte limit, and SHA-256; returns `upload_url`, a short-lived `upload_token`, `object_key`, and `expires_at`.
+- `PUT /v1/uploads` receives the token in `X-Upload-Token`, validates signature, expiry, content length, MIME, decoded image, and hash, then returns the stored object key. Keeping the bearer credential out of the URL prevents proxy access and error logs from recording it.
 - `POST /v1/captures` requires `Idempotency-Key`; returns HTTP 202 with `capture_id`, `job_id`, and `status_url`.
 - `GET /v1/jobs/{job_id}` returns `queued|processing|partial|ready|error`.
 - `GET /v1/jobs/{job_id}/events` streams versioned SSE state changes and ends on a terminal state.
@@ -209,8 +233,10 @@ class JobDispatcher(Protocol):
 class VisionTagger(Protocol):
     async def describe(self, image: ImagePayload) -> VisionResult: ...
 
+
 class ImageEmbedder(Protocol):
     def embed(self, image: ImagePayload) -> EmbeddingResult: ...
+
 
 async def process_capture(
     capture_id: UUID,
@@ -231,11 +257,11 @@ The vision result schema includes category, subcategory, colors, material, patte
 - [x] Verify red for success, vision retry, embedding-only failure → `partial`, final provider failure → `error`, user lock preservation, and retry from retained Capture.
 - [x] Implement processing application logic and guarded field merge.
 - [x] Implement Celery dispatch/retry and terminal event emission.
-- [x] Implement LiteLLM adapter using the `vision-understanding` capability alias and structured response validation.
+- [x] Implement LiteLLM adapter using the `vision_understanding` capability alias and structured response validation.
 - [x] Implement lazy FashionSigLIP adapter using pinned `Marqo/marqo-fashionSigLIP`; no model loads during import or `core` profile startup.
 - [x] Run worker and contract tests, including a real broker/API/HEIC failure-path smoke.
 - [ ] If provider credentials exist, run the opt-in real-provider smoke with `/Users/bamboo/Downloads/IMG_2310.HEIC`; record model IDs, latency, output schema, and trace without secret values.
-- [ ] Run the FashionSigLIP smoke only if resource guardrails remain green; otherwise run it in the `ai-light` container with limited CPU/memory.
+- [ ] Run the FashionSigLIP smoke only if resource guardrails remain green; otherwise run it in the opt-in AI-light worker build with limited CPU/memory.
 - [ ] Commit with Lore trailers and update `Progress`.
 
 ### Milestone 4: StyleCapture mobile capture and wardrobe
@@ -261,12 +287,13 @@ The vision result schema includes category, subcategory, colors, material, patte
 
 **TDD cycle:**
 
-- [ ] Write component tests for camera attributes, ownership requirement, client rejection, 202 transition, background continuation, partial/error retry, and ready detail.
-- [ ] Confirm tests fail against the minimal shell.
-- [ ] Implement the flow with TanStack Query and a feature-local state machine.
-- [ ] Migrate wardrobe tokens/layout and pixel asset use; do not copy global state or large inline-style files.
-- [ ] Run `pnpm --filter @stylecapture/h5 test`.
-- [ ] Run the real backend and execute Playwright at 390×844 for upload, processing, ready, error, and retry paths.
+- [x] Write component tests for camera attributes, ownership requirement, client rejection, 202 transition, source-delete confirmation, and ready detail.
+- [x] Confirm tests fail against the minimal shell and during the delete-confirmation regression.
+- [x] Implement the flow with TanStack Query and feature-local state.
+- [x] Migrate wardrobe tokens/layout and a resized pixel asset; do not copy global state or large inline-style files.
+- [x] Run `pnpm --filter @stylecapture/h5 test`, typecheck, and production build.
+- [x] Run the real backend and personally operate the in-app browser at 390×844 for upload, processing, error, retry, edit, ownership change, delete, and reload paths.
+- [ ] Run the real ready/partial provider paths when valid provider credentials and the safe AI-light environment are available.
 - [ ] Commit with Lore trailers and update `Progress`.
 
 ### Milestone 5: Compose, evidence, review, and merge
@@ -281,15 +308,15 @@ The vision result schema includes category, subcategory, colors, material, patte
 
 **TDD and verification cycle:**
 
-- [ ] Start `docker compose up --build -d postgres redis api worker h5`; expect all health checks green without heavy local model load.
+- [x] Validate Compose configuration and build the production H5/Nginx image; the full stack remains for the final clean-environment pass.
 - [ ] Start the `ai-light` worker only for embedding validation under documented resource limits.
-- [ ] Run migrations twice; expect idempotent success.
-- [ ] Run API example calls using both Python and cURL from `docs/api/garment-ingest.md`.
-- [ ] Run all Python/TypeScript tests, lint, typecheck, boundary check, generated-contract check, and Playwright.
-- [ ] Personally operate the mobile path and save screenshots for empty, selecting, processing, ready/detail, partial/error, and retry recovery.
-- [ ] Run visual verdict; fix every P0/P1 and repeat until score is at least 90.
-- [ ] Review security, secrets, privacy, architecture, API/worker/UI state alignment, duplicate/dead code, and Docker resource usage.
-- [ ] Verify `rg` finds no runtime mock/stub/fixed result, browser key, concrete provider call outside adapters, or imports from `_ref`.
+- [x] Run migrations twice; both upgrades reported the same `20260725_0002` head.
+- [x] Run API example calls using both Python and cURL from `docs/api/garment-ingest.md`; both produced `201/201/201/202`.
+- [x] Run all Python/TypeScript tests, lint, typecheck, boundary check, generated-contract check, and Playwright.
+- [x] Personally operate the mobile path and save screenshots for empty, selecting, processing, detail, error/retry, delete confirmation, and deleted-source states.
+- [x] Run visual verdict; fixed the unreachable detail action, native confirm, and cached-source P1s; final score is 92.
+- [x] Review security, secrets, privacy, architecture, API/worker/UI state alignment, duplicate/dead code, and Docker resource usage; all initial P0/P1 findings were fixed and await final independent re-review.
+- [x] Verify `rg` finds no runtime mock/stub/fixed result, browser key, concrete provider call outside adapters, or imports from `_ref`.
 - [ ] Push branch, open PR, attach exact evidence, address review findings, merge, close Issue #1, and immediately select Issue #2.
 
 ## Concrete Steps
@@ -338,8 +365,13 @@ Expected: a 202 Capture submission, observed job state progression, a persisted 
 - A failed vision call leaves the Capture and original image available for retry.
 - An embedding failure after valid tags produces `partial`; retry fills the embedding without overwriting locked fields.
 - Compose volumes hold PostgreSQL, Redis, and uploaded originals across container restart.
+- A deleted source is monotonic: later Worker writes cannot restore availability, and a stale Worker snapshot cannot overwrite locked user fields or ownership.
 - Rollback removes only code/migration changes; it never deletes user source bytes as part of an application retry.
 
 ## Outcomes & Retrospective
 
-Not yet delivered. Replace this paragraph with exact commits, test counts, provider evidence, screenshot paths, visual verdict, known non-blocking limitations, and lessons before Issue #1 is closed.
+Issue #1 now has a complete local product slice and reviewable evidence, pending the final independent review and external provider credentials. The Compose stack accepted the real 1,700,105-byte `IMG_2310.HEIC` through Nginx, issued an HttpOnly/SameSite=Strict session, rejected cross-session capture claiming with `upload_not_found`, rejected anonymous wardrobe reads with `session_invalid`, persisted a source tombstone, returned `item_source_not_found` for deleted bytes, and rejected retry with `source_deleted_not_retryable`.
+
+Fresh verification is 66 Python tests, 4 Vitest tests, TypeScript, Vite production build, Ruff, format, mypy, architecture boundaries, stable regenerated OpenAPI, valid hardened Compose, clean Python/pnpm dependency audits, Python/cURL examples, and one 390×844 Playwright E2E with no route interception. The E2E passed in 7.7 seconds; explicit screenshots live under `artifacts/issue-1/`, and `08-source-deleted-reload-mobile.png` proves the deleted state after a real reload. Raw browser tracing is intentionally disabled because it records authenticated cookies, headers, and uploaded media. Visual verdict remains 92/pass.
+
+No Ark credential exists in the environment, so a successful Doubao response and real FashionSigLIP vector write are not claimed. The LiteLLM and embedding adapters remain honest: the visible product failure path uses the real queue/provider boundary and stores no synthetic tags. This credential-gated evidence must be added before the aggregate Goal can be declared complete, but it does not block implementing later Issues against the stable capability contracts.

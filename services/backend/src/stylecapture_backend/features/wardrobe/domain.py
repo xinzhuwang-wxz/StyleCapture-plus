@@ -8,7 +8,11 @@ from math import isclose, sqrt
 from types import MappingProxyType
 from uuid import UUID, uuid4
 
-from stylecapture_backend.features.capture.domain import Capture, OwnershipState
+from stylecapture_backend.features.capture.domain import (
+    Capture,
+    CaptureSourceKind,
+    OwnershipState,
+)
 
 
 class FieldProvenance(StrEnum):
@@ -94,6 +98,8 @@ class WardrobeItem:
     user_id: UUID
     capture_id: UUID
     source_object_key: str
+    source_available: bool
+    source_kind: CaptureSourceKind
     ownership: OwnershipState
     status: ItemStatus
     attributes: ItemAttributes
@@ -119,6 +125,8 @@ class WardrobeItem:
             user_id=capture.user_id,
             capture_id=capture.id,
             source_object_key=capture.source.object_key,
+            source_available=True,
+            source_kind=capture.source.kind,
             ownership=capture.ownership,
             status=ItemStatus.PROCESSING,
             attributes=ItemAttributes(),
@@ -161,6 +169,12 @@ class WardrobeItem:
 
     def with_status(self, status: ItemStatus) -> WardrobeItem:
         return replace(self, status=status, updated_at=datetime.now(UTC))
+
+    def with_source_deleted(self) -> WardrobeItem:
+        return replace(self, source_available=False, updated_at=datetime.now(UTC))
+
+    def with_ownership(self, ownership: OwnershipState) -> WardrobeItem:
+        return replace(self, ownership=ownership, updated_at=datetime.now(UTC))
 
     def correct(self, name: str, value: object) -> WardrobeItem:
         return replace(

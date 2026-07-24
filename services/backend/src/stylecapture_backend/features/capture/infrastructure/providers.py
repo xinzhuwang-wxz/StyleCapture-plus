@@ -120,6 +120,7 @@ class LiteLLMVisionTagger:
                     },
                     temperature=0,
                     max_tokens=1400,
+                    num_retries=0,
                 )
         except Exception as error:
             raise ProviderError(

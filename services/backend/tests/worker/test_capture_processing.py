@@ -70,6 +70,11 @@ class MemoryObjects:
         return self.payload
 
 
+class MissingObjects:
+    def read_image(self, object_key: str) -> ImagePayload:
+        raise FileNotFoundError(object_key)
+
+
 class FixedVision:
     def __init__(
         self,
@@ -236,6 +241,31 @@ async def test_vision_failure_retains_capture_and_marks_item_error() -> None:
     assert outcome.retryable is True
     assert work.capture == capture
     assert work.job.error_code == "vision_unavailable"
+    assert wardrobe.item is not None
+    assert wardrobe.item.status is ItemStatus.ERROR
+
+
+@pytest.mark.asyncio
+async def test_deleted_source_reaches_stable_non_retryable_error() -> None:
+    capture, job = make_capture_job()
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository()
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=MissingObjects(),
+        vision=FixedVision(result=analysis()),
+        embedder=FixedEmbedder(result=embedding()),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome.state is JobState.ERROR
+    assert outcome.retryable is False
+    assert outcome.error_code == "source_unavailable"
+    assert work.job.state is JobState.ERROR
+    assert work.job.error_code == "source_unavailable"
     assert wardrobe.item is not None
     assert wardrobe.item.status is ItemStatus.ERROR
 

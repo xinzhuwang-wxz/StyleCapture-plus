@@ -81,6 +81,23 @@ class SqlAlchemyCaptureRepository:
             record = (await session.execute(statement)).scalar_one_or_none()
             return _job_from_record(record) if record is not None else None
 
+    async def get_by_capture_for_user(
+        self,
+        capture_id: UUID,
+        user_id: UUID,
+    ) -> ProcessingJob | None:
+        async with self._sessions() as session:
+            statement = (
+                select(ProcessingJobRecord)
+                .join(CaptureRecord, CaptureRecord.id == ProcessingJobRecord.capture_id)
+                .where(
+                    ProcessingJobRecord.capture_id == capture_id,
+                    CaptureRecord.user_id == user_id,
+                )
+            )
+            record = (await session.execute(statement)).scalar_one_or_none()
+            return _job_from_record(record) if record is not None else None
+
     async def get_job(self, job_id: UUID) -> ProcessingJob | None:
         async with self._sessions() as session:
             record = await session.get(ProcessingJobRecord, job_id)

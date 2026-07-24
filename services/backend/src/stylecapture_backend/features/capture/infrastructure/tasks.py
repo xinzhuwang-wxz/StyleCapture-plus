@@ -5,9 +5,7 @@ from uuid import UUID
 
 from kombu.exceptions import OperationalError  # type: ignore[import-untyped]
 
-from stylecapture_backend.features.capture.ports import JobDispatchError
-
-CAPTURE_TASK_NAME = "stylecapture.capture.process"
+from stylecapture_backend.features.capture.ports import CAPTURE_TASK_NAME, JobDispatchError
 
 
 class TaskSender(Protocol):
@@ -22,8 +20,9 @@ class TaskSender(Protocol):
 
 
 class CeleryJobDispatcher:
-    def __init__(self, sender: TaskSender) -> None:
+    def __init__(self, sender: TaskSender, *, queue: str = "capture") -> None:
         self._sender = sender
+        self._queue = queue
 
     def enqueue_capture(self, capture_id: UUID, job_id: UUID) -> None:
         try:
@@ -31,7 +30,7 @@ class CeleryJobDispatcher:
                 CAPTURE_TASK_NAME,
                 kwargs={"capture_id": str(capture_id), "job_id": str(job_id)},
                 task_id=str(job_id),
-                queue="capture",
+                queue=self._queue,
             )
         except (OperationalError, ConnectionError, TimeoutError) as error:
             raise JobDispatchError("capture broker is unavailable") from error

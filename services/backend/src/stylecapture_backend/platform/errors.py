@@ -17,6 +17,7 @@ class ErrorEnvelope(BaseModel):
 
 
 STABLE_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"model": ErrorEnvelope, "description": "A valid product session is required"},
     400: {"model": ErrorEnvelope, "description": "The request cannot be processed"},
     404: {"model": ErrorEnvelope, "description": "The requested resource was not found"},
     409: {"model": ErrorEnvelope, "description": "The request conflicts with stored state"},

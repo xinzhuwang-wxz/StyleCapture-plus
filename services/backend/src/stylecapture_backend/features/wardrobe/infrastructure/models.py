@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +26,7 @@ class ItemRecord(Base):
         unique=True,
     )
     source_object_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     ownership: Mapped[str] = mapped_column(String(24), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)
     category: Mapped[str | None] = mapped_column(String(80))

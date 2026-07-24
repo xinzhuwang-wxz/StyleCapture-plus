@@ -2,19 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     CaptureError,
+    JobRetryApplication,
     SubmitCaptureCommand,
 )
 from stylecapture_backend.features.capture.domain import (
@@ -30,6 +31,8 @@ from stylecapture_backend.features.capture.ports import (
 )
 from stylecapture_backend.platform.errors import STABLE_ERROR_RESPONSES
 
+MAX_CONCURRENT_UPLOADS = 2
+
 
 class PrepareUploadBody(BaseModel):
     file_name: str = Field(min_length=1, max_length=255)
@@ -40,6 +43,7 @@ class PrepareUploadBody(BaseModel):
 
 class PreparedUploadResponse(BaseModel):
     upload_url: str
+    upload_token: str
     object_key: str
     expires_at: datetime
 
@@ -97,6 +101,7 @@ class CaptureHttpServices:
     capture: CaptureApplication
     jobs: JobRepository
     objects: ObjectStore
+    retries: JobRetryApplication
 
 
 def build_capture_router(
@@ -104,8 +109,11 @@ def build_capture_router(
     *,
     sse_poll_interval: float,
     max_upload_bytes: int,
+    current_user: Callable[..., UUID],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1")
+    principal = Depends(current_user)
+    upload_slots = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
 
     @router.post(
         "/uploads/prepare",
@@ -113,9 +121,13 @@ def build_capture_router(
         status_code=status.HTTP_201_CREATED,
         responses=STABLE_ERROR_RESPONSES,
     )
-    async def prepare_upload(body: PrepareUploadBody) -> PreparedUploadResponse:
+    async def prepare_upload(
+        body: PrepareUploadBody,
+        user_id: UUID = principal,
+    ) -> PreparedUploadResponse:
         prepared = services.objects.prepare_upload(
             UploadRequest(
+                owner_id=user_id,
                 file_name=body.file_name,
                 content_type=body.content_type,
                 byte_size=body.byte_size,
@@ -124,19 +136,20 @@ def build_capture_router(
         )
         return PreparedUploadResponse(
             upload_url=prepared.upload_url,
+            upload_token=prepared.token,
             object_key=prepared.object_key,
             expires_at=prepared.expires_at,
         )
 
     @router.put(
-        "/uploads/{token}",
+        "/uploads",
         response_model=StoredObjectResponse,
         status_code=status.HTTP_201_CREATED,
         responses=STABLE_ERROR_RESPONSES,
     )
     async def upload_object(
-        token: str,
         request: Request,
+        upload_token: Annotated[str, Header(alias="X-Upload-Token")],
         content_type: Annotated[str, Header(alias="Content-Type")],
         content_length: Annotated[int | None, Header(alias="Content-Length")] = None,
     ) -> StoredObjectResponse:
@@ -146,20 +159,22 @@ def build_capture_router(
                 f"Image size must be between 1 and {max_upload_bytes} bytes",
                 details={"max_bytes": max_upload_bytes},
             )
-        body = bytearray()
-        async for chunk in request.stream():
-            body.extend(chunk)
-            if len(body) > max_upload_bytes:
-                raise CaptureError(
-                    "upload_size_invalid",
-                    f"Image size must be between 1 and {max_upload_bytes} bytes",
-                    details={"max_bytes": max_upload_bytes},
-                )
-        stored = services.objects.accept_upload(
-            token,
-            body=bytes(body),
-            content_type=content_type,
-        )
+        async with upload_slots:
+            body = bytearray()
+            async for chunk in request.stream():
+                body.extend(chunk)
+                if len(body) > max_upload_bytes:
+                    raise CaptureError(
+                        "upload_size_invalid",
+                        f"Image size must be between 1 and {max_upload_bytes} bytes",
+                        details={"max_bytes": max_upload_bytes},
+                    )
+            stored = await asyncio.to_thread(
+                services.objects.accept_upload,
+                upload_token,
+                body=bytes(body),
+                content_type=content_type,
+            )
         return StoredObjectResponse(
             object_key=stored.object_key,
             content_type=stored.content_type,
@@ -177,8 +192,8 @@ def build_capture_router(
     )
     async def submit_capture(
         body: SubmitCaptureBody,
-        user_id: Annotated[UUID, Header(alias="X-StyleCapture-User")],
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+        user_id: UUID = principal,
     ) -> CaptureAcceptedResponse:
         submission = await services.capture.submit(
             SubmitCaptureCommand(
@@ -205,12 +220,24 @@ def build_capture_router(
     )
     async def get_job(
         job_id: UUID,
-        user_id: Annotated[UUID, Header(alias="X-StyleCapture-User")],
+        user_id: UUID = principal,
     ) -> JobResponse:
         job = await services.jobs.get_for_user(job_id, user_id)
         if job is None:
             raise JobNotFoundError
         return JobResponse.from_domain(job)
+
+    @router.post(
+        "/jobs/{job_id}/retry",
+        response_model=JobResponse,
+        status_code=status.HTTP_202_ACCEPTED,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def retry_job(
+        job_id: UUID,
+        user_id: UUID = principal,
+    ) -> JobResponse:
+        return JobResponse.from_domain(await services.retries.retry(user_id, job_id))
 
     @router.get(
         "/jobs/{job_id}/events",
@@ -218,7 +245,7 @@ def build_capture_router(
     )
     async def job_events(
         job_id: UUID,
-        user_id: Annotated[UUID, Header(alias="X-StyleCapture-User")],
+        user_id: UUID = principal,
     ) -> StreamingResponse:
         initial_job = await services.jobs.get_for_user(job_id, user_id)
         if initial_job is None:

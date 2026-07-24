@@ -7,9 +7,12 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import Capture, ProcessingJob
 
+CAPTURE_TASK_NAME = "stylecapture.capture.process"
+
 
 @dataclass(frozen=True, slots=True)
 class UploadRequest:
+    owner_id: UUID
     file_name: str
     content_type: str
     byte_size: int
@@ -26,6 +29,7 @@ class PreparedUpload:
 
 @dataclass(frozen=True, slots=True)
 class StoredObject:
+    owner_id: UUID | None
     object_key: str
     content_type: str
     byte_size: int
@@ -90,6 +94,12 @@ class JobDispatcher(Protocol):
 
 class JobRepository(Protocol):
     async def get_for_user(self, job_id: UUID, user_id: UUID) -> ProcessingJob | None: ...
+
+    async def get_by_capture_for_user(
+        self,
+        capture_id: UUID,
+        user_id: UUID,
+    ) -> ProcessingJob | None: ...
 
     async def update(self, job: ProcessingJob) -> ProcessingJob: ...
 

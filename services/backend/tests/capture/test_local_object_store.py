@@ -1,7 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+from threading import Barrier
+from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 from PIL import Image
@@ -16,8 +20,12 @@ def png_bytes() -> bytes:
     return buffer.getvalue()
 
 
+OWNER_ID = UUID("11111111-1111-4111-8111-111111111111")
+
+
 def request_for(body: bytes, *, content_type: str = "image/png") -> UploadRequest:
     return UploadRequest(
+        owner_id=OWNER_ID,
         file_name="衣服.png",
         content_type=content_type,
         byte_size=len(body),
@@ -36,6 +44,8 @@ def test_signed_upload_persists_validated_image_and_metadata(tmp_path: Path) -> 
     body = png_bytes()
 
     prepared = store.prepare_upload(request_for(body), ttl=timedelta(minutes=5))
+    assert prepared.upload_url == "/v1/uploads"
+    assert prepared.token not in prepared.upload_url
     stored = store.accept_upload(
         prepared.token,
         body=body,
@@ -43,10 +53,48 @@ def test_signed_upload_persists_validated_image_and_metadata(tmp_path: Path) -> 
     )
 
     assert stored.object_key == prepared.object_key
+    assert stored.owner_id == OWNER_ID
     assert stored.sha256 == sha256(body).hexdigest()
     assert stored.width == 32
     assert stored.height == 24
     assert store.read(stored.object_key) == body
+
+
+def test_concurrent_upload_replay_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    body = png_bytes()
+    prepared = store.prepare_upload(request_for(body))
+    barrier = Barrier(2)
+    original_write_bytes = Path.write_bytes
+
+    def synchronized_write(path: Path, data: bytes) -> int:
+        result = original_write_bytes(path, data)
+        if ".uploading" in path.name:
+            barrier.wait(timeout=2)
+        return result
+
+    monkeypatch.setattr(Path, "write_bytes", synchronized_write)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(
+            pool.map(
+                lambda _: store.accept_upload(
+                    prepared.token,
+                    body=body,
+                    content_type="image/png",
+                ),
+                range(2),
+            )
+        )
+
+    assert results == [results[0], results[0]]
+    assert store.read(results[0].object_key) == body
 
 
 @pytest.mark.parametrize(
@@ -72,6 +120,7 @@ def test_signed_upload_rejects_bytes_that_do_not_match_the_contract(
     request = request_for(body)
     if mutation == "wrong_hash":
         request = UploadRequest(
+            owner_id=request.owner_id,
             file_name=request.file_name,
             content_type=request.content_type,
             byte_size=request.byte_size,
@@ -79,6 +128,7 @@ def test_signed_upload_rejects_bytes_that_do_not_match_the_contract(
         )
     elif mutation == "wrong_size":
         request = UploadRequest(
+            owner_id=request.owner_id,
             file_name=request.file_name,
             content_type=request.content_type,
             byte_size=request.byte_size + 1,
@@ -125,3 +175,23 @@ def test_prepare_rejects_unsupported_mime_before_issuing_a_token(tmp_path: Path)
         store.prepare_upload(request_for(body, content_type="application/pdf"))
 
     assert error.value.code == "unsupported_image_type"
+
+
+def test_mismatched_magic_bytes_are_rejected_before_image_parser(tmp_path: Path) -> None:
+    body = b"8BPS" + b"\x00" * 128
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    prepared = store.prepare_upload(request_for(body))
+
+    with (
+        patch(
+            "stylecapture_backend.features.capture.infrastructure.object_store.Image.open",
+            side_effect=AssertionError("image parser must not receive mismatched bytes"),
+        ),
+        pytest.raises(CaptureError) as error,
+    ):
+        store.accept_upload(prepared.token, body=body, content_type="image/png")
+
+    assert error.value.code == "image_format_mismatch"

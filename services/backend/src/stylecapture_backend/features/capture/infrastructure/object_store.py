@@ -10,17 +10,18 @@ from hashlib import sha256
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import Any
+from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener  # type: ignore[import-untyped]
 
 from stylecapture_backend.features.capture.application import CaptureError
+from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.ports import (
     PreparedUpload,
     StoredObject,
     UploadRequest,
 )
-from stylecapture_backend.features.capture.processing import ImagePayload
 
 register_heif_opener()
 
@@ -37,6 +38,7 @@ FORMAT_MIME_TYPES = {
     "PNG": frozenset({"image/png"}),
     "WEBP": frozenset({"image/webp"}),
 }
+HEIF_BRANDS = frozenset({b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1"})
 
 
 def _base64url_encode(value: bytes) -> str:
@@ -46,6 +48,18 @@ def _base64url_encode(value: bytes) -> str:
 def _base64url_decode(value: str) -> bytes:
     padding = "=" * (-len(value) % 4)
     return base64.urlsafe_b64decode(value + padding)
+
+
+def _matches_image_signature(body: bytes, content_type: str) -> bool:
+    if content_type == "image/jpeg":
+        return body.startswith(b"\xff\xd8\xff")
+    if content_type == "image/png":
+        return body.startswith(b"\x89PNG\r\n\x1a\n")
+    if content_type == "image/webp":
+        return len(body) >= 12 and body.startswith(b"RIFF") and body[8:12] == b"WEBP"
+    if content_type in {"image/heic", "image/heif"}:
+        return len(body) >= 12 and body[4:8] == b"ftyp" and body[8:12] in HEIF_BRANDS
+    return False
 
 
 class LocalObjectStore:
@@ -102,6 +116,7 @@ class LocalObjectStore:
             "content_type": request.content_type,
             "expires_at": int(expires_at.timestamp()),
             "object_key": object_key,
+            "owner_id": str(request.owner_id),
             "sha256": request.sha256,
         }
         encoded_payload = _base64url_encode(
@@ -114,7 +129,7 @@ class LocalObjectStore:
         )
         token = f"{encoded_payload}.{signature}"
         return PreparedUpload(
-            upload_url=f"{self._public_upload_prefix}/{token}",
+            upload_url=self._public_upload_prefix,
             object_key=object_key,
             token=token,
             expires_at=expires_at,
@@ -148,6 +163,7 @@ class LocalObjectStore:
             )
         width, height = self._validate_image(body, expected_type)
         stored = StoredObject(
+            owner_id=UUID(str(payload["owner_id"])),
             object_key=str(payload["object_key"]),
             content_type=expected_type,
             byte_size=len(body),
@@ -165,6 +181,9 @@ class LocalObjectStore:
         except FileNotFoundError as error:
             raise KeyError(object_key) from error
         return StoredObject(
+            owner_id=(
+                UUID(str(payload["owner_id"])) if payload.get("owner_id") is not None else None
+            ),
             object_key=object_key,
             content_type=str(payload["content_type"]),
             byte_size=int(payload["byte_size"]),
@@ -185,6 +204,12 @@ class LocalObjectStore:
             sha256=stored.sha256,
         )
 
+    def delete(self, object_key: str) -> None:
+        object_path = self._object_path(object_key)
+        metadata_path = self._metadata_path(object_key)
+        object_path.unlink(missing_ok=True)
+        metadata_path.unlink(missing_ok=True)
+
     def _decode_token(self, token: str) -> dict[str, Any]:
         try:
             encoded_payload, supplied_signature = token.split(".", maxsplit=1)
@@ -194,10 +219,18 @@ class LocalObjectStore:
             if not hmac.compare_digest(supplied_signature, expected_signature):
                 raise ValueError("signature mismatch")
             payload = json.loads(_base64url_decode(encoded_payload))
-            required = {"byte_size", "content_type", "expires_at", "object_key", "sha256"}
+            required = {
+                "byte_size",
+                "content_type",
+                "expires_at",
+                "object_key",
+                "owner_id",
+                "sha256",
+            }
             if set(payload) != required:
                 raise ValueError("unexpected token fields")
             expires_at = datetime.fromtimestamp(int(payload["expires_at"]), tz=UTC)
+            UUID(str(payload["owner_id"]))
         except (TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise CaptureError("upload_token_invalid", "Upload token is invalid") from error
         if self._aware_now() > expires_at:
@@ -207,6 +240,11 @@ class LocalObjectStore:
         return payload
 
     def _validate_image(self, body: bytes, content_type: str) -> tuple[int, int]:
+        if not _matches_image_signature(body, content_type):
+            raise CaptureError(
+                "image_format_mismatch",
+                "Image signature does not match Content-Type",
+            )
         try:
             with Image.open(BytesIO(body)) as image:
                 image_format = image.format
@@ -244,23 +282,31 @@ class LocalObjectStore:
                     "The upload key already contains different bytes",
                 )
             return
-        temporary_path = object_path.with_suffix(f"{object_path.suffix}.uploading")
-        temporary_path.write_bytes(body)
-        temporary_path.replace(object_path)
-        metadata_path.write_text(
-            json.dumps(
-                {
-                    "byte_size": stored.byte_size,
-                    "content_type": stored.content_type,
-                    "height": stored.height,
-                    "sha256": stored.sha256,
-                    "width": stored.width,
-                },
-                separators=(",", ":"),
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        nonce = secrets.token_hex(8)
+        temporary_path = object_path.with_suffix(f"{object_path.suffix}.uploading-{nonce}")
+        temporary_metadata_path = metadata_path.with_suffix(f".json.uploading-{nonce}")
+        try:
+            temporary_path.write_bytes(body)
+            temporary_path.replace(object_path)
+            temporary_metadata_path.write_text(
+                json.dumps(
+                    {
+                        "byte_size": stored.byte_size,
+                        "content_type": stored.content_type,
+                        "height": stored.height,
+                        "owner_id": str(stored.owner_id),
+                        "sha256": stored.sha256,
+                        "width": stored.width,
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            temporary_metadata_path.replace(metadata_path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+            temporary_metadata_path.unlink(missing_ok=True)
 
     def _object_path(self, object_key: str) -> Path:
         self._validate_object_key(object_key)

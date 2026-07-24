@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Protocol
 from uuid import UUID
 
-from stylecapture_backend.features.capture.infrastructure.tasks import CAPTURE_TASK_NAME
+from stylecapture_backend.features.capture.ports import CAPTURE_TASK_NAME
 from stylecapture_backend.features.capture.processing import ProcessingOutcome
 
 

@@ -85,6 +85,7 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
     assert call["model"] == "openai/vision_understanding"
     assert call["api_base"] == "http://litellm:4000/v1"
     assert call["api_key"] == "internal-gateway-key"
+    assert call["num_retries"] == 0
     assert call["response_format"]["type"] == "json_schema"
     assert call["response_format"]["json_schema"]["strict"] is True
     image_url = call["messages"][1]["content"][1]["image_url"]["url"]

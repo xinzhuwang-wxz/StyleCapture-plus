@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 from pydantic import SecretStr, ValidationError
-from stylecapture_backend.platform.config import BackendSettings
+from stylecapture_backend.platform.config import (
+    PLACEHOLDER_GATEWAY_SECRET,
+    PLACEHOLDER_SESSION_SECRET,
+    PLACEHOLDER_SIGNING_SECRET,
+    BackendSettings,
+)
 
 
 def test_settings_keep_runtime_secrets_out_of_plain_serialization(
@@ -15,28 +20,49 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
         redis_url=SecretStr("redis://redis:6379/0"),
         upload_root=tmp_path,
         upload_signing_secret=SecretStr("a-real-signing-secret-with-enough-entropy"),
+        session_signing_secret=SecretStr("a-distinct-session-secret-with-enough-entropy"),
         cors_origins=["http://localhost:5173"],
     )
 
     serialized = settings.model_dump_json()
 
     assert "a-real-signing-secret" not in serialized
+    assert "a-distinct-session-secret" not in serialized
     assert "local-litellm-gateway-key" not in serialized
     assert settings.upload_signing_secret.get_secret_value().startswith("a-real")
-    assert settings.vision_model_alias == "vision-understanding"
+    assert settings.vision_model_alias == "vision_understanding"
     assert settings.embedding_mode == "disabled"
 
 
-def test_production_settings_reject_the_documented_placeholder_secret(
+@pytest.mark.parametrize(
+    ("field", "placeholder"),
+    [
+        ("upload_signing_secret", PLACEHOLDER_SIGNING_SECRET),
+        ("session_signing_secret", PLACEHOLDER_SESSION_SECRET),
+        ("litellm_api_key", PLACEHOLDER_GATEWAY_SECRET),
+    ],
+)
+def test_production_settings_reject_every_local_compose_placeholder(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    placeholder: str,
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    values = {
+        "upload_signing_secret": SecretStr("production-upload-signing-secret-with-entropy"),
+        "session_signing_secret": SecretStr("production-session-signing-secret-with-entropy"),
+        "litellm_api_key": SecretStr("production-gateway-signing-secret-with-entropy"),
+    }
+    values[field] = SecretStr(placeholder)
     with pytest.raises(ValidationError):
         BackendSettings(
             environment="production",
             database_url=SecretStr("postgresql+asyncpg://user:pass@postgres/stylecapture"),
             redis_url=SecretStr("redis://redis:6379/0"),
             upload_root=tmp_path,
-            upload_signing_secret=SecretStr("replace-with-at-least-24-random-characters"),
+            upload_signing_secret=values["upload_signing_secret"],
+            session_signing_secret=values["session_signing_secret"],
+            session_cookie_secure=True,
+            litellm_api_key=values["litellm_api_key"],
         )

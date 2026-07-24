@@ -7,6 +7,7 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    JobState,
     OwnershipState,
     ProcessingJob,
 )
@@ -15,6 +16,7 @@ from stylecapture_backend.features.capture.ports import (
     CaptureSubmission,
     JobDispatcher,
     JobDispatchError,
+    JobRepository,
     ObjectLookup,
 )
 
@@ -77,6 +79,11 @@ class CaptureApplication:
                 "The prepared upload does not exist",
                 details={"object_key": command.object_key},
             ) from error
+        if stored.owner_id != command.user_id:
+            raise CaptureError(
+                "upload_not_found",
+                "The prepared upload does not exist",
+            )
         if stored.sha256 != command.sha256:
             raise CaptureError(
                 "source_hash_mismatch",
@@ -116,3 +123,39 @@ class CaptureApplication:
                     "retryable": True,
                 },
             ) from error
+
+
+class JobRetryApplication:
+    def __init__(
+        self,
+        *,
+        jobs: JobRepository,
+        dispatcher: JobDispatcher,
+    ) -> None:
+        self._jobs = jobs
+        self._dispatcher = dispatcher
+
+    async def retry(self, user_id: UUID, job_id: UUID) -> ProcessingJob:
+        job = await self._jobs.get_for_user(job_id, user_id)
+        if job is None:
+            raise CaptureError("job_not_found", "The processing job does not exist")
+        if job.state in {JobState.PROCESSING, JobState.READY}:
+            raise CaptureError(
+                "job_not_retryable",
+                "Only queued, partial, or failed jobs can be retried",
+            )
+        if job.state is JobState.ERROR:
+            job = await self._jobs.update(job.transition(JobState.QUEUED))
+        try:
+            self._dispatcher.enqueue_capture(job.capture_id, job.id)
+        except JobDispatchError as error:
+            raise CaptureError(
+                "processing_dispatch_unavailable",
+                "The upload is safe, but processing could not start; retry this request",
+                details={
+                    "capture_id": str(job.capture_id),
+                    "job_id": str(job.id),
+                    "retryable": True,
+                },
+            ) from error
+        return job
