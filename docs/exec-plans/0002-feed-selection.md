@@ -16,7 +16,7 @@ FastAPI capture module owns the idempotent save intent; a bounded media worker p
 FFmpeg extraction and promptable segmentation behind provider ports, retaining the
 coarse user selection whenever refinement is unavailable.
 
-**Tech stack:** React 19, TypeScript, Vite, TanStack Query, Pointer Events, Canvas/SVG,
+**Tech stack:** React 18, TypeScript, Vite, TanStack Query, Pointer Events, Canvas/SVG,
 FastAPI, Pydantic, SQLAlchemy, PostgreSQL/pgvector, Celery/Redis, FFmpeg, MobileSAM
 ONNX as the default refinement candidate, Playwright, Vitest, pytest, Docker Compose.
 
@@ -86,6 +86,16 @@ the stored mask asynchronously but is not the source of the user's save decision
   selection context without leaking provider DTOs into the capture domain or forcing a
   premature multi-table component model. Integration evidence: the exact two-selection
   value survives PostgreSQL migration and round-trip.
+- 2026-07-25: Hourly audit found an unrelated `video-branch` PostgreSQL container still
+  running from the reusable reference project. It was stopped without deleting its
+  volume; the current StyleCapture Compose project remains healthy. Memory compression
+  is high, so remaining corpus and test work stays sequential and bounded.
+- 2026-07-25: Full-suite verification caught that removing the JSONB migration default
+  broke legacy raw-SQL capture inserts even though ORM-based Feed tests passed. A
+  follow-up migration and matching model `server_default` restore backward
+  compatibility. Fresh evidence: 82 backend tests, four H5 tests, typecheck, production
+  build, healthy Compose, and the existing 390×844 upload/delete/reload Playwright path
+  with a 5.9 MiB trace all pass.
 
 ## Decision Log
 
@@ -122,7 +132,7 @@ Existing production code:
 - `services/backend/src/stylecapture_backend/features/capture/` contains capture domain,
   application, HTTP, repositories, and worker processing.
 - `services/backend/src/stylecapture_backend/features/wardrobe/` owns Item truth.
-- `compose.yaml` defines the portable local core.
+- `docker-compose.yml` defines the portable local core.
 
 Approved reuse:
 
@@ -229,7 +239,7 @@ All commands run from `/Users/bamboo/Githubs/StyleCapture-plus`.
 
 3. HTTP and contract:
 
-       uv run pytest services/backend/tests/api/test_feed_capture_http.py -q
+       uv run pytest services/backend/tests/api/test_capture_http.py -q
        pnpm contracts:generate
        git diff --exit-code apps/h5/openapi.json apps/h5/src/api/schema.d.ts
 
@@ -238,8 +248,8 @@ All commands run from `/Users/bamboo/Githubs/StyleCapture-plus`.
 
 4. H5 interaction:
 
-       npm --prefix apps/h5 test -- --run
-       npm --prefix apps/h5 run typecheck
+       pnpm --filter @stylecapture/h5 test
+       pnpm --filter @stylecapture/h5 typecheck
 
    Expected: multi-lasso settle and swipe tests pass; upload/camera wardrobe tests
    remain green.

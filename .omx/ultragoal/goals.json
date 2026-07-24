@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-07-24T18:54:03.586Z",
-  "updatedAt": "2026-07-24T22:37:00.000Z",
+  "updatedAt": "2026-07-24T23:21:54.531Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -11,11 +11,13 @@
       "id": "G001-issue-1",
       "title": "Issue #1 上传入库纵向链",
       "objective": "完成 GitHub Issue #1 的全部验收条件，建立可复用的分层骨架、LiteLLM 视觉理解、异步资产入库、StyleCapture 衣橱和真实用户证据。",
-      "status": "in_progress",
+      "status": "failed",
       "attempt": 1,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T22:37:00.000Z",
-      "startedAt": "2026-07-24T21:35:27.816Z"
+      "updatedAt": "2026-07-24T23:21:54.531Z",
+      "startedAt": "2026-07-24T21:35:27.816Z",
+      "failedAt": "2026-07-24T23:21:54.531Z",
+      "failureReason": "PR #7 merged and local acceptance evidence passed; live Doubao/FashionSigLIP smoke remains credential-gated. This failed story is intentionally deferred and must be retried before aggregate completion; Issue #2 does not depend on it."
     },
     {
       "id": "G002-issue-2-feed",

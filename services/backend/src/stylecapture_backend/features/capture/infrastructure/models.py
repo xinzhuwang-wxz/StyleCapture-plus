@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,6 +27,7 @@ class CaptureRecord(Base):
         JSONB,
         nullable=False,
         default=dict,
+        server_default=text("'{}'::jsonb"),
     )
     ownership: Mapped[str] = mapped_column(String(24), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
