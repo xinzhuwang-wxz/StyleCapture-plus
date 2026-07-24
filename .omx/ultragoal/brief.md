@@ -52,7 +52,7 @@ None - can start immediately.
 
 ### What to build
 
-在现有抖音式 Feed 中完成真实视觉交互：暂停视频后连续圈选一个或多个服装局部，炫彩轨迹闭合后主体从帧中抬升，用户直接左滑放弃或右滑保存。保存立刻恢复 Feed，后台使用真实帧、SAM2 和同一 Item 入库链完成资产沉淀。
+在现有抖音式 Feed 中完成真实视觉交互：暂停视频后连续圈选一个或多个服装局部，炫彩轨迹闭合后主体从帧中抬升，用户直接左滑放弃或右滑保存。保存立刻恢复 Feed，后台使用真实帧、轻量 promptable segmentation provider 和同一 Item 入库链完成资产沉淀。
 
 ### Acceptance criteria
 
@@ -61,14 +61,15 @@ None - can start immediately.
 - [ ] 主体而非卡片被直接拖动；左滑不创建资产，右滑立即持久化保存意图并恢复原 Feed。
 - [ ] 同帧多个局部生成一批幂等 Item 任务，一次网络重试不能创建重复资产。
 - [ ] 由开发智能体自行寻找并下载至少 30 条公开可访问的穿搭 Feed 素材，作为非商业评审 Demo 使用；记录来源 URL、平台/作者线索、内容哈希和替换说明，覆盖单品、整套、配饰、遮挡、运动、低对比和负例，并划分固定回归子集。需要的预标注人工完成并记录为 `curated_seed`，不消耗模型 API、不冒充 AI 结果。
-- [ ] 后台对真实帧执行 FFmpeg 精确抽帧和 SAM2 mask 精修；每个 Item 继续走 Issue 1 的真实打标、taxonomy、embedding 和持久化流程。
+- [ ] 后台对真实帧执行 FFmpeg 精确抽帧；默认使用 MobileSAM/ONNX 单帧精修，粗圈选始终可用，托管 SAM2.1 tiny/small 作为质量层；每个 Item 继续走 Issue 1 的真实打标、taxonomy、embedding 和持久化流程。
 - [ ] 分割失败时保留用户粗选区，部分成功时只写入可靠 Item；UI 显示 processing/partial/retry，不丢失右滑保存。
 - [ ] 可选喜欢原因在保存成功后以非阻塞快捷项出现，用户不操作即可继续刷 Feed。
 - [ ] 移动 E2E、手势边界、视觉回归、幂等和一条真实视频 trace 全部通过。
 
 ### Blocked by
 
-- [#1](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/1)
+None — Issue #1 baseline is merged. A credentialed provider smoke remains evidence to
+collect, not a dependency for the Feed interaction or durable save path.
 
 ### User stories covered
 
@@ -78,12 +79,12 @@ None - can start immediately.
 
 ### What to build
 
-当用户圈选整个人或整套穿搭时，系统把原始选择注册为 Look，同时使用 Grounded-SAM2、SAM2 和 VLM 拆出可可靠识别的 Items，保存搭配关系与用户喜欢原因。数字衣橱可以从 Look 返回原视频帧、真实整套和每件真实 Item。
+当用户圈选整个人或整套穿搭时，系统把原始选择注册为 Look，同时使用视觉 Grounding、轻量 promptable segmentation 和 VLM 拆出可可靠识别的 Items，保存搭配关系与用户喜欢原因。数字衣橱可以从 Look 返回原视频帧、真实整套和每件真实 Item。
 
 ### Acceptance criteria
 
 - [ ] 整套选择右滑后立即创建 Look 占位和原始 Capture，不等待拆解完成。
-- [ ] Grounded-SAM2 产生服装候选、SAM2 精修 mask、VLM 归一化类别；遮挡或不确定部分以 pending component 保留，不制造虚假 Item。
+- [ ] 默认由豆包视觉 Grounding 产生服装候选、MobileSAM 精修 mask、VLM 归一化类别；Grounded-SAM2/SAM2.1 只作为托管或 `ai-heavy` 质量层；遮挡或不确定部分以 pending component 保留，不制造虚假 Item。
 - [ ] Look 只引用 Items，不复制 Item 事实；同一 Item 可属于多个 Looks，视觉相似默认不自动合并。
 - [ ] Look analyzer 保存色彩、轮廓、材质、层次、视觉重心、场景与风格关系，并记录 prompt/model/schema 版本。
 - [ ] 用户的可选喜欢原因与 Look 关联，并作为 PreferenceSignal 保存而非改写 Item 标签。
@@ -136,7 +137,7 @@ None - can start immediately.
 ### Acceptance criteria
 
 - [ ] Look 详情先显示由真实 Item 图片生成的拼贴，不等待 GPU 生成。
-- [ ] 统一 try-on provider 合同至少接通一个真实托管或本地轻量 provider，使无 GPU 服务器时仍可完成真实试穿；FastFit/FASHN 作为自托管重 provider 适配器保留。
+- [ ] 统一 try-on provider 合同默认接通托管 FASHN `tryon-v1.6`，高质量任务可切 `tryon-max`；FastFit/本地 FASHN 作为 `ai-heavy` 可选适配器保留。
 - [ ] 通用生图通过 LiteLLM `image_generation` 能力别名接入 Seedream；若其图像 API 需要专用传输，差异封装在基础设施适配器内，不改变 Render API 或领域模型。
 - [ ] 有用户参考照时才称为用户试穿；没有参考照时使用固定模特或拼贴，并在 UI 中明确标注。
 - [ ] 试穿失败、超时或类别不支持时自动降级为拼贴，不能把降级结果标成真人试穿成功。
@@ -163,7 +164,7 @@ None - can start immediately.
 
 ### Acceptance criteria
 
-- [ ] 使用最终 provider 组合记录显存、内存和时延，再确定部署规格；48 GB GPU、16 vCPU、64 GB RAM、300–500 GB NVMe 是重模型全自托管的安全上限建议，不是预先采购要求。
+- [ ] 先在现有 4核8G 主机验证 CPU core + COS/CDN + 托管 AI 组合并记录内存、CPU、带宽、队列和时延；只有质量或吞吐不达标才评估 GPU，48 GB GPU 规格仅是重模型全自托管上限。
 - [ ] 从干净 Ubuntu 22.04 主机可通过一套文档化命令启动最终 Compose；若采用托管推理或轻量 provider，同一领域 API 与任务状态保持不变。
 - [ ] Core、AI-light 和 AI-heavy 使用独立 Compose profiles；本地 core 有健康检查、持久卷和资源限制，CUDA provider 不进入默认笔记本开发路径。
 - [ ] Nginx/H5、FastAPI、PostgreSQL/pgvector、Redis/Celery 和所选视觉/试穿 provider 健康运行；媒体使用 COS，公网只开放必要入口。

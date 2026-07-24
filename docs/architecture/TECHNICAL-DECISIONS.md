@@ -11,7 +11,7 @@
 - 数字衣橱体验域迁移 `StyleCapture-main` 的紫粉像素视觉、页面语义和角色资产。
 - 两个体验域共享登录态、API、数据库、异步任务、Item/Look 和购买状态，不通过 iframe 或两个独立应用拼接。
 - 系统采用 API-first：H5、Skill/Agent、后台 Worker、运营工具和未来外部合作方调用同一组版本化领域能力，页面不是服务能力的唯一入口。
-- 后端采用 FastAPI 模块化单体；只有重模型推理因为 CUDA 依赖和 GPU 调度而拆成独立 Worker。
+- 后端采用 FastAPI 模块化单体；默认部署为 CPU core + 托管模型 API，只有实测必要的重模型才以可选 CUDA Worker 接入。
 - Item 是衣橱原子事实，Look 保存单品之间的搭配关系；像素图和真人试穿图都是可重建的派生物。
 - 用户右滑后立即完成“保存意图”的持久化，分割、拆件、打标、向量化和图片生成异步执行，绝不让 AI 时延卡住 Feed。
 - 首版实现真实 2D 资产与真人试穿，不建设 3D 服装网格、布料仿真或可量体数字人。
@@ -43,19 +43,23 @@ flowchart LR
         Object["S3-compatible 对象存储 / COS"]
     end
 
-    subgraph Vision["视觉理解 Worker"]
+    subgraph Vision["轻量媒体与视觉 Worker"]
         FFmpeg["FFmpeg 抽帧"]
-        SAM["SAM2 / Grounded-SAM2"]
+        SAM["MobileSAM / 粗圈选回退"]
         Gateway["LiteLLM Gateway"]
-        VLM["豆包视觉理解 / Qwen3-VL 备选"]
-        Embed["FashionSigLIP"]
+        VLM["豆包视觉理解 + Grounding"]
+        Embed["豆包多模态 Embedding"]
         Taxonomy["Shopify taxonomy + 服装扩展"]
     end
 
-    subgraph GPU["图像生成 Worker"]
-        FastFit["FastFit 多参考整套试穿"]
-        Fashn["FASHN VTON 单品回退"]
-        Pixel["StyleCapture Pixel Provider"]
+    subgraph Hosted["托管渲染 Provider"]
+        Fashn["FASHN Try-On v1.6 / Max"]
+        Pixel["Seedream / StyleCapture Pixel Provider"]
+    end
+
+    subgraph OptionalGPU["可选 AI-heavy Worker"]
+        FastFit["FastFit / 本地 FASHN"]
+        Quality["SAM2.1 / Grounded-SAM2 / FashionSigLIP"]
     end
 
     Feed --> API
@@ -71,11 +75,13 @@ flowchart LR
     Core --> Redis
     Core --> Object
     Redis --> Vision
-    Redis --> GPU
+    Redis --> Hosted
+    Redis -. 质量门槛未通过时 .-> OptionalGPU
     Gateway --> VLM
     Vision --> PG
     Vision --> Object
-    GPU --> Object
+    Hosted --> Object
+    OptionalGPU --> Object
     Core --> Trace
 ```
 
@@ -220,11 +226,11 @@ sequenceDiagram
 1. 前端从当前视频精确截帧，上传归一化 lasso 坐标、帧时间和来源。
 2. API 先保存原始输入并返回，保证 Feed 交互时延与 AI 解耦。
 3. FFmpeg 按时间戳提取原帧；必要时读取相邻少量帧。
-4. SAM2 根据 lasso/box/mask prompt 细化主体；相邻帧只用于遮挡恢复和选择更清晰视图。
-5. 当用户选择整套或主体含多件服饰时，Grounded-SAM2 产生候选区域。
+4. 默认由 MobileSAM 根据 lasso/box prompt 精修当前帧主体；若质量门槛未通过，再调用托管 SAM2.1 tiny/small。任何失败都保留用户粗圈选，不丢失 Capture。
+5. 当用户选择整套或主体含多件服饰时，默认由豆包视觉 Grounding 产生结构化候选区域；Grounded-SAM2 只作为托管或 `ai-heavy` 质量适配器。
 6. VLM 对整套和候选单品生成严格结构化输出。
 7. taxonomy normalizer 把模型自由文本映射为稳定分类，同时保留原始描述。
-8. FashionSigLIP 生成图文向量；pHash + embedding + 来源证据用于相似提醒。
+8. 默认由 `doubao-embedding-vision` 生成图文向量，并与品类、颜色、pHash 和来源证据共同用于相似提醒；FashionSigLIP 只作为质量对照或可选批处理 provider。
 9. 强证据才自动合并；不确定时保留候选或请求用户后续确认，不在 Feed 中打断。
 10. Look analyzer 总结搭配关系并写入 Look。
 
@@ -273,8 +279,8 @@ sequenceDiagram
 
 ### 8.1 真人试穿
 
-- FastFit 负责多参考整套生成，支持上衣、下装、连衣装、鞋和包；部署为同一 GPU 主机上的隔离推理容器。
-- FASHN VTON 1.5 负责单件上衣/下装/连衣装试穿，也是 FastFit 失败时的质量回退。
+- 默认使用托管 FASHN `tryon-v1.6` 的 performance/balanced 模式，不在核心服务器加载试穿权重；需要更高成片质量时按任务切换 `tryon-max`。
+- FastFit 与本地 FASHN VTON 1.5 保留为 `ai-heavy` 可选适配器，只有真实输入对比证明托管轻量方案无法达到验收门槛时才启用。
 - 用户上传的全身参考照是可选资料；没有参考照时显示固定模特或真实单品拼贴，不假装是用户本人。
 - 现场演示允许命中同一真实输入的内容哈希缓存，但缓存必须来自此前真实任务，并显示 cached 状态；禁止 hardcode 某个请求返回预制图。
 - FastFit 当前许可证只允许非商业 Demo；商业化前必须取得授权或替换。
@@ -401,10 +407,15 @@ Product API 必须满足：
 - Docker Compose 划分 `core`、`ai-light` 和 `ai-heavy` profiles；默认笔记本只运行带健康检查、持久卷和资源限制的 core，CUDA 与重模型镜像不进入默认 profile。
 - 长时构建、E2E 或媒体任务每五分钟检查 CPU、内存压力、温控、swap、磁盘和容器资源；触发 `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md` 时立即降并发或停止昂贵任务。
 - 视觉理解、分割、试穿和像素生成统一通过 provider contract 调用；开发期优先选择真实托管 API、Apple Silicon/CPU 可运行的轻量模型或已有 StyleCapture provider。
+- 默认 provider 组合为：豆包视觉理解/定位/多模态向量，MobileSAM 单帧 CPU/ONNX 精修，FASHN `tryon-v1.6` 托管试穿，Seedream 托管生图；重模型不是默认依赖。
 - runtime 仍禁止 mock、stub 和固定结果。某个重 provider 暂时不可运行时，必须使用真实轻量 provider、真实托管 provider，或明确降级为真实单品拼贴，而不是伪造 AI 产物。
 - FastFit/FASHN 的适配器、合同测试和容器配置可以先完成；自托管重模型的 live smoke 放到最终部署 Issue，不阻塞前端、领域、API、任务编排和完整交互开发。
 
-### 11.2 单机 GPU Demo
+### 11.2 默认轻量 Demo
+
+默认使用现有 4 vCPU / 8 GiB 主机承载 H5、API、PostgreSQL/pgvector、Redis/Celery、LiteLLM 和单并发轻量媒体 Worker。Feed 视频、原始帧、mask、试穿图和像素图使用 COS/CDN，避免 5 Mbps 公网带宽成为 Feed 瓶颈。该组合通过真实链路、时延、内存和视觉质量验收后，不再租 GPU 服务器。
+
+### 11.3 可选单机 GPU Demo
 
 需要自托管重模型时，Demo 采用一台 GPU 服务器，不再要求“CPU Core 主机 + Serverless GPU”两套计算资源：
 
@@ -416,15 +427,15 @@ Product API 必须满足：
 - 视频、原始帧、mask、透明单品图、试穿图和像素封面进入腾讯云 COS；服务器只保存缓存、模型权重、数据库和日志。
 - 对公网只开放 80/443 和受限管理入口；PostgreSQL、Redis、Celery 与 Worker 端口不得暴露公网。
 
-### 11.3 现有 4 核 8G 主机
+### 11.4 现有 4 核 8G 主机
 
-南京一区标准型 SA9（4 vCPU / 8 GiB / 5 Mbps / Ubuntu）不作为重模型主机，但可在需要时承担轻量开发、API 联调或备份入口。租用 GPU 服务器后再决定停用或保留，避免开发阶段提前清理造成无谓阻塞。
+南京一区标准型 SA9（4 vCPU / 8 GiB / 5 Mbps / Ubuntu）是默认轻量部署候选，不作为重模型主机。它承载产品 core 与单并发轻量 Worker，媒体必须经 COS/CDN 分发；只有真实质量或吞吐测量不通过时才升级 GPU 方案。
 
 旧服务和数据可清理，但必须先只读盘点容器、进程、端口、数据库、上传文件、环境变量和证书，备份仍需保留的数据库与配置，再按明确清单删除；禁止直接执行全局 Docker 清理或递归删除。
 
-### 11.4 国内长期部署
+### 11.5 国内长期部署
 
-- 首个真实试点仍可沿用单机 GPU 架构；只有监控数据证明数据库、API 或 GPU 互相争抢资源时才拆分。
+- 首个真实试点优先沿用轻量 core + 托管模型 API；只有监控或质量数据证明需要自托管 GPU 时才启用 `ai-heavy`。
 - 数据增长后优先把 PostgreSQL 迁移到托管服务，计算层仍保持同一领域 API。
 - 媒体层保持 S3-compatible 适配器，当前部署使用 COS，避免上层领域 API 绑定某个厂商。
 - 多模态理解默认由 LiteLLM 路由到豆包视觉模型，紧急情况下可在 48 GB 主机把相同别名切换到紧凑型本地 VLM。
@@ -485,19 +496,19 @@ Product API 必须满足：
 | 衣橱视觉和像素资产 | 迁移复用 `StyleCapture-main` |
 | 资产/异步任务模式 | 适配复用 `wardrowbe` 后端 |
 | 视频帧与上下文 | FFmpeg；PySceneDetect 按需 |
-| 圈选分割 | SAM2 |
-| 整套拆件候选 | Grounded-SAM2 |
+| 圈选分割 | MobileSAM/ONNX 默认；粗圈选兜底；托管 SAM2.1 tiny/small 质量层 |
+| 整套拆件候选 | 豆包视觉 Grounding 默认；Grounded-SAM2 可选质量层 |
 | 模型网关 | LiteLLM，业务仅依赖能力别名 |
 | 中文细粒度理解 | `doubao-seed-2-0-lite-260428`；Qwen3-VL 备选 |
 | 通用推理 | 环境注入的方舟端点 `ARK_REASONING_ENDPOINT_ID` |
 | 生图 | `doubao-seedream-5-0-260128`，通过统一适配器合同 |
 | 分类与属性词表 | Shopify Product Taxonomy + 本项目服装扩展 |
-| 服装相似检索 | Marqo FashionSigLIP + pgvector |
+| 服装相似检索 | `doubao-embedding-vision` + 确定性特征 + pgvector；FashionSigLIP 可选质量对照 |
 | 搭配推荐 | SQL/向量召回 + 硬约束规则 + LLM/VLM 重排 |
-| 多参考整套试穿 | FastFit，非商业 Demo 条件采用 |
-| 单品试穿/回退 | FASHN VTON 1.5 |
+| 真人试穿 | FASHN 托管 `tryon-v1.6` 默认，`tryon-max` 高质量层 |
+| 自托管试穿 | FastFit / FASHN VTON 1.5 仅 `ai-heavy` 可选 |
 | 像素封面 | StyleCapture pixel provider router |
 | 异步任务 | Redis + Celery |
-| 开发/部署 | 本地或真实轻量/托管 provider 先开发；测量后再决定是否使用单台 48 GB GPU 主机 |
+| 开发/部署 | 4核8G CPU core + COS/CDN + 托管 AI 默认；测量不通过才启用单台 GPU |
 | 国内对象存储/模型 | 腾讯 COS + LiteLLM 路由的豆包/方舟能力 |
 | 3D | 不进入当前范围 |

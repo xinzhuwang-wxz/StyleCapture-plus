@@ -44,7 +44,7 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - [x] (2026-07-25 06:12 CST) Security and architecture review moved upload credentials from URLs to `X-Upload-Token`, eliminated browser trace secret/media capture, bound Compose ports to loopback, upgraded the image parser stack, added pre-parser signature checks, made failed source deletion safely retryable, and reduced duplicate provider retry layers. Fresh verification is 61 Python tests and a 7.8-second real mobile E2E.
 - [x] (2026-07-25 06:25 CST) Bounded upload buffering/parsing to two off-event-loop tasks, made concurrent signed-upload replay atomic and idempotent, added reverse-proxy connection/rate limits, marked all private API responses non-cacheable, hardened every container with read-only filesystems/capability drops and digest-pinned images, cleared Python and pnpm dependency audits, and completed 66 Python tests plus a fresh 7.7-second real mobile E2E.
 - [x] (2026-07-25 06:31 CST) Independent architecture, code, and security gates returned APPROVE + CLEAR with P0/P1/P2 all zero; verifier marked the implementation READY for merge and separated the unavailable credentialed Doubao/FashionSigLIP success smoke as an external acceptance gate.
-- [ ] Update this plan’s outcomes, GitHub Issue/PR evidence, and merge before entering Issue #2.
+- [x] (2026-07-25 06:37 CST) PR #7 passed remote CI and merged to `main`; Issue #1 received the evidence summary and remains open only for the unavailable credentialed provider success gate. Issue #2 was explicitly unblocked and started.
 
 ## Surprises & Discoveries
 

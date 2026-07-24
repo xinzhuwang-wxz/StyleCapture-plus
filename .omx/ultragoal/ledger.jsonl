@@ -1,2 +1,4 @@
 {"ts":"2026-07-24T18:54:03.586Z","event":"plan_created","message":"6 goal(s) created"}
 {"ts":"2026-07-24T21:35:27.816Z","event":"goal_started","goalId":"G001-issue-1","status":"in_progress","message":"Attempt 1"}
+{"ts":"2026-07-24T22:37:00.000Z","event":"goal_external_gate","goalId":"G001-issue-1","status":"in_progress","message":"Implementation merged in PR #7; credentialed Doubao/FashionSigLIP success smoke remains unavailable and is not allowed to block later slices"}
+{"ts":"2026-07-24T22:37:00.000Z","event":"goal_started","goalId":"G002-issue-2-feed","status":"in_progress","message":"Attempt 1"}

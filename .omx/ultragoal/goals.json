@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-07-24T18:54:03.586Z",
-  "updatedAt": "2026-07-24T21:35:27.816Z",
+  "updatedAt": "2026-07-24T22:37:00.000Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -14,17 +14,18 @@
       "status": "in_progress",
       "attempt": 1,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T21:35:27.816Z",
+      "updatedAt": "2026-07-24T22:37:00.000Z",
       "startedAt": "2026-07-24T21:35:27.816Z"
     },
     {
       "id": "G002-issue-2-feed",
       "title": "Issue #2 Feed 圈选入库",
       "objective": "完成 GitHub Issue #2 的全部验收条件，复用 Feed 容器实现多圈选、主体抬升、直接滑动、curated_seed 素材库与真实后台链路。",
-      "status": "pending",
-      "attempt": 0,
+      "status": "in_progress",
+      "attempt": 1,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T18:54:03.586Z"
+      "updatedAt": "2026-07-24T22:37:00.000Z",
+      "startedAt": "2026-07-24T22:37:00.000Z"
     },
     {
       "id": "G003-issue-3-look",
@@ -64,5 +65,5 @@
     }
   ],
   "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail.",
-  "activeGoalId": "G001-issue-1"
+  "activeGoalId": "G002-issue-2-feed"
 }
