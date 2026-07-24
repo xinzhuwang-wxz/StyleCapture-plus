@@ -10,7 +10,7 @@
 3. [#3 Feed 整套穿搭拆成 Look 与可复用 Items](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/3)
 4. [#4 场景搭配 Skill 生成、替换并补齐一套穿搭](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/4)
 5. [#5 为完成的 Look 生成真实拼贴、真人试穿和像素封面](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/5)
-6. [#6 在一台 GPU 服务器交付可评审的完整产品](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/6)
+6. [#6 开发完成后部署可评审的完整产品](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/6)
 
 ## 共同完成规则
 
@@ -132,14 +132,14 @@ None - can start immediately.
 ### Acceptance criteria
 
 - [ ] Look 详情先显示由真实 Item 图片生成的拼贴，不等待 GPU 生成。
-- [ ] FastFit 接收多个真实 Items 生成整套试穿；FASHN VTON 处理单品或作为受支持类别的回退，二者均通过固定 provider 合同调用。
+- [ ] 统一 try-on provider 合同至少接通一个真实托管或本地轻量 provider，使无 GPU 服务器时仍可完成真实试穿；FastFit/FASHN 作为自托管重 provider 适配器保留。
 - [ ] 有用户参考照时才称为用户试穿；没有参考照时使用固定模特或拼贴，并在 UI 中明确标注。
 - [ ] 试穿失败、超时或类别不支持时自动降级为拼贴，不能把降级结果标成真人试穿成功。
 - [ ] 复用 StyleCapture pixel provider router，从完成的 Look 视觉生成稳定角色风格的像素封面；点击像素封面能回到准确的真实 Look。
 - [ ] 分享产物只包含允许公开的像素 Look 和必要文案，不包含用户参考照、私有源图或长期签名 URL。
 - [ ] RenderArtifact 记录输入版本、provider、模型、参数、状态、对象 key 与内容哈希；缓存只能命中真实历史结果。
-- [ ] FastFit 只在非商业 Demo 配置可启用，生产配置必须拒绝启动该 provider。
-- [ ] 拼贴、真实多参考或单品试穿、像素生成、隐私、降级、缓存和视觉回归测试全部通过。
+- [ ] FastFit 只在非商业 Demo 配置可启用，生产配置必须拒绝启动该 provider；没有重 GPU 时只延后其 live smoke，不延后本 Issue 的其余产品验收。
+- [ ] 拼贴、至少一个真实 provider 试穿、像素生成、隐私、降级、缓存和视觉回归测试全部通过。
 
 ### Blocked by
 
@@ -150,17 +150,18 @@ None - can start immediately.
 
 41–43、60–68、78–80、90–91、96。
 
-## 6. 在一台 GPU 服务器交付可评审的完整产品
+## 6. 开发完成后部署可评审的完整产品
 
 ### What to build
 
-把前五条切片作为一个真实产品部署到一台 48 GB GPU 服务器，完成从 Feed/上传输入到衣橱、搭配、试穿、像素封面、购买清单和 Playground trace 的现场评审闭环，并以性能、视觉、故障恢复、安全和许可证证据封口。
+前五条切片全部完成后，根据真实模型组合和峰值显存测量结果选择轻量主机、托管推理或单台 GPU 服务器，完成从 Feed/上传输入到衣橱、搭配、试穿、像素封面、购买清单和 Playground trace 的现场评审闭环。这个 Issue 不得反向阻塞 Issue 1–5。
 
 ### Acceptance criteria
 
-- [ ] 推荐规格为 48 GB GPU、16 vCPU、64 GB RAM、300–500 GB NVMe；从干净 Ubuntu 22.04 主机可通过一套文档化命令启动完整 Compose。
-- [ ] Nginx/H5、FastAPI、PostgreSQL/pgvector、Redis/Celery、视觉容器和试穿容器在同机健康运行；媒体使用 COS，公网只开放必要入口。
-- [ ] SAM2/Grounded-SAM2、FashionSigLIP、FastFit/FASHN 重任务由 Celery 串行调度，不因显存竞争破坏 API 可用性。
+- [ ] 使用最终 provider 组合记录显存、内存和时延，再确定部署规格；48 GB GPU、16 vCPU、64 GB RAM、300–500 GB NVMe 是重模型全自托管的安全上限建议，不是预先采购要求。
+- [ ] 从干净 Ubuntu 22.04 主机可通过一套文档化命令启动最终 Compose；若采用托管推理或轻量 provider，同一领域 API 与任务状态保持不变。
+- [ ] Nginx/H5、FastAPI、PostgreSQL/pgvector、Redis/Celery 和所选视觉/试穿 provider 健康运行；媒体使用 COS，公网只开放必要入口。
+- [ ] 自托管重任务启用时由 Celery 串行调度，不因显存竞争破坏 API 可用性。
 - [ ] 使用至少一条真实 Feed 视频和一组真实上传衣物完成整条 Demo narrative，保存 trace、模型版本、产物和时延证据。
 - [ ] 前端通过移动 E2E、关键截图视觉验收、慢网与失败恢复；Feed 和 StyleCapture 两个视觉域协调且无 CSS/状态污染。
 - [ ] Runtime 配置审计确认不存在 mock/stub、固定结果或提示词键控缓存；真实缓存可追溯到首次运行。
@@ -173,7 +174,8 @@ None - can start immediately.
 - [#3](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/3)
 - [#4](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/4)
 - [#5](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/5)
-- GPU 服务器、域名/COS 与模型凭据可用
+
+开始本 Issue 时再准备部署目标、域名/COS 与所选 provider 凭据；这些不是前五个开发 Issue 的 blocker。
 
 ### User stories covered
 

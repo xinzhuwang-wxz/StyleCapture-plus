@@ -368,11 +368,19 @@ Product API 必须满足：
 
 ## 11. 部署
 
-### 11.1 单机 GPU Demo
+### 11.1 开发与部署解耦
 
-Demo 采用一台 GPU 服务器，不再要求“CPU Core 主机 + Serverless GPU”两套计算资源：
+- 服务器采购和正式部署推迟到产品切片开发完成、真实模型组合与显存峰值有测量结果之后。
+- Issue 1–5 的开发不得以“没有 GPU 服务器”为阻塞理由。开发环境先运行 H5、FastAPI、PostgreSQL/pgvector、Redis/Celery 和普通 Worker。
+- 视觉理解、分割、试穿和像素生成统一通过 provider contract 调用；开发期优先选择真实托管 API、Apple Silicon/CPU 可运行的轻量模型或已有 StyleCapture provider。
+- runtime 仍禁止 mock、stub 和固定结果。某个重 provider 暂时不可运行时，必须使用真实轻量 provider、真实托管 provider，或明确降级为真实单品拼贴，而不是伪造 AI 产物。
+- FastFit/FASHN 的适配器、合同测试和容器配置可以先完成；自托管重模型的 live smoke 放到最终部署 Issue，不阻塞前端、领域、API、任务编排和完整交互开发。
 
-- 推荐配置：NVIDIA L40S、RTX 6000 Ada 或 A6000 48 GB，16 vCPU，64 GB RAM，300–500 GB NVMe，Ubuntu 22.04，固定 CUDA/PyTorch 兼容矩阵。
+### 11.2 单机 GPU Demo
+
+需要自托管重模型时，Demo 采用一台 GPU 服务器，不再要求“CPU Core 主机 + Serverless GPU”两套计算资源：
+
+- 安全上限建议：NVIDIA L40S、RTX 6000 Ada 或 A6000 48 GB，16 vCPU，64 GB RAM，300–500 GB NVMe，Ubuntu 22.04，固定 CUDA/PyTorch 兼容矩阵。租用前必须用最终 provider 组合测量峰值显存；若轻量模型或托管推理已满足质量，不强制采购该规格。
 - 同机通过 Docker Compose 运行 Nginx/H5、FastAPI、PostgreSQL/pgvector、Redis/Celery、视觉容器和试穿容器。
 - SAM2.1 small/base 本身较轻，不是选择 48 GB 显存的主要原因；显存余量主要用于 FastFit/FASHN、可能的本地 VLM，以及避免多套模型与预处理组件共存时反复 OOM。
 - 重 GPU 任务默认并发为一；任务完成后允许容器卸载模型或释放显存。服务隔离是为了解决 CUDA/Python 依赖冲突，不代表需要多台机器。
@@ -380,13 +388,13 @@ Demo 采用一台 GPU 服务器，不再要求“CPU Core 主机 + Serverless GP
 - 视频、原始帧、mask、透明单品图、试穿图和像素封面进入腾讯云 COS；服务器只保存缓存、模型权重、数据库和日志。
 - 对公网只开放 80/443 和受限管理入口；PostgreSQL、Redis、Celery 与 Worker 端口不得暴露公网。
 
-### 11.2 现有 4 核 8G 主机
+### 11.3 现有 4 核 8G 主机
 
-南京一区标准型 SA9（4 vCPU / 8 GiB / 5 Mbps / Ubuntu）不再作为正式 Demo 拓扑的必要节点。租用上述 GPU 服务器后可将其停用，或仅保留为临时开发/备份入口，避免为两台主机增加部署和排障复杂度。
+南京一区标准型 SA9（4 vCPU / 8 GiB / 5 Mbps / Ubuntu）不作为重模型主机，但可在需要时承担轻量开发、API 联调或备份入口。租用 GPU 服务器后再决定停用或保留，避免开发阶段提前清理造成无谓阻塞。
 
 旧服务和数据可清理，但必须先只读盘点容器、进程、端口、数据库、上传文件、环境变量和证书，备份仍需保留的数据库与配置，再按明确清单删除；禁止直接执行全局 Docker 清理或递归删除。
 
-### 11.3 国内长期部署
+### 11.4 国内长期部署
 
 - 首个真实试点仍可沿用单机 GPU 架构；只有监控数据证明数据库、API 或 GPU 互相争抢资源时才拆分。
 - 数据增长后优先把 PostgreSQL 迁移到托管服务，计算层仍保持同一领域 API。
@@ -457,6 +465,6 @@ Demo 采用一台 GPU 服务器，不再要求“CPU Core 主机 + Serverless GP
 | 单品试穿/回退 | FASHN VTON 1.5 |
 | 像素封面 | StyleCapture pixel provider router |
 | 异步任务 | Redis + Celery |
-| GPU 部署 | 单台 48 GB GPU 主机 + Docker Compose + 锁版本推理容器 |
+| 开发/部署 | 本地或真实轻量/托管 provider 先开发；测量后再决定是否使用单台 48 GB GPU 主机 |
 | 国内对象存储/模型 | 腾讯 COS + 可配置中文 VLM API |
 | 3D | 不进入当前范围 |

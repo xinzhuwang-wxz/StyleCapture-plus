@@ -278,10 +278,10 @@
 ### Rendering
 
 - Use real Item collage as the deterministic, immediate outfit visualization.
-- Use FastFit for multi-reference full-look try-on in the non-commercial demo.
-- Use FASHN VTON 1.5 for single-garment try-on and fallback.
+- Keep try-on behind one provider contract. During development, use a real hosted provider or a genuinely runnable lightweight local provider so implementation is not blocked by GPU-server availability.
+- Keep FastFit as the preferred self-hosted multi-reference full-look candidate for the non-commercial demo and FASHN VTON 1.5 as the preferred self-hosted single-garment candidate; activating either heavy provider is a deployment decision, not a prerequisite for building the product path.
 - Isolate each GPU pipeline in a pinned custom container.
-- Run the containers on one GPU server and serialize heavy GPU jobs through the queue; do not require a second compute server for the demo.
+- When heavy providers are enabled, run their containers on one GPU server and serialize jobs through the queue; do not require a second compute server for the demo.
 - Cache only outputs of real prior jobs by content hash; surface cached status.
 - Fall back to a clearly labelled real-item collage when try-on fails.
 - Reuse the existing StyleCapture pixel provider router and character system for Look covers.
@@ -290,8 +290,10 @@
 
 ### Deployment and operations
 
+- Server provisioning is explicitly deferred until the product slices are implemented and the actual model set has been measured. Issues 1–5 must continue without a rented GPU server.
+- The development Compose profile runs H5, API, PostgreSQL/pgvector, Redis/Celery and normal workers locally. Optional AI providers use real hosted endpoints or lightweight local models through the same contracts; runtime mock/stub output remains prohibited.
 - Deploy H5, API, PostgreSQL/pgvector, Redis/Celery and model containers through one Docker Compose project on one GPU server.
-- Recommended server class: one NVIDIA L40S/RTX 6000 Ada/A6000 48 GB GPU, 16 vCPU, 64 GB RAM and 300–500 GB NVMe. Use Ubuntu 22.04 and a pinned CUDA/PyTorch matrix.
+- Treat one NVIDIA L40S/RTX 6000 Ada/A6000 48 GB GPU, 16 vCPU, 64 GB RAM and 300–500 GB NVMe as the safe upper recommendation only if the selected heavy providers require it. Measure first; a lighter host or hosted inference is acceptable when it passes the same real-provider evidence.
 - Run SAM2/Grounded-SAM2, FashionSigLIP, FastFit and FASHN in separate containers on that host, with GPU concurrency set to one for heavy jobs.
 - Keep source media and generated artifacts in Tencent COS so the server disk and network are not the media origin.
 - Use a configurable Chinese multimodal API as the default VLM; the server has enough headroom to run a compact self-hosted VLM as a fallback, but the product contract does not depend on it.
@@ -405,7 +407,7 @@
 - Use at least one real Feed video frame and one real user-uploaded image.
 - Run real frame extraction, segmentation, VLM tagging, taxonomy normalization, embedding and database persistence.
 - Generate at least one real 3–4 plan result from the stored wardrobe.
-- Run at least one real multi-reference or single-garment try-on.
+- Run at least one real multi-reference or single-garment try-on through the provider contract; during development this may be a hosted or lightweight provider, while self-hosted heavy-provider acceptance belongs to the deployment Issue.
 - Generate at least one real pixel Look cover.
 - Preserve the trace, model versions and artifacts for judging and regression comparison.
 - A cached repeat is acceptable only after the real first run is evidenced.
