@@ -60,6 +60,9 @@ the stored mask asynchronously but is not the source of the user's save decision
 - [x] 2026-07-25: Defined Feed frame/selection contracts, stable API validation,
   idempotent single-job submission, PostgreSQL round-trip, and generated TypeScript
   contracts through red-green tests.
+- [x] 2026-07-25: Added a reuse-audited corpus verifier for minimum size, fixed
+  regression coverage, category balance, item-level rights evidence, `curated_seed`
+  provenance, unique identity, path containment, SHA-256, and FFprobe playability.
 - [ ] Add provenance-recorded Feed corpus manifest and at least 30 local review clips.
 - [ ] Integrate Feed browsing, pause, multi-lasso, lifted subject, and direct swipe.
 - [ ] Connect right-swipe to the real upload/capture/job API with idempotent batching.
@@ -159,6 +162,7 @@ Rejected reuse:
 | Wardrobe visual identity | `_ref/StyleCapture-main` | Adapt CSS/assets/page semantics | Preserves the approved purple-pixel identity without importing the global script/state architecture | Internal user-owned snapshot dated 2026-05-24; no external license file |
 | API contracts | Handwritten duplicate TypeScript types; OpenAPI generator | Reuse generated OpenAPI client types | One backend contract source prevents H5 drift | `openapi-typescript@7.13.0`, MIT |
 | Frame extraction | Browser seek logic; custom decoder; FFmpeg | Reuse FFmpeg | Mature timestamp-aware decoding avoids a custom media stack | Local FFmpeg 8.0.1; LGPL/GPL build terms retained with deployment |
+| Corpus manifest validation | Handwritten schema; JSON Schema dependency; existing Pydantic + FFprobe | Reuse Pydantic and FFprobe behind a thin repository script | Pydantic already defines product contracts; FFprobe proves real playability. Only cross-asset coverage, provenance, and hash rules are product-specific | `pydantic@2.12.5`, MIT; local FFmpeg/FFprobe 8.0.1 |
 | Still-frame segmentation | Coarse polygon; MobileSAM; SAM2.1; Grounded-SAM2 | Coarse polygon truth + adapted MobileSAM default; heavier candidates quality-only | Keeps core CPU-compatible and preserves save intent when inference fails | `MobileSAM@f706ad9`, Apache-2.0; `sam2@2b90b9f`, Apache-2.0; `Grounded-SAM-2@b7a9c29`, Apache-2.0 |
 | Gesture animation | Handwritten animation engine; Motion; SVG/Canvas | Reuse Motion and browser primitives | Existing dependency supplies drag/spring behavior; Canvas/SVG supplies exact lasso visuals without a 3D engine | `motion@12.23.24`, MIT; browser standards |
 
