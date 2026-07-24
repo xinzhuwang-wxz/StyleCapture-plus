@@ -1,0 +1,31 @@
+.DS_Store
+.pnpm-store/
+.superpowers/
+
+# Local reference repositories are audited in docs but are not vendored into
+# the product repository. Each project keeps its own Git history under _ref.
+_ref/*
+!_ref/README.md
+
+# Local model artifacts and generated media.
+models/
+checkpoints/
+outputs/
+uploads/
+*.ckpt
+*.safetensors
+*.pth
+*.pt
+
+# Runtime and editor artifacts.
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+dist/
+coverage/
