@@ -88,6 +88,8 @@ Follow `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md`.
 
 Maintain a provenance-recorded local Feed corpus with at least 30 varied authorized/public demo samples. Include single garments, multi-item outfits, accessories, layering, motion, occlusion, low contrast, and difficult negative cases. Do not rely on a tiny hand-picked happy-path set.
 
+The development agent owns sourcing and downloading public Feed material for this non-commercial judging demo. Preserve source URLs, creator/platform labels when visible, hashes, and replacement notes, but do not block implementation on a commercial-grade rights-clearance workflow. Never include private, paywalled, leaked, or unlawfully obtained media.
+
 ## GitHub and completion
 
 The agent may manage branches, commits, pushes, PRs, labels, Issues, comments, and merges for this repository. Never rewrite unrelated user work or use destructive Git operations.

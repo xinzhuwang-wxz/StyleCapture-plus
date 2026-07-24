@@ -98,6 +98,8 @@ Use a fixed evaluation subset for regression while keeping a larger browsing lib
 
 The development agent may pre-tag this known corpus without calling a paid model. Store those annotations as reviewed `curated_seed` metadata. They are browsing/regression inputs, not real-provider acceptance evidence. New user content and uncached workflows must still use the LiteLLM-routed product models.
 
+For this non-commercial judging demo, the development agent is responsible for discovering and downloading suitable publicly accessible material. A commercial-grade clearance process is out of scope, but private, paywalled, leaked, or unlawfully obtained media remains excluded and every sample must remain replaceable through its provenance record.
+
 ## Stop conditions
 
 Continue automatically while safe, scoped work remains.
