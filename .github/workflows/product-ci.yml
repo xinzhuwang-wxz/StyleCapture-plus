@@ -1,0 +1,67 @@
+name: product-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  product:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: stylecapture
+          POSTGRES_PASSWORD: stylecapture
+          POSTGRES_USER: stylecapture
+        ports:
+          - "5434:5432"
+        options: >-
+          --health-cmd "pg_isready -U stylecapture -d stylecapture"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: uv sync --all-packages
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify Python architecture and behavior
+        run: |
+          uv run ruff check services/backend/src services/backend/tests scripts
+          uv run ruff format --check services/backend/src services/backend/tests scripts
+          uv run mypy services/backend/src services/backend/tests scripts
+          uv run python scripts/check_boundaries.py services/backend/src
+          uv run pytest -q
+
+      - name: Verify generated API contract
+        run: |
+          pnpm contracts:generate
+          git diff --exit-code -- apps/h5/openapi.json apps/h5/src/api/schema.d.ts
+
+      - name: Verify mobile application
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Validate Compose and backend image
+        run: |
+          docker compose config --quiet
+          docker build -f services/backend/Dockerfile -t stylecapture-backend:test .

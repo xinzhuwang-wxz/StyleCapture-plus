@@ -33,8 +33,8 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 
 - [x] (2026-07-25 03:08 CST) Audited `video-branch-main`, `StyleCapture-main`, and `wardrowbe` reuse surfaces and licenses.
 - [x] (2026-07-25 03:08 CST) Selected `issue/1-upload-ingest`; confirmed only hourly-heartbeat documentation edits pre-existed on the branch.
-- [ ] Establish the monorepo skeleton, dependency locks, architecture boundary checks, and green baseline.
-- [ ] Implement upload preparation, signed local object upload, `Capture` creation, idempotency, and durable job state.
+- [x] (2026-07-25 03:19 CST) Established the monorepo skeleton, dependency locks, architecture boundary checks, and green baseline in `a641916`.
+- [x] (2026-07-25 03:42 CST) Implemented and locally verified signed upload, HEIC validation, idempotent `Capture` persistence, broker redrive, generated OpenAPI contracts, and durable PostgreSQL job state.
 - [ ] Implement Celery processing through vision and embedding ports, guarded model updates, retry, and partial/error recovery.
 - [ ] Implement StyleCapture mobile capture and wardrobe UI using only the generated client.
 - [ ] Run contract, domain, worker, Compose, real-provider, mobile, visual, security, and architecture verification.
@@ -46,6 +46,9 @@ The slice is complete only when the product UI, HTTP contracts, asynchronous wor
 - `StyleCapture-main` contains the desired purple/pink wardrobe semantics and pixel assets, but the prototype uses global browser state and large inline-style components. Only tokens, layout semantics, copy, and assets will be migrated.
 - `wardrowbe` has strong image validation, HEIC conversion, item lifecycle, manual-field guard, and async tagging patterns. Its direct multipart create route, arq runtime, user-configured provider endpoints, and broad item model are not copied.
 - The repository currently has documentation only, so there is no executable baseline to preserve. The first skeleton commit must establish its own tests and reproducible setup.
+- TypeScript project builds generate `*.tsbuildinfo` even with `noEmit`; it is now explicitly ignored after the first build exposed the artifact.
+- A production-wired API smoke accepted the real `/Users/bamboo/Downloads/IMG_2310.HEIC`, persisted its immutable source and queued job, and placed one JSON task on Redis without requiring an AI worker or GPU.
+- Pulling the Redis container image was unreliable on the current network, so the same broker contract was validated against the locally installed Redis binary. Redis remains in Compose and is not a development blocker.
 
 ## Decision Log
 
@@ -129,15 +132,15 @@ docker-compose.yml
 
 **TDD cycle:**
 
-- [ ] Write domain tests for legal state transitions, immutable source fields, and locked-field merge.
-- [ ] Run `uv run pytest services/backend/tests/domain -q`; expect import failure because the domain package does not exist.
-- [ ] Implement the minimal frozen dataclasses/enums/value objects.
-- [ ] Run the domain tests; expect all pass.
-- [ ] Write boundary tests with one temporary forbidden import fixture.
-- [ ] Run the boundary test; expect failure until `scripts/check_boundaries.py` exists.
-- [ ] Implement the AST import checker and run `uv run python scripts/check_boundaries.py services/backend/src`; expect `architecture boundaries: ok`.
-- [ ] Run `pnpm test` and `uv run pytest -q`; expect a green skeleton.
-- [ ] Commit with Lore trailers and record the commit in `Progress`.
+- [x] Write domain tests for legal state transitions, immutable source fields, and locked-field merge.
+- [x] Run `uv run pytest services/backend/tests/domain -q`; expect import failure because the domain package does not exist.
+- [x] Implement the minimal frozen dataclasses/enums/value objects.
+- [x] Run the domain tests; expect all pass.
+- [x] Write boundary tests with one temporary forbidden import fixture.
+- [x] Run the boundary test; expect failure until `scripts/check_boundaries.py` exists.
+- [x] Implement the AST import checker and run `uv run python scripts/check_boundaries.py services/backend/src`; expect `architecture boundaries: ok`.
+- [x] Run `pnpm test` and `uv run pytest -q`; expect a green skeleton.
+- [x] Commit with Lore trailers and record the commit in `Progress`.
 
 ### Milestone 2: Durable upload and job API
 
@@ -178,13 +181,13 @@ class JobDispatcher(Protocol):
 
 **TDD cycle:**
 
-- [ ] Write failing API tests for invalid type, excessive bytes, expired token, hash mismatch, repeated idempotency key, unknown job, and SSE terminal state.
-- [ ] Run targeted tests and confirm failures are caused by missing routes.
-- [ ] Implement the object store and application service without importing transport or ORM types into the domain.
-- [ ] Implement SQLAlchemy repositories and migration.
-- [ ] Implement thin HTTP adapters and error mapping.
-- [ ] Run targeted tests, then `uv run pytest services/backend/tests -q`.
-- [ ] Export OpenAPI and generate `apps/h5/src/api/schema.d.ts`; fail CI if regeneration changes tracked output.
+- [x] Write failing API tests for invalid type, excessive bytes, expired token, hash mismatch, repeated idempotency key, unknown job, and SSE terminal state.
+- [x] Run targeted tests and confirm failures are caused by missing routes.
+- [x] Implement the object store and application service without importing transport or ORM types into the domain.
+- [x] Implement SQLAlchemy repositories and migration.
+- [x] Implement thin HTTP adapters and error mapping.
+- [x] Run targeted tests, then `uv run pytest services/backend/tests -q`.
+- [x] Export OpenAPI and generate `apps/h5/src/api/schema.d.ts`; fail CI if regeneration changes tracked output.
 - [ ] Commit with Lore trailers and update `Progress`.
 
 ### Milestone 3: Real asynchronous understanding and guarded persistence
