@@ -23,6 +23,7 @@ uploads/
 .env
 .env.*
 !.env.example
+.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -30,4 +31,8 @@ __pycache__/
 .ruff_cache/
 node_modules/
 dist/
+*.tsbuildinfo
 coverage/
+playwright-report/
+test-results/
+.stylecapture/

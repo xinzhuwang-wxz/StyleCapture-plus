@@ -1,0 +1,1 @@
+"""StyleCapture product backend."""

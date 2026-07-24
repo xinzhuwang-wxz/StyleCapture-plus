@@ -1,0 +1,34 @@
+[project]
+name = "stylecapture-backend"
+version = "0.1.0"
+description = "StyleCapture product API and asynchronous wardrobe processing"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.14,<2",
+    "asyncpg>=0.30,<1",
+    "celery[redis]>=5.4,<6",
+    "fastapi>=0.115,<1",
+    "litellm>=1.60,<2",
+    "pgvector>=0.3,<1",
+    "pillow>=11,<12",
+    "pillow-heif>=0.21,<1",
+    "pydantic-settings>=2.7,<3",
+    "python-multipart>=0.0.20,<1",
+    "sqlalchemy[asyncio]>=2.0.37,<3",
+    "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+ai-light = [
+    "safetensors>=0.5,<1",
+    "torch>=2.6,<3",
+    "transformers>=4.48,<5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stylecapture_backend"]
+
