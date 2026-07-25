@@ -25,6 +25,7 @@ from stylecapture_backend.features.capture.ports import (
 from stylecapture_backend.features.capture.processing import ImagePayload
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeItem
+from stylecapture_backend.features.wardrobe.interfaces.http import ItemResponse
 from stylecapture_backend.main import BackendServices, create_app
 from stylecapture_backend.platform.session import SESSION_COOKIE_NAME, SessionSigner
 
@@ -154,6 +155,8 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert listed.json()["items"][0]["source_kind"] == "upload"
     assert listed.json()["items"][0]["source_available"] is True
     assert listed.json()["items"][0]["display_image_url"].endswith(f"/{item.id}/image")
+    assert listed.json()["items"][0]["display_image_kind"] == "derived_garment"
+    assert listed.json()["items"][0]["display_image_issue"] is None
     assert listed.json()["items"][0]["source_image_url"].endswith(f"/{item.id}/source")
     assert listed.json()["items"][0]["model_metadata"]["capability_alias"] == (
         "vision_understanding"
@@ -178,6 +181,26 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert deleted_item.json()["source_available"] is False
     assert rejected_retry.status_code == 409
     assert rejected_retry.json()["error"]["code"] == "source_deleted_not_retryable"
+
+
+def test_item_response_explains_why_an_ambiguous_upload_keeps_its_source_image() -> None:
+    _, _, item = build_client()
+    ambiguous = replace(
+        item,
+        display_object_key=None,
+        model_metadata={
+            "normalization": {
+                "status": "not_applied",
+                "reason": "multiple_garments",
+                "candidate_count": 2,
+            }
+        },
+    )
+
+    response = ItemResponse.from_domain(ambiguous)
+
+    assert response.display_image_kind == "source_capture"
+    assert response.display_image_issue == "multiple_garments"
 
 
 @pytest.mark.asyncio

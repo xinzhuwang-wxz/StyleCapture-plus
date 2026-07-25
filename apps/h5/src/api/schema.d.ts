@@ -819,6 +819,14 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Display Image Issue */
+            display_image_issue?: ("multiple_garments" | "no_reliable_garment" | "normalization_unavailable") | null;
+            /**
+             * Display Image Kind
+             * @default source_capture
+             * @enum {string}
+             */
+            display_image_kind: "derived_garment" | "source_capture";
             /** Display Image Url */
             display_image_url: string;
             /**

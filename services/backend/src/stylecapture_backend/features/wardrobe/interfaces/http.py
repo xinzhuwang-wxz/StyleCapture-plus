@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
@@ -29,6 +30,13 @@ from stylecapture_backend.features.wardrobe.domain import (
 )
 from stylecapture_backend.platform.errors import STABLE_ERROR_RESPONSES
 
+DisplayImageKind = Literal["derived_garment", "source_capture"]
+DisplayImageIssue = Literal[
+    "multiple_garments",
+    "no_reliable_garment",
+    "normalization_unavailable",
+]
+
 
 class FieldResponse(BaseModel):
     value: object
@@ -55,6 +63,8 @@ class ItemResponse(BaseModel):
     ownership: OwnershipState
     source_kind: CaptureSourceKind
     display_image_url: str
+    display_image_kind: DisplayImageKind = "source_capture"
+    display_image_issue: DisplayImageIssue | None = None
     pixel_image_url: str | None = None
     pixel_image_status: ItemPresentationStatus | None = None
     source_image_url: str
@@ -72,6 +82,16 @@ class ItemResponse(BaseModel):
         pixel_image_url: str | None = None,
         pixel_image_status: ItemPresentationStatus | None = None,
     ) -> ItemResponse:
+        normalization = item.model_metadata.get("normalization")
+        display_image_issue: DisplayImageIssue | None = None
+        if item.display_object_key is None and isinstance(normalization, Mapping):
+            reason = normalization.get("reason")
+            if reason == "multiple_garments":
+                display_image_issue = "multiple_garments"
+            elif reason == "no_reliable_garment":
+                display_image_issue = "no_reliable_garment"
+            elif normalization.get("status") == "fallback":
+                display_image_issue = "normalization_unavailable"
         return cls(
             id=item.id,
             capture_id=item.capture_id,
@@ -79,6 +99,12 @@ class ItemResponse(BaseModel):
             ownership=item.ownership,
             source_kind=item.source_kind,
             display_image_url=f"/v1/items/{item.id}/image",
+            display_image_kind=(
+                "derived_garment"
+                if item.display_object_key is not None
+                else "source_capture"
+            ),
+            display_image_issue=display_image_issue,
             pixel_image_url=pixel_image_url,
             pixel_image_status=pixel_image_status,
             source_image_url=f"/v1/items/{item.id}/source",

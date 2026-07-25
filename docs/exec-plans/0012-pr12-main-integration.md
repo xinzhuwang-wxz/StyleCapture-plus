@@ -116,3 +116,9 @@
 - AutoResearch 第 1/3 轮：更新旧版 Feed E2E 为当前 PR12 真实入口，并机械验证播放态与
   暂停态的圈选按钮均可用、前两条 Feed 展示画圈引导、空白轻点恢复播放、整套真实入库；
   Playwright `1 passed (1.5m)`，H5 Vitest `59 passed`，TypeScript 与 diff check 通过。
+- AutoResearch 第 2/N 轮：为 Item API 增加不泄露 provider 元数据的真实展示角色合同；
+  单件衣物必须显示抠图后的实物真源，全身/多衣物误选为单品时明确说明“保留原图且不猜测”，
+  一级衣橱仍只把像素图作为封面。真实相册上传、SAM2 规范化、视觉理解、像素派生、删除原图后
+  保留抠图资产的 Playwright 用例 `1 passed (1.5m)`；Backend 目标 Ruff/Mypy/Pytest、H5
+  Vitest `60 passed`、TypeScript、OpenAPI 生成与 diff check 通过。手机实操的歧义路径见
+  `docs/evidence/pr12-integration/13-upload-ambiguous-source-warning.png`。

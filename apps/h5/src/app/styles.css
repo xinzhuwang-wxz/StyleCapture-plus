@@ -1274,6 +1274,23 @@ p {
   font-size: 0.61rem;
 }
 
+.display-image-note {
+  margin: 0 0 0.85rem;
+  padding: 0.68rem 0.75rem;
+  border: 1px solid #d8c8f7;
+  border-radius: 0.8rem;
+  background: #f8f4ff;
+  color: #5b4a72;
+  font-size: 0.64rem;
+  line-height: 1.55;
+}
+
+.display-image-note--attention {
+  border-color: #f1c986;
+  background: #fff8e9;
+  color: #75501d;
+}
+
 .form-field {
   display: grid;
   gap: 0.35rem;

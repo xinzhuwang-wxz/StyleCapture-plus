@@ -428,6 +428,31 @@
             "title": "Created At",
             "type": "string"
           },
+          "display_image_issue": {
+            "anyOf": [
+              {
+                "enum": [
+                  "multiple_garments",
+                  "no_reliable_garment",
+                  "normalization_unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Image Issue"
+          },
+          "display_image_kind": {
+            "default": "source_capture",
+            "enum": [
+              "derived_garment",
+              "source_capture"
+            ],
+            "title": "Display Image Kind",
+            "type": "string"
+          },
           "display_image_url": {
             "title": "Display Image Url",
             "type": "string"

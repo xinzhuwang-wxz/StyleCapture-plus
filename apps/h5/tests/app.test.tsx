@@ -36,6 +36,7 @@ const wardrobeItem: Item = {
   ownership: "owned",
   source_kind: "upload",
   display_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/image",
+  display_image_kind: "derived_garment",
   source_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/source",
   source_available: true,
   attributes: {
@@ -299,5 +300,33 @@ describe("StyleCapture garment ingest", () => {
     expect(
       await screen.findByRole("img", { name: "米白色针织上衣" })
     ).toHaveAttribute("data-image-kind", "wardrobe-display");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "当前展示已抠出的单品实物图；像素图只用于衣橱封面。"
+    );
+  });
+
+  it("explains an ambiguous multi-garment upload instead of pretending the source is extracted", async () => {
+    api.listItems.mockResolvedValue([
+      {
+        ...wardrobeItem,
+        display_image_kind: "source_capture",
+        display_image_issue: "multiple_garments"
+      }
+    ]);
+    renderApp();
+
+    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "米白色针织上衣 可搭配 上装 我的衣服"
+      })
+    );
+
+    expect(
+      await screen.findByRole("img", { name: "米白色针织上衣" })
+    ).toHaveAttribute("data-image-kind", "wardrobe-source-fallback");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "照片里识别到多件衣服。为避免抠错，当前保留原图"
+    );
   });
 });

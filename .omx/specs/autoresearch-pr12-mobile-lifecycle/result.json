@@ -1,0 +1,7 @@
+{
+  "validator_prompt": "从架构、产品、真实用户和证据完整性四个角度复核 PR12 移动端全生命周期。只有三轮实操、自动化、API/数据库证据、截图、失败恢复和资源守门全部成立且无 P0/P1 时才批准。",
+  "architect_review": {
+    "verdict": "pending"
+  },
+  "output_artifact_path": "docs/evidence/pr12-integration/AUTORESEARCH-REPORT.md"
+}

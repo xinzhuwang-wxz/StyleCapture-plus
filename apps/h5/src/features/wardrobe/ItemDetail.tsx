@@ -36,6 +36,17 @@ function DetailContent({
   );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  const displayImageNote =
+    item.display_image_kind === "derived_garment"
+      ? "当前展示已抠出的单品实物图；像素图只用于衣橱封面。"
+      : item.display_image_issue === "multiple_garments"
+        ? "照片里识别到多件衣服。为避免抠错，当前保留原图；录入单品请重新上传只包含一件衣服的正面照片，保存全身搭配请选择“整套穿搭”。"
+        : item.display_image_issue === "no_reliable_garment"
+          ? "这张照片里暂未可靠定位到单件衣物。为避免抠错，当前保留原图；建议重新上传清晰的单件衣物正面照。"
+          : item.display_image_issue === "normalization_unavailable"
+            ? "单品抠图暂时未完成，当前展示原图；标签与搭配仍可使用。"
+            : "当前展示上传原图；像素图只用于衣橱封面。";
+
   useEffect(() => {
     setOwnership(item.ownership);
     setCategory(String(item.attributes.category?.value ?? ""));
@@ -67,7 +78,11 @@ function DetailContent({
           <img
             src={imageUrl}
             alt={description || "衣橱单品原图"}
-            data-image-kind="wardrobe-display"
+            data-image-kind={
+              item.display_image_kind === "derived_garment"
+                ? "wardrobe-display"
+                : "wardrobe-source-fallback"
+            }
           />
         ) : (
           <div className="item-image-placeholder">
@@ -82,6 +97,17 @@ function DetailContent({
           <span>{item.source_kind === "camera" ? "拍照录入" : "相册录入"}</span>
           <span>{item.status === "ready" ? "已完成理解" : "仍可编辑"}</span>
         </div>
+
+        <p
+          className={`display-image-note${
+            item.display_image_kind === "derived_garment"
+              ? ""
+              : " display-image-note--attention"
+          }`}
+          role="status"
+        >
+          {displayImageNote}
+        </p>
 
         <label className="form-field">
           <span>分类</span>
