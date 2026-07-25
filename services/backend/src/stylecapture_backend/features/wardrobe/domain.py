@@ -12,7 +12,10 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSourceKind,
     OwnershipState,
+    is_valid_selection_key,
 )
+
+WHOLE_CAPTURE_SELECTION_KEY = "whole_capture"
 
 
 class FieldProvenance(StrEnum):
@@ -97,6 +100,7 @@ class WardrobeItem:
     id: UUID
     user_id: UUID
     capture_id: UUID
+    selection_key: str
     source_object_key: str
     source_available: bool
     source_kind: CaptureSourceKind
@@ -110,6 +114,10 @@ class WardrobeItem:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "model_metadata", MappingProxyType(dict(self.model_metadata)))
+        if not is_valid_selection_key(self.selection_key):
+            raise ValueError(
+                "selection key must be a 1-64 character ASCII alphanumeric identifier"
+            )
         if self.embedding is not None:
             if len(self.embedding) != 768:
                 raise ValueError("fashion embedding must have 768 dimensions")
@@ -118,12 +126,18 @@ class WardrobeItem:
                 raise ValueError("fashion embedding must be L2-normalized")
 
     @classmethod
-    def processing(cls, capture: Capture) -> WardrobeItem:
+    def processing(
+        cls,
+        capture: Capture,
+        *,
+        selection_key: str = WHOLE_CAPTURE_SELECTION_KEY,
+    ) -> WardrobeItem:
         now = datetime.now(UTC)
         return cls(
             id=uuid4(),
             user_id=capture.user_id,
             capture_id=capture.id,
+            selection_key=selection_key,
             source_object_key=capture.source.object_key,
             source_available=True,
             source_kind=capture.source.kind,
@@ -144,11 +158,13 @@ class WardrobeItem:
         fields: Mapping[str, ModelField],
         metadata: Mapping[str, object],
     ) -> WardrobeItem:
+        merged_metadata = dict(self.model_metadata)
+        merged_metadata.update(metadata)
         return replace(
             self,
             status=ItemStatus.PROCESSING,
             attributes=self.attributes.merge_model(fields),
-            model_metadata=dict(metadata),
+            model_metadata=merged_metadata,
             updated_at=datetime.now(UTC),
         )
 
@@ -169,6 +185,15 @@ class WardrobeItem:
 
     def with_status(self, status: ItemStatus) -> WardrobeItem:
         return replace(self, status=status, updated_at=datetime.now(UTC))
+
+    def with_model_metadata(self, metadata: Mapping[str, object]) -> WardrobeItem:
+        merged = dict(self.model_metadata)
+        merged.update(metadata)
+        return replace(
+            self,
+            model_metadata=merged,
+            updated_at=datetime.now(UTC),
+        )
 
     def with_source_deleted(self) -> WardrobeItem:
         return replace(self, source_available=False, updated_at=datetime.now(UTC))

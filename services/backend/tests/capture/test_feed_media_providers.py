@@ -20,6 +20,7 @@ from stylecapture_backend.features.capture.feed_media import (
 from stylecapture_backend.features.capture.infrastructure.feed_media import (
     CoarsePolygonSegmentationProvider,
     FfmpegFrameExtractor,
+    PillowSelectionImageRenderer,
 )
 from stylecapture_backend.features.capture.processing import ProviderError
 
@@ -68,6 +69,37 @@ def _selection() -> FeedSelection:
             NormalizedPoint(0.21, 0.75),
         ),
     )
+
+
+def test_pillow_renderer_isolates_the_coarse_selection_as_a_real_png() -> None:
+    source = BytesIO()
+    Image.new("RGB", (100, 80), color=(120, 80, 200)).save(source, format="PNG")
+    frame_body = source.getvalue()
+    frame = ImagePayload(
+        object_key="originals/feed/frame.png",
+        content_type="image/png",
+        body=frame_body,
+        sha256=sha256(frame_body).hexdigest(),
+    )
+    selection = _selection()
+    segmentation = CoarsePolygonSegmentationProvider().segment(
+        SegmentationPrompt(
+            frame=frame,
+            selection=selection,
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    selected = PillowSelectionImageRenderer().render(frame, segmentation)
+
+    assert selected.object_key.endswith("#selection=jacket")
+    assert selected.content_type == "image/png"
+    assert selected.sha256 == sha256(selected.body).hexdigest()
+    with Image.open(BytesIO(selected.body)) as rendered:
+        assert rendered.mode == "RGBA"
+        assert 0 < rendered.width < 100
+        assert 0 < rendered.height < 80
+        assert rendered.getchannel("A").getextrema() == (0, 255)
 
 
 def test_ffmpeg_extracts_the_requested_frame_and_atomically_publishes_it(

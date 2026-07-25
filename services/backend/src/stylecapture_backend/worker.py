@@ -4,6 +4,10 @@ from stylecapture_backend.features.capture.infrastructure.fashion_embedding impo
     DisabledImageEmbedder,
     FashionSiglipEmbedder,
 )
+from stylecapture_backend.features.capture.infrastructure.feed_media import (
+    CoarsePolygonSegmentationProvider,
+    PillowSelectionImageRenderer,
+)
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
 from stylecapture_backend.features.capture.infrastructure.providers import LiteLLMVisionTagger
 from stylecapture_backend.features.capture.infrastructure.repository import (
@@ -49,6 +53,8 @@ processor = CaptureProcessor(
     objects=object_store,
     vision=vision,
     embedder=embedder,
+    segmenter=CoarsePolygonSegmentationProvider(),
+    selection_images=PillowSelectionImageRenderer(),
 )
 celery = build_celery(settings.redis_url.get_secret_value())
 capture_task = register_capture_task(

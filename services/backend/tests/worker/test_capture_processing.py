@@ -7,6 +7,7 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    FeedSelection,
     JobState,
     OwnershipState,
     ProcessingJob,
@@ -50,8 +51,16 @@ class MemoryWardrobeRepository:
     def __init__(self, item: WardrobeItem | None = None) -> None:
         self.item = item
 
-    async def get_by_capture(self, capture_id: UUID) -> WardrobeItem | None:
-        if self.item is None or self.item.capture_id != capture_id:
+    async def get_by_capture(
+        self,
+        capture_id: UUID,
+        selection_key: str = "whole_capture",
+    ) -> WardrobeItem | None:
+        if (
+            self.item is None
+            or self.item.capture_id != capture_id
+            or self.item.selection_key != selection_key
+        ):
             return None
         return self.item
 
@@ -85,7 +94,12 @@ class FixedVision:
         self.error = error
         self.calls = 0
 
-    async def describe(self, image: ImagePayload) -> VisionAnalysis:
+    async def describe(
+        self,
+        image: ImagePayload,
+        *,
+        selection: FeedSelection | None = None,
+    ) -> VisionAnalysis:
         self.calls += 1
         if self.error is not None:
             raise self.error

@@ -88,3 +88,11 @@ class FrameExtractor(Protocol):
 
 class PromptableSegmentationPort(Protocol):
     def segment(self, prompt: SegmentationPrompt) -> SegmentationResult: ...
+
+
+class SelectionImageRenderer(Protocol):
+    def render(
+        self,
+        frame: ImagePayload,
+        segmentation: SegmentationResult,
+    ) -> ImagePayload: ...

@@ -7,7 +7,7 @@ from io import BytesIO
 from pathlib import Path, PurePosixPath
 from secrets import token_hex
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageDraw, UnidentifiedImageError
 
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.feed_media import (
@@ -230,3 +230,61 @@ class CoarsePolygonSegmentationProvider:
                 fallback_reason=prompt.fallback_reason,
             ),
         )
+
+
+class PillowSelectionImageRenderer:
+    def render(
+        self,
+        frame: ImagePayload,
+        segmentation: SegmentationResult,
+    ) -> ImagePayload:
+        try:
+            with Image.open(BytesIO(frame.body)) as source:
+                rendered = source.convert("RGBA")
+            alpha = self._alpha_mask(rendered.size, segmentation)
+            rendered.putalpha(alpha)
+            bounds = alpha.getbbox()
+            if bounds is None:
+                raise ValueError("selection mask is empty")
+            selected = rendered.crop(bounds)
+            output = BytesIO()
+            selected.save(output, format="PNG", optimize=True)
+        except (UnidentifiedImageError, OSError, ValueError) as error:
+            raise ProviderError(
+                "selection_image_invalid",
+                "The selected Feed pixels could not be prepared",
+                retryable=False,
+            ) from error
+        body = output.getvalue()
+        return ImagePayload(
+            object_key=f"{frame.object_key}#selection={segmentation.selection_key}",
+            content_type="image/png",
+            body=body,
+            sha256=sha256(body).hexdigest(),
+        )
+
+    @staticmethod
+    def _alpha_mask(
+        size: tuple[int, int],
+        segmentation: SegmentationResult,
+    ) -> Image.Image:
+        width, height = size
+        if segmentation.mask is not None:
+            try:
+                with Image.open(BytesIO(segmentation.mask.body)) as source:
+                    mask = source.convert("L")
+            except (UnidentifiedImageError, OSError, ValueError) as error:
+                raise ValueError("refined selection mask is invalid") from error
+            if mask.size != size:
+                mask = mask.resize(size, Image.Resampling.NEAREST)
+            return mask
+        mask = Image.new("L", size, 0)
+        points = [
+            (
+                min(width - 1, max(0, round(point.x * (width - 1)))),
+                min(height - 1, max(0, round(point.y * (height - 1)))),
+            )
+            for point in segmentation.coarse_polygon
+        ]
+        ImageDraw.Draw(mask).polygon(points, fill=255)
+        return mask

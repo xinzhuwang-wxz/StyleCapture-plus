@@ -3,6 +3,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from stylecapture_backend.features.capture.domain import (
+    FeedSelection,
+    NormalizedPoint,
+)
 from stylecapture_backend.features.capture.infrastructure.providers import (
     GARMENT_PROMPT_VERSION,
     GARMENT_SCHEMA_VERSION,
@@ -91,6 +95,34 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
     image_url = call["messages"][1]["content"][1]["image_url"]["url"]
     assert image_url.startswith("data:image/jpeg;base64,")
     assert "provider-model-v1" not in json.dumps(call)
+
+
+@pytest.mark.asyncio
+async def test_litellm_feed_prompt_preserves_selection_identity_and_boundary() -> None:
+    completion = RecordingCompletion(valid_response())
+    tagger = LiteLLMVisionTagger(
+        capability_alias="vision_understanding",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="internal-gateway-key",
+        completion=completion,
+    )
+    selection = FeedSelection(
+        selection_key="jacket",
+        polygon=(
+            NormalizedPoint(0.1, 0.2),
+            NormalizedPoint(0.7, 0.2),
+            NormalizedPoint(0.7, 0.8),
+            NormalizedPoint(0.1, 0.8),
+        ),
+    )
+
+    await tagger.describe(image(), selection=selection)
+
+    prompt = completion.calls[0]["messages"][1]["content"][0]["text"]
+    assert "selection_key='jacket'" in prompt
+    assert "(0.100000,0.200000)" in prompt
+    assert "(0.700000,0.800000)" in prompt
+    assert "isolated pixel region" in prompt
 
 
 @pytest.mark.asyncio

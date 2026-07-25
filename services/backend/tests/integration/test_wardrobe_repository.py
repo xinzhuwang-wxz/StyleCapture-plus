@@ -7,6 +7,9 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    FeedFrameContext,
+    FeedSelection,
+    NormalizedPoint,
     OwnershipState,
 )
 from stylecapture_backend.features.wardrobe.domain import (
@@ -156,3 +159,136 @@ async def test_worker_save_cannot_resurrect_deleted_source_or_overwrite_user_tru
     assert stored.ownership is OwnershipState.INSPIRATION
     assert stored.attributes.fields["category"].value == "outerwear"
     assert stored.attributes.fields["category"].locked is True
+
+
+@pytest.mark.asyncio
+async def test_repository_persists_multiple_feed_items_by_stable_selection_key() -> None:
+    await run_migrations(TEST_DATABASE_URL)
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    user_id = uuid4()
+    polygon = (
+        NormalizedPoint(0.1, 0.1),
+        NormalizedPoint(0.4, 0.1),
+        NormalizedPoint(0.4, 0.5),
+        NormalizedPoint(0.1, 0.5),
+    )
+    capture = Capture.create(
+        user_id=user_id,
+        source=CaptureSource(
+            kind=CaptureSourceKind.FEED,
+            object_key="originals/2026/07/25/two-selections.png",
+            sha256="d" * 64,
+        ),
+        ownership=OwnershipState.INSPIRATION,
+        feed_context=FeedFrameContext(
+            video_ref="pexels-123",
+            timestamp_ms=1_000,
+            frame_width=720,
+            frame_height=1280,
+            selections=(
+                FeedSelection(selection_key="hat", polygon=polygon),
+                FeedSelection(selection_key="jacket", polygon=polygon),
+            ),
+        ),
+    )
+    async with sessions() as session:
+        await session.execute(text("TRUNCATE TABLE items, processing_jobs, captures CASCADE"))
+        await session.execute(
+            text(
+                """
+                INSERT INTO captures (
+                    id, user_id, source_kind, object_key, sha256,
+                    ownership, idempotency_key, created_at
+                ) VALUES (
+                    :id, :user_id, :source_kind, :object_key, :sha256,
+                    :ownership, :idempotency_key, :created_at
+                )
+                """
+            ),
+            {
+                "id": capture.id,
+                "user_id": capture.user_id,
+                "source_kind": capture.source.kind.value,
+                "object_key": capture.source.object_key,
+                "sha256": capture.source.sha256,
+                "ownership": capture.ownership.value,
+                "idempotency_key": "wardrobe-two-selections-001",
+                "created_at": capture.created_at,
+            },
+        )
+        await session.commit()
+
+    repository = SqlAlchemyWardrobeRepository(sessions)
+    hat = await repository.save(WardrobeItem.processing(capture, selection_key="hat"))
+    jacket = await repository.save(
+        WardrobeItem.processing(capture, selection_key="jacket")
+    )
+    duplicate_hat = await repository.save(
+        WardrobeItem.processing(capture, selection_key="hat")
+    )
+
+    assert hat.id != jacket.id
+    assert duplicate_hat.id == hat.id
+    assert await repository.get_by_capture(capture.id, "hat") == duplicate_hat
+    assert await repository.get_by_capture(capture.id, "jacket") == jacket
+    assert {item.selection_key for item in await repository.list_for_user(user_id)} == {
+        "hat",
+        "jacket",
+    }
+
+    await repository.save_user_state(duplicate_hat.with_source_deleted())
+
+    stored_hat = await repository.get_by_capture(capture.id, "hat")
+    stored_jacket = await repository.get_by_capture(capture.id, "jacket")
+    assert stored_hat is not None
+    assert stored_jacket is not None
+    assert stored_hat.source_available is False
+    assert stored_jacket.source_available is False
+
+
+@pytest.mark.asyncio
+async def test_existing_whole_capture_item_keeps_default_selection_identity() -> None:
+    await run_migrations(TEST_DATABASE_URL)
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    user_id = uuid4()
+    capture = Capture.create(
+        user_id=user_id,
+        source=CaptureSource(
+            kind=CaptureSourceKind.CAMERA,
+            object_key="originals/2026/07/25/legacy-camera.png",
+            sha256="c" * 64,
+        ),
+        ownership=OwnershipState.OWNED,
+    )
+    async with sessions() as session:
+        await session.execute(text("TRUNCATE TABLE items, processing_jobs, captures CASCADE"))
+        await session.execute(
+            text(
+                """
+                INSERT INTO captures (
+                    id, user_id, source_kind, object_key, sha256,
+                    ownership, idempotency_key, created_at
+                ) VALUES (
+                    :id, :user_id, :source_kind, :object_key, :sha256,
+                    :ownership, :idempotency_key, :created_at
+                )
+                """
+            ),
+            {
+                "id": capture.id,
+                "user_id": capture.user_id,
+                "source_kind": capture.source.kind.value,
+                "object_key": capture.source.object_key,
+                "sha256": capture.source.sha256,
+                "ownership": capture.ownership.value,
+                "idempotency_key": "wardrobe-legacy-default-001",
+                "created_at": capture.created_at,
+            },
+        )
+        await session.commit()
+
+    repository = SqlAlchemyWardrobeRepository(sessions)
+    saved = await repository.save(WardrobeItem.processing(capture))
+
+    assert saved.selection_key == "whole_capture"
+    assert await repository.get_by_capture(capture.id) == saved

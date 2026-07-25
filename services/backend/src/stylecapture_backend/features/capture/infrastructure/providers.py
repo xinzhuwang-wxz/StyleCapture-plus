@@ -12,6 +12,7 @@ from litellm import acompletion
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from stylecapture_backend.features.capture.domain import FeedSelection
 from stylecapture_backend.features.capture.processing import (
     ImagePayload,
     ModelMetadata,
@@ -100,7 +101,12 @@ class LiteLLMVisionTagger:
         self._completion = completion
         self._timeout_seconds = timeout_seconds
 
-    async def describe(self, image: ImagePayload) -> VisionAnalysis:
+    async def describe(
+        self,
+        image: ImagePayload,
+        *,
+        selection: FeedSelection | None = None,
+    ) -> VisionAnalysis:
         data_url = _vision_data_url(image)
         started = perf_counter()
         try:
@@ -109,7 +115,7 @@ class LiteLLMVisionTagger:
                     model=f"openai/{self._alias}",
                     api_base=self._base_url,
                     api_key=self._api_key,
-                    messages=_messages(data_url),
+                    messages=_messages(data_url, selection=selection),
                     response_format={
                         "type": "json_schema",
                         "json_schema": {
@@ -164,7 +170,19 @@ class LiteLLMVisionTagger:
         )
 
 
-def _messages(data_url: str) -> list[dict[str, object]]:
+def _messages(
+    data_url: str,
+    *,
+    selection: FeedSelection | None = None,
+) -> list[dict[str, object]]:
+    selection_instruction = ""
+    if selection is not None:
+        points = ", ".join(f"({point.x:.6f},{point.y:.6f})" for point in selection.polygon)
+        selection_instruction = (
+            f" Analyze only selection_key={selection.selection_key!r}. "
+            f"Its normalized closed polygon is [{points}]. "
+            "The supplied image is the corresponding isolated pixel region."
+        )
     return [
         {
             "role": "system",
@@ -183,6 +201,7 @@ def _messages(data_url: str) -> list[dict[str, object]]:
                     "text": (
                         "Analyze the primary garment or accessory in this image for a digital "
                         "wardrobe. Confidence is field-specific from 0 to 1."
+                        f"{selection_instruction}"
                     ),
                 },
                 {"type": "image_url", "image_url": {"url": data_url}},
