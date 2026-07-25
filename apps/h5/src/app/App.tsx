@@ -11,6 +11,7 @@ import {
   wardrobeApi
 } from "../api/client";
 import { CaptureSheet } from "../features/capture/CaptureSheet";
+import { CommunityScreen } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
@@ -23,7 +24,7 @@ type Selection = {
   sourceKind: SourceKind;
 };
 
-type Destination = "feed" | "wardrobe";
+type Destination = "feed" | "wardrobe" | "community";
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError || error instanceof Error) {
@@ -329,6 +330,14 @@ export function App() {
         />
       </div>
 
+      <section
+        aria-label="像素社区"
+        className="product-view product-view--community"
+        hidden={destination !== "community"}
+      >
+        <CommunityScreen />
+      </section>
+
       <nav aria-label="主要功能" className="product-nav">
         <button
           aria-current={destination === "feed" ? "page" : undefined}
@@ -338,6 +347,15 @@ export function App() {
         >
           <span aria-hidden="true">⌁</span>
           <small>逛灵感</small>
+        </button>
+        <button
+          aria-current={destination === "community" ? "page" : undefined}
+          className={destination === "community" ? "is-active" : ""}
+          type="button"
+          onClick={() => setDestination("community")}
+        >
+          <span aria-hidden="true">♫</span>
+          <small>社区</small>
         </button>
         <button
           aria-current={destination === "wardrobe" ? "page" : undefined}

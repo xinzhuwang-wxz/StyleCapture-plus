@@ -111,6 +111,16 @@ describe("StyleCapture garment ingest", () => {
     expect(camera).toHaveAttribute("accept", expect.stringContaining("image/heic"));
   });
 
+  it("opens the community ballroom from the primary navigation", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "社区" }));
+
+    expect(screen.getByRole("heading", { name: "今晚舞会" })).toBeInTheDocument();
+    expect(screen.getByLabelText("像素舞池地图")).toBeInTheDocument();
+  });
+
   it("requires ownership before a real upload can enter the wardrobe", async () => {
     const user = userEvent.setup();
     renderApp();
