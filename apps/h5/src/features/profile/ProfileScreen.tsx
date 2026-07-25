@@ -1,256 +1,112 @@
-import { useCallback, useRef, useState } from "react";
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
-import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
+import type { BodyProfile } from "./profile";
+import "./profile.css";
 
 interface ProfileScreenProps {
+  profile: BodyProfile;
+  photos: readonly string[];
+  activePhoto: number;
   itemCount: number;
   outfitCount: number;
+  onOpenBodyInfo: () => void;
+  onOpenPhotoManager: () => void;
+  onUsePhoto: (index: number) => void;
+  onAddPhoto: () => void;
 }
 
 /**
- * 我的页面：
- * 像素形象 + 我的形象照管理（真人试穿参考图）。
+ * 我的页面：个人信息卡（可点进二级页编辑）、四格数据、形象照条、使用提示。
  */
-export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [activePhoto, setActivePhoto] = useState<number>(0);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const url = e.target?.result as string;
-      setPhotos((prev) => [url, ...prev].slice(0, 6));
-      setActivePhoto(0);
-      setUploading(false);
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
-  }, []);
-
+export function ProfileScreen({
+  profile,
+  photos,
+  activePhoto,
+  itemCount,
+  outfitCount,
+  onOpenBodyInfo,
+  onOpenPhotoManager,
+  onUsePhoto,
+  onAddPhoto
+}: ProfileScreenProps) {
   return (
     <div>
-      {/* 用户信息卡 */}
-      <section
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--px-4)",
-          padding: "var(--px-4)",
-          background: "linear-gradient(135deg, #f3edfd, #fdeef5)",
-          border: "2px solid var(--pixel-secondary)",
-          borderRadius: "var(--pixel-border-radius)",
-          marginBottom: "var(--px-5)"
-        }}
-      >
+      <button type="button" className="profile__card" onClick={onOpenBodyInfo}>
         <img
-          src={pixelAvatarDataUrl("user-profile", { size: 120, hat: false })}
-          alt="我的像素形象"
+          src={photos[activePhoto] ?? "/assets/pixel-2.png"}
+          alt="我的形象"
           data-pixel="true"
-          style={{
-            width: "4.5rem",
-            height: "4.5rem",
-            borderRadius: "50%",
-            border: "3px solid #fff",
-            boxShadow: "var(--pixel-shadow)"
-          }}
         />
-        <div style={{ flex: 1 }}>
-          <h1 className="pixel-title" style={{ fontSize: "1.2rem", margin: "0 0 4px" }}>
-            小甜甜
-          </h1>
-          <span
-            style={{
-              fontFamily: "var(--font-pixel)",
-              fontSize: "0.68rem",
-              padding: "2px 10px",
-              background: "var(--pixel-primary)",
-              color: "#fff",
-              borderRadius: "999px"
-            }}
-          >
-            Lv.3 穿搭收藏家
-          </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 className="pixel-title profile__name">{profile.name}</h1>
+          <span className="profile__level">Lv.3 穿搭收藏家</span>
         </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "var(--font-pixel)", fontSize: "1.2rem", color: "var(--pixel-primary-dark)" }}>
-            {itemCount}
-          </div>
-          <div style={{ fontSize: "0.62rem", color: "var(--pixel-text-dim)" }}>单品</div>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "var(--font-pixel)", fontSize: "1.2rem", color: "var(--pixel-pink-dark)" }}>
-            {outfitCount}
-          </div>
-          <div style={{ fontSize: "0.62rem", color: "var(--pixel-text-dim)" }}>穿搭</div>
-        </div>
-      </section>
+        <span className="profile__edit">编辑资料 ›</span>
+      </button>
 
-      {/* 我的形象 */}
-      <PixelSectionHeader
-        kicker="真人试穿参考"
-        title="我的形象"
-        action={
-          uploading ? (
-            <span className="pixel-label">处理中…</span>
-          ) : null
-        }
-      />
+      <button type="button" className="profile__stats" onClick={onOpenBodyInfo}>
+        <span>
+          <b style={{ color: "var(--pixel-primary-dark)" }}>{profile.height}</b>
+          <small>身高 cm</small>
+        </span>
+        <span>
+          <b style={{ color: "var(--pixel-pink-dark)" }}>{profile.weight}</b>
+          <small>体重 kg</small>
+        </span>
+        <span>
+          <b style={{ color: "var(--pixel-accent-glow)" }}>{itemCount}</b>
+          <small>单品</small>
+        </span>
+        <span>
+          <b style={{ color: "var(--pixel-primary-dark)" }}>{outfitCount}</b>
+          <small>穿搭</small>
+        </span>
+      </button>
 
-      {photos.length === 0 ? (
-        <section
-          style={{
-            padding: "var(--px-6) var(--px-4)",
-            background: "var(--pixel-surface)",
-            border: "2px dashed var(--pixel-secondary)",
-            borderRadius: "var(--pixel-border-radius)",
-            textAlign: "center",
-            marginBottom: "var(--px-5)"
-          }}
-        >
-          <span style={{ fontSize: "2.5rem" }} aria-hidden="true">📸</span>
-          <p
-            style={{
-              fontFamily: "var(--font-pixel)",
-              fontSize: "0.85rem",
-              color: "var(--pixel-text-muted)",
-              lineHeight: 1.7,
-              margin: "var(--px-3) 0 var(--px-4)"
-            }}
-          >
-            还没有形象照
-            <br />
-            <small style={{ fontSize: "0.68rem", color: "var(--pixel-text-dim)" }}>
-              上传正面全身照，用于 AI 真人试穿效果
-            </small>
+      <div className="profile__section-head">
+        <div>
+          <p className="pixel-label" style={{ margin: 0 }}>
+            AI 真人试穿参考
           </p>
-          <div style={{ display: "flex", gap: "var(--px-3)", justifyContent: "center" }}>
-            <PixelButton variant="primary" onClick={() => fileInputRef.current?.click()}>
-              📷 上传照片
-            </PixelButton>
-            <PixelButton variant="accent" onClick={() => fileInputRef.current?.click()}>
-              🤳 拍一张
-            </PixelButton>
-          </div>
-        </section>
-      ) : (
-        <section style={{ marginBottom: "var(--px-5)" }}>
-          {/* 当前使用的形象 */}
-          <div
-            style={{
-              position: "relative",
-              width: "60%",
-              margin: "0 auto var(--px-4)",
-              borderRadius: "var(--pixel-border-radius)",
-              overflow: "hidden",
-              border: "3px solid var(--pixel-primary)",
-              boxShadow: "var(--pixel-shadow-lg)"
-            }}
+          <h2 className="pixel-title" style={{ margin: 0, fontSize: "1.1rem" }}>
+            我的形象照
+          </h2>
+        </div>
+        <button type="button" className="pixel-tag" onClick={onOpenPhotoManager}>
+          管理 ›
+        </button>
+      </div>
+
+      <div className="profile__strip">
+        {photos.map((photo, index) => (
+          <button
+            key={`${photo}-${index}`}
+            type="button"
+            className="profile__photo"
+            data-active={index === activePhoto ? "true" : undefined}
+            aria-label={`形象照 ${index + 1}${index === activePhoto ? "（使用中）" : ""}`}
+            onClick={() => onUsePhoto(index)}
           >
-            <img
-              src={photos[activePhoto]}
-              alt="当前使用的形象照"
-              style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", imageRendering: "auto" }}
-            />
-            <span
-              style={{
-                position: "absolute",
-                top: "var(--px-2)",
-                left: "var(--px-2)",
-                padding: "2px 10px",
-                fontFamily: "var(--font-pixel)",
-                fontSize: "0.62rem",
-                background: "var(--pixel-primary)",
-                color: "#fff",
-                borderRadius: "999px"
-              }}
-            >
-              ✓ 试穿使用这张
-            </span>
-          </div>
+            <img src={photo} alt="" />
+            {index === activePhoto ? <span>✓ 使用中</span> : null}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="profile__photo-add"
+          aria-label="添加新形象照"
+          onClick={onAddPhoto}
+        >
+          ＋
+        </button>
+      </div>
 
-          {/* 照片列表 + 新增 */}
-          <div style={{ display: "flex", gap: "var(--px-2)", overflowX: "auto", paddingBottom: "var(--px-2)" }}>
-            {photos.map((url, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setActivePhoto(i)}
-                aria-label={`形象照 ${i + 1}${i === activePhoto ? "（使用中）" : ""}`}
-                style={{
-                  flex: "0 0 auto",
-                  width: "4rem",
-                  padding: 0,
-                  borderRadius: "var(--pixel-radius-sm)",
-                  overflow: "hidden",
-                  border: `3px solid ${i === activePhoto ? "var(--pixel-primary)" : "var(--pixel-border)"}`,
-                  background: "none"
-                }}
-              >
-                <img
-                  src={url}
-                  alt=""
-                  style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", imageRendering: "auto" }}
-                />
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="添加新形象照"
-              style={{
-                flex: "0 0 auto",
-                width: "4rem",
-                aspectRatio: "3/4",
-                borderRadius: "var(--pixel-radius-sm)",
-                border: "2px dashed var(--pixel-secondary)",
-                background: "var(--pixel-surface)",
-                color: "var(--pixel-primary)",
-                fontSize: "1.4rem"
-              }}
-            >
-              +
-            </button>
-          </div>
-        </section>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="visually-hidden"
-        onChange={handleFileSelect}
-      />
-
-      {/* 提示 */}
-      <section
-        style={{
-          padding: "var(--px-4)",
-          background: "var(--pixel-surface)",
-          border: "2px solid var(--pixel-border)",
-          borderRadius: "var(--pixel-border-radius)"
-        }}
-      >
+      <section className="profile__tips">
         <h3 className="pixel-subtitle" style={{ marginBottom: "var(--px-2)" }}>
           💡 使用提示
         </h3>
-        <ul
-          style={{
-            margin: 0,
-            paddingLeft: "var(--px-5)",
-            color: "var(--pixel-text-dim)",
-            fontSize: "0.75rem",
-            lineHeight: 1.8
-          }}
-        >
+        <ul>
           <li>上传正面全身照，作为真人试穿的参考图</li>
           <li>照片仅保存在本机，不会上传服务器</li>
-          <li>可以保存多张，点缩略图随时切换</li>
+          <li>补全身材数据，AI 生成的上身效果更准</li>
         </ul>
       </section>
     </div>

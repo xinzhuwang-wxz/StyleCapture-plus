@@ -1,213 +1,168 @@
-import { useEffect, useRef, useState } from "react";
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { useCallback, useEffect, useState } from "react";
+
 import { mockApi, type AIMessage, type MockOutfit } from "../../mock/mockApi";
-import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
+import "./ai.css";
 
 interface AIRecommendScreenProps {
-  onOutfitClick: (outfitId: string) => void;
   /** 从 Feed「查看 AI 搭配」跳入时的预填内容 */
   presetPrompt?: string | null;
+  onOutfitClick: (outfitId: string) => void;
+  onOpenHistory: () => void;
 }
 
-export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendScreenProps) {
+/** 提词模板：点标签把词拼进输入框，而不是直接发送，方便叠加。 */
+const PROMPT_ROWS: readonly {
+  readonly key: string;
+  readonly label: string;
+  readonly tone: "scene" | "style" | "weather";
+  readonly options: readonly string[];
+}[] = [
+  {
+    key: "scene",
+    label: "场景",
+    tone: "scene",
+    options: ["上班通勤", "周末约会", "旅行拍照", "校园日常", "见家长"]
+  },
+  {
+    key: "style",
+    label: "风格",
+    tone: "style",
+    options: ["甜美", "复古", "简约", "辣妹", "美拉德"]
+  },
+  {
+    key: "weather",
+    label: "天气",
+    tone: "weather",
+    options: ["30℃ 很热", "降温 10℃", "梅雨天", "初秋微凉", "有风"]
+  }
+];
+
+export function AIRecommendScreen({
+  presetPrompt,
+  onOutfitClick,
+  onOpenHistory
+}: AIRecommendScreenProps) {
   const [messages, setMessages] = useState<AIMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     void mockApi.getAIMessages().then(setMessages);
   }, []);
 
   useEffect(() => {
-    if (presetPrompt) setInput(presetPrompt);
+    if (presetPrompt) setDraft(presetPrompt);
   }, [presetPrompt]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  const appendPrompt = useCallback((label: string) => {
+    setDraft((current) => {
+      const trimmed = current.trim();
+      return trimmed ? `${trimmed} · ${label}` : label;
+    });
+  }, []);
+
+  const send = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setDraft("");
+    // 先挂上用户气泡，不等接口返回，避免输入框「按了没反应」。
+    setMessages((current) => [
+      ...current,
+      { id: `local-${Date.now()}`, role: "user", content: text }
+    ]);
+    try {
+      const reply = await mockApi.sendAIMessage(text);
+      setMessages((current) => [...current, reply]);
+    } finally {
+      setSending(false);
     }
-  }, [messages, loading]);
-
-  const sendMessage = async (content: string, theme?: string) => {
-    if (!content.trim() || loading) return;
-    setLoading(true);
-    setInput("");
-    await mockApi.sendAIMessage(content, theme);
-    const newMessages = await mockApi.getAIMessages();
-    setMessages(newMessages);
-    setLoading(false);
-  };
-
-  const saveOutfit = async (outfit: MockOutfit) => {
-    await mockApi.saveOutfit(outfit.id);
-    setSavedIds((prev) => new Set(prev).add(outfit.id));
-  };
+  }, [draft, sending]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 9.5rem)" }}>
-      <PixelSectionHeader
-        kicker="AI 穿搭闺蜜"
-        title="今天想穿什么？"
-        action={<span style={{ fontSize: "1.4rem" }} aria-hidden="true">💜</span>}
-      />
+    <>
+      <div className="ai-screen__header">
+        <h1 className="pixel-title ai-screen__title">🤖 AI 闺蜜</h1>
+        <button type="button" className="pixel-tag" onClick={onOpenHistory}>
+          对话记录 ›
+        </button>
+      </div>
 
-      {/* 聊天区 */}
-      <div
-        ref={scrollRef}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--px-3)",
-          padding: "var(--px-2) 0 var(--px-3)"
-        }}
-      >
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--px-3)",
-              alignItems: msg.role === "user" ? "flex-end" : "flex-start"
-            }}
-          >
-            <div className={`pixel-chat-bubble pixel-chat-bubble--${msg.role}`}>
-              {msg.role === "ai" ? "👾 " : ""}
-              {msg.content}
+      <div className="ai-screen__thread">
+        {messages.map((message) => (
+          <div key={message.id} className="ai-screen__turn">
+            <div
+              className={`pixel-chat-bubble pixel-chat-bubble--${
+                message.role === "user" ? "user" : "ai"
+              }`}
+            >
+              {message.content}
             </div>
-
-            {/* 场景 / 风格选项 */}
-            {msg.options ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--px-2)" }}>
-                {msg.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className="pixel-tag"
-                    onClick={() => void sendMessage(opt, opt.replace(/[今天帮我来一套怎么穿好呢？]/g, ""))}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {/* 三套拼贴穿搭 */}
-            {msg.outfits ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "var(--px-2)",
-                  width: "100%"
-                }}
-              >
-                {msg.outfits.map((outfit) => (
-                  <div
+            {message.outfits?.length ? (
+              <div className="ai-screen__cards">
+                {message.outfits.map((outfit: MockOutfit) => (
+                  <article
                     key={outfit.id}
-                    style={{
-                      background: "var(--pixel-surface)",
-                      border: "2px solid var(--pixel-border)",
-                      borderRadius: "var(--pixel-radius-sm)",
-                      boxShadow: "var(--pixel-shadow)",
-                      overflow: "hidden"
-                    }}
+                    className="pixel-card ai-screen__card"
+                    onClick={() => onOutfitClick(outfit.id)}
                   >
-                    <button
-                      type="button"
-                      onClick={() => onOutfitClick(outfit.id)}
-                      style={{ padding: 0, border: "none", background: "none", width: "100%" }}
-                      aria-label={`查看 ${outfit.name} 详情`}
-                    >
-                      <img
-                        src={pixelAvatarDataUrl(outfit.seed, { size: 180 })}
-                        alt={outfit.name}
-                        data-pixel="true"
-                        style={{ width: "100%" }}
-                      />
-                    </button>
-                    <div style={{ padding: "var(--px-2)", textAlign: "center" }}>
-                      <strong
-                        style={{
-                          fontFamily: "var(--font-pixel)",
-                          fontSize: "0.62rem",
-                          color: "var(--pixel-text)",
-                          display: "block",
-                          lineHeight: 1.4
-                        }}
-                      >
-                        {outfit.name}
-                      </strong>
-                      <button
-                        type="button"
-                        className="pixel-tag"
-                        style={{ marginTop: "4px", fontSize: "0.6rem" }}
-                        disabled={savedIds.has(outfit.id)}
-                        onClick={() => void saveOutfit(outfit)}
-                      >
-                        {savedIds.has(outfit.id) ? "✓ 已存衣橱" : "💜 存衣橱"}
-                      </button>
+                    <div className="ai-screen__card-cover">
+                      {outfit.pixelCoverUrl ? (
+                        <img src={outfit.pixelCoverUrl} alt={outfit.name} data-pixel="true" />
+                      ) : null}
                     </div>
-                  </div>
+                    <div className="ai-screen__card-name">{outfit.name}</div>
+                  </article>
                 ))}
               </div>
             ) : null}
           </div>
         ))}
-
-        {loading ? (
-          <div className="pixel-chat-bubble pixel-chat-bubble--ai" style={{ opacity: 0.75 }}>
-            <span className="pixel-pulse">👾 正在翻你的衣橱…</span>
+        {sending ? (
+          <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="status">
+            正在从你的衣橱里挑单品…
           </div>
         ) : null}
       </div>
 
-      {/* 输入区 */}
-      <div
-        style={{
-          padding: "var(--px-3)",
-          borderRadius: "var(--pixel-border-radius)",
-          border: "2px solid var(--pixel-border)",
-          background: "var(--pixel-surface)",
-          boxShadow: "var(--pixel-shadow)"
-        }}
-      >
-        <div style={{ display: "flex", gap: "var(--px-2)" }}>
+      {/* 输入区固定在导航栏上方 */}
+      <div className="ai-composer">
+        {PROMPT_ROWS.map((row) => (
+          <div key={row.key} className="ai-composer__row">
+            <span className="ai-composer__row-label">{row.label}</span>
+            {row.options.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="ai-composer__chip"
+                data-tone={row.tone}
+                onClick={() => appendPrompt(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        ))}
+
+        <form
+          className="ai-composer__input"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send();
+          }}
+        >
           <input
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void sendMessage(input);
-            }}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
             placeholder="和闺蜜聊聊穿搭吧～"
-            style={{
-              flex: 1,
-              padding: "var(--px-2) var(--px-3)",
-              fontFamily: "var(--font-body)",
-              fontSize: "0.85rem",
-              background: "var(--pixel-bg-light)",
-              border: "2px solid var(--pixel-border-light)",
-              borderRadius: "999px",
-              color: "var(--pixel-text)",
-              outline: "none"
-            }}
+            aria-label="和 AI 闺蜜说点什么"
           />
-          <PixelButton
-            variant="primary"
-            onClick={() => void sendMessage(input)}
-            disabled={!input.trim() || loading}
-            ariaLabel="发送"
-          >
+          <button type="submit" aria-label="发送" disabled={!draft.trim() || sending}>
             ➤
-          </PixelButton>
-        </div>
+          </button>
+        </form>
       </div>
-    </div>
+    </>
   );
 }

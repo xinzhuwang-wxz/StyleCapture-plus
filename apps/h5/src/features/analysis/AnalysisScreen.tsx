@@ -1,281 +1,197 @@
 import { useMemo } from "react";
-import { PixelButton } from "../../components/PixelUI";
-import type { Item } from "../../api/client";
+
 import type { MockOutfit } from "../../mock/mockApi";
-import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
+import "./analysis.css";
 
 interface AnalysisScreenProps {
-  items: Item[];
   outfits: MockOutfit[];
   onGoAI: () => void;
   onGoWardrobe: () => void;
   onOpenOutfit: (outfitId: string) => void;
+  onOpenFavorites: () => void;
 }
 
-const STYLE_COLORS = ["#f9a8d4", "#a78bfa", "#93c5fd", "#fcd34d", "#86efac"];
+/** 风格配色，与衣橱卡片的 style chip 同一套。 */
+const STYLE_COLORS: Record<string, string> = {
+  甜美: "#f9a8d4",
+  复古: "#a78bfa",
+  休闲: "#93c5fd",
+  简约: "#fcd34d",
+  自由: "#86efac"
+};
+
+const FALLBACK_COLOR = "#c4b5fd";
+
+type StyleSlice = {
+  readonly style: string;
+  readonly percent: number;
+  readonly color: string;
+};
 
 /**
- * 穿搭分析（驾驶舱 · 一屏看完）：
- * 统计数字 + 风格占比饼图 + 最近收藏 + 探索引导。
+ * 按衣橱里穿搭的风格算占比。占比是真实算出来的，衣橱变了饼图就会变，
+ * 不是写死的示意数据。
  */
+function useStyleBreakdown(outfits: MockOutfit[]): StyleSlice[] {
+  return useMemo(() => {
+    if (outfits.length === 0) return [];
+    const counts = new Map<string, number>();
+    outfits.forEach((outfit) => {
+      counts.set(outfit.style, (counts.get(outfit.style) ?? 0) + 1);
+    });
+
+    const slices = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([style, count]) => ({
+        style,
+        percent: Math.round((count / outfits.length) * 100),
+        color: STYLE_COLORS[style] ?? FALLBACK_COLOR
+      }));
+
+    // 四舍五入后补齐到 100%，避免饼图留一条缝
+    const total = slices.reduce((sum, slice) => sum + slice.percent, 0);
+    if (slices.length > 0 && total !== 100) {
+      slices[0] = { ...slices[0], percent: slices[0].percent + (100 - total) };
+    }
+    return slices;
+  }, [outfits]);
+}
+
+function conicGradient(slices: StyleSlice[]): string {
+  if (slices.length === 0) return "conic-gradient(#ece5f8 0 100%)";
+  let cursor = 0;
+  const stops = slices.map((slice) => {
+    const from = cursor;
+    cursor += slice.percent;
+    return `${slice.color} ${from}% ${cursor}%`;
+  });
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
 export function AnalysisScreen({
-  items,
   outfits,
   onGoAI,
   onGoWardrobe,
-  onOpenOutfit
+  onOpenOutfit,
+  onOpenFavorites
 }: AnalysisScreenProps) {
-  const stats = useMemo(() => {
-    const owned = items.filter((i) => i.ownership === "owned").length;
-    const favorited = outfits.filter((o) => o.favorited).length;
+  const slices = useStyleBreakdown(outfits);
+  const dominant = slices[0]?.style ?? "待补充";
 
-    const styleCount = new Map<string, number>();
-    outfits.forEach((o) => styleCount.set(o.style, (styleCount.get(o.style) ?? 0) + 1));
-    const total = outfits.length || 1;
-    const styles = [...styleCount.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, count], i) => ({
-        name,
-        ratio: count / total,
-        color: STYLE_COLORS[i % STYLE_COLORS.length]
-      }));
-
-    return { owned, favorited, styles };
-  }, [items, outfits]);
-
-  const latest = outfits[0];
-
-  // 饼图扇形
-  const pieSegments = useMemo(() => {
-    let acc = 0;
-    return stats.styles.map((s) => {
-      const start = acc;
-      acc += s.ratio;
-      return { ...s, start, end: acc };
-    });
-  }, [stats.styles]);
-
-  const donut = (size: number) => {
-    const r = size / 2;
-    const ir = r * 0.58;
-    if (pieSegments.length === 0) return null;
-    const arc = (from: number, to: number, radius: number) => {
-      const a0 = from * Math.PI * 2 - Math.PI / 2;
-      const a1 = to * Math.PI * 2 - Math.PI / 2;
-      return [
-        `${radius * Math.cos(a0) + r} ${radius * Math.sin(a0) + r}`,
-        `${radius * Math.cos(a1) + r} ${radius * Math.sin(a1) + r}`
-      ];
-    };
-    return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="风格占比饼图">
-        {pieSegments.map((seg) => {
-          const [x0, y0] = arc(seg.start, seg.end, r - 1);
-          const [x1, y1] = arc(seg.end, seg.start, ir);
-          const large = seg.end - seg.start > 0.5 ? 1 : 0;
-          return (
-            <path
-              key={seg.name}
-              d={`M ${x0} A ${r - 1} ${r - 1} 0 ${large} 1 ${y0} L ${y1} A ${ir} ${ir} 0 ${large} 0 ${x1} Z`}
-              fill={seg.color}
-              stroke="#fff"
-              strokeWidth="1.5"
-            />
-          );
-        })}
-      </svg>
+  const gap = useMemo(() => {
+    const counts = new Map<string, number>();
+    outfits.forEach((outfit) =>
+      outfit.slots.forEach((slot) => {
+        counts.set(slot.category, (counts.get(slot.category) ?? 0) + 1);
+      })
     );
-  };
+    const outerwear = counts.get("外套") ?? 0;
+    return outerwear <= 1
+      ? { title: `外套只有 ${outerwear} 件`, hint: "补一件就能多搭 4 套" }
+      : { title: "品类比较齐全", hint: "可以试试换配饰做变化" };
+  }, [outfits]);
+
+  const favorites = outfits.filter((outfit) => outfit.favorited);
+  const strip = favorites.length ? favorites : outfits;
 
   return (
     <div>
-      {/* 标题 + 数字（一行压缩） */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          marginBottom: "var(--px-3)"
-        }}
-      >
-        <h1 className="pixel-title" style={{ fontSize: "1.15rem", margin: 0 }}>
+      <div className="analysis__header">
+        <h1 className="pixel-title" style={{ margin: 0, fontSize: "1.3rem" }}>
           穿搭分析
         </h1>
-        <span className="pixel-label" style={{ fontSize: "0.6rem" }}>
-          穿搭数字资产
-        </span>
+        <span className="pixel-label">衣橱构成</span>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "var(--px-2)",
-          marginBottom: "var(--px-3)"
-        }}
-      >
-        {[
-          { n: stats.owned, label: "已有单品", color: "var(--pixel-accent-glow)" },
-          { n: stats.favorited, label: "心动收藏", color: "var(--pixel-pink-dark)" },
-          { n: outfits.length, label: "穿搭图鉴", color: "var(--pixel-primary-dark)" }
-        ].map((s) => (
-          <div
-            key={s.label}
-            style={{
-              padding: "var(--px-2)",
-              background: "var(--pixel-surface)",
-              border: "2px solid var(--pixel-border)",
-              borderRadius: "var(--pixel-radius-sm)",
-              boxShadow: "var(--pixel-shadow)",
-              textAlign: "center"
-            }}
-          >
-            <div style={{ fontFamily: "var(--font-pixel)", fontSize: "1.2rem", color: s.color }}>
-              {s.n}
-            </div>
-            <div style={{ fontSize: "0.56rem", color: "var(--pixel-text-dim)", marginTop: "2px" }}>
-              {s.label}
-            </div>
+      <section className="analysis__pie-card">
+        <div
+          className="analysis__pie"
+          style={{ background: conicGradient(slices) }}
+          role="img"
+          aria-label={`衣橱风格占比：${slices
+            .map((slice) => `${slice.style} ${slice.percent}%`)
+            .join("，")}`}
+        >
+          <div className="analysis__pie-hole">
+            {dominant}
+            <br />
+            为主
           </div>
-        ))}
-      </div>
-
-      {/* 风格占比（压扁卡片：饼图 + 图例一行） */}
-      <section
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--px-3)",
-          padding: "var(--px-3)",
-          background: "var(--pixel-surface)",
-          border: "2px solid var(--pixel-border)",
-          borderRadius: "var(--pixel-radius-sm)",
-          boxShadow: "var(--pixel-shadow)",
-          marginBottom: "var(--px-3)"
-        }}
-      >
-        {donut(72)}
-        <div style={{ flex: 1 }}>
-          <h3
-            className="pixel-subtitle"
-            style={{ fontSize: "0.72rem", margin: "0 0 var(--px-1)" }}
-          >
-            👕 衣橱风格占比
-          </h3>
-          {pieSegments.length === 0 ? (
-            <p style={{ fontSize: "0.65rem", color: "var(--pixel-text-dim)", margin: 0 }}>
-              衣橱还是空的，先去存几件吧。
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px var(--px-2)" }}>
-              {pieSegments.map((seg) => (
-                <span
-                  key={seg.name}
-                  style={{
-                    fontFamily: "var(--font-pixel)",
-                    fontSize: "0.6rem",
-                    color: "var(--pixel-text-muted)",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "3px"
-                  }}
-                >
-                  <i
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "2px",
-                      background: seg.color,
-                      display: "inline-block"
-                    }}
-                  />
-                  {seg.name} {Math.round(seg.ratio * 100)}%
-                </span>
-              ))}
-            </div>
-          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 className="analysis__pie-title">👗 衣橱风格占比</h3>
+          <div className="analysis__legend">
+            {slices.map((slice) => (
+              <span key={slice.style}>
+                <i style={{ background: slice.color }} />
+                {slice.style} {slice.percent}%
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* 最近收藏（压缩小行） */}
-      {latest ? (
-        <button
-          type="button"
-          onClick={() => onOpenOutfit(latest.id)}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "3.2rem 1fr auto",
-            gap: "var(--px-2)",
-            alignItems: "center",
-            width: "100%",
-            padding: "var(--px-2)",
-            background: "var(--pixel-surface)",
-            border: "2px solid var(--pixel-border)",
-            borderRadius: "var(--pixel-radius-sm)",
-            boxShadow: "var(--pixel-shadow)",
-            marginBottom: "var(--px-3)",
-            textAlign: "left"
-          }}
-        >
-          <img
-            src={pixelAvatarDataUrl(latest.seed, { size: 120 })}
-            alt={latest.name}
-            data-pixel="true"
-            style={{ width: "100%", borderRadius: "8px", border: "1px solid var(--pixel-border)" }}
-          />
-          <div style={{ minWidth: 0 }}>
-            <span
-              className="pixel-label"
-              style={{ fontSize: "0.52rem", display: "block" }}
-            >
-              最近收藏的穿搭
-            </span>
-            <strong
-              style={{
-                fontFamily: "var(--font-pixel)",
-                fontSize: "0.72rem",
-                color: "var(--pixel-text)",
-                display: "block",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis"
-              }}
-            >
-              {latest.name}
-            </strong>
-          </div>
-          <span style={{ color: "var(--pixel-text-dim)", fontSize: "0.9rem" }}>›</span>
-        </button>
-      ) : null}
-
-      {/* 引导（压缩） */}
-      <section
-        style={{
-          padding: "var(--px-3)",
-          background: "linear-gradient(135deg, #f3edfd, #fdeef5)",
-          border: "2px solid var(--pixel-secondary)",
-          borderRadius: "var(--pixel-radius-sm)",
-          textAlign: "center"
-        }}
-      >
-        <p
-          style={{
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.72rem",
-            color: "var(--pixel-text)",
-            lineHeight: 1.6,
-            margin: "0 0 var(--px-2)"
-          }}
-        >
-          继续探索穿搭，这里的分析会随你的收藏生长 🌱
+      <div className="analysis__section-head">
+        <p className="pixel-label" style={{ margin: 0 }}>
+          最近收藏的穿搭
         </p>
-        <div style={{ display: "flex", gap: "var(--px-2)", justifyContent: "center" }}>
-          <PixelButton variant="primary" onClick={onGoAI}>
+        <button type="button" className="pixel-tag" onClick={onOpenFavorites}>
+          全部 ›
+        </button>
+      </div>
+      <div className="analysis__strip">
+        {strip.map((outfit) => (
+          <article
+            key={outfit.id}
+            className="pixel-card analysis__strip-card"
+            onClick={() => onOpenOutfit(outfit.id)}
+          >
+            <div className="analysis__strip-cover">
+              {outfit.pixelCoverUrl ? (
+                <img src={outfit.pixelCoverUrl} alt={outfit.name} data-pixel="true" />
+              ) : (
+                <span aria-hidden="true">🧩</span>
+              )}
+            </div>
+            <div className="analysis__strip-name">{outfit.name}</div>
+          </article>
+        ))}
+      </div>
+
+      <section className="analysis__duo">
+        <div className="analysis__mini-card">
+          <p className="pixel-label" style={{ marginBottom: "10px" }}>
+            常穿色系
+          </p>
+          <div className="analysis__swatches">
+            <i style={{ background: "#c8952a" }} />
+            <i style={{ background: "#5b3320" }} />
+            <i style={{ background: "#f5c4d1" }} />
+            <i style={{ background: "#b7cf9e" }} />
+          </div>
+          <p className="analysis__mini-note">棕黄系最常穿</p>
+        </div>
+        <div className="analysis__mini-card">
+          <p className="pixel-label" style={{ marginBottom: "10px" }}>
+            缺口提示
+          </p>
+          <p className="analysis__gap">
+            {gap.title}
+            <br />
+            {gap.hint}
+          </p>
+        </div>
+      </section>
+
+      <section className="analysis__cta">
+        <p>继续收藏，这里的分析会随你生长 🌱</p>
+        <div>
+          <button type="button" className="pixel-button pixel-button--primary" onClick={onGoAI}>
             🤖 去 AI 推荐
-          </PixelButton>
-          <PixelButton variant="ghost" onClick={onGoWardrobe}>
+          </button>
+          <button type="button" className="pixel-button" onClick={onGoWardrobe}>
             👕 打开衣橱
-          </PixelButton>
+          </button>
         </div>
       </section>
     </div>

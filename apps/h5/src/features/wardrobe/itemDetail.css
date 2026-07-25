@@ -1,0 +1,116 @@
+/* ═══ 单品图鉴详情页 ═══ */
+
+.item-detail__header {
+  display: flex;
+  align-items: center;
+  gap: var(--px-2);
+  margin-bottom: var(--px-3);
+}
+
+.item-detail__title {
+  margin: 0;
+  font-size: 1.18rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-detail__own {
+  flex: none;
+  padding: 3px 10px;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  white-space: nowrap;
+  color: #d1608f;
+  background: #fce7f3;
+  border-radius: 6px;
+}
+
+.item-detail__own[data-owned="true"] { color: #3f8a5f; background: #dcfce7; }
+
+.item-detail__hero {
+  overflow: hidden;
+  margin-bottom: var(--px-3);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 18px;
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.item-detail__hero img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.item-detail__price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-2);
+  padding: 10px 12px;
+  background: #fcfaff;
+  border-top: 2px solid #f2ecfb;
+}
+
+.item-detail__price span {
+  font-family: var(--font-pixel);
+  font-size: 0.95rem;
+  color: var(--pixel-pink-dark);
+}
+
+.item-detail__price small {
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  color: var(--pixel-secondary);
+}
+
+.item-detail__lore {
+  margin: 0 0 var(--px-3);
+  padding: 13px 15px;
+  font-family: var(--font-pixel);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #5b4a86;
+  background: linear-gradient(135deg, #f3edfd, #fdeef5);
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 14px;
+  box-shadow: 0 4px 0 #e6dcf7;
+}
+
+.item-detail__block {
+  display: flex;
+  gap: var(--px-3);
+  align-items: flex-start;
+  padding: var(--px-3) var(--px-4);
+  margin-bottom: var(--px-3);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 14px;
+  box-shadow: 0 4px 0 #ece5f8;
+}
+
+.item-detail__block > span { font-size: 1.15rem; line-height: 1.2; }
+
+.item-detail__block--plain { margin-bottom: var(--px-4); }
+
+.item-detail__body {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.65;
+  color: var(--pixel-text-muted);
+  text-wrap: pretty;
+}
+
+.item-detail__shop {
+  width: 100%;
+  padding: 14px;
+  font-family: var(--font-pixel);
+  font-size: 0.85rem;
+  color: #fff;
+  background: #16141c;
+  border: 2px solid #000;
+  border-radius: 999px;
+}

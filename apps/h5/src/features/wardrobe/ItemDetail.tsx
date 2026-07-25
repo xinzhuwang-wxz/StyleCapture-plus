@@ -1,288 +1,116 @@
-import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { PixelButton } from "../../components/PixelUI";
-import type { Item, Ownership } from "../../api/client";
-import { douyinShopUrl, mockApi, type MockOutfit } from "../../mock/mockApi";
-import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
+import type { Item } from "../../api/client";
+import { douyinShopUrl } from "./catalog";
+import { findDisplayItem } from "./displayItem";
+import "./itemDetail.css";
 
 interface ItemDetailProps {
-  item: Item | null;
-  saving: boolean;
-  onClose: () => void;
-  onSave: (itemId: string, changes: { ownership: Ownership }) => void;
-  onOpenOutfit: (outfitId: string) => void;
+  itemId: string;
+  /** 衣橱里的真实 Item 列表，新入库的单品也能点进这一页 */
+  items: readonly Item[];
+  /** 这件是否已经在自由组合的衣柜里 */
+  inCombo: boolean;
+  onBack: () => void;
+  onAddToCombo: (itemId: string) => void;
+  onNotice: (message: string) => void;
 }
 
 /**
- * 单品详情页（写实展示）：
- * 上半 — 实物图；下半 — 「查看 AI 穿搭」长按钮 + 🛒 抖音商城。
- * 点击 AI 穿搭后：实物图缩小，下方出现三套搭配（三列），点击进穿搭详情。
+ * 单品详情页（星露谷图鉴风）。
+ *
+ * 单品有两个交互：单击进这一页，长按拖进悬浮衣柜。这里是前者。
  */
 export function ItemDetail({
-  item,
-  saving,
-  onClose,
-  onSave,
-  onOpenOutfit
+  itemId,
+  items,
+  inCombo,
+  onBack,
+  onAddToCombo,
+  onNotice
 }: ItemDetailProps) {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [aiMode, setAiMode] = useState(false);
-  const [outfits, setOutfits] = useState<MockOutfit[] | null>(null);
-  const [loadingOutfits, setLoadingOutfits] = useState(false);
+  const item = findDisplayItem(items, itemId);
 
-  useEffect(() => {
-    setPhotoUrl(null);
-    setAiMode(false);
-    setOutfits(null);
-    if (!item) return;
-    let cancelled = false;
-    void mockApi.sourceImage(item.id).then((url) => {
-      if (!cancelled) setPhotoUrl(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [item?.id]);
-
-  if (!item) return null;
-
-  const name = String(
-    item.attributes.subcategory?.value ??
-      item.attributes.description?.value ??
-      "单品"
-  );
-  const isOwned = item.ownership === "owned";
-
-  const showAIOutfits = async () => {
-    if (aiMode) {
-      setAiMode(false);
-      return;
-    }
-    setAiMode(true);
-    if (outfits) return;
-    setLoadingOutfits(true);
-    const generated = await mockApi.generateOutfits(name);
-    setOutfits(generated);
-    setLoadingOutfits(false);
-  };
-
-  const openShop = () => {
-    window.open(douyinShopUrl(`${name} 穿搭`), "_blank", "noreferrer");
-  };
+  if (!item) {
+    return (
+      <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
+        <p className="pixel-subtitle">这件单品走丢了</p>
+        <PixelButton variant="primary" onClick={onBack}>
+          返回
+        </PixelButton>
+      </div>
+    );
+  }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        className="pixel-sheet"
-        role="presentation"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
-      >
-        <motion.section
-          className="pixel-sheet__content"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`单品详情：${name}`}
-          initial={{ y: "100%" }}
-          animate={{ y: 0 }}
-          exit={{ y: "100%" }}
-          transition={{ type: "spring", stiffness: 330, damping: 34 }}
+    <div className="pixel-subpage">
+      <div className="item-detail__header">
+        <PixelButton variant="ghost" onClick={onBack} ariaLabel="返回">
+          ‹
+        </PixelButton>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="pixel-label" style={{ margin: 0 }}>
+            单品图鉴 · {item.category}
+          </p>
+          <h1 className="pixel-title item-detail__title">{item.name}</h1>
+        </div>
+        <span
+          className="item-detail__own"
+          data-owned={item.owned ? "true" : undefined}
         >
-          {/* 顶部 */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "var(--px-3)"
-            }}
-          >
-            <div>
-              <p className="pixel-label">单品详情</p>
-              <h2 className="pixel-subtitle" style={{ color: "var(--pixel-text)", margin: 0 }}>
-                {name}
-              </h2>
-            </div>
-            <button
-              type="button"
-              className="pixel-button pixel-button--ghost"
-              style={{ width: "2.5rem", height: "2.5rem", padding: 0 }}
-              aria-label="关闭"
-              onClick={onClose}
-            >
-              ×
-            </button>
-          </div>
+          {item.owned ? "⭐ 已拥有" : "未拥有"}
+        </span>
+      </div>
 
-          {/* 实物图（AI 模式下缩小） */}
-          <motion.div
-            layout
-            style={{
-              position: "relative",
-              marginBottom: "var(--px-4)",
-              borderRadius: "var(--pixel-border-radius)",
-              overflow: "hidden",
-              border: "2px solid var(--pixel-border)",
-              boxShadow: "var(--pixel-shadow)"
-            }}
-            animate={{ height: aiMode ? "7.5rem" : "16rem" }}
-            transition={{ type: "spring", stiffness: 260, damping: 28 }}
-          >
-            {photoUrl ? (
-              <img
-                src={photoUrl}
-                alt={`${name} 实物图`}
-                style={{ width: "100%", height: "100%", objectFit: "cover", imageRendering: "auto" }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "grid",
-                  placeItems: "center",
-                  background: "var(--pixel-bg)",
-                  color: "var(--pixel-text-dim)",
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.8rem"
-                }}
-              >
-                正在生成实物图…
-              </div>
-            )}
-          </motion.div>
+      <div className="item-detail__hero">
+        <img src={item.imageUrl} alt={item.name} data-pixel="true" />
+        <div className="item-detail__price">
+          {/* 新入库的单品还没有价格，就不摆一个假的出来 */}
+          <span>{item.price > 0 ? `¥${item.price}` : "暂无价格"}</span>
+          <small>1:1 像素图鉴</small>
+        </div>
+      </div>
 
-          {/* 拥有状态切换 */}
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--px-2)",
-              marginBottom: "var(--px-4)"
-            }}
-          >
-            <button
-              type="button"
-              className="pixel-tag"
-              style={
-                isOwned
-                  ? { background: "#fffbeb", borderColor: "var(--pixel-accent)", color: "#92600a" }
-                  : undefined
-              }
-              disabled={saving}
-              onClick={() => onSave(item.id, { ownership: "owned" })}
-            >
-              ⭐ 我已有这件
-            </button>
-            <button
-              type="button"
-              className="pixel-tag"
-              style={
-                !isOwned
-                  ? { background: "#fdf2f8", borderColor: "var(--pixel-pink)", color: "#be185d" }
-                  : undefined
-              }
-              disabled={saving}
-              onClick={() => onSave(item.id, { ownership: "inspiration" })}
-            >
-              💖 还未拥有
-            </button>
-          </div>
+      {/* 星露谷图鉴式的一句话 */}
+      <blockquote className="item-detail__lore">{item.lore}</blockquote>
 
-          {/* 下半：AI 穿搭长按钮 + 购物车 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr auto",
-              gap: "var(--px-3)",
-              marginBottom: "var(--px-4)"
-            }}
-          >
-            <PixelButton
-              variant="primary"
-              className="w-full"
-              onClick={() => void showAIOutfits()}
-              ariaLabel="查看 AI 穿搭"
-            >
-              {aiMode ? "收起 AI 穿搭 ▲" : "🤖 点击查看 AI 穿搭"}
-            </PixelButton>
-            <PixelButton variant="accent" onClick={openShop} ariaLabel="去抖音商城购买">
-              🛒
-            </PixelButton>
-          </div>
+      <section className="item-detail__block">
+        <span aria-hidden="true">🤖</span>
+        <div style={{ minWidth: 0 }}>
+          <p className="pixel-label" style={{ margin: "0 0 4px" }}>
+            AI 风格解读
+          </p>
+          <p className="item-detail__body">{item.styleReading}</p>
+        </div>
+      </section>
 
-          {/* 三套 AI 搭配（三列竖向排列） */}
-          {aiMode ? (
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <p className="pixel-label" style={{ marginBottom: "var(--px-2)" }}>
-                三套搭配方案 · 点任意一套看详情
-              </p>
-              {loadingOutfits || !outfits ? (
-                <p
-                  style={{
-                    textAlign: "center",
-                    fontFamily: "var(--font-pixel)",
-                    fontSize: "0.8rem",
-                    color: "var(--pixel-text-dim)",
-                    padding: "var(--px-6) 0"
-                  }}
-                >
-                  <span className="pixel-pulse">🤖 正在为你搭配…</span>
-                </p>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "var(--px-2)"
-                  }}
-                >
-                  {outfits.map((outfit) => (
-                    <button
-                      key={outfit.id}
-                      type="button"
-                      onClick={() => onOpenOutfit(outfit.id)}
-                      style={{
-                        padding: "var(--px-2)",
-                        background: "var(--pixel-surface)",
-                        border: "2px solid var(--pixel-border)",
-                        borderRadius: "var(--pixel-radius-sm)",
-                        boxShadow: "var(--pixel-shadow)",
-                        textAlign: "center"
-                      }}
-                    >
-                      <img
-                        src={pixelAvatarDataUrl(outfit.seed, { size: 160 })}
-                        alt={outfit.name}
-                        data-pixel="true"
-                        style={{ width: "100%", borderRadius: "8px", marginBottom: "6px" }}
-                      />
-                      <span
-                        style={{
-                          fontFamily: "var(--font-pixel)",
-                          fontSize: "0.62rem",
-                          color: "var(--pixel-text)",
-                          lineHeight: 1.4,
-                          display: "block"
-                        }}
-                      >
-                        {outfit.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          ) : null}
-        </motion.section>
-      </motion.div>
-    </AnimatePresence>
+      <section className="item-detail__block item-detail__block--plain">
+        <div style={{ minWidth: 0 }}>
+          <p className="pixel-label" style={{ margin: "0 0 4px" }}>
+            商品描述
+          </p>
+          <p className="item-detail__body">{item.description}</p>
+        </div>
+      </section>
+
+      <div style={{ display: "grid", gap: "10px" }}>
+        <button
+          type="button"
+          className="item-detail__shop"
+          onClick={() => {
+            window.open(douyinShopUrl(item.name), "_blank", "noreferrer");
+            onNotice("正在打开抖音商城 🛍");
+          }}
+        >
+          {item.owned ? "🛍 看同款商品链接" : "🛍 去抖音商城看这件"}
+        </button>
+        <PixelButton
+          className="w-full"
+          disabled={inCombo}
+          onClick={() => onAddToCombo(item.id)}
+        >
+          {inCombo ? "✓ 已在衣柜里" : "🚪 放进衣柜组合"}
+        </PixelButton>
+      </div>
+    </div>
   );
 }

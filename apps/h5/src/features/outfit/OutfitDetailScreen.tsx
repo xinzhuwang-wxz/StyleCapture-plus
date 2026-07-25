@@ -1,48 +1,75 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import { PixelButton } from "../../components/PixelUI";
-import { ShareModal } from "../../components/ShareModal";
-import {
-  douyinShopUrl,
-  mockApi,
-  type MockOutfit
-} from "../../mock/mockApi";
-import {
-  buildShareCard,
-  pixelAvatarDataUrl,
-  pixelGarmentIcon
-} from "../../utils/pixelAvatar";
+import { douyinShopUrl, mockApi, type MockOutfit } from "../../mock/mockApi";
+import type { LookRenderInput } from "../render/application/renderPort";
+import { useLookRender } from "../render/useLookRender";
+import { ShareCard } from "./ShareCard";
+import { TryOnPane } from "./TryOnPane";
+import "./outfit.css";
 
 interface OutfitDetailScreenProps {
   outfitId: string;
+  /** 用户设为「试穿使用」的形象照，没有则为 null */
+  referencePhotoUrl: string | null;
   onBack: () => void;
+  onOpenItem: (itemId: string) => void;
+  onNotice: (message: string) => void;
 }
 
 /**
- * 穿搭详情分析页（一屏看完全部内容）：
- * 上方 — 左拼贴 / 右虚化试穿（紧凑）；
- * 下方 — 单品小卡片一行陈列（已有点亮 / 未拥有灰色 → 抖音商城）；
- * 标题右侧 — 小红书式收藏小星星。
+ * 穿搭详情页。
+ *
+ * 左 = 由真实 Item 图片确定性生成的拼贴，立即可见；
+ * 右 = 走 RenderPort 的真人试穿，按真实状态展示 processing / 成功 / 降级。
+ *
+ * 从「按穿搭」列表进来，和从「按单品」的组合衣柜保存后跳进来，是同一个组件，
+ * 因此视觉和交互完全一致。
  */
-export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps) {
+export function OutfitDetailScreen({
+  outfitId,
+  referencePhotoUrl,
+  onBack,
+  onOpenItem,
+  onNotice
+}: OutfitDetailScreenProps) {
   const [outfit, setOutfit] = useState<MockOutfit | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showTryOn, setShowTryOn] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void mockApi.getOutfit(outfitId).then((o) => {
-      if (!cancelled) {
-        setOutfit(o);
-        setLoading(false);
-      }
+    setRevealed(false);
+    void mockApi.getOutfit(outfitId).then((result) => {
+      if (cancelled) return;
+      setOutfit(result);
+      setLoading(false);
     });
     return () => {
       cancelled = true;
     };
   }, [outfitId]);
+
+  const renderInput = useMemo<LookRenderInput | null>(() => {
+    if (!outfit) return null;
+    return {
+      lookId: outfit.id,
+      items: outfit.slots.map((slot) => ({
+        itemId: slot.itemId,
+        imageUrl: slot.imageUrl
+      })),
+      referencePhotoUrl,
+      curatedSeed: {
+        modelPhotoUrl: outfit.modelPhotoUrl,
+        pixelCoverUrl: outfit.pixelCoverUrl
+      }
+    };
+  }, [outfit, referencePhotoUrl]);
+
+  const renderSet = useLookRender(renderInput);
 
   if (loading) {
     return (
@@ -67,276 +94,129 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
   const toggleFavorite = async () => {
     const favorited = await mockApi.toggleFavoriteOutfit(outfit.id);
     setOutfit((current) => (current ? { ...current, favorited } : current));
+    onNotice(favorited ? "已收藏这套穿搭 ⭐" : "已取消收藏");
   };
 
   const saveToWardrobe = async () => {
     await mockApi.saveOutfit(outfit.id);
     setSaved(true);
+    onNotice("已存进数字衣橱 💜");
   };
 
+  const ownedCount = outfit.slots.filter((slot) => slot.owned).length;
+
   return (
-    <div>
-      {/* 顶栏：返回 + 标题 + 收藏小星星 */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--px-2)",
-          marginBottom: "var(--px-3)"
-        }}
-      >
+    <div className="outfit-detail">
+      <div className="outfit-detail__header">
         <PixelButton variant="ghost" onClick={onBack} ariaLabel="返回">
           ‹
         </PixelButton>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p className="pixel-label" style={{ margin: 0, fontSize: "0.6rem" }}>
+          <p className="pixel-label" style={{ margin: 0 }}>
             {outfit.style} · {outfit.scene}
           </p>
-          <h1
-            className="pixel-title"
-            style={{
-              fontSize: "1rem",
-              margin: 0,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis"
-            }}
-          >
-            {outfit.name}
-          </h1>
+          <h1 className="pixel-title outfit-detail__title">{outfit.name}</h1>
         </div>
         <button
           type="button"
           onClick={() => void toggleFavorite()}
           aria-label={outfit.favorited ? "取消收藏" : "收藏这套穿搭"}
           aria-pressed={outfit.favorited}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: "1.5rem",
-            lineHeight: 1,
-            padding: "var(--px-1)",
-            filter: outfit.favorited
-              ? "drop-shadow(0 2px 4px rgba(245,158,11,0.5))"
-              : "grayscale(1) opacity(0.45)",
-            transition: "transform 0.15s ease, filter 0.15s ease",
-            transform: outfit.favorited ? "scale(1.15)" : "scale(1)"
-          }}
+          className="outfit-detail__star"
+          data-on={outfit.favorited ? "true" : undefined}
         >
           ⭐
         </button>
       </div>
 
-      {/* 上方大图（紧凑）：左拼贴 / 右虚化试穿 */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          borderRadius: "var(--pixel-border-radius)",
-          overflow: "hidden",
-          border: "2px solid var(--pixel-border)",
-          boxShadow: "var(--pixel-shadow)",
-          marginBottom: "var(--px-3)",
-          height: "11.5rem"
-        }}
-      >
-        <div
-          style={{
-            background: "linear-gradient(160deg, #faf5ff, #fdeef5)",
-            display: "grid",
-            placeItems: "center",
-            padding: "var(--px-2)"
-          }}
-        >
-          <img
-            src={pixelAvatarDataUrl(outfit.seed, { size: 220 })}
-            alt={`${outfit.name} 平面拼贴`}
-            data-pixel="true"
-            style={{ maxHeight: "100%", width: "auto", maxWidth: "100%", borderRadius: "10px" }}
-          />
+      {/* 左：真实单品拼贴（立即可见）｜右：真人试穿（按真实状态展示） */}
+      <div className="outfit-detail__panes">
+        <div className="outfit-detail__collage">
+          {renderSet?.collage.status === "ready" && renderSet.collage.imageUrl ? (
+            <img src={renderSet.collage.imageUrl} alt="真实单品拼贴图" />
+          ) : renderSet?.collage.status === "error" ? (
+            <p className="outfit-detail__collage-note">
+              {renderSet.collage.notice ?? "拼贴暂时生成不了"}
+            </p>
+          ) : (
+            <div className="outfit-detail__collage-busy" role="status">
+              <span className="tryon-pane__spinner" aria-hidden="true" />
+              正在合成拼贴
+            </div>
+          )}
+          <span className="outfit-detail__collage-tag">🧩 单品拼贴</span>
         </div>
 
-        <div
-          style={{
-            position: "relative",
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden"
-          }}
-        >
-          <img
-            src={pixelAvatarDataUrl(outfit.seed, { size: 220, backdrop: true })}
-            alt=""
-            aria-hidden="true"
-            data-pixel="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              filter: showTryOn ? "none" : "blur(12px) saturate(1.1)",
-              transform: "scale(1.25)",
-              transition: "filter 0.35s ease"
-            }}
+        {renderSet ? (
+          <TryOnPane
+            tryOn={renderSet.tryOn}
+            collage={renderSet.collage}
+            revealed={revealed}
+            onToggleReveal={() => setRevealed((current) => !current)}
           />
-          {showTryOn ? (
-            <span
-              style={{
-                position: "absolute",
-                bottom: "var(--px-1)",
-                left: "50%",
-                transform: "translateX(-50%)",
-                padding: "1px 8px",
-                fontFamily: "var(--font-pixel)",
-                fontSize: "0.56rem",
-                background: "rgba(255,255,255,0.9)",
-                borderRadius: "999px",
-                color: "var(--pixel-primary-dark)",
-                whiteSpace: "nowrap"
-              }}
-            >
-              ✨ 真人试穿效果（示意）
-            </span>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setShowTryOn(!showTryOn)}
-            style={{
-              position: "relative",
-              zIndex: 2,
-              padding: "var(--px-1) var(--px-3)",
-              fontFamily: "var(--font-pixel)",
-              fontSize: "0.62rem",
-              background: showTryOn ? "var(--pixel-primary)" : "rgba(255,255,255,0.94)",
-              color: showTryOn ? "#fff" : "var(--pixel-primary-dark)",
-              border: "2px solid var(--pixel-primary)",
-              borderRadius: "999px",
-              boxShadow: "var(--pixel-shadow)",
-              maxWidth: "92%"
-            }}
-          >
-            {showTryOn ? "收起试穿" : "👤 显示真人试穿效果"}
-          </button>
-        </div>
+        ) : null}
       </div>
 
-      <p
-        style={{
-          fontSize: "0.72rem",
-          color: "var(--pixel-text-muted)",
-          lineHeight: 1.6,
-          marginBottom: "var(--px-3)"
-        }}
-      >
-        {outfit.description}
-      </p>
+      <div className="outfit-detail__comment">
+        <span aria-hidden="true">🤖</span>
+        <p>{outfit.description}</p>
+      </div>
 
-      {/* 单品小卡片：一行陈列 */}
-      <p className="pixel-label" style={{ marginBottom: "var(--px-2)", fontSize: "0.6rem" }}>
+      <p className="pixel-label" style={{ marginBottom: "var(--px-2)" }}>
         搭配单品 · 灰色可去商城购买 ›
       </p>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${outfit.slots.length}, 1fr)`,
-          gap: "var(--px-2)",
-          marginBottom: "var(--px-4)"
-        }}
-      >
+      <div className="outfit-detail__slots">
         {outfit.slots.map((slot) => (
           <button
-            key={slot.name}
+            key={slot.itemId}
             type="button"
-            onClick={() => {
-              if (!slot.owned) {
-                window.open(douyinShopUrl(slot.name), "_blank", "noreferrer");
-              }
-            }}
-            style={{
-              padding: "var(--px-1)",
-              background: slot.owned ? "var(--pixel-surface)" : "#f1eff5",
-              border: `1.5px solid ${slot.owned ? "var(--pixel-secondary)" : "#e2deeb"}`,
-              borderRadius: "var(--pixel-radius-sm)",
-              boxShadow: slot.owned ? "var(--pixel-shadow)" : "none",
-              textAlign: "center",
-              cursor: slot.owned ? "default" : "pointer",
-              filter: slot.owned ? "none" : "grayscale(0.5)"
-            }}
+            className="outfit-detail__slot"
+            data-owned={slot.owned ? "true" : undefined}
             aria-label={
-              slot.owned ? `${slot.name}（已有）` : `${slot.name}（未拥有，点击去抖音商城）`
+              slot.owned
+                ? `${slot.name}（已有，查看单品详情）`
+                : `${slot.name}（未拥有，¥${slot.price}，去抖音商城）`
             }
+            onClick={() => {
+              if (slot.owned) {
+                onOpenItem(slot.itemId);
+                return;
+              }
+              window.open(douyinShopUrl(slot.name), "_blank", "noreferrer");
+              onNotice(`去抖音商城看「${slot.name}」🛍`);
+            }}
           >
-            <img
-              src={pixelGarmentIcon(slot.category, { owned: slot.owned, size: 90 })}
-              alt={slot.name}
-              data-pixel="true"
-              style={{
-                width: "70%",
-                margin: "0 auto 2px",
-                filter: slot.owned ? "none" : "opacity(0.6)"
-              }}
-            />
-            <strong
-              style={{
-                fontFamily: "var(--font-pixel)",
-                fontSize: "0.54rem",
-                color: slot.owned ? "var(--pixel-text)" : "var(--pixel-text-dim)",
-                display: "block",
-                lineHeight: 1.3,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis"
-              }}
-            >
-              {slot.name}
-            </strong>
-            <span
-              style={{
-                fontFamily: "var(--font-pixel)",
-                fontSize: "0.52rem",
-                color: slot.owned ? "var(--pixel-accent-glow)" : "var(--pixel-pink-dark)"
-              }}
-            >
-              {slot.owned ? "已有" : `¥${slot.price ?? "--"}`}
-            </span>
+            <img src={slot.imageUrl} alt={slot.name} data-pixel="true" />
+            <strong>{slot.name}</strong>
+            <span>{slot.owned ? "已有" : `¥${slot.price}`}</span>
           </button>
         ))}
       </div>
 
-      {/* 操作 */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: "var(--px-3)"
+          gap: "var(--px-3)",
+          marginTop: "auto"
         }}
       >
         <PixelButton variant="primary" onClick={() => void saveToWardrobe()} disabled={saved}>
-          {saved ? "✓ 已存入衣橱" : "💜 存进数字衣橱"}
+          {saved ? "✓ 已存入衣橱" : "💜 存进衣橱"}
         </PixelButton>
-        <PixelButton
-          variant="accent"
-          onClick={() =>
-            setShareUrl(
-              buildShareCard({
-                seed: outfit.seed,
-                title: outfit.name,
-                subtitle: `${outfit.style} · ${outfit.scene}`,
-                badge: "star"
-              })
-            )
-          }
-        >
-          📤 分享像素图鉴
+        <PixelButton variant="accent" onClick={() => setSharing(true)}>
+          📤 分享图鉴
         </PixelButton>
       </div>
 
-      {shareUrl ? (
-        <ShareModal
-          imageUrl={shareUrl}
-          title={`分享：${outfit.name}`}
-          onClose={() => setShareUrl(null)}
+      {sharing && renderSet ? (
+        <ShareCard
+          outfit={outfit}
+          ownedCount={ownedCount}
+          pixelCover={renderSet.pixelCover}
+          collage={renderSet.collage}
+          onNotice={onNotice}
+          onClose={() => setSharing(false)}
         />
       ) : null}
     </div>

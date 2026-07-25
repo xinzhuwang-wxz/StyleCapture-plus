@@ -67,7 +67,7 @@
 }
 
 .feed-screen {
-  height: 100dvh;
+  height: 100%;
   overflow-y: auto;
   color: #fff;
   background: #050507;
@@ -83,7 +83,7 @@
 
 .feed-video {
   position: relative;
-  height: 100dvh;
+  height: 100%;
   min-height: 34rem;
   overflow: hidden;
   background:
@@ -203,8 +203,8 @@
 
 .feed-state {
   display: grid;
-  width: min(100%, 32rem);
-  min-height: 100dvh;
+  width: 100%;
+  min-height: 100%;
   margin: 0 auto;
   padding: 2rem;
   place-content: center;
@@ -397,12 +397,12 @@
 
 .feed-standalone {
   position: relative;
-  height: 100dvh;
+  height: 100%;
   background: #050507;
 }
 
 .feed-topbar {
-  position: fixed;
+  position: absolute;
   top: max(0.75rem, env(safe-area-inset-top));
   left: 1rem;
   right: 1rem;

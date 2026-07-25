@@ -1,9 +1,19 @@
 /**
  * Mock API Layer — 前后端解耦
- * USE_MOCK=true 时，所有 API 调用走 Mock。
- * 后端联调时只需把 App 里的 api 换成 wardrobeApi。
+ *
+ * USE_MOCK=true 时衣橱/穿搭数据走这里；接后端时把 App 里的 api 换成 wardrobeApi。
+ * 数据本体在 `features/wardrobe/catalog.ts`，这一层只负责模拟接口形状与时延。
+ *
+ * 注意：Look 的拼贴、真人试穿和像素封面**不**由这里编造，它们走
+ * `features/render` 的 RenderPort（Issue #5 的统一 RenderArtifact 链）。
  */
 
+import {
+  CAPTURED_ITEM,
+  CATALOG_ITEMS,
+  CATALOG_OUTFITS,
+  type CatalogItem
+} from "../features/wardrobe/catalog";
 import type {
   CaptureAccepted,
   FeedFrameContext,
@@ -21,24 +31,24 @@ type ItemField = {
   provenance: "user" | "model" | "curated_seed";
 };
 
-function field(value: unknown, confidence = 1): ItemField {
-  return {
-    value,
-    confidence,
-    locked: false,
-    model_version: null,
-    provenance: "model"
-  };
+function field(
+  value: unknown,
+  confidence = 1,
+  provenance: ItemField["provenance"] = "curated_seed"
+): ItemField {
+  return { value, confidence, locked: false, model_version: null, provenance };
 }
 
 // ─── Types ─────────────────────────────────────────────
 
 export type OutfitSlot = {
+  itemId: string;
   name: string;
   category: string;
   owned: boolean;
-  itemId?: string;
-  price?: number;
+  price: number;
+  /** 1:1 像素单品图 */
+  imageUrl: string;
 };
 
 export type MockOutfit = {
@@ -46,11 +56,16 @@ export type MockOutfit = {
   name: string;
   style: string;
   scene: string;
-  seed: string;
   description: string;
   slots: OutfitSlot[];
-  /** 用户收藏（右上角黄色小星星） */
+  /** 人工审核的 3:4 像素封面；用户自由组合出来的穿搭没有，为 null */
+  pixelCoverUrl: string | null;
+  /** 人工审核的模特参考照；同上 */
+  modelPhotoUrl: string | null;
+  /** 用户收藏（左上角黄色小星星） */
   favorited?: boolean;
+  /** true = 用户在「按单品」里自由组合保存的 */
+  custom?: boolean;
 };
 
 export type AIMessage = {
@@ -61,119 +76,82 @@ export type AIMessage = {
   outfits?: MockOutfit[];
 };
 
-// ─── Mock Wardrobe Items ───────────────────────────────
+// ─── Catalog → API 形状 ─────────────────────────────────
 
-function mockItem(
-  id: string,
-  ownership: Ownership,
-  category: string,
-  subcategory: string,
-  description: string,
-  color: string,
-  sourceKind: SourceKind
-): Item {
+function toItem(entry: CatalogItem): Item {
   return {
-    id,
-    capture_id: `cap-${id}`,
-    ownership,
+    id: entry.id,
+    capture_id: `cap-${entry.id}`,
+    ownership: entry.owned ? "owned" : "inspiration",
     status: "ready",
-    source_kind: sourceKind,
+    // Product API 的 CaptureSourceKind 只有 upload/camera/feed；这些条目是
+    // 人工审核的演示素材，来源类别记在字段级 provenance 上。
+    source_kind: "upload",
     source_available: true,
     attributes: {
-      category: field(category, 0.93),
-      subcategory: field(subcategory, 0.87),
-      description: field(description, 0.8),
-      color: field(color, 0.9)
+      category: field(entry.category),
+      subcategory: field(entry.name),
+      description: field(entry.description),
+      price: field(entry.price)
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     model_metadata: {},
-    source_image_url: ""
+    source_image_url: entry.imageUrl
   };
 }
 
-const MOCK_ITEMS: Item[] = [
-  mockItem("item-001", "owned", "上装", "针织开衫", "粉色短款针织开衫，软软糯糯", "粉色", "camera"),
-  mockItem("item-002", "owned", "下装", "白色阔腿裤", "高腰垂感白色阔腿裤", "白色", "camera"),
-  mockItem("item-003", "owned", "鞋子", "粉色帆布鞋", "奶油粉低帮帆布鞋", "粉色", "upload"),
-  mockItem("item-004", "owned", "配饰", "粉色棒球帽", "灯芯绒粉色棒球帽", "粉色", "camera"),
-  mockItem("item-005", "inspiration", "上装", "娃娃领衬衫", "白色娃娃领雪纺衬衫", "白色", "feed"),
-  mockItem("item-006", "inspiration", "下装", "牛仔A字裙", "复古浅蓝牛仔A字短裙", "蓝色", "feed"),
-  mockItem("item-007", "inspiration", "包包", "菱格链条包", "奶白菱格链条小包", "白色", "feed"),
-  mockItem("item-008", "owned", "外套", "奶油牛仔外套", " oversize 奶油白牛仔外套", "白色", "camera"),
-  mockItem("item-009", "inspiration", "鞋子", "玛丽珍鞋", "黑色漆皮玛丽珍鞋", "黑色", "feed"),
-  mockItem("item-010", "owned", "配饰", "珍珠发夹", "法式珍珠一字发夹", "白色", "upload")
-];
+function toSlot(entry: CatalogItem): OutfitSlot {
+  return {
+    itemId: entry.id,
+    name: entry.name,
+    category: entry.category,
+    owned: entry.owned,
+    price: entry.price,
+    imageUrl: entry.imageUrl
+  };
+}
+
+function catalogById(id: string): CatalogItem | undefined {
+  return [...CATALOG_ITEMS, CAPTURED_ITEM].find((entry) => entry.id === id);
+}
+
+const SEED_OUTFITS: MockOutfit[] = CATALOG_OUTFITS.map((outfit) => ({
+  id: outfit.id,
+  name: outfit.name,
+  style: outfit.style,
+  scene: outfit.scene,
+  description: outfit.description,
+  pixelCoverUrl: outfit.pixelCoverUrl,
+  modelPhotoUrl: outfit.modelPhotoUrl,
+  slots: outfit.itemIds
+    .map(catalogById)
+    .filter((entry): entry is CatalogItem => Boolean(entry))
+    .map(toSlot)
+}));
+
+const SEED_ITEMS: Item[] = CATALOG_ITEMS.map(toItem);
 
 const MOCK_JOBS: Record<string, Job> = {};
 
-// ─── Mock Outfits ──────────────────────────────────────
-
-function slots(...list: OutfitSlot[]): OutfitSlot[] {
-  return list;
-}
-
-const MOCK_OUTFITS: MockOutfit[] = [
-  {
-    id: "outfit-001",
-    name: "草莓牛奶约会装",
-    style: "甜美",
-    scene: "约会",
-    seed: "outfit-strawberry",
-    description: "粉色针织开衫 + 白色阔腿裤，甜度刚好的约会搭配。",
-    slots: slots(
-      { name: "粉色针织开衫", category: "上装", owned: true, itemId: "item-001", price: 129 },
-      { name: "白色阔腿裤", category: "下装", owned: true, itemId: "item-002", price: 149 },
-      { name: "粉色帆布鞋", category: "鞋子", owned: true, itemId: "item-003", price: 199 },
-      { name: "粉色棒球帽", category: "配饰", owned: true, itemId: "item-004", price: 59 }
-    )
-  },
-  {
-    id: "outfit-002",
-    name: "云朵通勤装",
-    style: "简约",
-    scene: "通勤",
-    seed: "outfit-cloud",
-    description: "娃娃领衬衫配牛仔裙，清清爽爽的上班Look。",
-    slots: slots(
-      { name: "娃娃领衬衫", category: "上装", owned: false, itemId: "item-005", price: 99 },
-      { name: "牛仔A字裙", category: "下装", owned: false, itemId: "item-006", price: 139 },
-      { name: "玛丽珍鞋", category: "鞋子", owned: false, itemId: "item-009", price: 259 },
-      { name: "珍珠发夹", category: "配饰", owned: true, itemId: "item-010", price: 29 }
-    )
-  },
-  {
-    id: "outfit-003",
-    name: "奶油周末出游装",
-    style: "休闲",
-    scene: "出游",
-    seed: "outfit-cream",
-    description: "奶油牛仔外套叠穿，随手一拍都很出片。",
-    slots: slots(
-      { name: "奶油牛仔外套", category: "外套", owned: true, itemId: "item-008", price: 229 },
-      { name: "粉色针织开衫", category: "上装", owned: true, itemId: "item-001", price: 129 },
-      { name: "牛仔A字裙", category: "下装", owned: false, itemId: "item-006", price: 139 },
-      { name: "菱格链条包", category: "包包", owned: false, itemId: "item-007", price: 179 }
-    )
-  }
-];
-
-const AI_SCENES = ["约会", "通勤", "出游", "校园"];
-const AI_STYLES = ["甜美", "简约", "休闲", "复古"];
+const AI_SCENES = ["上班通勤", "周末约会", "旅行拍照", "校园日常", "见家长"];
+const AI_STYLES = ["甜美", "复古", "简约", "辣妹", "美拉德"];
+const AI_WEATHER = ["30℃ 很热", "降温 10℃", "梅雨天", "初秋微凉", "有风"];
 
 const GREETING: AIMessage = {
   id: "msg-001",
   role: "ai",
-  content: "嗨嗨！我是你的穿搭闺蜜 💜\n今天想听我分享什么呢？",
-  options: ["今天约会穿哪套好呢？", "帮我搭一套通勤装", "周末出游怎么穿？", "来一套校园风"]
+  content: "嗨嗨！我是你的穿搭闺蜜 💜\n今天想去哪儿、想穿成什么样？"
 };
 
-let mockItems = [...MOCK_ITEMS];
+let mockItems = [...SEED_ITEMS];
 let mockMessages: AIMessage[] = [GREETING];
-let wardrobeOutfits = [...MOCK_OUTFITS];
-const favoriteOutfits = new Set<string>(["outfit-001"]);
+let wardrobeOutfits = [...SEED_OUTFITS];
+const favoriteOutfits = new Set<string>([SEED_OUTFITS[0]?.id].filter(Boolean) as string[]);
 const outfitPool: Record<string, MockOutfit> = {};
-MOCK_OUTFITS.forEach((o) => { outfitPool[o.id] = o; });
+SEED_OUTFITS.forEach((outfit) => {
+  outfitPool[outfit.id] = outfit;
+});
 
 function withFavorite<T extends MockOutfit>(outfit: T): T {
   return { ...outfit, favorited: favoriteOutfits.has(outfit.id) };
@@ -189,9 +167,7 @@ function randomId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function douyinShopUrl(keyword: string): string {
-  return `https://www.douyin.com/search/${encodeURIComponent(keyword)}`;
-}
+export { douyinShopUrl } from "../features/wardrobe/catalog";
 
 // ─── Mock API ──────────────────────────────────────────
 
@@ -215,8 +191,8 @@ export const mockApi = {
       source_kind: sourceKind,
       source_available: true,
       attributes: {
-        category: field("正在识别…", 0),
-        description: field(file.name, 0)
+        category: field("正在识别…", 0, "model"),
+        description: field(file.name, 0, "model")
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -238,24 +214,16 @@ export const mockApi = {
     };
 
     setTimeout(() => {
-      MOCK_JOBS[jobId] = { ...MOCK_JOBS[jobId], state: "ready", updated_at: new Date().toISOString() };
-      const idx = mockItems.findIndex((i) => i.id === itemId);
-      if (idx >= 0) {
-        mockItems[idx] = {
-          ...mockItems[idx],
-          status: "ready",
-          attributes: {
-            category: field("上装", 0.9),
-            subcategory: field("新收藏单品", 0.7),
-            description: field(
-              sourceKind === "feed" ? "从穿搭视频里圈选收藏" : "新加入衣橱的衣服",
-              0.8
-            ),
-            color: field("多色", 0.6)
-          }
-        };
+      MOCK_JOBS[jobId] = {
+        ...MOCK_JOBS[jobId],
+        state: "ready",
+        updated_at: new Date().toISOString()
+      };
+      const index = mockItems.findIndex((item) => item.id === itemId);
+      if (index >= 0) {
+        mockItems[index] = { ...toItem(CAPTURED_ITEM), id: itemId, capture_id: captureId };
       }
-    }, 2500);
+    }, 2300);
 
     return {
       capture_id: captureId,
@@ -307,57 +275,34 @@ export const mockApi = {
     }
   ): Promise<Item> {
     await delay(300);
-    const idx = mockItems.findIndex((i) => i.id === itemId);
-    if (idx < 0) throw new Error("Item not found");
+    const index = mockItems.findIndex((item) => item.id === itemId);
+    if (index < 0) throw new Error("Item not found");
 
-    const updated = { ...mockItems[idx] };
+    const updated = { ...mockItems[index] };
     if (changes.ownership) updated.ownership = changes.ownership;
     if (changes.corrections) {
       for (const [key, value] of Object.entries(changes.corrections)) {
-        const val = Array.isArray(value) ? value[0] : value;
-        updated.attributes = { ...updated.attributes, [key]: field(val, 1) };
+        const single = Array.isArray(value) ? value[0] : value;
+        // 人工值优先于后续自动补全（CONTEXT.md 不变量）。
+        updated.attributes = { ...updated.attributes, [key]: field(single, 1, "user") };
       }
     }
-    mockItems[idx] = updated;
+    mockItems[index] = updated;
     return updated;
   },
 
   async deleteSource(itemId: string): Promise<void> {
     await delay(250);
-    const idx = mockItems.findIndex((i) => i.id === itemId);
-    if (idx >= 0) {
-      mockItems[idx] = { ...mockItems[idx], source_available: false };
+    const index = mockItems.findIndex((item) => item.id === itemId);
+    if (index >= 0) {
+      mockItems[index] = { ...mockItems[index], source_available: false };
     }
   },
 
-  /** 写实风格单品图（占位：渐变 + 大字标签，联调后换成真实抠图） */
+  /** 单品原图地址。目录条目直接返回真实素材。 */
   async sourceImage(itemId: string): Promise<string> {
     await delay(120);
-    const item = mockItems.find((i) => i.id === itemId);
-    const hue = itemId.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-    const canvas = document.createElement("canvas");
-    canvas.width = 480;
-    canvas.height = 600;
-    const ctx = canvas.getContext("2d")!;
-    const grad = ctx.createLinearGradient(0, 0, 480, 600);
-    grad.addColorStop(0, `hsl(${hue}, 65%, 88%)`);
-    grad.addColorStop(1, `hsl(${(hue + 40) % 360}, 55%, 78%)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 480, 600);
-    ctx.fillStyle = `hsl(${hue}, 45%, 55%)`;
-    ctx.beginPath();
-    ctx.roundRect(90, 140, 300, 320, 24);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = "bold 30px 'PingFang SC', sans-serif";
-    ctx.textAlign = "center";
-    const label = String(
-      item?.attributes.subcategory?.value ?? item?.attributes.category?.value ?? "单品"
-    );
-    ctx.fillText(label, 240, 310);
-    ctx.font = "18px 'PingFang SC', sans-serif";
-    ctx.fillText("实物图 · 联调后替换", 240, 345);
-    return canvas.toDataURL("image/png");
+    return catalogById(itemId)?.imageUrl ?? CAPTURED_ITEM.imageUrl;
   },
 
   // ─── Outfit APIs ─────────────────────────────────────
@@ -384,34 +329,46 @@ export const mockApi = {
     return true;
   },
 
-  async countFavorites(): Promise<number> {
-    return favoriteOutfits.size;
-  },
-
-  async generateOutfits(theme: string): Promise<MockOutfit[]> {
-    await delay(1200);
-    return MOCK_OUTFITS.map((o) => {
-      const generated: MockOutfit = {
-        ...o,
-        id: randomId("outfit"),
-        name: `${theme} · ${o.name}`,
-        description: `按「${theme}」为你重新搭配的 ${o.description}`
-      };
-      outfitPool[generated.id] = generated;
-      return generated;
-    });
+  /**
+   * 保存用户在「按单品」里自由组合的新穿搭。
+   *
+   * 它没有 curated 素材，封面与试穿都交给 RenderPort 处理，
+   * 因此 pixelCoverUrl / modelPhotoUrl 为 null。
+   */
+  async saveCustomOutfit(itemIds: readonly string[]): Promise<MockOutfit> {
+    await delay(200);
+    const entries = itemIds
+      .map(catalogById)
+      .filter((entry): entry is CatalogItem => Boolean(entry));
+    const index = wardrobeOutfits.filter((outfit) => outfit.custom).length + 1;
+    const outfit: MockOutfit = {
+      id: randomId("look-custom"),
+      name: `我的自由搭 ${index}`,
+      style: "自由",
+      scene: "自定义",
+      description: `你自己挑的 ${entries.length} 件：${entries
+        .map((entry) => entry.name)
+        .join(" + ")}。AI 检查过品类没有冲突，可以直接穿出门。`,
+      slots: entries.map(toSlot),
+      pixelCoverUrl: null,
+      modelPhotoUrl: null,
+      custom: true
+    };
+    outfitPool[outfit.id] = outfit;
+    wardrobeOutfits = [outfit, ...wardrobeOutfits];
+    return outfit;
   },
 
   async saveOutfit(outfitId: string): Promise<void> {
     await delay(250);
     const outfit = outfitPool[outfitId];
-    if (outfit && !wardrobeOutfits.some((o) => o.id === outfitId)) {
+    if (outfit && !wardrobeOutfits.some((candidate) => candidate.id === outfitId)) {
       wardrobeOutfits = [outfit, ...wardrobeOutfits];
     }
   },
 
-  async getAIScenes(): Promise<{ scenes: string[]; styles: string[] }> {
-    return { scenes: [...AI_SCENES], styles: [...AI_STYLES] };
+  async getAIScenes(): Promise<{ scenes: string[]; styles: string[]; weather: string[] }> {
+    return { scenes: [...AI_SCENES], styles: [...AI_STYLES], weather: [...AI_WEATHER] };
   },
 
   async getAIMessages(): Promise<AIMessage[]> {
@@ -421,35 +378,27 @@ export const mockApi = {
 
   async sendAIMessage(content: string, theme?: string): Promise<AIMessage> {
     await delay(700);
-    const userMsg: AIMessage = { id: randomId("msg"), role: "user", content };
-    const wantsOutfits = Boolean(theme) || /约会|通勤|出游|校园|搭|穿/.test(content);
-    let aiResponse: AIMessage;
-    if (wantsOutfits) {
-      const outfits = await this.generateOutfits(theme ?? content.slice(0, 6));
-      aiResponse = {
-        id: randomId("msg"),
-        role: "ai",
-        content: `收到！按你的想法搭了三套，点图片看详情，喜欢就存进穿搭图鉴吧 ✨`,
-        outfits
-      };
-    } else {
-      aiResponse = {
-        id: randomId("msg"),
-        role: "ai",
-        content: "好呀～告诉我今天的场合或者想要的风格，我就能帮你搭三套出来 💜",
-        options: ["今天约会穿哪套好呢？", "帮我搭一套通勤装", "周末出游怎么穿？", "来一套校园风"]
-      };
-    }
-    mockMessages = [...mockMessages, userMsg, aiResponse];
-    return aiResponse;
+    const userMessage: AIMessage = { id: randomId("msg"), role: "user", content };
+    const response: AIMessage = {
+      id: randomId("msg"),
+      role: "ai",
+      content: `收到「${content}」～我按这个方向从你衣橱里挑单品，这两套先看看 ✨`,
+      outfits: [SEED_OUTFITS[0], SEED_OUTFITS[2]].filter(Boolean).map(withFavorite)
+    };
+    mockMessages = [...mockMessages, userMessage, response];
+    return theme ? { ...response } : response;
   },
 
   reset() {
-    mockItems = [...MOCK_ITEMS];
+    mockItems = [...SEED_ITEMS];
     mockMessages = [GREETING];
-    wardrobeOutfits = [...MOCK_OUTFITS];
+    wardrobeOutfits = [...SEED_OUTFITS];
     favoriteOutfits.clear();
-    favoriteOutfits.add("outfit-001");
-    Object.keys(MOCK_JOBS).forEach((k) => delete MOCK_JOBS[k]);
+    if (SEED_OUTFITS[0]) favoriteOutfits.add(SEED_OUTFITS[0].id);
+    Object.keys(outfitPool).forEach((key) => delete outfitPool[key]);
+    SEED_OUTFITS.forEach((outfit) => {
+      outfitPool[outfit.id] = outfit;
+    });
+    Object.keys(MOCK_JOBS).forEach((key) => delete MOCK_JOBS[key]);
   }
 };
