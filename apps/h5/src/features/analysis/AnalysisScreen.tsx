@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { PixelButton } from "../../components/PixelUI";
 import type { Item } from "../../api/client";
 import type { MockOutfit } from "../../mock/mockApi";
 import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
@@ -12,9 +12,11 @@ interface AnalysisScreenProps {
   onOpenOutfit: (outfitId: string) => void;
 }
 
+const STYLE_COLORS = ["#f9a8d4", "#a78bfa", "#93c5fd", "#fcd34d", "#86efac"];
+
 /**
- * 穿搭分析（驾驶舱）：
- * 个人穿搭偏好分析 + 引导语，沉淀穿搭数字资产。
+ * 穿搭分析（驾驶舱 · 一屏看完）：
+ * 统计数字 + 风格占比饼图 + 最近收藏 + 探索引导。
  */
 export function AnalysisScreen({
   items,
@@ -25,230 +27,249 @@ export function AnalysisScreen({
 }: AnalysisScreenProps) {
   const stats = useMemo(() => {
     const owned = items.filter((i) => i.ownership === "owned").length;
-    const inspiration = items.length - owned;
-
-    const categoryCount = new Map<string, number>();
-    items.forEach((i) => {
-      const c = String(i.attributes.category?.value ?? "其他");
-      categoryCount.set(c, (categoryCount.get(c) ?? 0) + 1);
-    });
-    const topCategories = [...categoryCount.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-    const maxCount = topCategories[0]?.[1] ?? 1;
+    const favorited = outfits.filter((o) => o.favorited).length;
 
     const styleCount = new Map<string, number>();
     outfits.forEach((o) => styleCount.set(o.style, (styleCount.get(o.style) ?? 0) + 1));
-    const topStyles = [...styleCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const total = outfits.length || 1;
+    const styles = [...styleCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count], i) => ({
+        name,
+        ratio: count / total,
+        color: STYLE_COLORS[i % STYLE_COLORS.length]
+      }));
 
-    const ownedRatio = items.length ? Math.round((owned / items.length) * 100) : 0;
-
-    return { owned, inspiration, topCategories, maxCount, topStyles, ownedRatio };
+    return { owned, favorited, styles };
   }, [items, outfits]);
 
   const latest = outfits[0];
 
+  // 饼图扇形
+  const pieSegments = useMemo(() => {
+    let acc = 0;
+    return stats.styles.map((s) => {
+      const start = acc;
+      acc += s.ratio;
+      return { ...s, start, end: acc };
+    });
+  }, [stats.styles]);
+
+  const donut = (size: number) => {
+    const r = size / 2;
+    const ir = r * 0.58;
+    if (pieSegments.length === 0) return null;
+    const arc = (from: number, to: number, radius: number) => {
+      const a0 = from * Math.PI * 2 - Math.PI / 2;
+      const a1 = to * Math.PI * 2 - Math.PI / 2;
+      return [
+        `${radius * Math.cos(a0) + r} ${radius * Math.sin(a0) + r}`,
+        `${radius * Math.cos(a1) + r} ${radius * Math.sin(a1) + r}`
+      ];
+    };
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="风格占比饼图">
+        {pieSegments.map((seg) => {
+          const [x0, y0] = arc(seg.start, seg.end, r - 1);
+          const [x1, y1] = arc(seg.end, seg.start, ir);
+          const large = seg.end - seg.start > 0.5 ? 1 : 0;
+          return (
+            <path
+              key={seg.name}
+              d={`M ${x0} A ${r - 1} ${r - 1} 0 ${large} 1 ${y0} L ${y1} A ${ir} ${ir} 0 ${large} 0 ${x1} Z`}
+              fill={seg.color}
+              stroke="#fff"
+              strokeWidth="1.5"
+            />
+          );
+        })}
+      </svg>
+    );
+  };
+
   return (
     <div>
-      <PixelSectionHeader
-        kicker="穿搭数字资产"
-        title="我的穿搭分析"
-        action={<span style={{ fontSize: "1.4rem" }} aria-hidden="true">📊</span>}
-      />
+      {/* 标题 + 数字（一行压缩） */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          marginBottom: "var(--px-3)"
+        }}
+      >
+        <h1 className="pixel-title" style={{ fontSize: "1.15rem", margin: 0 }}>
+          穿搭分析
+        </h1>
+        <span className="pixel-label" style={{ fontSize: "0.6rem" }}>
+          穿搭数字资产
+        </span>
+      </div>
 
-      {/* 总览数字 */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "var(--px-3)",
-          marginBottom: "var(--px-5)"
+          gap: "var(--px-2)",
+          marginBottom: "var(--px-3)"
         }}
       >
         {[
           { n: stats.owned, label: "已有单品", color: "var(--pixel-accent-glow)" },
-          { n: stats.inspiration, label: "心动收藏", color: "var(--pixel-pink-dark)" },
+          { n: stats.favorited, label: "心动收藏", color: "var(--pixel-pink-dark)" },
           { n: outfits.length, label: "穿搭图鉴", color: "var(--pixel-primary-dark)" }
         ].map((s) => (
           <div
             key={s.label}
             style={{
-              padding: "var(--px-4) var(--px-2)",
+              padding: "var(--px-2)",
               background: "var(--pixel-surface)",
               border: "2px solid var(--pixel-border)",
-              borderRadius: "var(--pixel-border-radius)",
+              borderRadius: "var(--pixel-radius-sm)",
               boxShadow: "var(--pixel-shadow)",
               textAlign: "center"
             }}
           >
-            <div
-              style={{
-                fontFamily: "var(--font-pixel)",
-                fontSize: "1.5rem",
-                color: s.color
-              }}
-            >
+            <div style={{ fontFamily: "var(--font-pixel)", fontSize: "1.2rem", color: s.color }}>
               {s.n}
             </div>
-            <div style={{ fontSize: "0.65rem", color: "var(--pixel-text-dim)", marginTop: "4px" }}>
+            <div style={{ fontSize: "0.56rem", color: "var(--pixel-text-dim)", marginTop: "2px" }}>
               {s.label}
             </div>
           </div>
         ))}
       </div>
 
-      {/* 单品构成 */}
+      {/* 风格占比（压扁卡片：饼图 + 图例一行） */}
       <section
         style={{
-          padding: "var(--px-4)",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--px-3)",
+          padding: "var(--px-3)",
           background: "var(--pixel-surface)",
           border: "2px solid var(--pixel-border)",
-          borderRadius: "var(--pixel-border-radius)",
+          borderRadius: "var(--pixel-radius-sm)",
           boxShadow: "var(--pixel-shadow)",
-          marginBottom: "var(--px-4)"
+          marginBottom: "var(--px-3)"
         }}
       >
-        <h3 className="pixel-subtitle" style={{ marginBottom: "var(--px-3)" }}>
-          👕 衣橱构成
-        </h3>
-        {stats.topCategories.length === 0 ? (
-          <p style={{ fontSize: "0.75rem", color: "var(--pixel-text-dim)", margin: 0 }}>
-            衣橱还是空的，先去存几件吧。
-          </p>
-        ) : (
-          stats.topCategories.map(([cat, count]) => (
-            <div key={cat} style={{ marginBottom: "var(--px-2)" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.72rem",
-                  color: "var(--pixel-text-muted)",
-                  marginBottom: "4px"
-                }}
-              >
-                <span>{cat}</span>
-                <span>{count} 件</span>
-              </div>
-              <div
-                style={{
-                  height: "10px",
-                  borderRadius: "999px",
-                  background: "var(--pixel-border-light)",
-                  overflow: "hidden"
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.round((count / stats.maxCount) * 100)}%`,
-                    height: "100%",
-                    borderRadius: "999px",
-                    background: "linear-gradient(90deg, var(--pixel-secondary), var(--pixel-pink))"
-                  }}
-                />
-              </div>
-            </div>
-          ))
-        )}
-        {items.length > 0 ? (
-          <p
-            style={{
-              margin: "var(--px-3) 0 0",
-              fontFamily: "var(--font-pixel)",
-              fontSize: "0.68rem",
-              color: "var(--pixel-text-dim)"
-            }}
+        {donut(72)}
+        <div style={{ flex: 1 }}>
+          <h3
+            className="pixel-subtitle"
+            style={{ fontSize: "0.72rem", margin: "0 0 var(--px-1)" }}
           >
-            ⭐ 衣橱拥有率 {stats.ownedRatio}% ·{" "}
-            {stats.topStyles.length > 0
-              ? `偏爱 ${stats.topStyles.map(([s]) => s).join(" / ")} 风`
-              : "风格还在形成中"}
-          </p>
-        ) : null}
+            👕 衣橱风格占比
+          </h3>
+          {pieSegments.length === 0 ? (
+            <p style={{ fontSize: "0.65rem", color: "var(--pixel-text-dim)", margin: 0 }}>
+              衣橱还是空的，先去存几件吧。
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px var(--px-2)" }}>
+              {pieSegments.map((seg) => (
+                <span
+                  key={seg.name}
+                  style={{
+                    fontFamily: "var(--font-pixel)",
+                    fontSize: "0.6rem",
+                    color: "var(--pixel-text-muted)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px"
+                  }}
+                >
+                  <i
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "2px",
+                      background: seg.color,
+                      display: "inline-block"
+                    }}
+                  />
+                  {seg.name} {Math.round(seg.ratio * 100)}%
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* 最新穿搭 */}
+      {/* 最近收藏（压缩小行） */}
       {latest ? (
-        <section
+        <button
+          type="button"
+          onClick={() => onOpenOutfit(latest.id)}
           style={{
-            padding: "var(--px-4)",
+            display: "grid",
+            gridTemplateColumns: "3.2rem 1fr auto",
+            gap: "var(--px-2)",
+            alignItems: "center",
+            width: "100%",
+            padding: "var(--px-2)",
             background: "var(--pixel-surface)",
             border: "2px solid var(--pixel-border)",
-            borderRadius: "var(--pixel-border-radius)",
+            borderRadius: "var(--pixel-radius-sm)",
             boxShadow: "var(--pixel-shadow)",
-            marginBottom: "var(--px-4)"
+            marginBottom: "var(--px-3)",
+            textAlign: "left"
           }}
         >
-          <h3 className="pixel-subtitle" style={{ marginBottom: "var(--px-3)" }}>
-            ✨ 最近收藏的穿搭
-          </h3>
-          <button
-            type="button"
-            onClick={() => onOpenOutfit(latest.id)}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "5.5rem 1fr",
-              gap: "var(--px-3)",
-              alignItems: "center",
-              width: "100%",
-              padding: 0,
-              border: "none",
-              background: "none",
-              textAlign: "left"
-            }}
-          >
-            <img
-              src={pixelAvatarDataUrl(latest.seed, { size: 160 })}
-              alt={latest.name}
-              data-pixel="true"
-              style={{ width: "100%", borderRadius: "12px", border: "2px solid var(--pixel-border)" }}
-            />
-            <div>
-              <strong
-                style={{
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.9rem",
-                  color: "var(--pixel-text)",
-                  display: "block",
-                  marginBottom: "4px"
-                }}
-              >
-                {latest.name}
-              </strong>
-              <span style={{ fontSize: "0.7rem", color: "var(--pixel-text-dim)", lineHeight: 1.5 }}>
-                {latest.description}
-              </span>
-            </div>
-          </button>
-        </section>
+          <img
+            src={pixelAvatarDataUrl(latest.seed, { size: 120 })}
+            alt={latest.name}
+            data-pixel="true"
+            style={{ width: "100%", borderRadius: "8px", border: "1px solid var(--pixel-border)" }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <span
+              className="pixel-label"
+              style={{ fontSize: "0.52rem", display: "block" }}
+            >
+              最近收藏的穿搭
+            </span>
+            <strong
+              style={{
+                fontFamily: "var(--font-pixel)",
+                fontSize: "0.72rem",
+                color: "var(--pixel-text)",
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis"
+              }}
+            >
+              {latest.name}
+            </strong>
+          </div>
+          <span style={{ color: "var(--pixel-text-dim)", fontSize: "0.9rem" }}>›</span>
+        </button>
       ) : null}
 
-      {/* 引导 */}
+      {/* 引导（压缩） */}
       <section
         style={{
-          padding: "var(--px-5)",
+          padding: "var(--px-3)",
           background: "linear-gradient(135deg, #f3edfd, #fdeef5)",
           border: "2px solid var(--pixel-secondary)",
-          borderRadius: "var(--pixel-border-radius)",
-          marginBottom: "var(--px-4)",
+          borderRadius: "var(--pixel-radius-sm)",
           textAlign: "center"
         }}
       >
         <p
           style={{
             fontFamily: "var(--font-pixel)",
-            fontSize: "0.9rem",
+            fontSize: "0.72rem",
             color: "var(--pixel-text)",
-            lineHeight: 1.8,
-            margin: "0 0 var(--px-4)"
+            lineHeight: 1.6,
+            margin: "0 0 var(--px-2)"
           }}
         >
-          在不同页面继续探索穿搭，
-          <br />
-          这里的分析会随着你的收藏不断生长 🌱
+          继续探索穿搭，这里的分析会随你的收藏生长 🌱
         </p>
-        <div style={{ display: "flex", gap: "var(--px-3)", justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: "var(--px-2)", justifyContent: "center" }}>
           <PixelButton variant="primary" onClick={onGoAI}>
             🤖 去 AI 推荐
           </PixelButton>

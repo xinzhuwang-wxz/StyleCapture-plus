@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "motion/react";
-import {
-  PixelBadge,
-  PixelCard,
-  PixelEmpty,
-  PixelFilter
-} from "../../components/PixelUI";
+import { PixelCard, PixelEmpty, PixelFilter } from "../../components/PixelUI";
 import { ShareModal } from "../../components/ShareModal";
 import type { Item, Job, Ownership } from "../../api/client";
 import type { MockOutfit } from "../../mock/mockApi";
@@ -38,17 +33,15 @@ interface WardrobeScreenProps {
   onRetry: (item: Item) => void;
 }
 
-// ─── 单品卡片（像素预览 + 角标）─────────────────────────
+// ─── 单品卡片（1:1 图片，紧凑）──────────────────────────
 
 function WardrobeItemCard({
   item,
-  index,
   onOpen,
   onLongPress,
   onRetry
 }: {
   item: Item;
-  index: number;
   onOpen: () => void;
   onLongPress: () => void;
   onRetry: () => void;
@@ -58,24 +51,19 @@ function WardrobeItemCard({
     item.attributes.subcategory?.value ?? category ?? "待分类"
   );
   const isOwned = item.ownership === "owned";
-  const tall = index % 3 === 0;
 
   return (
-    <PixelCard onClick={onOpen} onLongPress={onLongPress} className="wardrobe-masonry-card">
-      <PixelBadge variant={isOwned ? "star" : "heart"}>
-        {isOwned ? "⭐" : "💖"}
-      </PixelBadge>
-
+    <PixelCard onClick={onOpen} onLongPress={onLongPress}>
       <div
         style={{
           position: "relative",
-          aspectRatio: tall ? "0.85" : "1.05",
+          aspectRatio: "1",
           background: isOwned
             ? "linear-gradient(150deg, #f5edfb, #ede4fa)"
             : "linear-gradient(150deg, #efedf3, #e6e3ee)",
           display: "grid",
           placeItems: "center",
-          padding: "var(--px-4)"
+          padding: "var(--px-2)"
         }}
       >
         <img
@@ -83,7 +71,7 @@ function WardrobeItemCard({
           alt={subcategory}
           data-pixel="true"
           style={{
-            width: "72%",
+            width: "78%",
             filter: isOwned ? "none" : "grayscale(0.6) opacity(0.75)"
           }}
         />
@@ -91,11 +79,11 @@ function WardrobeItemCard({
           <span
             style={{
               position: "absolute",
-              bottom: "var(--px-2)",
-              left: "var(--px-2)",
-              padding: "2px 8px",
+              bottom: "var(--px-1)",
+              left: "var(--px-1)",
+              padding: "1px 6px",
               fontFamily: "var(--font-pixel)",
-              fontSize: "0.6rem",
+              fontSize: "0.55rem",
               background: "#fff",
               borderRadius: "999px",
               border: "1px solid var(--pixel-border)",
@@ -107,25 +95,29 @@ function WardrobeItemCard({
         ) : null}
       </div>
 
-      <div style={{ padding: "var(--px-3)" }}>
+      <div style={{ padding: "var(--px-2) var(--px-2) var(--px-2)" }}>
         <strong
           style={{
             fontFamily: "var(--font-pixel)",
-            fontSize: "0.82rem",
+            fontSize: "0.72rem",
             color: "var(--pixel-text)",
-            display: "block"
+            display: "block",
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis"
           }}
         >
           {subcategory}
         </strong>
         <span
           style={{
-            fontSize: "0.62rem",
-            color: isOwned ? "var(--pixel-accent-glow)" : "var(--pixel-pink-dark)",
+            fontSize: "0.58rem",
+            color: "var(--pixel-text-dim)",
             fontFamily: "var(--font-pixel)"
           }}
         >
-          {isOwned ? "⭐ 已有" : "💖 未拥有"}
+          {isOwned ? "已有" : "未拥有"}
         </span>
       </div>
 
@@ -137,13 +129,13 @@ function WardrobeItemCard({
             onRetry();
           }}
           style={{
-            width: "calc(100% - var(--px-6))",
-            margin: "0 var(--px-3) var(--px-3)",
-            padding: "var(--px-2)",
+            width: "calc(100% - var(--px-4))",
+            margin: "0 var(--px-2) var(--px-2)",
+            padding: "2px",
             fontFamily: "var(--font-pixel)",
-            fontSize: "0.68rem",
+            fontSize: "0.6rem",
             background: "var(--pixel-bg)",
-            border: "2px solid var(--pixel-border)",
+            border: "1px solid var(--pixel-border)",
             borderRadius: "999px",
             color: "var(--pixel-text-muted)",
             cursor: "pointer"
@@ -156,65 +148,76 @@ function WardrobeItemCard({
   );
 }
 
-// ─── 穿搭卡片（像素小人预览）────────────────────────────
+// ─── 穿搭卡片（紧凑；收藏的右上角显示黄色小星星）────────────
 
 function OutfitCard({
   outfit,
-  index,
   onOpen,
   onLongPress
 }: {
   outfit: MockOutfit;
-  index: number;
   onOpen: () => void;
   onLongPress: () => void;
 }) {
   const ownedCount = outfit.slots.filter((s) => s.owned).length;
-  const allOwned = ownedCount === outfit.slots.length;
-  const tall = index % 3 === 1;
 
   return (
-    <PixelCard onClick={onOpen} onLongPress={onLongPress} className="wardrobe-masonry-card">
-      <PixelBadge variant={allOwned ? "star" : "heart"}>
-        {allOwned ? "⭐" : "💖"}
-      </PixelBadge>
+    <PixelCard onClick={onOpen} onLongPress={onLongPress}>
+      {outfit.favorited ? (
+        <span
+          aria-label="已收藏"
+          style={{
+            position: "absolute",
+            top: "var(--px-1)",
+            right: "var(--px-2)",
+            zIndex: 5,
+            fontSize: "1rem",
+            filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.25))"
+          }}
+        >
+          ⭐
+        </span>
+      ) : null}
       <div
         style={{
           position: "relative",
-          aspectRatio: tall ? "0.8" : "1",
+          aspectRatio: "1.1",
           background: "linear-gradient(160deg, #faf5ff, #fdeef5)",
           display: "grid",
           placeItems: "center",
-          padding: "var(--px-3)"
+          padding: "var(--px-2)"
         }}
       >
         <img
-          src={pixelAvatarDataUrl(outfit.seed, { size: 220 })}
+          src={pixelAvatarDataUrl(outfit.seed, { size: 200 })}
           alt={outfit.name}
           data-pixel="true"
-          style={{ width: "88%", borderRadius: "12px" }}
+          style={{ width: "92%", borderRadius: "10px" }}
         />
       </div>
-      <div style={{ padding: "var(--px-3)" }}>
+      <div style={{ padding: "var(--px-2)" }}>
         <strong
           style={{
             fontFamily: "var(--font-pixel)",
-            fontSize: "0.8rem",
+            fontSize: "0.7rem",
             color: "var(--pixel-text)",
             display: "block",
-            lineHeight: 1.35
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis"
           }}
         >
           {outfit.name}
         </strong>
         <span
           style={{
-            fontSize: "0.62rem",
+            fontSize: "0.56rem",
             color: "var(--pixel-text-dim)",
             fontFamily: "var(--font-pixel)"
           }}
         >
-          {outfit.style} · 已有 {ownedCount}/{outfit.slots.length} 件
+          {outfit.style} · 已有 {ownedCount}/{outfit.slots.length}
         </span>
       </div>
     </PixelCard>
@@ -226,7 +229,7 @@ function OutfitCard({
 function PendingItemCard({ pending }: { pending: PendingItem }) {
   return (
     <motion.article
-      className="pixel-card wardrobe-masonry-card"
+      className="pixel-card"
       layout
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -250,7 +253,9 @@ function PendingItemCard({ pending }: { pending: PendingItem }) {
             style={{
               fontFamily: "var(--font-pixel)",
               color: "#fff",
-              fontSize: "0.8rem"
+              fontSize: "0.75rem",
+              textAlign: "center",
+              padding: "0 var(--px-2)"
             }}
           >
             🔄 正在理解这件衣服…
@@ -322,7 +327,7 @@ export function WardrobeScreen({
         seed: item.id,
         title: name,
         subtitle: item.ownership === "owned" ? "我的已有单品" : "心动收藏单品",
-        badge: item.ownership === "owned" ? "star" : "heart"
+        badge: "star"
       }),
       title: `分享：${name}`
     });
@@ -334,7 +339,7 @@ export function WardrobeScreen({
         seed: outfit.seed,
         title: outfit.name,
         subtitle: `${outfit.style} · ${outfit.scene}`,
-        badge: outfit.slots.every((s) => s.owned) ? "star" : "heart"
+        badge: "star"
       }),
       title: `分享：${outfit.name}`
     });
@@ -373,8 +378,8 @@ export function WardrobeScreen({
       <PixelFilter
         options={[
           ["all", "全部"],
-          ["owned", "⭐ 已有"],
-          ["inspiration", "💖 未拥有"]
+          ["owned", "已有"],
+          ["inspiration", "未拥有"]
         ]}
         value={filter}
         onChange={setFilter}
@@ -412,17 +417,16 @@ export function WardrobeScreen({
           description="去 Feed 里圈选一套，或让 AI 帮你搭三套。"
         />
       ) : (
-        <div className="wardrobe-masonry">
+        <div className="pixel-grid">
           {subTab === "items" ? (
             <>
               {pending.map((entry) => (
                 <PendingItemCard key={entry.jobId} pending={entry} />
               ))}
-              {visibleItems.map((item, index) => (
+              {visibleItems.map((item) => (
                 <WardrobeItemCard
                   key={item.id}
                   item={item}
-                  index={index}
                   onOpen={() => onOpenItem(item)}
                   onLongPress={() => shareItem(item)}
                   onRetry={() => onRetry(item)}
@@ -430,11 +434,10 @@ export function WardrobeScreen({
               ))}
             </>
           ) : (
-            visibleOutfits.map((outfit, index) => (
+            visibleOutfits.map((outfit) => (
               <OutfitCard
                 key={outfit.id}
                 outfit={outfit}
-                index={index}
                 onOpen={() => onOpenOutfit(outfit.id)}
                 onLongPress={() => shareOutfit(outfit)}
               />

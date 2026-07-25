@@ -210,8 +210,8 @@ describe("StyleCapture mini-program", () => {
 
     await user.click(screen.getByRole("tab", { name: /按单品/ }));
 
-    // 像素单品卡片 + ⭐ 已有角标（筛选器与卡片角标各出现一次）
+    // 像素单品卡片 + 已有/未拥有文字（筛选器与卡片各出现一次）
     expect(await screen.findByText("米白针织衫")).toBeInTheDocument();
-    expect(screen.getAllByText("⭐ 已有").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("已有").length).toBeGreaterThanOrEqual(2);
   });
 });

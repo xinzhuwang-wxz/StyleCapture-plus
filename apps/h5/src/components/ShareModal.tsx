@@ -62,11 +62,11 @@ export function ShareModal({ imageUrl, title, onClose }: ShareModalProps) {
             gap: "var(--px-3)"
           }}
         >
+          <PixelButton variant="accent" onClick={handleDownload}>
+            <span>💾</span> 保存到本地
+          </PixelButton>
           <PixelButton variant="primary" onClick={handleShare}>
             <span>📤</span> 分享到抖音
-          </PixelButton>
-          <PixelButton variant="accent" onClick={handleDownload}>
-            <span>💾</span> 保存本地
           </PixelButton>
         </div>
         <button

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { PixelBadge, PixelButton } from "../../components/PixelUI";
+import { PixelButton } from "../../components/PixelUI";
 import type { Item, Ownership } from "../../api/client";
 import { douyinShopUrl, mockApi, type MockOutfit } from "../../mock/mockApi";
 import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
@@ -154,9 +154,6 @@ export function ItemDetail({
                 正在生成实物图…
               </div>
             )}
-            <PixelBadge variant={isOwned ? "star" : "heart"}>
-              {isOwned ? "⭐" : "💖"}
-            </PixelBadge>
           </motion.div>
 
           {/* 拥有状态切换 */}

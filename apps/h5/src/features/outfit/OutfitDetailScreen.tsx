@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { PixelButton } from "../../components/PixelUI";
 import { ShareModal } from "../../components/ShareModal";
 import {
   douyinShopUrl,
@@ -18,9 +18,10 @@ interface OutfitDetailScreenProps {
 }
 
 /**
- * 穿搭详情分析页：
- * 上方大图 — 左半拼贴图，右半虚化背景 + 「显示真人试穿效果」；
- * 下方 — 单品卡片：已有=点亮，未拥有=灰色（点击跳抖音商城）。
+ * 穿搭详情分析页（一屏看完全部内容）：
+ * 上方 — 左拼贴 / 右虚化试穿（紧凑）；
+ * 下方 — 单品小卡片一行陈列（已有点亮 / 未拥有灰色 → 抖音商城）；
+ * 标题右侧 — 小红书式收藏小星星。
  */
 export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps) {
   const [outfit, setOutfit] = useState<MockOutfit | null>(null);
@@ -63,49 +64,70 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
     );
   }
 
-  const ownedCount = outfit.slots.filter((s) => s.owned).length;
+  const toggleFavorite = async () => {
+    const favorited = await mockApi.toggleFavoriteOutfit(outfit.id);
+    setOutfit((current) => (current ? { ...current, favorited } : current));
+  };
 
-  const saveToAtlas = async () => {
+  const saveToWardrobe = async () => {
     await mockApi.saveOutfit(outfit.id);
     setSaved(true);
   };
 
   return (
     <div>
-      {/* 顶栏 */}
+      {/* 顶栏：返回 + 标题 + 收藏小星星 */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "var(--px-3)",
-          marginBottom: "var(--px-4)",
-          paddingBottom: "var(--px-3)",
-          borderBottom: "2px dashed var(--pixel-border)"
+          gap: "var(--px-2)",
+          marginBottom: "var(--px-3)"
         }}
       >
         <PixelButton variant="ghost" onClick={onBack} ariaLabel="返回">
           ‹
         </PixelButton>
-        <div style={{ flex: 1 }}>
-          <p className="pixel-label" style={{ margin: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="pixel-label" style={{ margin: 0, fontSize: "0.6rem" }}>
             {outfit.style} · {outfit.scene}
           </p>
-          <h1 className="pixel-title" style={{ fontSize: "1.1rem", margin: 0 }}>
+          <h1
+            className="pixel-title"
+            style={{
+              fontSize: "1rem",
+              margin: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis"
+            }}
+          >
             {outfit.name}
           </h1>
         </div>
-        <span
+        <button
+          type="button"
+          onClick={() => void toggleFavorite()}
+          aria-label={outfit.favorited ? "取消收藏" : "收藏这套穿搭"}
+          aria-pressed={outfit.favorited}
           style={{
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.68rem",
-            color: "var(--pixel-text-dim)"
+            background: "none",
+            border: "none",
+            fontSize: "1.5rem",
+            lineHeight: 1,
+            padding: "var(--px-1)",
+            filter: outfit.favorited
+              ? "drop-shadow(0 2px 4px rgba(245,158,11,0.5))"
+              : "grayscale(1) opacity(0.45)",
+            transition: "transform 0.15s ease, filter 0.15s ease",
+            transform: outfit.favorited ? "scale(1.15)" : "scale(1)"
           }}
         >
-          已有 {ownedCount}/{outfit.slots.length}
-        </span>
+          ⭐
+        </button>
       </div>
 
-      {/* 上方大图：左拼贴 / 右虚化 + 试穿 */}
+      {/* 上方大图（紧凑）：左拼贴 / 右虚化试穿 */}
       <div
         style={{
           display: "grid",
@@ -114,28 +136,26 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
           overflow: "hidden",
           border: "2px solid var(--pixel-border)",
           boxShadow: "var(--pixel-shadow)",
-          marginBottom: "var(--px-4)",
-          minHeight: "15rem"
+          marginBottom: "var(--px-3)",
+          height: "11.5rem"
         }}
       >
-        {/* 左半：拼贴图 */}
         <div
           style={{
             background: "linear-gradient(160deg, #faf5ff, #fdeef5)",
             display: "grid",
             placeItems: "center",
-            padding: "var(--px-3)"
+            padding: "var(--px-2)"
           }}
         >
           <img
-            src={pixelAvatarDataUrl(outfit.seed, { size: 260 })}
+            src={pixelAvatarDataUrl(outfit.seed, { size: 220 })}
             alt={`${outfit.name} 平面拼贴`}
             data-pixel="true"
-            style={{ width: "100%", borderRadius: "10px" }}
+            style={{ maxHeight: "100%", width: "auto", maxWidth: "100%", borderRadius: "10px" }}
           />
         </div>
 
-        {/* 右半：虚化背景 + 真人试穿 */}
         <div
           style={{
             position: "relative",
@@ -145,7 +165,7 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
           }}
         >
           <img
-            src={pixelAvatarDataUrl(outfit.seed, { size: 260, backdrop: true })}
+            src={pixelAvatarDataUrl(outfit.seed, { size: 220, backdrop: true })}
             alt=""
             aria-hidden="true"
             data-pixel="true"
@@ -155,8 +175,8 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              filter: showTryOn ? "none" : "blur(14px) saturate(1.1)",
-              transform: "scale(1.3)",
+              filter: showTryOn ? "none" : "blur(12px) saturate(1.1)",
+              transform: "scale(1.25)",
               transition: "filter 0.35s ease"
             }}
           />
@@ -164,12 +184,12 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
             <span
               style={{
                 position: "absolute",
-                bottom: "var(--px-2)",
+                bottom: "var(--px-1)",
                 left: "50%",
                 transform: "translateX(-50%)",
-                padding: "2px 10px",
+                padding: "1px 8px",
                 fontFamily: "var(--font-pixel)",
-                fontSize: "0.62rem",
+                fontSize: "0.56rem",
                 background: "rgba(255,255,255,0.9)",
                 borderRadius: "999px",
                 color: "var(--pixel-primary-dark)",
@@ -185,15 +205,15 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
             style={{
               position: "relative",
               zIndex: 2,
-              padding: "var(--px-2) var(--px-4)",
+              padding: "var(--px-1) var(--px-3)",
               fontFamily: "var(--font-pixel)",
-              fontSize: "0.72rem",
+              fontSize: "0.62rem",
               background: showTryOn ? "var(--pixel-primary)" : "rgba(255,255,255,0.94)",
               color: showTryOn ? "#fff" : "var(--pixel-primary-dark)",
               border: "2px solid var(--pixel-primary)",
               borderRadius: "999px",
               boxShadow: "var(--pixel-shadow)",
-              maxWidth: "88%"
+              maxWidth: "92%"
             }}
           >
             {showTryOn ? "收起试穿" : "👤 显示真人试穿效果"}
@@ -203,33 +223,27 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
 
       <p
         style={{
-          fontSize: "0.82rem",
+          fontSize: "0.72rem",
           color: "var(--pixel-text-muted)",
-          lineHeight: 1.7,
-          marginBottom: "var(--px-5)"
+          lineHeight: 1.6,
+          marginBottom: "var(--px-3)"
         }}
       >
         {outfit.description}
       </p>
 
-      {/* 单品卡片：已有点亮 / 未拥有灰色 → 抖音商城 */}
-      <PixelSectionHeader
-        kicker="搭配单品"
-        title="这套穿搭用了什么"
-        action={
-          <span
-            style={{
-              fontFamily: "var(--font-pixel)",
-              fontSize: "0.62rem",
-              color: "var(--pixel-text-dim)"
-            }}
-          >
-            灰色可去商城购买 ›
-          </span>
-        }
-      />
-
-      <div className="pixel-grid" style={{ marginBottom: "var(--px-6)" }}>
+      {/* 单品小卡片：一行陈列 */}
+      <p className="pixel-label" style={{ marginBottom: "var(--px-2)", fontSize: "0.6rem" }}>
+        搭配单品 · 灰色可去商城购买 ›
+      </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${outfit.slots.length}, 1fr)`,
+          gap: "var(--px-2)",
+          marginBottom: "var(--px-4)"
+        }}
+      >
         {outfit.slots.map((slot) => (
           <button
             key={slot.name}
@@ -240,11 +254,10 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
               }
             }}
             style={{
-              position: "relative",
-              padding: "var(--px-3)",
+              padding: "var(--px-1)",
               background: slot.owned ? "var(--pixel-surface)" : "#f1eff5",
-              border: `2px solid ${slot.owned ? "var(--pixel-secondary)" : "#e2deeb"}`,
-              borderRadius: "var(--pixel-border-radius)",
+              border: `1.5px solid ${slot.owned ? "var(--pixel-secondary)" : "#e2deeb"}`,
+              borderRadius: "var(--pixel-radius-sm)",
               boxShadow: slot.owned ? "var(--pixel-shadow)" : "none",
               textAlign: "center",
               cursor: slot.owned ? "default" : "pointer",
@@ -255,21 +268,25 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
             }
           >
             <img
-              src={pixelGarmentIcon(slot.category, { owned: slot.owned, size: 120 })}
+              src={pixelGarmentIcon(slot.category, { owned: slot.owned, size: 90 })}
               alt={slot.name}
               data-pixel="true"
               style={{
-                width: "56%",
-                margin: "0 auto var(--px-2)",
+                width: "70%",
+                margin: "0 auto 2px",
                 filter: slot.owned ? "none" : "opacity(0.6)"
               }}
             />
             <strong
               style={{
                 fontFamily: "var(--font-pixel)",
-                fontSize: "0.72rem",
+                fontSize: "0.54rem",
                 color: slot.owned ? "var(--pixel-text)" : "var(--pixel-text-dim)",
-                display: "block"
+                display: "block",
+                lineHeight: 1.3,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis"
               }}
             >
               {slot.name}
@@ -277,11 +294,11 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
             <span
               style={{
                 fontFamily: "var(--font-pixel)",
-                fontSize: "0.62rem",
+                fontSize: "0.52rem",
                 color: slot.owned ? "var(--pixel-accent-glow)" : "var(--pixel-pink-dark)"
               }}
             >
-              {slot.owned ? "⭐ 已有" : `💖 ¥${slot.price ?? "--"} · 去商城`}
+              {slot.owned ? "已有" : `¥${slot.price ?? "--"}`}
             </span>
           </button>
         ))}
@@ -292,12 +309,11 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: "var(--px-3)",
-          marginBottom: "var(--px-6)"
+          gap: "var(--px-3)"
         }}
       >
-        <PixelButton variant="primary" onClick={() => void saveToAtlas()} disabled={saved}>
-          {saved ? "✓ 已存入图鉴" : "💜 存进穿搭图鉴"}
+        <PixelButton variant="primary" onClick={() => void saveToWardrobe()} disabled={saved}>
+          {saved ? "✓ 已存入衣橱" : "💜 存进数字衣橱"}
         </PixelButton>
         <PixelButton
           variant="accent"
@@ -307,12 +323,12 @@ export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps
                 seed: outfit.seed,
                 title: outfit.name,
                 subtitle: `${outfit.style} · ${outfit.scene}`,
-                badge: outfit.slots.every((s) => s.owned) ? "star" : "heart"
+                badge: "star"
               })
             )
           }
         >
-          📤 分享穿搭
+          📤 分享像素图鉴
         </PixelButton>
       </div>
 

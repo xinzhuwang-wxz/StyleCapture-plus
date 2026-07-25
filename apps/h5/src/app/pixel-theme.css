@@ -240,7 +240,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   bottom: max(var(--px-3), env(safe-area-inset-bottom));
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   width: min(calc(100% - var(--px-6)), 26rem);
   padding: var(--px-2);
   gap: var(--px-2);
@@ -275,6 +275,25 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 .pixel-nav button .nav-icon { font-size: 1.2rem; line-height: 1; }
+
+/* 中间 ＋ 新增单品按钮 */
+.pixel-nav__add {
+  align-self: center;
+  justify-self: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  border: 2px solid var(--pixel-primary-dark);
+  background: linear-gradient(135deg, var(--pixel-primary), var(--pixel-pink));
+  color: #fff;
+  font-size: 1.4rem;
+  font-family: var(--font-pixel);
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.45);
+  transition: transform 0.12s ease;
+}
+
+.pixel-nav__add:active { transform: scale(0.9) rotate(90deg); }
 
 /* ─── Grid ─── */
 .pixel-grid {

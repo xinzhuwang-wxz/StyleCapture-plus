@@ -49,6 +49,8 @@ export type MockOutfit = {
   seed: string;
   description: string;
   slots: OutfitSlot[];
+  /** 用户收藏（右上角黄色小星星） */
+  favorited?: boolean;
 };
 
 export type AIMessage = {
@@ -169,8 +171,13 @@ const GREETING: AIMessage = {
 let mockItems = [...MOCK_ITEMS];
 let mockMessages: AIMessage[] = [GREETING];
 let wardrobeOutfits = [...MOCK_OUTFITS];
+const favoriteOutfits = new Set<string>(["outfit-001"]);
 const outfitPool: Record<string, MockOutfit> = {};
 MOCK_OUTFITS.forEach((o) => { outfitPool[o.id] = o; });
+
+function withFavorite<T extends MockOutfit>(outfit: T): T {
+  return { ...outfit, favorited: favoriteOutfits.has(outfit.id) };
+}
 
 // ─── Helpers ───────────────────────────────────────────
 
@@ -357,12 +364,28 @@ export const mockApi = {
 
   async listWardrobeOutfits(): Promise<MockOutfit[]> {
     await delay(250);
-    return [...wardrobeOutfits];
+    return wardrobeOutfits.map(withFavorite);
   },
 
   async getOutfit(outfitId: string): Promise<MockOutfit | null> {
     await delay(150);
-    return outfitPool[outfitId] ?? null;
+    const outfit = outfitPool[outfitId];
+    return outfit ? withFavorite(outfit) : null;
+  },
+
+  /** 小红书式收藏：切换后返回最新收藏状态 */
+  async toggleFavoriteOutfit(outfitId: string): Promise<boolean> {
+    await delay(120);
+    if (favoriteOutfits.has(outfitId)) {
+      favoriteOutfits.delete(outfitId);
+      return false;
+    }
+    favoriteOutfits.add(outfitId);
+    return true;
+  },
+
+  async countFavorites(): Promise<number> {
+    return favoriteOutfits.size;
   },
 
   async generateOutfits(theme: string): Promise<MockOutfit[]> {
@@ -425,6 +448,8 @@ export const mockApi = {
     mockItems = [...MOCK_ITEMS];
     mockMessages = [GREETING];
     wardrobeOutfits = [...MOCK_OUTFITS];
+    favoriteOutfits.clear();
+    favoriteOutfits.add("outfit-001");
     Object.keys(MOCK_JOBS).forEach((k) => delete MOCK_JOBS[k]);
   }
 };

@@ -46,7 +46,7 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100dvh - 12rem)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 9.5rem)" }}>
       <PixelSectionHeader
         kicker="AI 穿搭闺蜜"
         title="今天想穿什么？"
@@ -58,12 +58,12 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
         ref={scrollRef}
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
           gap: "var(--px-3)",
-          padding: "var(--px-2) 0 var(--px-4)",
-          maxHeight: "calc(100dvh - 20rem)"
+          padding: "var(--px-2) 0 var(--px-3)"
         }}
       >
         {messages.map((msg) => (
@@ -150,7 +150,7 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
                         disabled={savedIds.has(outfit.id)}
                         onClick={() => void saveOutfit(outfit)}
                       >
-                        {savedIds.has(outfit.id) ? "✓ 已存图鉴" : "💜 存图鉴"}
+                        {savedIds.has(outfit.id) ? "✓ 已存衣橱" : "💜 存衣橱"}
                       </button>
                     </div>
                   </div>

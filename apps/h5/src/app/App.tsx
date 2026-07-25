@@ -74,6 +74,7 @@ export function App() {
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [aiPreset, setAiPreset] = useState<string | null>(null);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
 
   const currentTab = page.type === "tab" ? page.tab : null;
 
@@ -331,62 +332,6 @@ export function App() {
               </button>
             </header>
 
-            {/* 拍一件 / 从相册选 */}
-            <section
-              style={{
-                padding: "var(--px-4)",
-                background: "var(--pixel-surface)",
-                border: "2px solid var(--pixel-border)",
-                borderRadius: "var(--pixel-border-radius)",
-                boxShadow: "var(--pixel-shadow)",
-                marginBottom: "var(--px-5)"
-              }}
-            >
-              <p className="pixel-label" style={{ marginBottom: "var(--px-3)" }}>
-                新增单品
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--px-3)" }}>
-                <button
-                  type="button"
-                  className="pixel-button pixel-button--primary"
-                  onClick={() => cameraInput.current?.click()}
-                >
-                  📷 拍一件
-                </button>
-                <button
-                  type="button"
-                  className="pixel-button pixel-button--pink"
-                  onClick={() => galleryInput.current?.click()}
-                >
-                  🖼️ 从相册选
-                </button>
-              </div>
-            </section>
-
-            <input
-              ref={cameraInput}
-              className="visually-hidden"
-              type="file"
-              aria-label="拍摄衣物照片"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              capture="environment"
-              onChange={(event) => {
-                chooseFile(event.target.files?.[0], "camera");
-                event.target.value = "";
-              }}
-            />
-            <input
-              ref={galleryInput}
-              className="visually-hidden"
-              type="file"
-              aria-label="选择衣物照片"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              onChange={(event) => {
-                chooseFile(event.target.files?.[0], "upload");
-                event.target.value = "";
-              }}
-            />
-
             <WardrobeScreen
               items={items}
               pending={pending}
@@ -467,6 +412,16 @@ export function App() {
             <small>AI推荐</small>
           </button>
           <button
+            type="button"
+            className="pixel-nav__add"
+            aria-label="新增单品"
+            aria-haspopup="dialog"
+            aria-expanded={addSheetOpen}
+            onClick={() => setAddSheetOpen(true)}
+          >
+            ＋
+          </button>
+          <button
             aria-current={currentTab === "analysis" ? "page" : undefined}
             className={currentTab === "analysis" ? "is-active" : ""}
             type="button"
@@ -486,6 +441,87 @@ export function App() {
           </button>
         </nav>
       ) : null}
+
+      {/* ＋ 新增单品：拍一件 / 从相册选 */}
+      {addSheetOpen ? (
+        <div
+          className="pixel-sheet"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAddSheetOpen(false);
+          }}
+        >
+          <section
+            className="pixel-sheet__content"
+            role="dialog"
+            aria-modal="true"
+            aria-label="新增单品"
+            style={{ paddingBottom: "max(var(--px-6), env(safe-area-inset-bottom))" }}
+          >
+            <p className="pixel-label" style={{ marginBottom: "var(--px-3)" }}>
+              新增单品
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--px-3)" }}>
+              <button
+                type="button"
+                className="pixel-button pixel-button--primary"
+                style={{ flexDirection: "column", minHeight: "4.5rem" }}
+                onClick={() => {
+                  setAddSheetOpen(false);
+                  cameraInput.current?.click();
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>📷</span>
+                拍一件
+              </button>
+              <button
+                type="button"
+                className="pixel-button pixel-button--pink"
+                style={{ flexDirection: "column", minHeight: "4.5rem" }}
+                onClick={() => {
+                  setAddSheetOpen(false);
+                  galleryInput.current?.click();
+                }}
+              >
+                <span style={{ fontSize: "1.4rem" }}>🖼️</span>
+                从相册选
+              </button>
+            </div>
+            <button
+              type="button"
+              className="pixel-button pixel-button--ghost w-full"
+              style={{ marginTop: "var(--px-3)" }}
+              onClick={() => setAddSheetOpen(false)}
+            >
+              取消
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      <input
+        ref={cameraInput}
+        className="visually-hidden"
+        type="file"
+        aria-label="拍摄衣物照片"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+        capture="environment"
+        onChange={(event) => {
+          chooseFile(event.target.files?.[0], "camera");
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={galleryInput}
+        className="visually-hidden"
+        type="file"
+        aria-label="选择衣物照片"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+        onChange={(event) => {
+          chooseFile(event.target.files?.[0], "upload");
+          event.target.value = "";
+        }}
+      />
 
       {notice ? <PixelToast message={notice} /> : null}
 
