@@ -7,13 +7,16 @@ import {
 export function closeNormalizedLasso(
   elementPoints: readonly ViewportPoint[],
   contentBox: VideoContentBox
-): ViewportPoint[] {
+): ViewportPoint[] | null {
   const normalized = elementPoints.map((point) =>
     normalizePointToVideo(point, contentBox)
   );
 
-  if (normalized.length === 0) {
-    return [];
+  const uniquePoints = new Set(
+    normalized.map((point) => `${point.x}:${point.y}`)
+  );
+  if (uniquePoints.size < 3) {
+    return null;
   }
 
   const first = normalized[0];

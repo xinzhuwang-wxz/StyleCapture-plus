@@ -11,6 +11,11 @@ export interface ViewportPoint {
 export interface VideoContentBox extends ViewportSize, ViewportPoint {}
 
 const clampUnit = (value: number) => Math.min(Math.max(value, 0), 1);
+const hasPositiveFiniteDimensions = (size: ViewportSize) =>
+  Number.isFinite(size.width) &&
+  Number.isFinite(size.height) &&
+  size.width > 0 &&
+  size.height > 0;
 
 /**
  * Returns the rendered video pixels inside an `object-fit: contain` element.
@@ -19,7 +24,14 @@ const clampUnit = (value: number) => Math.min(Math.max(value, 0), 1);
 export function contentBoxForContainedVideo(
   element: ViewportSize,
   intrinsicVideo: ViewportSize
-): VideoContentBox {
+): VideoContentBox | null {
+  if (
+    !hasPositiveFiniteDimensions(element) ||
+    !hasPositiveFiniteDimensions(intrinsicVideo)
+  ) {
+    return null;
+  }
+
   const scale = Math.min(
     element.width / intrinsicVideo.width,
     element.height / intrinsicVideo.height

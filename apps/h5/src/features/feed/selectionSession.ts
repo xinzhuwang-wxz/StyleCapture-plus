@@ -88,3 +88,24 @@ export function settleSelectionSession(
     settleAtMs: null
   };
 }
+
+export function cancelSelectionLoop(
+  session: SelectionSession,
+  cancelledAtMs: number
+): SelectionSession {
+  if (session.phase !== "drawing") {
+    return session;
+  }
+
+  return session.selections.length === 0
+    ? {
+        ...session,
+        phase: "idle",
+        settleAtMs: null
+      }
+    : {
+        ...session,
+        phase: "collecting",
+        settleAtMs: cancelledAtMs + SELECTION_SETTLE_DELAY_MS
+      };
+}
