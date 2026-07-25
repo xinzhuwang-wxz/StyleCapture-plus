@@ -8,6 +8,11 @@ WORKDIR /app
 
 ARG INSTALL_AI_LIGHT=false
 ARG INSTALL_GATEWAY=false
+ARG UV_DEFAULT_INDEX=https://pypi.org/simple
+ARG UV_INSECURE_HOST=
+
+ENV UV_DEFAULT_INDEX=${UV_DEFAULT_INDEX} \
+    UV_INSECURE_HOST=${UV_INSECURE_HOST}
 
 COPY .python-version pyproject.toml uv.lock ./
 COPY services/backend/pyproject.toml services/backend/pyproject.toml

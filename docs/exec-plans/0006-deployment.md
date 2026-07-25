@@ -66,3 +66,7 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
 - The checked-in Feed corpus is only about 5.3 MiB and curated backend assets about
   52 MiB. Direct hosting is adequate for the first single-judge smoke; COS/CDN remains
   the measured scale path rather than a blocker to public deployment.
+- GitHub HTTPS clone and the default overseas PyPI artifact downloads were extremely
+  slow from the host. Deployment now transfers the exact local commit over SSH and uses
+  Tencent Cloud's internal PyPI mirror plus npmmirror only through optional Docker build
+  arguments; normal Dockerfile defaults still use the official registries.

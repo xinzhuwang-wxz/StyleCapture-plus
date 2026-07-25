@@ -57,6 +57,9 @@ services:
 
   h5:
     restart: unless-stopped
+    build:
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}
     ports: !reset []
     expose:
       - "80"
@@ -64,6 +67,10 @@ services:
 
   api:
     restart: unless-stopped
+    build:
+      args:
+        UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+        UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
     ports: !reset []
     expose:
       - "8000"
@@ -73,6 +80,10 @@ services:
 
   litellm:
     restart: unless-stopped
+    build:
+      args:
+        UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+        UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
     ports: !reset []
     expose:
       - "4000"
@@ -98,6 +109,10 @@ services:
 
   worker:
     restart: unless-stopped
+    build:
+      args:
+        UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+        UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
     environment:
       <<: *production-backend-environment
       STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-hosted}
@@ -115,6 +130,10 @@ services:
 
   worker-ai-light:
     restart: unless-stopped
+    build:
+      args:
+        UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+        UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
     environment:
       <<: *production-backend-environment
       STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-hosted}
