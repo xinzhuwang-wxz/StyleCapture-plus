@@ -3,7 +3,12 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from stylecapture_backend.features.look.domain import Look, LookDetail, PreferenceSignal
+from stylecapture_backend.features.look.domain import (
+    Look,
+    LookComponent,
+    LookDetail,
+    PreferenceSignal,
+)
 
 
 class LookItemOwnershipMismatch(ValueError):
@@ -25,6 +30,12 @@ class LookRepository(Protocol):
         signal: PreferenceSignal,
     ) -> Look: ...
 
+    async def get_by_capture(
+        self,
+        capture_id: UUID,
+        source_selection_key: str,
+    ) -> Look | None: ...
+
     async def list_for_user(self, user_id: UUID) -> list[Look]: ...
 
     async def get_detail_for_user(
@@ -37,3 +48,7 @@ class LookRepository(Protocol):
         self,
         signal: PreferenceSignal,
     ) -> PreferenceSignal: ...
+
+    async def save(self, look: Look) -> Look: ...
+
+    async def save_component(self, component: LookComponent) -> LookComponent: ...

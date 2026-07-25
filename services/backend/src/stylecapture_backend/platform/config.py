@@ -31,6 +31,7 @@ class BackendSettings(BaseSettings):
     max_image_pixels: int = 36_000_000
     vision_model_alias: str = "vision_understanding"
     grounding_model_alias: str = "visual_grounding"
+    outfit_analysis_model_alias: str = "outfit_analysis"
     litellm_base_url: str = "http://litellm:4000/v1"
     litellm_api_key: SecretStr = SecretStr(PLACEHOLDER_GATEWAY_SECRET)
     embedding_mode: Literal["hosted", "fashion_siglip", "disabled"] = "hosted"

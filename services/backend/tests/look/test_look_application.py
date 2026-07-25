@@ -18,7 +18,12 @@ from stylecapture_backend.features.look.application import (
     LookApplication,
     LookNotFoundError,
 )
-from stylecapture_backend.features.look.domain import Look, LookDetail, PreferenceSignal
+from stylecapture_backend.features.look.domain import (
+    Look,
+    LookComponent,
+    LookDetail,
+    PreferenceSignal,
+)
 
 
 class MemoryLookRepository:
@@ -39,6 +44,13 @@ class MemoryLookRepository:
             replace(signal, look_id=stored.id),
         )
         return stored
+
+    async def get_by_capture(
+        self,
+        capture_id: UUID,
+        source_selection_key: str,
+    ) -> Look | None:
+        return self.looks.get((capture_id, source_selection_key))
 
     async def list_for_user(self, user_id: UUID) -> list[Look]:
         return [look for look in self.looks.values() if look.user_id == user_id]
@@ -73,6 +85,13 @@ class MemoryLookRepository:
             (signal.user_id, signal.idempotency_key),
             signal,
         )
+
+    async def save(self, look: Look) -> Look:
+        self.looks[(look.capture_id, look.source_selection_key)] = look
+        return look
+
+    async def save_component(self, component: LookComponent) -> LookComponent:
+        return component
 
 
 def whole_outfit_capture(*, user_id: UUID) -> Capture:

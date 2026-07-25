@@ -220,6 +220,16 @@ class LookComponent:
             updated_at=datetime.now(UTC),
         )
 
+    def with_status(self, status: LookComponentStatus) -> LookComponent:
+        if status is LookComponentStatus.READY:
+            raise ValueError("ready component status requires an Item")
+        return replace(
+            self,
+            status=status,
+            item_id=None,
+            updated_at=datetime.now(UTC),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class Look:
@@ -281,6 +291,13 @@ class Look:
         return replace(
             self,
             display_object_key=normalized_key,
+            updated_at=datetime.now(UTC),
+        )
+
+    def with_status(self, status: LookStatus) -> Look:
+        return replace(
+            self,
+            status=status,
             updated_at=datetime.now(UTC),
         )
 

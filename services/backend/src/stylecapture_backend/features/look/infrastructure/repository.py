@@ -105,6 +105,22 @@ class SqlAlchemyLookRepository:
             ).all()
             return [_look_from_record(record) for record in records]
 
+    async def get_by_capture(
+        self,
+        capture_id: UUID,
+        source_selection_key: str,
+    ) -> Look | None:
+        async with self._sessions() as session:
+            record = (
+                await session.execute(
+                    select(LookRecord).where(
+                        LookRecord.capture_id == capture_id,
+                        LookRecord.source_selection_key == source_selection_key,
+                    )
+                )
+            ).scalar_one_or_none()
+            return _look_from_record(record) if record is not None else None
+
     async def get_detail_for_user(
         self,
         look_id: UUID,

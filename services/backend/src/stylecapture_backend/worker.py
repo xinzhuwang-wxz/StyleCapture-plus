@@ -8,6 +8,9 @@ from stylecapture_backend.features.capture.infrastructure.feed_media import (
     CoarsePolygonSegmentationProvider,
     PillowSelectionImageRenderer,
 )
+from stylecapture_backend.features.capture.infrastructure.grounding import (
+    LiteLLMVisualGrounder,
+)
 from stylecapture_backend.features.capture.infrastructure.hosted_embedding import (
     LiteLLMMultimodalEmbedder,
 )
@@ -18,6 +21,12 @@ from stylecapture_backend.features.capture.infrastructure.repository import (
 )
 from stylecapture_backend.features.capture.interfaces.worker import register_capture_task
 from stylecapture_backend.features.capture.processing import CaptureProcessor, ImageEmbedder
+from stylecapture_backend.features.look.infrastructure.outfit_analysis import (
+    LiteLLMOutfitAnalyzer,
+)
+from stylecapture_backend.features.look.infrastructure.repository import (
+    SqlAlchemyLookRepository,
+)
 from stylecapture_backend.features.wardrobe.infrastructure.repository import (
     SqlAlchemyWardrobeRepository,
 )
@@ -32,6 +41,7 @@ sessions = build_session_factory(
 )
 capture_repository = SqlAlchemyCaptureRepository(sessions)
 wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
+look_repository = SqlAlchemyLookRepository(sessions)
 object_store = LocalObjectStore(
     root=settings.upload_root,
     signing_secret=settings.upload_signing_secret.get_secret_value(),
@@ -41,6 +51,16 @@ object_store = LocalObjectStore(
 )
 vision = LiteLLMVisionTagger(
     capability_alias=settings.vision_model_alias,
+    gateway_base_url=settings.litellm_base_url,
+    gateway_api_key=settings.litellm_api_key.get_secret_value(),
+)
+grounder = LiteLLMVisualGrounder(
+    capability_alias=settings.grounding_model_alias,
+    gateway_base_url=settings.litellm_base_url,
+    gateway_api_key=settings.litellm_api_key.get_secret_value(),
+)
+outfit_analyzer = LiteLLMOutfitAnalyzer(
+    capability_alias=settings.outfit_analysis_model_alias,
     gateway_base_url=settings.litellm_base_url,
     gateway_api_key=settings.litellm_api_key.get_secret_value(),
 )
@@ -65,6 +85,9 @@ processor = CaptureProcessor(
     segmenter=CoarsePolygonSegmentationProvider(),
     selection_images=PillowSelectionImageRenderer(),
     display_assets=object_store,
+    looks=look_repository,
+    grounder=grounder,
+    outfit_analyzer=outfit_analyzer,
 )
 celery = build_celery(settings.redis_url.get_secret_value())
 capture_task = register_capture_task(

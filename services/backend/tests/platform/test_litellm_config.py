@@ -14,19 +14,23 @@ def test_litellm_config_exposes_capability_alias_without_embedded_credentials() 
         "reasoning",
         "vision_understanding",
         "visual_grounding",
+        "outfit_analysis",
         "image_generation",
     ]
     reasoning = config["model_list"][0]["litellm_params"]
     vision = config["model_list"][1]["litellm_params"]
     grounding = config["model_list"][2]["litellm_params"]
-    image_generation = config["model_list"][3]["litellm_params"]
+    outfit_analysis = config["model_list"][3]["litellm_params"]
+    image_generation = config["model_list"][4]["litellm_params"]
     assert reasoning["model"] == "openai/doubao-seed-2-0-lite-260428"
     assert vision["model"] == "openai/doubao-seed-2-0-lite-260428"
     assert grounding["model"] == "openai/doubao-seed-2-0-lite-260428"
+    assert outfit_analysis["model"] == "openai/doubao-seed-2-0-lite-260428"
     assert image_generation["model"] == "openai/doubao-seedream-5-0-260128"
     assert reasoning["api_key"] == "os.environ/ARK_API_KEY"
     assert vision["api_key"] == "os.environ/ARK_API_KEY"
     assert grounding["api_key"] == "os.environ/ARK_API_KEY"
+    assert outfit_analysis["api_key"] == "os.environ/ARK_API_KEY"
     assert image_generation["api_key"] == "os.environ/ARK_API_KEY"
     assert vision["api_base"] == "os.environ/ARK_BASE_URL"
     assert "sk-" not in raw
