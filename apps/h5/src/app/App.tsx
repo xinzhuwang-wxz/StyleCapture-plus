@@ -1,5 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { CaptureSheet } from "../features/capture/CaptureSheet";
+import { FeedScreen } from "../features/feed/FeedScreen";
+import { ItemDetail } from "../features/wardrobe/ItemDetail";
+import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
+import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
+import { ProfileScreen } from "../features/profile/ProfileScreen";
+import { OutfitDetailScreen } from "../features/outfit/OutfitDetailScreen";
+import { PixelToast } from "../components/PixelUI";
+import { mockApi } from "../mock/mockApi";
 
 import {
   type CaptureAccepted,
@@ -10,12 +20,24 @@ import {
   validateImage,
   wardrobeApi
 } from "../api/client";
-import { CaptureSheet } from "../features/capture/CaptureSheet";
-import { FeedScreen } from "../features/feed/FeedScreen";
-import { ItemDetail } from "../features/wardrobe/ItemDetail";
-import type { PendingItem } from "../features/wardrobe/ItemCard";
-import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
+import type { PendingItem } from "../features/wardrobe/WardrobeScreen";
+
 import "./styles.css";
+import "./pixel-theme.css";
+
+// ─── Config ────────────────────────────────────────────
+
+const USE_MOCK = true;
+
+const api = USE_MOCK ? mockApi : wardrobeApi;
+
+// ─── Types ─────────────────────────────────────────────
+
+type Tab = "feed" | "wardrobe" | "ai" | "profile";
+
+type Page =
+  | { type: "tab"; tab: Tab }
+  | { type: "outfit"; outfitId: string };
 
 type Selection = {
   file: File;
@@ -23,7 +45,7 @@ type Selection = {
   sourceKind: SourceKind;
 };
 
-type Destination = "feed" | "wardrobe";
+// ─── Helpers ───────────────────────────────────────────
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError || error instanceof Error) {
@@ -32,11 +54,14 @@ function errorMessage(error: unknown): string {
   return "刚刚没有完成，请稍后再试";
 }
 
+// ─── App ───────────────────────────────────────────────
+
 export function App() {
   const queryClient = useQueryClient();
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
-  const [destination, setDestination] = useState<Destination>("feed");
+
+  const [page, setPage] = useState<Page>({ type: "tab", tab: "wardrobe" });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -44,12 +69,18 @@ export function App() {
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  const currentTab = page.type === "tab" ? page.tab : null;
+
+  // ─── Data Queries ────────────────────────────────────
+
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
-    queryFn: wardrobeApi.listItems,
+    queryFn: api.listItems,
     refetchInterval: 2_000
   });
   const items = itemsQuery.data ?? [];
+
+  // ─── Effects ─────────────────────────────────────────
 
   useEffect(() => {
     if (!items.length) return;
@@ -69,7 +100,7 @@ export function App() {
       void Promise.all(
         pending.map(async (entry) => {
           try {
-            const job = await wardrobeApi.getJob(entry.jobId);
+            const job = await api.getJob(entry.jobId);
             setPending((current) =>
               current.map((candidate) =>
                 candidate.jobId === entry.jobId
@@ -78,13 +109,15 @@ export function App() {
               )
             );
           } catch {
-            // The wardrobe query remains the source of truth if a status refresh is interrupted.
+            // Silent
           }
         })
       );
     }, 1_500);
     return () => window.clearInterval(timer);
   }, [pending]);
+
+  // ─── Mutations ───────────────────────────────────────
 
   const updateMutation = useMutation({
     mutationFn: ({
@@ -96,26 +129,26 @@ export function App() {
         ownership: Ownership;
         corrections: Record<string, string>;
       };
-    }) => wardrobeApi.updateItem(itemId, changes),
+    }) => api.updateItem(itemId, changes),
     onSuccess: (updated) => {
       setSelectedItem(updated);
-      setNotice("修改已保存，之后的 AI 更新不会覆盖你的选择");
+      setNotice("修改已保存 ✓");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
     },
-    onError: (error) => setNotice(errorMessage(error))
+    onError: (err) => setNotice(errorMessage(err))
   });
 
   const retryMutation = useMutation({
-    mutationFn: (item: Item) => wardrobeApi.retryItem(item.id),
+    mutationFn: (item: Item) => api.retryItem(item.id),
     onSuccess: () => {
-      setNotice("已经重新开始理解，稍后自动更新");
+      setNotice("已重新开始识别 🔄");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
     },
-    onError: (error) => setNotice(errorMessage(error))
+    onError: (err) => setNotice(errorMessage(err))
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (itemId: string) => wardrobeApi.deleteSource(itemId),
+    mutationFn: (itemId: string) => api.deleteSource(itemId),
     onSuccess: (_, itemId) => {
       queryClient.setQueryData<Item[]>(["wardrobe-items"], (current) =>
         current?.map((item) =>
@@ -123,237 +156,367 @@ export function App() {
         )
       );
       setSelectedItem(null);
-      setNotice("原图已删除，文字资产仍保留在衣橱中");
+      setNotice("原图已删除 🗑️");
     },
-    onError: (error) => setNotice(errorMessage(error))
+    onError: (err) => setNotice(errorMessage(err))
   });
 
-  function chooseFile(file: File | undefined, sourceKind: SourceKind) {
-    if (!file) return;
-    const validationError = validateImage(file);
-    if (validationError) {
-      setNotice(validationError);
-      return;
-    }
-    setNotice(null);
-    setSheetError(null);
-    setSelection({
-      file,
-      sourceKind,
-      previewUrl: URL.createObjectURL(file)
-    });
-  }
+  // ─── Actions ─────────────────────────────────────────
 
-  function cancelSelection() {
+  const navigateTo = useCallback((newPage: Page) => {
+    setPage(newPage);
+    window.scrollTo(0, 0);
+  }, []);
+
+  const goToTab = useCallback(
+    (tab: Tab) => navigateTo({ type: "tab", tab }),
+    [navigateTo]
+  );
+
+  const chooseFile = useCallback(
+    (file: File | undefined, sourceKind: SourceKind) => {
+      if (!file) return;
+      const validationError = validateImage(file);
+      if (validationError) {
+        setNotice(validationError);
+        return;
+      }
+      setNotice(null);
+      setSheetError(null);
+      setSelection({
+        file,
+        sourceKind,
+        previewUrl: URL.createObjectURL(file)
+      });
+    },
+    []
+  );
+
+  const cancelSelection = useCallback(() => {
     if (selection) URL.revokeObjectURL(selection.previewUrl);
     setSelection(null);
     setSheetError(null);
-  }
+  }, [selection]);
 
-  async function confirmSelection(ownership: Ownership) {
-    if (!selection) return;
-    setUploading(true);
-    setSheetError(null);
-    try {
-      const accepted = await wardrobeApi.ingest(
-        selection.file,
-        selection.sourceKind,
-        ownership,
-        crypto.randomUUID()
-      );
+  const confirmSelection = useCallback(
+    async (ownership: Ownership) => {
+      if (!selection) return;
+      setUploading(true);
+      setSheetError(null);
+      try {
+        const accepted = await api.ingest(
+          selection.file,
+          selection.sourceKind,
+          ownership,
+          crypto.randomUUID()
+        );
+        setPending((current) => [
+          {
+            captureId: accepted.capture_id,
+            jobId: accepted.job_id,
+            previewUrl: selection.previewUrl,
+            ownership,
+            state: accepted.state
+          },
+          ...current
+        ]);
+        setSelection(null);
+        setNotice("已安全加入衣橱 ⭐");
+        void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      } catch (err) {
+        setSheetError(errorMessage(err));
+      } finally {
+        setUploading(false);
+      }
+    },
+    [selection, queryClient]
+  );
+
+  const acceptFeedCapture = useCallback(
+    (accepted: CaptureAccepted, file: File) => {
       setPending((current) => [
         {
           captureId: accepted.capture_id,
           jobId: accepted.job_id,
-          previewUrl: selection.previewUrl,
-          ownership,
+          previewUrl: URL.createObjectURL(file),
+          ownership: "inspiration",
           state: accepted.state
         },
         ...current
       ]);
-      setSelection(null);
-      setNotice("已安全加入，识别会在后台继续");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
-    } catch (error) {
-      setSheetError(errorMessage(error));
-    } finally {
-      setUploading(false);
-    }
-  }
+    },
+    [queryClient]
+  );
 
-  function acceptFeedCapture(accepted: CaptureAccepted, file: File) {
-    setPending((current) => [
-      {
-        captureId: accepted.capture_id,
-        jobId: accepted.job_id,
-        previewUrl: URL.createObjectURL(file),
-        ownership: "inspiration",
-        state: accepted.state
-      },
-      ...current
-    ]);
-    void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
-  }
+  // ─── Render Content ──────────────────────────────────
+
+  const renderContent = () => {
+    switch (page.type) {
+      case "tab":
+        switch (page.tab) {
+          case "feed":
+            return (
+              <FeedScreen
+                active={currentTab === "feed"}
+                onAccepted={acceptFeedCapture}
+              />
+            );
+          case "wardrobe":
+            return (
+              <>
+                <header
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "var(--px-3)",
+                    marginBottom: "var(--px-4)",
+                    paddingBottom: "var(--px-3)",
+                    borderBottom: "2px dashed var(--pixel-border)"
+                  }}
+                >
+                  <div>
+                    <p className="pixel-label">STYLECAPTURE</p>
+                    <h1 className="pixel-title">我的衣橱</h1>
+                  </div>
+                  <div
+                    style={{
+                      width: "3.5rem",
+                      height: "3.5rem",
+                      border: "3px solid var(--pixel-border)",
+                      background: "var(--pixel-surface-raised)",
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: "2rem",
+                      boxShadow: "3px 3px 0 rgba(0,0,0,0.3)"
+                    }}
+                  >
+                    👾
+                  </div>
+                </header>
+
+                <section
+                  style={{
+                    padding: "var(--px-4)",
+                    background: "var(--pixel-surface-raised)",
+                    border: "3px solid var(--pixel-border)",
+                    boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
+                    marginBottom: "var(--px-5)"
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "var(--px-4)"
+                    }}
+                  >
+                    <div>
+                      <p className="pixel-label">新增单品</p>
+                      <h2
+                        className="pixel-subtitle"
+                        style={{ color: "var(--pixel-text)" }}
+                      >
+                        今天想存哪一件？
+                      </h2>
+                    </div>
+                    <span style={{ fontSize: "1.5rem" }}>✨</span>
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "var(--px-3)"
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="pixel-button pixel-button--primary"
+                      onClick={() => cameraInput.current?.click()}
+                      style={{ flexDirection: "column", minHeight: "5rem" }}
+                    >
+                      <span style={{ fontSize: "1.5rem" }}>📷</span>
+                      <span>
+                        <strong>拍一件</strong>
+                        <small
+                          style={{
+                            display: "block",
+                            fontSize: "0.6rem",
+                            opacity: 0.7
+                          }}
+                        >
+                          记录真实衣服
+                        </small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="pixel-button pixel-button--accent"
+                      onClick={() => galleryInput.current?.click()}
+                      style={{ flexDirection: "column", minHeight: "5rem" }}
+                    >
+                      <span style={{ fontSize: "1.5rem" }}>🖼️</span>
+                      <span>
+                        <strong>从相册选</strong>
+                        <small
+                          style={{
+                            display: "block",
+                            fontSize: "0.6rem",
+                            opacity: 0.7
+                          }}
+                        >
+                          导入灵感
+                        </small>
+                      </span>
+                    </button>
+                  </div>
+                </section>
+
+                <input
+                  ref={cameraInput}
+                  className="visually-hidden"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  capture="environment"
+                  onChange={(event) => {
+                    chooseFile(event.target.files?.[0], "camera");
+                    event.target.value = "";
+                  }}
+                />
+                <input
+                  ref={galleryInput}
+                  className="visually-hidden"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  onChange={(event) => {
+                    chooseFile(event.target.files?.[0], "upload");
+                    event.target.value = "";
+                  }}
+                />
+
+                <WardrobeScreen
+                  items={items}
+                  pending={pending}
+                  loading={itemsQuery.isLoading}
+                  onOpenItem={setSelectedItem}
+                  onOpenOutfit={(id) =>
+                    navigateTo({ type: "outfit", outfitId: id })
+                  }
+                  onRetry={(item) => retryMutation.mutate(item)}
+                />
+              </>
+            );
+          case "ai":
+            return (
+              <AIRecommendScreen
+                onOutfitClick={(id) =>
+                  navigateTo({ type: "outfit", outfitId: id })
+                }
+              />
+            );
+          case "profile":
+            return <ProfileScreen onBack={() => goToTab("wardrobe")} />;
+          default:
+            return null;
+        }
+      case "outfit":
+        return (
+          <OutfitDetailScreen
+            outfitId={page.outfitId}
+            onBack={() => goToTab("wardrobe")}
+            onItemClick={(itemId) => {
+              const item = items.find((i: Item) => i.id === itemId);
+              if (item) setSelectedItem(item);
+            }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <main className={`product-shell product-shell--${destination}`}>
-      <section
-        aria-label="穿搭灵感"
-        className="product-view product-view--feed"
-        hidden={destination !== "feed"}
-      >
-        <FeedScreen
-          active={destination === "feed"}
-          onAccepted={acceptFeedCapture}
-        />
-      </section>
+    <main className="pixel-shell">
+      <div className="pixel-app">{renderContent()}</div>
 
-      <div
-        className="product-view product-view--wardrobe app-shell"
-        hidden={destination !== "wardrobe"}
-      >
-        <header className="wardrobe-header">
-          <div>
-            <p className="eyebrow">STYLECAPTURE</p>
-            <h1>我的衣橱</h1>
-            <p className="subtitle">把拥有和喜欢的，都变成可搭配的数字资产。</p>
-          </div>
-          <div className="avatar-orbit">
-            <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
-            <span aria-hidden="true">✦</span>
-          </div>
-        </header>
+      {page.type === "tab" ? (
+        <nav aria-label="主要功能" className="pixel-nav">
+          <button
+            aria-current={currentTab === "feed" ? "page" : undefined}
+            className={currentTab === "feed" ? "is-active" : ""}
+            type="button"
+            onClick={() => goToTab("feed")}
+          >
+            <span className="nav-icon">📺</span>
+            <small>逛灵感</small>
+          </button>
+          <button
+            aria-current={currentTab === "wardrobe" ? "page" : undefined}
+            className={currentTab === "wardrobe" ? "is-active" : ""}
+            type="button"
+            onClick={() => goToTab("wardrobe")}
+          >
+            <span className="nav-icon">👕</span>
+            <small>衣橱</small>
+            {pending.length > 0 ? (
+              <b
+                aria-label={`${pending.length} 个处理中`}
+                style={{
+                  position: "absolute",
+                  top: "2px",
+                  right: "4px",
+                  background: "var(--pixel-primary)",
+                  color: "#fff",
+                  fontSize: "0.6rem",
+                  padding: "1px 5px",
+                  border: "2px solid var(--pixel-surface)"
+                }}
+              >
+                {Math.min(pending.length, 9)}
+              </b>
+            ) : null}
+          </button>
+          <button
+            aria-current={currentTab === "ai" ? "page" : undefined}
+            className={currentTab === "ai" ? "is-active" : ""}
+            type="button"
+            onClick={() => goToTab("ai")}
+          >
+            <span className="nav-icon">🤖</span>
+            <small>AI搭配</small>
+          </button>
+          <button
+            aria-current={currentTab === "profile" ? "page" : undefined}
+            className={currentTab === "profile" ? "is-active" : ""}
+            type="button"
+            onClick={() => goToTab("profile")}
+          >
+            <span className="nav-icon">👤</span>
+            <small>我的</small>
+          </button>
+        </nav>
+      ) : null}
 
-        {notice ? (
-          <div className="notice" role="alert">
-            <span>{notice}</span>
-            <button
-              type="button"
-              aria-label="关闭提示"
-              onClick={() => setNotice(null)}
-            >
-              ×
-            </button>
-          </div>
-        ) : null}
+      {notice ? <PixelToast message={notice} /> : null}
 
-        <section className="capture-panel" aria-labelledby="capture-title">
-          <div className="capture-panel__heading">
-            <div>
-              <p className="section-kicker">新增单品</p>
-              <h2 id="capture-title">今天想存哪一件？</h2>
-            </div>
-            <span className="capture-panel__sparkle" aria-hidden="true">
-              ✦
-            </span>
-          </div>
-          <div className="capture-actions">
-            <button
-              className="capture-button capture-button--primary"
-              type="button"
-              aria-label="拍一件"
-              onClick={() => cameraInput.current?.click()}
-            >
-              <span className="capture-button__icon" aria-hidden="true">
-                ◉
-              </span>
-              <span>
-                <strong>拍一件</strong>
-                <small>记录衣柜里的真实衣服</small>
-              </span>
-            </button>
-            <button
-              className="capture-button capture-button--secondary"
-              type="button"
-              aria-label="从相册选"
-              onClick={() => galleryInput.current?.click()}
-            >
-              <span className="capture-button__icon" aria-hidden="true">
-                ✦
-              </span>
-              <span>
-                <strong>从相册选</strong>
-                <small>导入单品或穿搭灵感</small>
-              </span>
-            </button>
-          </div>
-          <input
-            ref={cameraInput}
-            className="visually-hidden"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            capture="environment"
-            aria-label="拍摄衣物照片"
-            onChange={(event) => {
-              chooseFile(event.target.files?.[0], "camera");
-              event.target.value = "";
-            }}
-          />
-          <input
-            ref={galleryInput}
-            className="visually-hidden"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            aria-label="选择衣物照片"
-            onChange={(event) => {
-              chooseFile(event.target.files?.[0], "upload");
-              event.target.value = "";
-            }}
-          />
-        </section>
+      <CaptureSheet
+        key={selection?.previewUrl ?? "closed"}
+        selection={selection}
+        busy={uploading}
+        error={sheetError}
+        onCancel={cancelSelection}
+        onConfirm={(ownership) => void confirmSelection(ownership)}
+      />
 
-        <WardrobeScreen
-          items={items}
-          pending={pending}
-          loading={itemsQuery.isLoading}
-          onOpen={setSelectedItem}
-          onRetry={(item) => retryMutation.mutate(item)}
-        />
-
-        <CaptureSheet
-          key={selection?.previewUrl ?? "closed"}
-          selection={selection}
-          busy={uploading}
-          error={sheetError}
-          onCancel={cancelSelection}
-          onConfirm={(ownership) => void confirmSelection(ownership)}
-        />
-        <ItemDetail
-          item={selectedItem}
-          saving={updateMutation.isPending}
-          onClose={() => setSelectedItem(null)}
-          onSave={(itemId, changes) =>
-            updateMutation.mutate({ itemId, changes })
-          }
-          onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
-        />
-      </div>
-
-      <nav aria-label="主要功能" className="product-nav">
-        <button
-          aria-current={destination === "feed" ? "page" : undefined}
-          className={destination === "feed" ? "is-active" : ""}
-          type="button"
-          onClick={() => setDestination("feed")}
-        >
-          <span aria-hidden="true">⌁</span>
-          <small>逛灵感</small>
-        </button>
-        <button
-          aria-current={destination === "wardrobe" ? "page" : undefined}
-          className={destination === "wardrobe" ? "is-active" : ""}
-          type="button"
-          onClick={() => setDestination("wardrobe")}
-        >
-          <span aria-hidden="true">✦</span>
-          <small>数字衣橱</small>
-          {pending.length > 0 ? (
-            <b aria-label={`${pending.length} 个处理中`}>
-              {Math.min(pending.length, 9)}
-            </b>
-          ) : null}
-        </button>
-      </nav>
+      <ItemDetail
+        item={selectedItem}
+        saving={updateMutation.isPending}
+        onClose={() => setSelectedItem(null)}
+        onSave={(itemId, changes) => updateMutation.mutate({ itemId, changes })}
+        onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+      />
     </main>
   );
 }

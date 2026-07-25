@@ -1,0 +1,621 @@
+/* ═══════════════════════════════════════════
+   StyleCapture Pixel Design System
+   像素风设计系统 — 8-bit 美学
+   ═══════════════════════════════════════════ */
+
+/* ─── Pixel Font Import ─── */
+@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=VT323&display=swap');
+
+/* ─── CSS Variables ─── */
+:root {
+  /* Pixel Palette */
+  --pixel-bg: #2d1b4e;
+  --pixel-bg-light: #3d2b5e;
+  --pixel-surface: #1a0f2e;
+  --pixel-surface-raised: #251540;
+  
+  --pixel-primary: #ff6b9d;
+  --pixel-primary-dark: #e05587;
+  --pixel-secondary: #c084fc;
+  --pixel-accent: #fbbf24;
+  --pixel-accent-glow: #f59e0b;
+  
+  --pixel-text: #f3e8ff;
+  --pixel-text-muted: #a78bfa;
+  --pixel-text-dim: #7c6f9e;
+  
+  --pixel-border: #4c3a6e;
+  --pixel-border-light: #5d4a7e;
+  
+  --pixel-success: #4ade80;
+  --pixel-warning: #fbbf24;
+  --pixel-error: #f87171;
+  
+  /* Pixel Spacing (8px base grid) */
+  --px-1: 4px;
+  --px-2: 8px;
+  --px-3: 12px;
+  --px-4: 16px;
+  --px-5: 20px;
+  --px-6: 24px;
+  --px-8: 32px;
+  --px-10: 40px;
+  
+  /* Pixel Typography */
+  --font-pixel: 'ZCOOL KuaiLe', 'VT323', 'Press Start 2P', 'Courier New', monospace;
+  --font-body: 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+  
+  /* Pixel Border (3D effect) */
+  --pixel-border-width: 3px;
+  --pixel-border-radius: 0px;
+  --pixel-shadow-color: rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Base Reset ─── */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--pixel-bg);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--pixel-bg);
+  color: var(--pixel-text);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Pixel scanline effect overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  opacity: 0.5;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--pixel-secondary);
+  outline-offset: 2px;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+h1, h2, h3, h4, p {
+  margin-top: 0;
+}
+
+/* ─── Pixel Container ─── */
+.pixel-shell {
+  position: relative;
+  min-width: 320px;
+  min-height: 100dvh;
+  background: var(--pixel-bg);
+  overflow-x: hidden;
+}
+
+.pixel-app {
+  width: min(100%, 28rem);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding:
+    max(var(--px-4), env(safe-area-inset-top)) var(--px-4)
+    max(6rem, calc(env(safe-area-inset-bottom) + 5rem));
+}
+
+/* ─── Pixel Typography ─── */
+.pixel-title {
+  font-family: var(--font-pixel);
+  font-size: 1.5rem;
+  color: var(--pixel-text);
+  text-shadow: 
+    2px 2px 0 var(--pixel-surface),
+    -1px -1px 0 var(--pixel-secondary);
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+
+.pixel-subtitle {
+  font-family: var(--font-pixel);
+  font-size: 0.875rem;
+  color: var(--pixel-text-muted);
+  letter-spacing: 0.08em;
+}
+
+.pixel-label {
+  font-family: var(--font-pixel);
+  font-size: 0.75rem;
+  color: var(--pixel-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* ─── Pixel Button ─── */
+.pixel-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--px-2);
+  padding: var(--px-3) var(--px-5);
+  font-family: var(--font-pixel);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  background: var(--pixel-surface-raised);
+  color: var(--pixel-text);
+  box-shadow: 
+    inset -3px -3px 0 rgba(0,0,0,0.3),
+    inset 3px 3px 0 rgba(255,255,255,0.08);
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  text-decoration: none;
+}
+
+.pixel-button:active {
+  transform: translateY(2px);
+  box-shadow: 
+    inset -1px -1px 0 rgba(0,0,0,0.3),
+    inset 1px 1px 0 rgba(255,255,255,0.08);
+}
+
+.pixel-button--primary {
+  background: var(--pixel-primary);
+  border-color: var(--pixel-primary-dark);
+  color: #fff;
+  box-shadow: 
+    inset -3px -3px 0 rgba(0,0,0,0.2),
+    inset 3px 3px 0 rgba(255,255,255,0.2),
+    0 4px 0 var(--pixel-primary-dark);
+}
+
+.pixel-button--primary:active {
+  box-shadow: 
+    inset -1px -1px 0 rgba(0,0,0,0.2),
+    inset 1px 1px 0 rgba(255,255,255,0.2);
+}
+
+.pixel-button--accent {
+  background: var(--pixel-accent);
+  border-color: var(--pixel-accent-glow);
+  color: var(--pixel-surface);
+  box-shadow: 
+    inset -3px -3px 0 rgba(0,0,0,0.15),
+    inset 3px 3px 0 rgba(255,255,255,0.3),
+    0 4px 0 var(--pixel-accent-glow);
+}
+
+.pixel-button--ghost {
+  background: transparent;
+  border-color: var(--pixel-border-light);
+  color: var(--pixel-text-muted);
+}
+
+.pixel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Pixel Card ─── */
+.pixel-card {
+  position: relative;
+  background: var(--pixel-surface-raised);
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  box-shadow: 
+    inset -2px -2px 0 rgba(0,0,0,0.3),
+    inset 2px 2px 0 rgba(255,255,255,0.05),
+    4px 4px 0 rgba(0,0,0,0.3);
+  overflow: hidden;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.pixel-card:active {
+  transform: translate(2px, 2px);
+  box-shadow: 
+    inset -1px -1px 0 rgba(0,0,0,0.3),
+    inset 1px 1px 0 rgba(255,255,255,0.05),
+    2px 2px 0 rgba(0,0,0,0.3);
+}
+
+/* ─── Pixel Badge ─── */
+.pixel-badge {
+  position: absolute;
+  top: var(--px-2);
+  right: var(--px-2);
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  background: var(--pixel-surface);
+  border: 2px solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+}
+
+.pixel-badge--star {
+  background: var(--pixel-accent);
+  border-color: var(--pixel-accent-glow);
+}
+
+.pixel-badge--heart {
+  background: var(--pixel-primary);
+  border-color: var(--pixel-primary-dark);
+}
+
+/* ─── Pixel Navigation ─── */
+.pixel-nav {
+  position: fixed;
+  right: 50%;
+  bottom: max(var(--px-3), env(safe-area-inset-bottom));
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: min(calc(100% - var(--px-6)), 26rem);
+  padding: var(--px-2);
+  gap: var(--px-2);
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  background: var(--pixel-surface);
+  box-shadow: 
+    inset -2px -2px 0 rgba(0,0,0,0.3),
+    inset 2px 2px 0 rgba(255,255,255,0.05),
+    0 6px 0 rgba(0,0,0,0.4);
+  transform: translateX(50%);
+}
+
+.pixel-nav button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--px-2) var(--px-1);
+  border: var(--pixel-border-width) solid transparent;
+  border-radius: var(--pixel-border-radius);
+  background: transparent;
+  color: var(--pixel-text-dim);
+  font-family: var(--font-pixel);
+  font-size: 0.65rem;
+  transition: all 0.1s ease;
+}
+
+.pixel-nav button.is-active {
+  background: var(--pixel-surface-raised);
+  border-color: var(--pixel-primary);
+  color: var(--pixel-primary);
+  box-shadow: 
+    inset -2px -2px 0 rgba(0,0,0,0.2),
+    inset 2px 2px 0 rgba(255,255,255,0.05);
+}
+
+.pixel-nav button .nav-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* ─── Pixel Grid ─── */
+.pixel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--px-3);
+}
+
+/* ─── Pixel Filter ─── */
+.pixel-filter {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--px-2);
+  margin: var(--px-4) 0;
+}
+
+.pixel-filter button {
+  padding: var(--px-2) var(--px-3);
+  font-family: var(--font-pixel);
+  font-size: 0.75rem;
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  background: var(--pixel-surface);
+  color: var(--pixel-text-muted);
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,0.2);
+  transition: all 0.1s ease;
+}
+
+.pixel-filter button.is-selected {
+  background: var(--pixel-primary);
+  border-color: var(--pixel-primary-dark);
+  color: #fff;
+  box-shadow: 
+    inset -2px -2px 0 rgba(0,0,0,0.2),
+    0 3px 0 var(--pixel-primary-dark);
+}
+
+/* ─── Pixel Section Header ─── */
+.pixel-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--px-4);
+  padding-bottom: var(--px-3);
+  border-bottom: 2px dashed var(--pixel-border);
+}
+
+/* ─── Pixel Empty State ─── */
+.pixel-empty {
+  display: grid;
+  place-items: center;
+  padding: var(--px-10) var(--px-4);
+  text-align: center;
+  gap: var(--px-4);
+}
+
+.pixel-empty__icon {
+  font-size: 3rem;
+  filter: drop-shadow(3px 3px 0 var(--pixel-surface));
+}
+
+/* ─── Pixel Modal / Sheet ─── */
+.pixel-sheet {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.pixel-sheet__content {
+  width: min(100%, 28rem);
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: var(--px-5) var(--px-4) max(var(--px-6), env(safe-area-inset-bottom));
+  background: var(--pixel-bg);
+  border-top: var(--pixel-border-width) solid var(--pixel-border);
+  box-shadow: 0 -8px 0 rgba(0,0,0,0.3);
+  animation: pixelSlideUp 0.2s ease-out;
+}
+
+@keyframes pixelSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ─── Pixel Loading ─── */
+.pixel-loading {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--px-3);
+}
+
+.pixel-loading__skeleton {
+  height: 14rem;
+  background: var(--pixel-surface-raised);
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  animation: pixelPulse 1.5s infinite;
+}
+
+@keyframes pixelPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ─── Pixel Toast ─── */
+.pixel-toast {
+  position: fixed;
+  top: max(var(--px-6), env(safe-area-inset-top));
+  left: 50%;
+  z-index: 60;
+  transform: translateX(-50%);
+  padding: var(--px-3) var(--px-5);
+  font-family: var(--font-pixel);
+  font-size: 0.875rem;
+  background: var(--pixel-surface);
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+  animation: pixelToastIn 0.2s ease-out;
+}
+
+.pixel-toast--success {
+  border-color: var(--pixel-success);
+  color: var(--pixel-success);
+}
+
+@keyframes pixelToastIn {
+  from {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ─── Pixel Share Modal ─── */
+.pixel-share-modal {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--px-4);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.pixel-share-modal__content {
+  width: min(100%, 20rem);
+  padding: var(--px-5);
+  background: var(--pixel-bg);
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  box-shadow: 6px 6px 0 rgba(0,0,0,0.4);
+  text-align: center;
+}
+
+.pixel-share-modal__image {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  margin-bottom: var(--px-4);
+  image-rendering: pixelated;
+}
+
+/* ─── Chat Bubble ─── */
+.pixel-chat-bubble {
+  padding: var(--px-3) var(--px-4);
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  max-width: 85%;
+}
+
+.pixel-chat-bubble--ai {
+  background: var(--pixel-surface-raised);
+  color: var(--pixel-text);
+  align-self: flex-start;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+}
+
+.pixel-chat-bubble--user {
+  background: var(--pixel-primary);
+  color: #fff;
+  align-self: flex-end;
+  border-color: var(--pixel-primary-dark);
+  box-shadow: 3px 3px 0 var(--pixel-primary-dark);
+}
+
+/* ─── Tag / Chip ─── */
+.pixel-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px-1);
+  padding: var(--px-1) var(--px-3);
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  background: var(--pixel-surface-raised);
+  border: 2px solid var(--pixel-border);
+  color: var(--pixel-text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.pixel-tag:active {
+  transform: translate(1px, 1px);
+}
+
+.pixel-tag.is-selected {
+  background: var(--pixel-secondary);
+  border-color: var(--pixel-secondary);
+  color: #fff;
+}
+
+/* ─── Swipe Indicator ─── */
+.pixel-swipe-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: var(--px-4);
+  font-family: var(--font-pixel);
+  font-size: 1.5rem;
+  background: var(--pixel-surface);
+  border: var(--pixel-border-width) solid var(--pixel-border);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.pixel-swipe-indicator--left {
+  left: var(--px-4);
+  color: var(--pixel-error);
+}
+
+.pixel-swipe-indicator--right {
+  right: var(--px-4);
+  color: var(--pixel-success);
+}
+
+/* ─── Utilities ─── */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.text-center { text-align: center; }
+.w-full { width: 100%; }
+.mb-2 { margin-bottom: var(--px-2); }
+.mb-4 { margin-bottom: var(--px-4); }
+.gap-2 { gap: var(--px-2); }
+.gap-3 { gap: var(--px-3); }
+
+/* ─── Reduced Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Responsive ─── */
+@media (min-width: 28rem) {
+  .pixel-app {
+    padding-left: var(--px-5);
+    padding-right: var(--px-5);
+  }
+}
