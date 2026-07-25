@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -51,6 +53,22 @@ from stylecapture_backend.features.wardrobe.domain import ItemStatus, ModelField
 from stylecapture_backend.features.wardrobe.taxonomy import GarmentCategory
 
 OUTFIT_SELECTION_KEY = "whole-outfit"
+
+
+def assert_no_provider_identity(payload: object) -> None:
+    serialized = json.dumps(_jsonable(payload), sort_keys=True)
+    assert "provider_model" not in serialized
+    assert "internal-provider-id" not in serialized
+    assert "provider-model-v1" not in serialized
+    assert "provider-outfit-v1" not in serialized
+
+
+def _jsonable(payload: object) -> object:
+    if isinstance(payload, Mapping):
+        return {str(key): _jsonable(value) for key, value in payload.items()}
+    if isinstance(payload, tuple | list):
+        return [_jsonable(value) for value in payload]
+    return payload
 
 
 class MemoryWorkRepository:
@@ -252,7 +270,8 @@ class SelectionImages:
 
 
 class RecordingVision:
-    def __init__(self) -> None:
+    def __init__(self, failing_keys: set[str] | None = None) -> None:
+        self.failing_keys = failing_keys or set()
         self.calls: list[FeedSelection | None] = []
 
     async def describe(
@@ -264,6 +283,12 @@ class RecordingVision:
         del image
         self.calls.append(selection)
         assert selection is not None
+        if selection.selection_key in self.failing_keys:
+            raise ProviderError(
+                "vision_unavailable",
+                "Vision is temporarily unavailable",
+                retryable=True,
+            )
         return VisionAnalysis(
             fields={
                 "category": ModelField(
@@ -284,8 +309,16 @@ class RecordingVision:
 
 
 class FixedEmbedder:
+    def __init__(self, failing_sha256: set[str] | None = None) -> None:
+        self.failing_sha256 = failing_sha256 or set()
+
     async def embed(self, image: ImagePayload) -> EmbeddingResult:
-        del image
+        if image.sha256 in self.failing_sha256:
+            raise ProviderError(
+                "embedding_unavailable",
+                "Embedding is temporarily unavailable",
+                retryable=True,
+            )
         return EmbeddingResult(
             vector=(1.0,) + (0.0,) * 2047,
             model_version="doubao-embedding-vision-250615",
@@ -316,7 +349,7 @@ class FixedOutfitAnalyzer:
             style=LookAnalysisField("minimal casual", 0.92),
             metadata=LookAnalysisMetadata(
                 capability_alias="outfit_analysis",
-                provider_model="provider-outfit-v1",
+                provider_model="server_private",
                 prompt_version="outfit-analysis-v1",
                 schema_version="look-analysis-v1",
                 taxonomy_version="stylecapture-v1",
@@ -388,6 +421,8 @@ def build_processor(
     *,
     grounder: RecordingGrounder,
     segmenter: RecordingSegmenter | None = None,
+    vision: RecordingVision | None = None,
+    embedder: FixedEmbedder | None = None,
     outfit_analyzer: FixedOutfitAnalyzer | None = None,
 ) -> tuple[
     CaptureProcessor,
@@ -410,8 +445,8 @@ def build_processor(
         jobs=work,
         wardrobe=wardrobe,
         objects=objects,
-        vision=RecordingVision(),
-        embedder=FixedEmbedder(),
+        vision=vision or RecordingVision(),
+        embedder=embedder or FixedEmbedder(),
         segmenter=segmenter or RecordingSegmenter(),
         selection_images=SelectionImages(),
         display_assets=objects,
@@ -468,7 +503,13 @@ async def test_whole_outfit_creates_components_items_display_assets_and_analysis
     assert all(item.status is ItemStatus.READY for item in wardrobe.items.values())
     assert looks.look.analysis is not None
     assert looks.look.analysis.metadata.capability_alias == "outfit_analysis"
+    assert looks.look.analysis.metadata.provider_model == "server_private"
     assert looks.look.analysis.style.value == "minimal casual"
+    assert_no_provider_identity(looks.look.analysis.metadata.provider_model)
+    for item in wardrobe.items.values():
+        assert_no_provider_identity(item.model_metadata)
+    for component in looks.components.values():
+        assert_no_provider_identity(component.grounding_metadata)
 
 
 @pytest.mark.asyncio
@@ -522,6 +563,72 @@ async def test_component_failure_preserves_successful_components_and_marks_look_
 
 
 @pytest.mark.asyncio
+async def test_vision_failure_creates_no_item_for_component() -> None:
+    capture, job = whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),)
+    )
+    processor, work, wardrobe, looks, _ = build_processor(
+        capture,
+        job,
+        grounder=grounder,
+        vision=RecordingVision(failing_keys={"linen_shirt"}),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome.state is JobState.PARTIAL
+    assert outcome.error_code == "vision_unavailable"
+    assert work.job.state is JobState.PARTIAL
+    assert not wardrobe.items
+    assert looks.components["linen_shirt"].status is LookComponentStatus.ERROR
+    assert looks.components["linen_shirt"].item_id is None
+
+
+@pytest.mark.asyncio
+async def test_embedding_failure_creates_no_item_for_component() -> None:
+    capture, job = whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),)
+    )
+    processor, work, wardrobe, looks, _ = build_processor(
+        capture,
+        job,
+        grounder=grounder,
+        embedder=FixedEmbedder(failing_sha256={"1" * 64}),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome.state is JobState.PARTIAL
+    assert outcome.error_code == "embedding_unavailable"
+    assert work.job.state is JobState.PARTIAL
+    assert not wardrobe.items
+    assert looks.components["linen_shirt"].status is LookComponentStatus.ERROR
+    assert looks.components["linen_shirt"].item_id is None
+
+
+@pytest.mark.asyncio
+async def test_invalid_long_grounding_label_is_retryable_without_stranding_processing() -> None:
+    capture, job = whole_outfit_capture_job()
+    long_label = "a" * 65
+    grounder = RecordingGrounder(
+        (box_candidate(long_label, NormalizedBox(150, 160, 620, 520)),)
+    )
+    processor, work, wardrobe, looks, _ = build_processor(capture, job, grounder=grounder)
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome.state is JobState.PARTIAL
+    assert outcome.retryable is True
+    assert outcome.error_code == "grounding_schema_invalid"
+    assert work.job.state is JobState.PARTIAL
+    assert not wardrobe.items
+    assert not looks.components
+    assert looks.look.status is LookStatus.PROCESSING
+
+
+@pytest.mark.asyncio
 async def test_whole_outfit_retry_reuses_look_component_item_and_asset_identities() -> None:
     capture, job = whole_outfit_capture_job()
     grounder = RecordingGrounder(
@@ -559,6 +666,40 @@ async def test_whole_outfit_retry_reuses_look_component_item_and_asset_identitie
     assert len(objects.derived or {}) == 3
     assert first_asset_keys <= set(objects.derived or {})
     assert looks.look.status is LookStatus.READY
+
+
+@pytest.mark.asyncio
+async def test_retry_keeps_look_partial_when_existing_error_component_disappears_from_grounding() -> None:
+    capture, job = whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (
+            box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),
+            box_candidate("wide_trousers", NormalizedBox(220, 520, 700, 870)),
+        )
+    )
+    segmenter = RecordingSegmenter(failing_keys={"wide_trousers"})
+    processor, work, wardrobe, looks, _ = build_processor(
+        capture,
+        job,
+        grounder=grounder,
+        segmenter=segmenter,
+    )
+
+    first_outcome = await processor.process(capture.id, job.id)
+    segmenter.failing_keys.clear()
+    grounder.candidates = (
+        box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),
+    )
+    second_outcome = await processor.process(capture.id, job.id)
+
+    assert first_outcome.state is JobState.PARTIAL
+    assert second_outcome.state is JobState.PARTIAL
+    assert second_outcome.retryable is True
+    assert second_outcome.error_code == "component_unresolved"
+    assert work.job.state is JobState.PARTIAL
+    assert set(wardrobe.items) == {(capture.id, "linen_shirt")}
+    assert looks.components["wide_trousers"].status is LookComponentStatus.ERROR
+    assert looks.look.status is LookStatus.PARTIAL
 
 
 @pytest.mark.asyncio

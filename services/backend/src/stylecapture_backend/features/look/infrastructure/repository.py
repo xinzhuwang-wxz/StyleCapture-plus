@@ -379,7 +379,6 @@ def _analysis_to_json(analysis: LookAnalysis | None) -> dict[str, object] | None
     }
     fields["metadata"] = {
         "capability_alias": analysis.metadata.capability_alias,
-        "provider_model": analysis.metadata.provider_model,
         "prompt_version": analysis.metadata.prompt_version,
         "schema_version": analysis.metadata.schema_version,
         "taxonomy_version": analysis.metadata.taxonomy_version,
@@ -410,7 +409,7 @@ def _analysis_from_json(payload: Mapping[str, object] | None) -> LookAnalysis | 
         style=field("style"),
         metadata=LookAnalysisMetadata(
             capability_alias=str(raw_metadata["capability_alias"]),
-            provider_model=str(raw_metadata["provider_model"]),
+            provider_model="server_private",
             prompt_version=str(raw_metadata["prompt_version"]),
             schema_version=str(raw_metadata["schema_version"]),
             taxonomy_version=str(raw_metadata["taxonomy_version"]),

@@ -15,6 +15,7 @@ from stylecapture_backend.features.capture.domain import (
     JobState,
     NormalizedPoint,
     ProcessingJob,
+    is_valid_selection_key,
 )
 from stylecapture_backend.features.capture.feed_media import (
     PromptableSegmentationPort,
@@ -58,7 +59,6 @@ class ModelMetadata:
     def as_dict(self) -> dict[str, object]:
         return {
             "capability_alias": self.capability_alias,
-            "provider_model": self.provider_model,
             "prompt_version": self.prompt_version,
             "schema_version": self.schema_version,
             "taxonomy_version": self.taxonomy_version,
@@ -544,7 +544,24 @@ class CaptureProcessor:
         failures: list[ProviderError] = []
         ready_components: list[LookComponent] = []
         existing_components = await self._component_index(look)
+        invalid_candidate = self._invalid_processable_candidate(grounding, outfit_selection)
+        if invalid_candidate is not None:
+            invalid_grounding_error = ProviderError(
+                "grounding_schema_invalid",
+                "Visual grounding returned an invalid component identity",
+                retryable=True,
+            )
+            await self._jobs.update(
+                job.transition(
+                    JobState.PARTIAL,
+                    error_code=invalid_grounding_error.code,
+                    error_message=invalid_grounding_error.message,
+                )
+            )
+            return ProcessingOutcome.partial(invalid_grounding_error)
+
         accepted = self._reliable_candidates(grounding, outfit_selection)
+        accepted_keys = {candidate.label for candidate in accepted}
         for display_order, candidate in enumerate(accepted):
             component = existing_components.get(candidate.label) or LookComponent.pending(
                 look_id=look.id,
@@ -576,25 +593,21 @@ class CaptureProcessor:
                     owner_id=capture.user_id,
                     prefix="derived/items",
                 )
-                item = await self._processing_item(capture, component.component_key)
-                item = await self._wardrobe.save(
-                    item.with_display_object(display_image.object_key).with_model_metadata(
-                        {
-                            "segmentation": _segmentation_metadata(segmentation),
-                            "grounding": _grounding_metadata(grounding.metadata, candidate),
-                            "processing_error": None,
-                        }
-                    )
+                item = await self._item_candidate(capture, component.component_key)
+                item = item.with_display_object(display_image.object_key).with_model_metadata(
+                    {
+                        "segmentation": _segmentation_metadata(segmentation),
+                        "grounding": _grounding_metadata(grounding.metadata, candidate),
+                        "processing_error": None,
+                    }
                 )
                 analysis = await self._vision.describe(
                     selected_image,
                     selection=component_selection,
                 )
-                item = await self._wardrobe.save(
-                    item.apply_model(
-                        analysis.fields,
-                        analysis.metadata.as_dict(),
-                    )
+                item = item.apply_model(
+                    analysis.fields,
+                    analysis.metadata.as_dict(),
                 )
                 embedding = await self._embedder.embed(selected_image)
                 item = await self._wardrobe.save(
@@ -609,7 +622,21 @@ class CaptureProcessor:
                 failures.append(error)
                 await self._looks.save_component(component.with_status(LookComponentStatus.ERROR))
 
-        if not ready_components and not accepted:
+        unresolved = tuple(
+            component
+            for key, component in existing_components.items()
+            if key not in accepted_keys and component.status is not LookComponentStatus.READY
+        )
+        if unresolved:
+            failures.append(
+                ProviderError(
+                    "component_unresolved",
+                    "A previously detected outfit component is still unresolved",
+                    retryable=True,
+                )
+            )
+
+        if not ready_components and not accepted and not unresolved:
             no_components_error = ProviderError(
                 "no_reliable_components",
                 "No reliable outfit components were found",
@@ -683,6 +710,21 @@ class CaptureProcessor:
             return {}
         return {component.component_key: component for component in detail.components}
 
+    def _invalid_processable_candidate(
+        self,
+        grounding: GroundingAnalysis,
+        selection: FeedSelection,
+    ) -> GroundingCandidate | None:
+        return next(
+            (
+                candidate
+                for candidate in grounding.candidates
+                if self._candidate_in_processing_scope(candidate, selection)
+                and not is_valid_selection_key(candidate.label)
+            ),
+            None,
+        )
+
     def _reliable_candidates(
         self,
         grounding: GroundingAnalysis,
@@ -691,7 +733,17 @@ class CaptureProcessor:
         return tuple(
             candidate
             for candidate in grounding.candidates
-            if candidate.confidence >= self._MIN_COMPONENT_CONFIDENCE
+            if self._candidate_in_processing_scope(candidate, selection)
+            and is_valid_selection_key(candidate.label)
+        )
+
+    def _candidate_in_processing_scope(
+        self,
+        candidate: GroundingCandidate,
+        selection: FeedSelection,
+    ) -> bool:
+        return (
+            candidate.confidence >= self._MIN_COMPONENT_CONFIDENCE
             and candidate.visible_fraction >= self._MIN_VISIBLE_FRACTION
             and _box_inside_polygon(candidate.box, selection.polygon)
         )
@@ -712,6 +764,16 @@ class CaptureProcessor:
         return await self._wardrobe.save(
             item.with_model_metadata({"processing_error": None}).with_status(ItemStatus.PROCESSING)
         )
+
+    async def _item_candidate(
+        self,
+        capture: Capture,
+        selection_key: str,
+    ) -> WardrobeItem:
+        item = await self._wardrobe.get_by_capture(capture.id, selection_key)
+        if item is None:
+            return WardrobeItem.processing(capture, selection_key=selection_key)
+        return item.with_model_metadata({"processing_error": None}).with_status(ItemStatus.PROCESSING)
 
     def _prepare_feed_selection(
         self,

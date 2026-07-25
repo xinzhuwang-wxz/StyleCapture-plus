@@ -23,6 +23,7 @@ from stylecapture_backend.features.wardrobe.taxonomy import TAXONOMY_VERSION
 
 LOOK_ANALYSIS_PROMPT_VERSION = "outfit-analysis-v1"
 LOOK_ANALYSIS_SCHEMA_VERSION = "look-analysis-v1"
+SERVER_PRIVATE_PROVIDER_MODEL = "server_private"
 
 _FIELD_NAMES = frozenset(
     {
@@ -111,6 +112,7 @@ def parse_look_analysis(
     capability_alias: str,
     latency_ms: int,
 ) -> LookAnalysis:
+    del provider_model
     payload = json.loads(content)
     if not isinstance(payload, dict):
         raise ValueError("look analysis must be an object")
@@ -123,7 +125,7 @@ def parse_look_analysis(
     }
     metadata = LookAnalysisMetadata(
         capability_alias=capability_alias,
-        provider_model=provider_model,
+        provider_model=SERVER_PRIVATE_PROVIDER_MODEL,
         prompt_version=LOOK_ANALYSIS_PROMPT_VERSION,
         schema_version=LOOK_ANALYSIS_SCHEMA_VERSION,
         taxonomy_version=TAXONOMY_VERSION,
