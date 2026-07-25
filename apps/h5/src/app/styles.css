@@ -400,27 +400,25 @@ p {
 .runway-audience {
   position: absolute;
   z-index: 1;
-  inset: 7% 6% auto;
-  height: 22%;
+  inset: 10% 4% auto;
+  height: 28%;
   pointer-events: none;
 }
 
-.runway-audience .pixel-person {
+.runway-audience .pixel-doll {
   bottom: auto;
   left: auto;
-  width: 1.15rem;
-  height: 1.45rem;
-  background: var(--audience-accent);
-  opacity: 0.88;
-  transform: none;
+  opacity: 0.96;
+  transform: scale(0.48);
+  transform-origin: top left;
 }
 
-.runway-audience .pixel-person:nth-child(1) { top: 18%; left: 3%; }
-.runway-audience .pixel-person:nth-child(2) { top: 2%; left: 21%; }
-.runway-audience .pixel-person:nth-child(3) { top: 20%; left: 42%; }
-.runway-audience .pixel-person:nth-child(4) { top: 0; right: 29%; }
-.runway-audience .pixel-person:nth-child(5) { top: 22%; right: 11%; }
-.runway-audience .pixel-person:nth-child(6) { top: 8%; right: 0; }
+.runway-audience .pixel-doll:nth-child(1) { top: 8%; left: 1%; }
+.runway-audience .pixel-doll:nth-child(2) { top: 50%; left: 8%; }
+.runway-audience .pixel-doll:nth-child(3) { top: 72%; left: 25%; }
+.runway-audience .pixel-doll:nth-child(4) { top: 56%; right: 9%; }
+.runway-audience .pixel-doll:nth-child(5) { top: 14%; right: 1%; }
+.runway-audience .pixel-doll:nth-child(6) { top: 76%; right: 29%; }
 
 .runway-lookboard {
   position: absolute;
@@ -459,8 +457,8 @@ p {
   position: absolute;
   z-index: 2;
   display: grid;
-  width: 3.65rem;
-  aspect-ratio: 0.85;
+  width: 4.2rem;
+  height: 5.85rem;
   place-items: end center;
   transform: translate(-50%, -66%);
 }
@@ -486,33 +484,224 @@ p {
   font-weight: 800;
 }
 
-.pixel-person {
+.pixel-doll {
   position: absolute;
-  bottom: 0.85rem;
+  bottom: 0.82rem;
   left: 50%;
-  width: 1.85rem;
-  height: 2.3rem;
-  border-radius: 42% 42% 0.4rem 0.4rem;
-  background: var(--resident-accent, #efc3ff);
-  box-shadow:
-    -0.38rem 0.75rem 0 -0.15rem #7d4ce0,
-    0.38rem 0.75rem 0 -0.15rem #7d4ce0,
-    0 -0.5rem 0 -0.16rem #f6d2bd,
-    0 -0.9rem 0 -0.15rem #4f326e;
+  width: 3rem;
+  height: 5.15rem;
+  filter: drop-shadow(0.16rem 0.2rem 0 rgba(18, 10, 35, 0.26));
   transform: translateX(-50%);
 }
 
-.pixel-person--resident::after,
-.pixel-person--me::after {
+.pixel-doll i {
   position: absolute;
-  top: 0.28rem;
-  left: 0.43rem;
-  width: 0.25rem;
-  height: 0.25rem;
-  border-radius: 50%;
-  background: #332241;
-  box-shadow: 0.72rem 0 #332241;
+  display: block;
+}
+
+.pixel-doll__hair {
+  z-index: 1;
+  top: 0;
+  left: 0.42rem;
+  width: 2.14rem;
+  height: 2.62rem;
+  background: var(--doll-hair);
+  box-shadow:
+    -0.28rem 0.42rem 0 var(--doll-hair),
+    0.28rem -0.14rem 0 var(--doll-hair),
+    1.02rem -0.08rem 0 var(--doll-hair),
+    1.68rem 0.42rem 0 var(--doll-hair);
+}
+
+.pixel-doll[data-hair="bob"] .pixel-doll__hair {
+  height: 2.08rem;
+  box-shadow:
+    -0.24rem 0.36rem 0 var(--doll-hair),
+    1.56rem 0.36rem 0 var(--doll-hair),
+    0.1rem 1.68rem 0 var(--doll-hair);
+}
+
+.pixel-doll[data-hair="curly"] .pixel-doll__hair {
+  box-shadow:
+    -0.34rem 0.42rem 0 var(--doll-hair),
+    1.7rem 0.42rem 0 var(--doll-hair),
+    -0.44rem 1.28rem 0 var(--doll-hair),
+    1.72rem 1.43rem 0 var(--doll-hair),
+    -0.13rem 2.26rem 0 var(--doll-hair);
+}
+
+.pixel-doll[data-hair="twin"] .pixel-doll__hair {
+  height: 2.34rem;
+  box-shadow:
+    -0.58rem 0.76rem 0 var(--doll-hair),
+    1.86rem 0.76rem 0 var(--doll-hair),
+    -0.72rem 1.62rem 0 var(--doll-hair),
+    2rem 1.62rem 0 var(--doll-hair);
+}
+
+.pixel-doll__bangs {
+  z-index: 4;
+  top: 0.5rem;
+  left: 0.76rem;
+  width: 1.48rem;
+  height: 0.38rem;
+  background: var(--doll-hair);
+  box-shadow:
+    -0.22rem 0.28rem 0 var(--doll-hair),
+    0.52rem 0.18rem 0 var(--doll-hair),
+    1.1rem 0.28rem 0 var(--doll-hair);
+}
+
+.pixel-doll__face {
+  z-index: 3;
+  top: 0.64rem;
+  left: 0.8rem;
+  width: 1.4rem;
+  height: 1.26rem;
+  background: var(--doll-skin);
+  box-shadow:
+    -0.16rem 0.26rem 0 var(--doll-skin),
+    1.2rem 0.26rem 0 var(--doll-skin),
+    0.32rem 0.48rem 0 -0.11rem #2d2438,
+    0.92rem 0.48rem 0 -0.11rem #2d2438,
+    0.28rem 0.82rem 0 -0.13rem var(--doll-blush),
+    0.98rem 0.82rem 0 -0.13rem var(--doll-blush),
+    0.62rem 0.93rem 0 -0.17rem #d86084;
+}
+
+.pixel-doll__top {
+  z-index: 2;
+  top: 1.88rem;
+  left: 0.82rem;
+  width: 1.42rem;
+  height: 1.04rem;
+  background: var(--doll-outfit);
+  box-shadow:
+    0.2rem 0.16rem 0 var(--doll-trim),
+    0.96rem 0.16rem 0 var(--doll-trim),
+    0.62rem 0.54rem 0 var(--doll-trim);
+}
+
+.pixel-doll__top::before,
+.pixel-doll__top::after {
+  position: absolute;
+  top: 0.16rem;
+  width: 0.34rem;
+  height: 0.86rem;
+  background: var(--doll-outfit);
   content: "";
+}
+
+.pixel-doll__top::before {
+  left: -0.34rem;
+}
+
+.pixel-doll__top::after {
+  right: -0.34rem;
+}
+
+.pixel-doll__skirt {
+  z-index: 1;
+  top: 2.82rem;
+  left: 0.46rem;
+  width: 2.1rem;
+  height: 1.36rem;
+  background: var(--doll-outfit);
+  box-shadow:
+    0.34rem 0.34rem 0 var(--doll-trim),
+    1.28rem 0.34rem 0 var(--doll-trim);
+  clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
+}
+
+.pixel-doll[data-dress="pleated"] .pixel-doll__skirt {
+  box-shadow:
+    0.42rem 0.1rem 0 var(--doll-trim),
+    0.88rem 0.34rem 0 var(--doll-trim),
+    1.36rem 0.1rem 0 var(--doll-trim);
+}
+
+.pixel-doll[data-dress="jacket"] .pixel-doll__skirt {
+  left: 0.68rem;
+  width: 1.66rem;
+  height: 0.94rem;
+  clip-path: none;
+}
+
+.pixel-doll[data-dress="two-piece"] .pixel-doll__skirt {
+  top: 3.02rem;
+  height: 0.92rem;
+  clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+}
+
+.pixel-doll__arms {
+  z-index: 1;
+  top: 2.08rem;
+  left: 0.3rem;
+  width: 0.34rem;
+  height: 1.36rem;
+  background: var(--doll-skin);
+  box-shadow: 2.06rem 0 0 var(--doll-skin);
+}
+
+.pixel-doll__legs {
+  z-index: 0;
+  top: 4.02rem;
+  left: 0.9rem;
+  width: 0.34rem;
+  height: 0.78rem;
+  background: var(--doll-skin);
+  box-shadow: 0.86rem 0 0 var(--doll-skin);
+}
+
+.pixel-doll__shoes {
+  z-index: 1;
+  top: 4.72rem;
+  left: 0.68rem;
+  width: 0.68rem;
+  height: 0.28rem;
+  background: var(--doll-shoes);
+  box-shadow: 1rem 0 0 var(--doll-shoes);
+}
+
+.pixel-doll__accessory {
+  z-index: 5;
+  top: 0.04rem;
+  left: 0.2rem;
+  width: 0.52rem;
+  height: 0.36rem;
+  background: var(--doll-trim);
+  box-shadow: 0.22rem 0.16rem 0 var(--doll-trim);
+}
+
+.pixel-doll[data-accessory="beret"] .pixel-doll__accessory {
+  top: -0.08rem;
+  left: 0.66rem;
+  width: 1.32rem;
+  height: 0.34rem;
+  background: var(--doll-outfit);
+  box-shadow: 0.86rem 0.1rem 0 -0.08rem var(--doll-outfit);
+}
+
+.pixel-doll[data-accessory="handbag"] .pixel-doll__accessory {
+  top: 3rem;
+  left: 2.48rem;
+  width: 0.42rem;
+  height: 0.62rem;
+  background: var(--doll-trim);
+  box-shadow: -0.08rem -0.22rem 0 -0.04rem var(--doll-trim);
+}
+
+.pixel-doll[data-accessory="necklace"] .pixel-doll__accessory {
+  top: 1.82rem;
+  left: 1.24rem;
+  width: 0.27rem;
+  height: 0.27rem;
+  background: #fbdb83;
+  box-shadow: 0.34rem 0 #fbdb83;
+}
+
+.pixel-doll[data-accessory="none"] .pixel-doll__accessory {
+  display: none;
 }
 
 .scene-avatar {
@@ -522,21 +711,9 @@ p {
   transition: left 260ms ease-out, top 260ms ease-out;
 }
 
-.scene-avatar img {
-  position: absolute;
-  bottom: 0.8rem;
-  left: 50%;
-  width: 2.35rem;
-  height: 2.35rem;
-  overflow: hidden;
-  border: 0.15rem solid #fff3fc;
-  border-radius: 0.65rem;
-  object-fit: cover;
-  object-position: top;
-  transform: translateX(-50%);
+.pixel-doll--me {
+  filter: drop-shadow(0 0 0.45rem rgba(255, 238, 251, 0.78)) drop-shadow(0.16rem 0.2rem 0 rgba(18, 10, 35, 0.26));
 }
-
-.scene-avatar .pixel-person--me { opacity: 0.5; }
 
 .scene-avatar.is-dancing {
   animation: pixel-dance 360ms steps(2, end) infinite alternate;

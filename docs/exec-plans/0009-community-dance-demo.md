@@ -82,6 +82,11 @@ same public `CommunityPresence` contract.
   and two mobile Playwright journeys passed after the final accessibility update.
 - [x] 2026-07-25: Extended the mobile Playwright journey through `轮到我上台`, asserted
   the `正在走秀` live-region status, and captured `08-community-runway.png` at 390×844.
+- [x] 2026-07-25: Replaced the shared abstract block-person presentation with complete
+  fashion-pixel profiles (hair, skin, outfit, trim, shoes, and accessory) for the user,
+  residents, and audience. The fallback share card now draws the same profile; a future
+  public Look RenderArtifact still takes precedence. Fresh verification: 9 Vitest files /
+  37 tests, typecheck, production build, and 2 mobile Playwright journeys passed.
 - [ ] Update Issue, commit, push, and open the experience PR.
 
 ## Surprises & Discoveries
@@ -103,6 +108,10 @@ same public `CommunityPresence` contract.
 - 2026-07-25: Runway evidence uses the same public avatar-source boundary. It verifies the
   user-facing handoff point for a future public Look RenderArtifact without changing the
   browser contract or leaking private Item/reference media.
+- 2026-07-25: The screenshot reference clarified that "pixel avatar" means a complete
+  fashion-paper-doll silhouette, not a colored capsule. The scene now carries a small,
+  replaceable `PixelDollProfile` per visible character, avoiding a speculative game-avatar
+  system while making the future RenderArtifact handoff explicit.
 
 ## Decision Log
 
@@ -111,3 +120,6 @@ same public `CommunityPresence` contract.
   a live social graph or introducing an unneeded real-time service.
 - 2026-07-25 — Keep the default pixel identity as a labelled, replaceable fallback in this
   demo; real Look artwork remains a derived RenderArtifact integration, not a Look fact.
+- 2026-07-25 — Keep default share cards profile-rendered while the source is the labelled
+  fallback; draw the supplied image only when it is a public RenderArtifact. This preserves
+  a coherent demo visual without weakening the public-asset boundary.

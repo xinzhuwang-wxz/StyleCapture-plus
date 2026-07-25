@@ -35,6 +35,40 @@ describe("pixel dance community scene", () => {
     );
   });
 
+  it("gives every visible character a complete fashion pixel profile", () => {
+    const scene = createCommunityScene();
+
+    expect(scene.avatar.doll).toMatchObject({
+      hair: expect.any(String),
+      outfit: expect.any(String),
+      shoes: expect.any(String),
+      accessory: expect.any(String)
+    });
+    expect(scene.residents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          doll: expect.objectContaining({
+            hair: expect.any(String),
+            outfit: expect.any(String),
+            shoes: expect.any(String),
+            accessory: expect.any(String)
+          })
+        })
+      ])
+    );
+    expect(scene.audience).toHaveLength(6);
+    expect(scene.audience).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          hair: expect.any(String),
+          outfit: expect.any(String),
+          shoes: expect.any(String),
+          accessory: expect.any(String)
+        })
+      ])
+    );
+  });
+
   it("sends the avatar to the runway and returns backstage", () => {
     const scene = createCommunityScene();
 

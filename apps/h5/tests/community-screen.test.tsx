@@ -11,12 +11,13 @@ describe("CommunityScreen", () => {
     const user = userEvent.setup();
     const download = vi.fn();
     const drawImage = vi.fn();
+    const fillRect = vi.fn();
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(download);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       fillStyle: "",
       font: "",
-      fillRect: vi.fn(),
+      fillRect,
       fillText: vi.fn(),
       drawImage
     } as unknown as CanvasRenderingContext2D);
@@ -45,10 +46,11 @@ describe("CommunityScreen", () => {
     );
     expect(screen.getByRole("button", { name: "关闭紫丁香的公开穿搭" })).toHaveFocus();
 
-    const drawCountBeforeShare = drawImage.mock.calls.length;
+    const paintCountBeforeShare = fillRect.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "生成分享卡" }));
     expect(download).toHaveBeenCalledTimes(1);
-    expect(drawImage).toHaveBeenCalledTimes(drawCountBeforeShare + 1);
+    expect(fillRect.mock.calls.length).toBeGreaterThan(paintCountBeforeShare);
+    expect(drawImage).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好");
 
     fireEvent.keyDown(dialog, { key: "Escape" });
@@ -73,16 +75,16 @@ describe("CommunityScreen", () => {
   it("draws the current runway applause and reaction onto the share card", async () => {
     const user = userEvent.setup();
     const download = vi.fn();
-    const drawImage = vi.fn();
+    const fillRect = vi.fn();
     const fillText = vi.fn();
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(download);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       fillStyle: "",
       font: "",
-      fillRect: vi.fn(),
+      fillRect,
       fillText,
-      drawImage
+      drawImage: vi.fn()
     } as unknown as CanvasRenderingContext2D);
 
     render(<CommunityScreen />);
@@ -92,9 +94,39 @@ describe("CommunityScreen", () => {
     await user.click(screen.getByRole("button", { name: "生成分享卡" }));
 
     expect(download).toHaveBeenCalledTimes(1);
-    expect(drawImage).toHaveBeenCalled();
+    expect(fillRect).toHaveBeenCalled();
     expect(fillText).toHaveBeenCalledWith("正在走秀 · 喝彩 12", 64, 918);
     expect(fillText).toHaveBeenCalledWith("✦ Demo 像素形象 · #StyleCapture", 64, 952);
     expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好");
+  });
+
+  it("uses a public Look render when one is supplied for sharing", async () => {
+    const user = userEvent.setup();
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "",
+      font: "",
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      drawImage
+    } as unknown as CanvasRenderingContext2D);
+
+    render(
+      <CommunityScreen
+        avatarSource={{
+          assetUrl: "/assets/public-look.png",
+          label: "公开 Look",
+          kind: "public-render-artifact"
+        }}
+      />
+    );
+
+    Object.defineProperty(HTMLImageElement.prototype, "complete", { configurable: true, value: true });
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", { configurable: true, value: 120 });
+    await user.click(screen.getByRole("button", { name: "生成分享卡" }));
+
+    expect(drawImage).toHaveBeenCalled();
   });
 });

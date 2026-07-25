@@ -15,7 +15,8 @@ import {
   sendAvatarToRunway,
   type CommunityReaction,
   type CommunityResident,
-  type CommunityScene
+  type CommunityScene,
+  type PixelDollProfile
 } from "./communityScene";
 
 const reactionLabels: Record<CommunityReaction, { label: string; symbol: string }> = {
@@ -26,15 +27,6 @@ const reactionLabels: Record<CommunityReaction, { label: string; symbol: string 
 };
 
 type SceneStyle = CSSProperties & Record<string, string>;
-
-const runwayAudience = [
-  { id: "audience-pink", accent: "#ed68aa" },
-  { id: "audience-gold", accent: "#fbdb83" },
-  { id: "audience-mint", accent: "#86e6cf" },
-  { id: "audience-violet", accent: "#9d68ff" },
-  { id: "audience-coral", accent: "#ff9b7b" },
-  { id: "audience-sky", accent: "#75d7ff" }
-] as const;
 
 export type CommunityAvatarSource = {
   assetUrl: string;
@@ -51,6 +43,112 @@ export const defaultCommunityAvatar: CommunityAvatarSource = {
 type CommunityScreenProps = {
   avatarSource?: CommunityAvatarSource;
 };
+
+function dollStyle(doll: PixelDollProfile): SceneStyle {
+  return {
+    "--doll-hair": doll.hair,
+    "--doll-skin": doll.skin,
+    "--doll-outfit": doll.outfit,
+    "--doll-trim": doll.trim,
+    "--doll-blush": doll.blush,
+    "--doll-shoes": doll.shoes
+  };
+}
+
+function PixelDoll({ doll, className = "" }: { doll: PixelDollProfile; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pixel-doll ${className}`.trim()}
+      data-accessory={doll.accessory}
+      data-dress={doll.dressShape}
+      data-hair={doll.hairStyle}
+      style={dollStyle(doll)}
+    >
+      <i className="pixel-doll__hair" />
+      <i className="pixel-doll__bangs" />
+      <i className="pixel-doll__face" />
+      <i className="pixel-doll__top" />
+      <i className="pixel-doll__skirt" />
+      <i className="pixel-doll__arms" />
+      <i className="pixel-doll__legs" />
+      <i className="pixel-doll__shoes" />
+      <i className="pixel-doll__accessory" />
+    </span>
+  );
+}
+
+function drawPixelDoll(
+  context: CanvasRenderingContext2D,
+  doll: PixelDollProfile,
+  x: number,
+  y: number,
+  scale: number
+) {
+  const pixel = (left: number, top: number, width: number, height: number, color: string) => {
+    context.fillStyle = color;
+    context.fillRect(x + left * scale, y + top * scale, width * scale, height * scale);
+  };
+
+  pixel(3, 0, 7, 2, doll.hair);
+  pixel(2, 2, 9, 3, doll.hair);
+  pixel(1, 4, 3, 8, doll.hair);
+  pixel(9, 4, 3, 8, doll.hair);
+  if (doll.hairStyle === "curly") {
+    pixel(0, 8, 2, 2, doll.hair);
+    pixel(10, 9, 2, 2, doll.hair);
+    pixel(1, 12, 2, 2, doll.hair);
+  }
+  if (doll.hairStyle === "bob") {
+    pixel(2, 9, 8, 2, doll.hair);
+  }
+  if (doll.hairStyle === "twin") {
+    pixel(0, 6, 2, 5, doll.hair);
+    pixel(11, 6, 2, 5, doll.hair);
+  }
+  pixel(4, 3, 5, 5, doll.skin);
+  pixel(3, 4, 1, 2, doll.skin);
+  pixel(9, 4, 1, 2, doll.skin);
+  pixel(4, 3, 5, 1, doll.hair);
+  pixel(5, 5, 1, 1, "#2d2438");
+  pixel(8, 5, 1, 1, "#2d2438");
+  pixel(5, 7, 1, 1, doll.blush);
+  pixel(8, 7, 1, 1, doll.blush);
+  pixel(6, 8, 2, 1, "#d86084");
+  pixel(4, 9, 5, 4, doll.outfit);
+  pixel(5, 9, 1, 1, doll.trim);
+  pixel(7, 9, 1, 1, doll.trim);
+  pixel(2, 10, 2, 5, doll.skin);
+  pixel(9, 10, 2, 5, doll.skin);
+  pixel(2, 10, 1, 3, doll.outfit);
+  pixel(10, 10, 1, 3, doll.outfit);
+  if (doll.dressShape === "jacket") {
+    pixel(3, 13, 7, 3, doll.outfit);
+    pixel(6, 10, 1, 6, doll.trim);
+  } else if (doll.dressShape === "two-piece") {
+    pixel(3, 14, 7, 2, doll.outfit);
+    pixel(4, 13, 5, 1, doll.trim);
+  } else {
+    pixel(3, 13, 7, 2, doll.outfit);
+    pixel(2, 15, 9, 3, doll.outfit);
+    if (doll.dressShape === "pleated") {
+      pixel(4, 14, 1, 4, doll.trim);
+      pixel(7, 14, 1, 4, doll.trim);
+    }
+  }
+  pixel(4, 18, 1, 4, doll.skin);
+  pixel(8, 18, 1, 4, doll.skin);
+  pixel(3, 22, 2, 1, doll.shoes);
+  pixel(8, 22, 2, 1, doll.shoes);
+
+  if (doll.accessory === "beret") pixel(3, -1, 5, 1, doll.outfit);
+  if (doll.accessory === "handbag") pixel(10, 14, 2, 3, doll.trim);
+  if (doll.accessory === "necklace") pixel(6, 9, 2, 1, "#fbdb83");
+  if (doll.accessory === "ribbon" || doll.accessory === "bow") {
+    pixel(0, 0, 2, 1, doll.trim);
+    pixel(1, 1, 1, 1, doll.trim);
+  }
+}
 
 function drawShareCard(
   canvas: HTMLCanvasElement,
@@ -75,7 +173,12 @@ function drawShareCard(
   context.fillRect(368, 422, 112, 112);
   const avatarX = 224 + ((scene.avatar.x - scene.bounds.minX) / (scene.bounds.maxX - scene.bounds.minX)) * 250;
   const avatarY = 278 + ((scene.avatar.y - scene.bounds.minY) / (scene.bounds.maxY - scene.bounds.minY)) * 250;
-  context.drawImage(avatarImage, avatarX, avatarY, 92, 92);
+  if (avatarSource.kind === "public-render-artifact" && avatarImage.complete && avatarImage.naturalWidth) {
+    context.drawImage(avatarImage, avatarX, avatarY, 92, 92);
+  } else {
+    context.imageSmoothingEnabled = false;
+    drawPixelDoll(context, scene.avatar.doll, avatarX + 2, avatarY + 6, 5);
+  }
   context.fillStyle = "#f8f2ff";
   context.font = "700 34px sans-serif";
   context.fillText("STYLECAPTURE", 64, 66);
@@ -189,8 +292,11 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
           <h1>今晚舞会</h1>
           <p>带着你的像素搭配，去舞池里碰见灵感。</p>
         </div>
-        <span className="community-online" aria-label="当前有 4 个场景角色">
-          4 个角色
+        <span
+          className="community-online"
+          aria-label={`当前有 ${scene.audience.length + scene.residents.length + 1} 个像素场景角色`}
+        >
+          {scene.audience.length + scene.residents.length + 1} 个像素角色
         </span>
       </header>
 
@@ -220,15 +326,8 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
           </div>
           <div className="pixel-ballroom__floor" aria-hidden="true" />
           <div className="runway-audience" aria-label="像素观众" role="region">
-            {runwayAudience.map((audienceMember) => (
-              <span
-                key={audienceMember.id}
-                aria-hidden="true"
-                className="pixel-person pixel-person--audience"
-                style={{
-                  "--audience-accent": audienceMember.accent
-                } as SceneStyle}
-              />
+            {scene.audience.map((doll, index) => (
+              <PixelDoll key={`audience-${index}`} className="pixel-doll--audience" doll={doll} />
             ))}
           </div>
           <div className="runway-lookboard" aria-label="走秀看板" role="region">
@@ -252,7 +351,7 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
                 setSelectedResident(resident);
               }}
             >
-              <span aria-hidden="true" className="pixel-person pixel-person--resident" />
+              <PixelDoll doll={resident.doll} />
               <small>{resident.name}</small>
             </button>
           ))}
@@ -266,7 +365,7 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
                 {reactionLabels[scene.avatar.reaction].symbol}
               </span>
             ) : null}
-            <span className="pixel-person pixel-person--me" aria-hidden="true" />
+            <PixelDoll doll={scene.avatar.doll} className="pixel-doll--me" />
             <small>我</small>
           </div>
         </div>
