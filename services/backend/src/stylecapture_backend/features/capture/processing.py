@@ -281,8 +281,13 @@ class CaptureProcessor:
             )
             return ProcessingOutcome.error(error)
 
+        item, analysis_image = await self._normalize_uploaded_garment(
+            capture,
+            item,
+            image,
+        )
         try:
-            analysis = await self._vision.describe(image)
+            analysis = await self._vision.describe(analysis_image)
         except ProviderError as error:
             await self._wardrobe.save(item.with_status(ItemStatus.ERROR))
             await self._jobs.update(
@@ -301,7 +306,7 @@ class CaptureProcessor:
             )
         )
         try:
-            embedding = await self._embedder.embed(image)
+            embedding = await self._embedder.embed(analysis_image)
         except ProviderError as error:
             await self._wardrobe.save(item.with_status(ItemStatus.PARTIAL))
             await self._jobs.update(
@@ -321,6 +326,104 @@ class CaptureProcessor:
         )
         await self._jobs.update(job.transition(JobState.READY))
         return ProcessingOutcome.ready()
+
+    async def _normalize_uploaded_garment(
+        self,
+        capture: Capture,
+        item: WardrobeItem,
+        source_image: ImagePayload,
+    ) -> tuple[WardrobeItem, ImagePayload]:
+        if (
+            self._grounder is None
+            or self._segmenter is None
+            or self._selection_images is None
+            or self._display_assets is None
+        ):
+            return item, source_image
+
+        full_frame = FeedSelection(
+            selection_key=WHOLE_CAPTURE_SELECTION_KEY,
+            polygon=(
+                NormalizedPoint(0, 0),
+                NormalizedPoint(1, 0),
+                NormalizedPoint(1, 1),
+                NormalizedPoint(0, 1),
+            ),
+        )
+        try:
+            grounding = await self._grounder.ground(source_image, scope=full_frame)
+            candidates = self._reliable_candidates(grounding, full_frame)
+            if len(candidates) != 1:
+                reason = "multiple_garments" if candidates else "no_reliable_garment"
+                item = await self._wardrobe.save(
+                    item.with_model_metadata(
+                        {
+                            "normalization": {
+                                "status": "not_applied",
+                                "reason": reason,
+                                "candidate_count": len(candidates),
+                            }
+                        }
+                    )
+                )
+                return item, source_image
+
+            candidate = candidates[0]
+            garment_selection = FeedSelection(
+                selection_key=WHOLE_CAPTURE_SELECTION_KEY,
+                polygon=_box_polygon(candidate.box),
+            )
+            selected_image, segmentation = self._prepare_feed_selection(
+                source_image,
+                garment_selection,
+            )
+            display_image = self._display_assets.write_derived_image(
+                selected_image,
+                owner_id=capture.user_id,
+                prefix="derived/items",
+            )
+            item = await self._wardrobe.save(
+                item.with_display_object(display_image.object_key).with_model_metadata(
+                    {
+                        "normalization": {
+                            "status": "succeeded",
+                            "source": "runtime_extraction",
+                            "grounding": _grounding_metadata(
+                                grounding.metadata,
+                                candidate,
+                            ),
+                            "segmentation": _segmentation_metadata(segmentation),
+                        }
+                    }
+                )
+            )
+            return item, selected_image
+        except ProviderError as error:
+            item = await self._wardrobe.save(
+                item.with_model_metadata(
+                    {
+                        "normalization": {
+                            "status": "fallback",
+                            "reason": error.code,
+                            "retryable": error.retryable,
+                        }
+                    }
+                )
+            )
+            return item, source_image
+        except (OSError, ValueError):
+            item = await self._wardrobe.save(
+                item.with_model_metadata(
+                    {
+                        "normalization": {
+                            "status": "fallback",
+                            "reason": "derived_asset_unavailable",
+                            "retryable": False,
+                        }
+                    }
+                )
+            )
+            return item, source_image
 
     async def _process_feed(
         self,

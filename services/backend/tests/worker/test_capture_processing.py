@@ -8,14 +8,25 @@ from stylecapture_backend.features.capture.domain import (
     CaptureSource,
     CaptureSourceKind,
     FeedSelection,
+    ImagePayload,
     JobState,
     OwnershipState,
     ProcessingJob,
 )
+from stylecapture_backend.features.capture.feed_media import (
+    SegmentationMetadata,
+    SegmentationPrompt,
+    SegmentationRepresentation,
+    SegmentationResult,
+)
+from stylecapture_backend.features.capture.grounding import (
+    GroundingAnalysis,
+    GroundingCandidate,
+    NormalizedBox,
+)
 from stylecapture_backend.features.capture.processing import (
     CaptureProcessor,
     EmbeddingResult,
-    ImagePayload,
     ModelMetadata,
     ProcessingOutcome,
     ProviderError,
@@ -29,6 +40,7 @@ from stylecapture_backend.features.wardrobe.domain import (
     ModelField,
     WardrobeItem,
 )
+from stylecapture_backend.features.wardrobe.taxonomy import GarmentCategory
 
 
 class MemoryWorkRepository:
@@ -93,6 +105,7 @@ class FixedVision:
         self.result = result
         self.error = error
         self.calls = 0
+        self.images: list[ImagePayload] = []
 
     async def describe(
         self,
@@ -101,6 +114,7 @@ class FixedVision:
         selection: FeedSelection | None = None,
     ) -> VisionAnalysis:
         self.calls += 1
+        self.images.append(image)
         if self.error is not None:
             raise self.error
         assert self.result is not None
@@ -115,12 +129,98 @@ class FixedEmbedder:
     ) -> None:
         self.result = result
         self.error = error
+        self.images: list[ImagePayload] = []
 
     async def embed(self, image: ImagePayload) -> EmbeddingResult:
+        self.images.append(image)
         if self.error is not None:
             raise self.error
         assert self.result is not None
         return self.result
+
+
+class RecordingGrounder:
+    def __init__(
+        self,
+        candidates: tuple[GroundingCandidate, ...],
+        error: ProviderError | None = None,
+    ) -> None:
+        self.candidates = candidates
+        self.error = error
+        self.calls: list[FeedSelection] = []
+
+    async def ground(self, image: ImagePayload, *, scope: FeedSelection) -> GroundingAnalysis:
+        del image
+        self.calls.append(scope)
+        if self.error is not None:
+            raise self.error
+        return GroundingAnalysis(
+            candidates=self.candidates,
+            metadata=ModelMetadata(
+                capability_alias="visual_grounding",
+                provider_model="internal-provider-id",
+                prompt_version="grounding-v1",
+                schema_version="ark-bbox-tags-v1",
+                taxonomy_version="stylecapture-v1",
+                latency_ms=8,
+            ),
+        )
+
+
+class RecordingSegmenter:
+    def __init__(self) -> None:
+        self.prompts: list[SegmentationPrompt] = []
+
+    def segment(self, prompt: SegmentationPrompt) -> SegmentationResult:
+        self.prompts.append(prompt)
+        return SegmentationResult(
+            selection_key=prompt.selection.selection_key,
+            coarse_polygon=prompt.selection.polygon,
+            mask=None,
+            metadata=SegmentationMetadata(
+                capability_alias="sam2_hiera_tiny",
+                representation=SegmentationRepresentation.COARSE_POLYGON,
+                refined=False,
+                schema_version="feed-segmentation-v1",
+                latency_ms=6,
+                fallback_reason=prompt.fallback_reason,
+            ),
+        )
+
+
+class SelectionImages:
+    selected = ImagePayload(
+        object_key="derived/transient/single-garment.png",
+        content_type="image/png",
+        body=b"transparent-garment-pixels",
+        sha256="b" * 64,
+    )
+
+    def render(self, frame: ImagePayload, segmentation: SegmentationResult) -> ImagePayload:
+        del frame, segmentation
+        return self.selected
+
+
+class MemoryDerivedImages:
+    def __init__(self) -> None:
+        self.images: dict[str, ImagePayload] = {}
+
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        del owner_id
+        stored = ImagePayload(
+            object_key=f"{prefix}/{image.sha256}.png",
+            content_type=image.content_type,
+            body=image.body,
+            sha256=image.sha256,
+        )
+        self.images[stored.object_key] = stored
+        return stored
 
 
 def make_capture_job() -> tuple[Capture, ProcessingJob]:
@@ -172,6 +272,21 @@ def embedding() -> EmbeddingResult:
     )
 
 
+def garment_candidate(
+    label: str = "blue_shirt",
+    *,
+    category: GarmentCategory = GarmentCategory.TOPS,
+    box: NormalizedBox | None = None,
+) -> GroundingCandidate:
+    return GroundingCandidate(
+        label=label,
+        category=category,
+        box=box or NormalizedBox(120, 90, 880, 930),
+        confidence=0.96,
+        visible_fraction=0.92,
+    )
+
+
 @pytest.mark.asyncio
 async def test_real_processing_contract_persists_ready_item_and_embedding() -> None:
     capture, job = make_capture_job()
@@ -195,6 +310,140 @@ async def test_real_processing_contract_persists_ready_item_and_embedding() -> N
     assert wardrobe.item.embedding == embedding().vector
     assert wardrobe.item.attributes.fields["category"].value == "tops"
     assert wardrobe.item.model_metadata["capability_alias"] == "vision_understanding"
+
+
+@pytest.mark.asyncio
+async def test_upload_cache_miss_generates_transparent_display_before_tagging() -> None:
+    capture, job = make_capture_job()
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository()
+    vision = FixedVision(result=analysis())
+    embedder = FixedEmbedder(result=embedding())
+    grounder = RecordingGrounder((garment_candidate(),))
+    segmenter = RecordingSegmenter()
+    display_assets = MemoryDerivedImages()
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=MemoryObjects(image_for(capture)),
+        vision=vision,
+        embedder=embedder,
+        grounder=grounder,
+        segmenter=segmenter,
+        selection_images=SelectionImages(),
+        display_assets=display_assets,
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome == ProcessingOutcome.ready()
+    assert wardrobe.item is not None
+    assert wardrobe.item.source_object_key == capture.source.object_key
+    assert wardrobe.item.display_object_key == (
+        f"derived/items/{SelectionImages.selected.sha256}.png"
+    )
+    assert vision.images == [SelectionImages.selected]
+    assert embedder.images == [SelectionImages.selected]
+    assert len(grounder.calls) == 1
+    assert len(segmenter.prompts) == 1
+    normalization = wardrobe.item.model_metadata["normalization"]
+    assert isinstance(normalization, Mapping)
+    assert normalization["status"] == "succeeded"
+    assert normalization["source"] == "runtime_extraction"
+    assert display_assets.images[wardrobe.item.display_object_key].body == (
+        b"transparent-garment-pixels"
+    )
+
+
+@pytest.mark.asyncio
+async def test_upload_with_multiple_garments_keeps_original_without_guessing() -> None:
+    capture, job = make_capture_job()
+    original = image_for(capture)
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository()
+    vision = FixedVision(result=analysis())
+    embedder = FixedEmbedder(result=embedding())
+    grounder = RecordingGrounder(
+        (
+            garment_candidate("blue_shirt"),
+            garment_candidate(
+                "black_trousers",
+                category=GarmentCategory.BOTTOMS,
+                box=NormalizedBox(160, 480, 840, 970),
+            ),
+        )
+    )
+    segmenter = RecordingSegmenter()
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=MemoryObjects(original),
+        vision=vision,
+        embedder=embedder,
+        grounder=grounder,
+        segmenter=segmenter,
+        selection_images=SelectionImages(),
+        display_assets=MemoryDerivedImages(),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome == ProcessingOutcome.ready()
+    assert wardrobe.item is not None
+    assert wardrobe.item.display_object_key is None
+    assert vision.images == [original]
+    assert embedder.images == [original]
+    assert segmenter.prompts == []
+    assert wardrobe.item.model_metadata["normalization"] == {
+        "status": "not_applied",
+        "reason": "multiple_garments",
+        "candidate_count": 2,
+    }
+
+
+@pytest.mark.asyncio
+async def test_upload_grounding_failure_keeps_original_and_records_honest_fallback() -> None:
+    capture, job = make_capture_job()
+    original = image_for(capture)
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository()
+    vision = FixedVision(result=analysis())
+    embedder = FixedEmbedder(result=embedding())
+    grounder = RecordingGrounder(
+        (garment_candidate(),),
+        error=ProviderError(
+            "grounding_unavailable",
+            "grounding is temporarily unavailable",
+            retryable=True,
+        ),
+    )
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=MemoryObjects(original),
+        vision=vision,
+        embedder=embedder,
+        grounder=grounder,
+        segmenter=RecordingSegmenter(),
+        selection_images=SelectionImages(),
+        display_assets=MemoryDerivedImages(),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome == ProcessingOutcome.ready()
+    assert wardrobe.item is not None
+    assert wardrobe.item.display_object_key is None
+    assert vision.images == [original]
+    assert embedder.images == [original]
+    assert wardrobe.item.model_metadata["normalization"] == {
+        "status": "fallback",
+        "reason": "grounding_unavailable",
+        "retryable": True,
+    }
 
 
 @pytest.mark.asyncio
