@@ -31,12 +31,13 @@ def budget_for(name: str) -> int:
 
 
 def optimize(source: Path, target: Path) -> tuple[int, int]:
-    image = Image.open(source)
+    with Image.open(source) as opened:
+        image = opened.copy()
     longest = budget_for(source.stem)
     scale = min(1.0, longest / max(image.size))
     if scale < 1.0:
         size = (round(image.width * scale), round(image.height * scale))
-        image = image.resize(size, Image.LANCZOS)
+        image = image.resize(size, Image.Resampling.LANCZOS)
 
     if source.suffix.lower() in {".jpg", ".jpeg"}:
         image.convert("RGB").save(target, "JPEG", quality=82, optimize=True, progressive=True)
@@ -44,7 +45,7 @@ def optimize(source: Path, target: Path) -> tuple[int, int]:
         # Pixel art survives a 128-colour palette without visible banding and
         # drops the payload by roughly an order of magnitude. FASTOCTREE is the
         # only Pillow method that quantizes RGBA without dropping the alpha.
-        image.convert("RGBA").quantize(colors=128, method=Image.FASTOCTREE).save(
+        image.convert("RGBA").quantize(colors=128, method=Image.Quantize.FASTOCTREE).save(
             target, "PNG", optimize=True
         )
     return source.stat().st_size, target.stat().st_size
