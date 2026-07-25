@@ -296,6 +296,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/outfit-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Outfit Plans */
+        post: operations["create_outfit_plans_v1_outfit_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/render-artifacts/{artifact_id}": {
         parameters: {
             query?: never;
@@ -699,6 +716,70 @@ export interface components {
             x: number;
             /** Y */
             y: number;
+        };
+        /** OutfitPlanResponse */
+        OutfitPlanResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Missing Count */
+            missing_count: number;
+            /** Rationale */
+            rationale: string;
+            /** Scene */
+            scene: string;
+            /** Slots */
+            slots: components["schemas"]["OutfitSlotResponse"][];
+            /** Style Match Score */
+            style_match_score: number;
+            /** Title */
+            title: string;
+        };
+        /** OutfitPlanSetResponse */
+        OutfitPlanSetResponse: {
+            /** Degradation Reason */
+            degradation_reason: string | null;
+            /** Degraded */
+            degraded: boolean;
+            /** Explanation State */
+            explanation_state: string;
+            /** Plans */
+            plans: components["schemas"]["OutfitPlanResponse"][];
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** OutfitRequestBody */
+        OutfitRequestBody: {
+            /** Anchor Item Id */
+            anchor_item_id?: string | null;
+            /** Comfort */
+            comfort?: string | null;
+            /** Scene */
+            scene: string;
+            /** Style */
+            style?: string | null;
+            /** Weather */
+            weather?: string | null;
+        };
+        /** OutfitSlotResponse */
+        OutfitSlotResponse: {
+            /** Image Url */
+            image_url: string | null;
+            /** Item Id */
+            item_id: string | null;
+            /** Item Name */
+            item_name: string | null;
+            /** Ownership */
+            ownership: string | null;
+            /** Role */
+            role: string;
+            /** Search Query */
+            search_query: string | null;
         };
         /**
          * OwnershipState
@@ -2810,6 +2891,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_outfit_plans_v1_outfit_plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutfitRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutfitPlanSetResponse"];
                 };
             };
             /** @description The request cannot be processed */

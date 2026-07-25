@@ -29,6 +29,11 @@ from stylecapture_backend.features.look.interfaces.http import (
     LookImageNotFoundError,
     build_look_router,
 )
+from stylecapture_backend.features.outfit.application import OutfitWardrobeEmptyError
+from stylecapture_backend.features.outfit.interfaces.http import (
+    OutfitHttpServices,
+    build_outfit_router,
+)
 from stylecapture_backend.features.render.infrastructure.tasks import RenderDispatchError
 from stylecapture_backend.features.render.interfaces.http import (
     RenderHttpServices,
@@ -44,6 +49,7 @@ from stylecapture_backend.features.wardrobe.application import (
     WardrobeNotFoundError,
     WardrobeValidationError,
 )
+from stylecapture_backend.features.wardrobe.demo import DemoWardrobeBootstrapper
 from stylecapture_backend.features.wardrobe.interfaces.http import (
     ItemSourceNotFoundError,
     build_wardrobe_router,
@@ -65,6 +71,8 @@ class BackendServices:
     wardrobe: WardrobeApplication
     looks: LookHttpServices | None = None
     renders: RenderHttpServices | None = None
+    outfits: OutfitHttpServices | None = None
+    demo_wardrobe: DemoWardrobeBootstrapper | None = None
 
 
 CAPTURE_ERROR_STATUS = {
@@ -277,6 +285,18 @@ def create_app(
             message="Render request was saved but the worker queue is temporarily unavailable",
         )
 
+    @app.exception_handler(OutfitWardrobeEmptyError)
+    async def outfit_wardrobe_empty_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="outfit_wardrobe_empty",
+            message=str(error),
+        )
+
     @app.exception_handler(WardrobeValidationError)
     async def wardrobe_validation_handler(
         request: Request,
@@ -331,6 +351,8 @@ def create_app(
         except InvalidSessionError:
             user_id = None
         user_id, token = sessions.issue(user_id)
+        if services.demo_wardrobe is not None:
+            await services.demo_wardrobe.ensure_for_user(user_id)
         response.set_cookie(
             SESSION_COOKIE_NAME,
             token,
@@ -373,6 +395,13 @@ def create_app(
         app.include_router(
             build_render_router(
                 services.renders,
+                current_user=current_user,
+            )
+        )
+    if services.outfits is not None:
+        app.include_router(
+            build_outfit_router(
+                services.outfits,
                 current_user=current_user,
             )
         )

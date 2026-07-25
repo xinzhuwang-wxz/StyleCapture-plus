@@ -8,6 +8,8 @@ export type Item = components["schemas"]["ItemResponse"];
 export type Job = components["schemas"]["JobResponse"];
 export type Look = components["schemas"]["LookSummaryResponse"];
 export type LookDetail = components["schemas"]["LookDetailResponse"];
+export type OutfitPlan = components["schemas"]["OutfitPlanResponse"];
+export type OutfitPlanSet = components["schemas"]["OutfitPlanSetResponse"];
 export type Ownership = components["schemas"]["OwnershipState"];
 export type RenderArtifact = components["schemas"]["RenderArtifactResponse"];
 export type RenderKind = components["schemas"]["RenderArtifactKind"];
@@ -42,7 +44,8 @@ const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
   render_artifact_not_found: "这张穿搭成片暂时不可用",
   job_not_retryable: "当前任务正在处理或已经完成，无需重试",
   source_deleted_not_retryable: "原始图片已删除，无法再次识别",
-  item_update_invalid: "修改内容不符合衣橱要求"
+  item_update_invalid: "修改内容不符合衣橱要求",
+  outfit_wardrobe_empty: "衣橱里还没有可搭配的真实单品"
 };
 
 export class ProductApiError extends Error {
@@ -364,6 +367,29 @@ async function displayImage(itemId: string): Promise<string> {
   return URL.createObjectURL(await response.blob());
 }
 
+async function planOutfits(input: {
+  scene: string;
+  style?: string;
+  weather?: string;
+  comfort?: string;
+  anchorItemId?: string;
+}): Promise<OutfitPlanSet> {
+  await ensureSession();
+  const response = await client.POST("/v1/outfit-plans", {
+    body: {
+      scene: input.scene,
+      style: input.style,
+      weather: input.weather,
+      comfort: input.comfort,
+      anchor_item_id: input.anchorItemId
+    }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "暂时无法生成穿搭，请稍后再试");
+  }
+  return response.data;
+}
+
 export const wardrobeApi = {
   ingest,
   ingestFeedFrame,
@@ -379,5 +405,6 @@ export const wardrobeApi = {
   retryItem,
   updateItem,
   deleteSource,
-  displayImage
+  displayImage,
+  planOutfits
 };

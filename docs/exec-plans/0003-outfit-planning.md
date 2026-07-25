@@ -87,7 +87,7 @@ script and the Playground shows the full workflow trace.
   110 backend tests pass with real PostgreSQL plus FFmpeg/FFprobe, mypy checks all 65
   backend source files, Ruff and architecture-boundary checks pass, and the packaged
   `.skill` archive passes integrity validation.
-- [ ] Milestone 0: Seeded development wardrobe through real contracts.
+- [x] Milestone 0: Seeded development wardrobe through real contracts.
 - [ ] Milestone 1: Pure outfit domain — slot taxonomy, hard-rule engine, diversity
   metric, deterministic scoring.
 - [ ] Milestone 2: Durable request/plan/purchase-list persistence, recall adapter,
@@ -98,6 +98,22 @@ script and the Playground shows the full workflow trace.
   collage, slot replace, purchase list, save-as-Look; regenerated OpenAPI client.
 - [ ] Milestone 5: Skill/Agent entry + Playground parity, full evidence, reviews,
   cleanup, PR, merge.
+- [x] 2026-07-25: Added an idempotent judge cold start through the production
+  session, Capture, Wardrobe, Look, and object-store contracts: 10 real Item records
+  (5 owned, 5 inspiration) and 3 relationship-preserving Looks. Every human-authored
+  field and analysis is explicitly `curated_seed`; source URLs and review state are
+  retained. Mobile verification shows 10 Items and 3 Looks without an empty-state
+  detour.
+- [x] 2026-07-25: Added the first Product API tracer at `POST /v1/outfit-plans`.
+  It reads the authenticated user's ready/partial WardrobeItems, builds four closed
+  candidates with explicit missing-slot search demands, and lets LiteLLM
+  `reasoning` reorder and explain only those candidates. OpenAPI and the generated
+  H5 schema were regenerated.
+- [x] 2026-07-25: Replaced the H5 “真实推荐待接入” placeholder with the real wardrobe
+  journey. A mobile user can choose a scene or enter free text, see processing, then
+  see four Chinese plan cards with real item images, roles, ownership, missing slots,
+  scores, and model-written reasoning. The fallback remains visibly labelled and
+  never impersonates model success.
 
 ## Surprises & Discoveries
 
@@ -122,6 +138,12 @@ script and the Playground shows the full workflow trace.
   wardrobe gap. The fallback explanation now distinguishes “target item included” from
   genuinely missing slots, so a target coat plus missing shoes no longer claims the
   wardrobe lacks coats.
+- 2026-07-25: A real Doubao Lite request through the local LiteLLM gateway completes
+  in about 14.6 seconds even for a tiny two-plan payload. The earlier hard 15-second
+  timeout caused valid four-plan responses to be cancelled at the boundary and shown
+  as degraded. The adapter now uses a shorter response contract and a configurable
+  30-second budget; mobile verification returned `llm_ranked` with four genuine
+  Chinese rationales.
 
 ## Decision Log
 
@@ -138,9 +160,11 @@ script and the Playground shows the full workflow trace.
 - Purchase list entries are `CommerceOffer`-shaped search demands (query, category,
   constraints, jump URL) because no real commerce API exists; no inventory/price
   fields are emitted at all rather than emitting fake ones.
-- The user-directed 15-second LLM timeout is authoritative over the earlier 45-second
-  draft. The CLI clamps every reasoning call to 15,000 ms and exposes deterministic
-  fallback as `degraded: true`; keys are accepted only through environment variables.
+- The hosted reasoning timeout is configurable and defaults to 30 seconds. A measured
+  Doubao Lite baseline is already close to 15 seconds, so a 15-second hard cutoff
+  creates false failures. The product renders a processing state during the bounded
+  request and still exposes deterministic fallback as `degraded: true`; keys remain
+  server-only environment values.
 
 ## Context and Orientation
 
@@ -183,6 +207,18 @@ Item). An OutfitPlan becomes a Look only when saved.
   that calls the public Product API with the generated contract — the Skill never
   embeds business rules (per TECHNICAL-DECISIONS §9.4: H5 and Skill do not each
   write their own request structures).
+- **Cold-start wardrobe reuse.** Reused the existing Capture idempotency contract,
+  Wardrobe repository, Look aggregate/components, local object store, session
+  bootstrap, taxonomy/provenance envelopes, and the already licensed Pexels Feed
+  corpus. Rejected a frontend-only fixture because AI, detail views, filters, and
+  later saves would observe different truth. No seed-only persistence or alternate
+  API was introduced.
+- **Recommendation tracer reuse.** Reused the existing WardrobeItem contracts,
+  ownership/status semantics, generated OpenAPI client, LiteLLM `reasoning` alias,
+  TanStack Query state handling, and StyleCapture card primitives. Adapted the
+  closed-candidate reranker boundary from the Issue #4 Skill. Rejected copying the
+  Skill algorithm into H5 or adding a second recommendation server; the remaining
+  Skill implementation must become a thin Product API client before Issue #4 closes.
 
 ### Target file map
 

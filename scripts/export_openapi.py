@@ -10,6 +10,7 @@ from stylecapture_backend.features.capture.application import (
 )
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
 from stylecapture_backend.features.look.interfaces.http import LookHttpServices
+from stylecapture_backend.features.outfit.interfaces.http import OutfitHttpServices
 from stylecapture_backend.features.render.interfaces.http import RenderHttpServices
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
@@ -26,6 +27,8 @@ def export() -> Path:
         wardrobe=cast(WardrobeApplication, None),
         looks=cast(LookHttpServices, object()),
         renders=cast(RenderHttpServices, object()),
+        outfits=cast(OutfitHttpServices, object()),
+        demo_wardrobe=None,
     )
     schema = create_app(services).openapi()
     output.write_text(

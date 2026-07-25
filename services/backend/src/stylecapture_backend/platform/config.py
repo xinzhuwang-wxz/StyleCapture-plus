@@ -32,6 +32,8 @@ class BackendSettings(BaseSettings):
     vision_model_alias: str = "vision_understanding"
     grounding_model_alias: str = "visual_grounding"
     outfit_analysis_model_alias: str = "outfit_analysis"
+    reasoning_model_alias: str = "reasoning"
+    outfit_reasoning_timeout_seconds: float = 30
     image_generation_model_alias: str = "image_generation"
     segmentation_mode: Literal["coarse", "sam2"] = "sam2"
     segmentation_model_alias: str = "segmentation_refinement"
@@ -53,6 +55,7 @@ class BackendSettings(BaseSettings):
     fashn_api_base: str = "https://api.fashn.ai/v1"
     fashn_api_key: SecretStr = SecretStr("")
     fixed_model_object_key: str | None = None
+    demo_seed_enabled: bool = True
 
     @field_validator("upload_signing_secret", "session_signing_secret")
     @classmethod
@@ -80,6 +83,7 @@ class BackendSettings(BaseSettings):
         "render_request_timeout_seconds",
         "render_poll_interval_seconds",
         "render_poll_timeout_seconds",
+        "outfit_reasoning_timeout_seconds",
     )
     @classmethod
     def validate_render_timeouts(cls, value: float) -> float:
