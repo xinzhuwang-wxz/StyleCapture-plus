@@ -57,13 +57,291 @@
 .feed-selection-actions {
   position: absolute;
   right: 20px;
-  bottom: max(28px, env(safe-area-inset-bottom));
+  bottom: max(98px, calc(env(safe-area-inset-bottom) + 84px));
   left: 20px;
   z-index: 2;
   display: flex;
   gap: 12px;
   justify-content: center;
   pointer-events: auto;
+}
+
+.feed-screen {
+  height: 100dvh;
+  overflow-y: auto;
+  color: #fff;
+  background: #050507;
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+.feed-screen::-webkit-scrollbar {
+  display: none;
+}
+
+.feed-video {
+  position: relative;
+  height: 100dvh;
+  min-height: 34rem;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 32%, #2d2936 0, #0b0a0e 48%, #050507 100%);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  isolation: isolate;
+}
+
+.feed-video__media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #050507;
+  object-fit: contain;
+}
+
+.feed-video__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 42%) 0, transparent 22%),
+    linear-gradient(0deg, rgb(0 0 0 / 78%) 0, transparent 42%);
+}
+
+.feed-video__brand {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  left: 1rem;
+  z-index: 3;
+  display: grid;
+  gap: 0.05rem;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 70%);
+}
+
+.feed-video__brand span {
+  color: #d5bcff;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.18em;
+}
+
+.feed-video__brand strong {
+  font-size: 1.05rem;
+}
+
+.feed-video__meta {
+  position: absolute;
+  right: 5.7rem;
+  bottom: max(7.2rem, calc(env(safe-area-inset-bottom) + 6.3rem));
+  left: 1rem;
+  z-index: 3;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 82%);
+}
+
+.feed-video__meta > strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 1rem;
+}
+
+.feed-video__meta p {
+  margin: 0 0 0.55rem;
+  color: rgb(255 255 255 / 88%);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.feed-video__meta a {
+  color: rgb(255 255 255 / 64%);
+  font-size: 0.7rem;
+  text-decoration: none;
+}
+
+.feed-video__rail {
+  position: absolute;
+  right: 0.85rem;
+  bottom: max(7.25rem, calc(env(safe-area-inset-bottom) + 6.4rem));
+  z-index: 4;
+}
+
+.feed-video__circle-button {
+  display: grid;
+  width: 4rem;
+  min-height: 4.2rem;
+  padding: 0.45rem;
+  place-items: center;
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 42%);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(145deg, rgb(118 87 255 / 92%), rgb(230 87 216 / 86%));
+  box-shadow:
+    0 0.8rem 2rem rgb(0 0 0 / 35%),
+    0 0 1.5rem rgb(147 105 238 / 34%);
+  backdrop-filter: blur(12px);
+}
+
+.feed-video__circle-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.feed-video__circle-button span {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.feed-video__circle-button small {
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.feed-state {
+  display: grid;
+  width: min(100%, 32rem);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 2rem;
+  place-content: center;
+  place-items: center;
+  text-align: center;
+}
+
+.feed-state--dark {
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 35%, rgb(118 87 255 / 24%), transparent 18rem),
+    #050507;
+}
+
+.feed-state strong {
+  margin-top: 0.8rem;
+  font-size: 1.05rem;
+}
+
+.feed-state p {
+  max-width: 18rem;
+  margin: 0.5rem auto 1rem;
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.feed-state button,
+.feed-media-error button,
+.feed-save-error button {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  color: #fff;
+  font-weight: 750;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 999px;
+  background: rgb(118 87 255 / 86%);
+}
+
+.feed-spinner {
+  display: inline-block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid rgb(255 255 255 / 28%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: feed-spin 800ms linear infinite;
+}
+
+.feed-save-state,
+.feed-saved-toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 22;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 750;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 999px;
+  background: rgb(18 15 24 / 82%);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 38%);
+  backdrop-filter: blur(18px);
+  transform: translate(-50%, -50%);
+}
+
+.feed-saved-toast {
+  top: 36%;
+  background: rgb(41 138 99 / 88%);
+}
+
+.feed-save-error,
+.feed-media-error {
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  left: 1rem;
+  z-index: 24;
+  max-width: 25rem;
+  margin: auto;
+  padding: 1.1rem;
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 1.35rem;
+  background: rgb(28 22 36 / 92%);
+  box-shadow: 0 1.2rem 4rem rgb(0 0 0 / 52%);
+  backdrop-filter: blur(22px);
+  transform: translateY(-50%);
+}
+
+.feed-save-error p {
+  margin: 0.45rem 0 1rem;
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.83rem;
+  line-height: 1.55;
+}
+
+.feed-save-error > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.feed-save-error button:last-child {
+  background: rgb(255 255 255 / 9%);
+}
+
+.feed-media-error {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feed-reduced-motion {
+  position: absolute;
+  top: max(4.5rem, calc(env(safe-area-inset-top) + 4rem));
+  right: 1rem;
+  left: 1rem;
+  z-index: 4;
+  padding: 0.7rem;
+  color: rgb(255 255 255 / 78%);
+  font-size: 0.72rem;
+  text-align: center;
+  border-radius: 0.8rem;
+  background: rgb(10 9 13 / 70%);
+}
+
+@keyframes feed-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .feed-selection-action {
@@ -98,6 +376,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .feed-screen {
+    scroll-behavior: auto;
+  }
+
+  .feed-spinner {
+    animation: none;
+  }
+
   .feed-lasso-trail--closed {
     animation: none;
   }
