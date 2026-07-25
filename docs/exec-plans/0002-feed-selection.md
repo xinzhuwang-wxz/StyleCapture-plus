@@ -168,6 +168,7 @@ Rejected reuse:
 | API contracts | Handwritten duplicate TypeScript types; OpenAPI generator | Reuse generated OpenAPI client types | One backend contract source prevents H5 drift | `openapi-typescript@7.13.0`, MIT |
 | Frame extraction | Browser seek logic; custom decoder; FFmpeg | Reuse FFmpeg | Mature timestamp-aware decoding avoids a custom media stack | Local FFmpeg 8.0.1; LGPL/GPL build terms retained with deployment |
 | Corpus manifest validation | Handwritten schema; JSON Schema dependency; existing Pydantic + FFprobe | Reuse Pydantic and FFprobe behind a thin repository script | Pydantic already defines product contracts; FFprobe proves real playability. Only cross-asset coverage, provenance, and hash rules are product-specific | `pydantic@2.12.5`, MIT; local FFmpeg/FFprobe 8.0.1 |
+| Corpus download and review transcoding | Custom HTTP downloader/decoder; curl; HTTPX; FFmpeg | Reuse FFmpeg's HTTPS demuxer and transcoder behind a sequential, atomic thin wrapper | Avoids a second decoder and full-size UHD staging files; one asset is bounded and published only after FFprobe succeeds, so retries resume without laptop saturation | local FFmpeg 8.0.1, LGPL/GPL build terms retained with deployment |
 | Still-frame segmentation | Coarse polygon; MobileSAM; SAM2.1; Grounded-SAM2 | Coarse polygon truth + adapted MobileSAM default; heavier candidates quality-only | Keeps core CPU-compatible and preserves save intent when inference fails | `MobileSAM@f706ad9`, Apache-2.0; `sam2@2b90b9f`, Apache-2.0; `Grounded-SAM-2@b7a9c29`, Apache-2.0 |
 | Gesture animation | Handwritten animation engine; Motion; SVG/Canvas | Reuse Motion and browser primitives | Existing dependency supplies drag/spring behavior; Canvas/SVG supplies exact lasso visuals without a 3D engine | `motion@12.23.24`, MIT; browser standards |
 
@@ -265,6 +266,10 @@ All commands run from `/Users/bamboo/Githubs/StyleCapture-plus`.
 
 5. Feed corpus:
 
+       python scripts/feed_corpus.py ingest \
+         data/feed/sources.json \
+         apps/h5/public/feed/manifest.json \
+         --clip-duration 6
        python scripts/feed_corpus.py verify apps/h5/public/feed/manifest.json
 
    Expected: at least 30 unique valid SHA-256 entries, eight fixed regression entries,
