@@ -106,6 +106,9 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
             for name, field in result.fields.items()
         }
     )
+    system_prompt = call["messages"][0]["content"]
+    assert "Simplified Chinese" in system_prompt
+    assert "Keep category and subcategory as the lowercase stable taxonomy IDs" in system_prompt
 
 
 @pytest.mark.asyncio

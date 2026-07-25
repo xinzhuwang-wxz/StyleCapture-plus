@@ -27,7 +27,7 @@ from stylecapture_backend.features.wardrobe.taxonomy import (
     taxonomy_prompt,
 )
 
-GARMENT_PROMPT_VERSION = "garment-v1"
+GARMENT_PROMPT_VERSION = "garment-zh-v2"
 GARMENT_SCHEMA_VERSION = "garment-v1"
 
 
@@ -188,8 +188,10 @@ def _messages(
             "role": "system",
             "content": (
                 "You are a garment asset analyst. Return only the requested strict JSON schema. "
-                "Describe visible evidence conservatively, use lowercase stable IDs, and never "
-                "invent a brand, material, or detail that is not visible.\n\n"
+                "Describe visible evidence conservatively and never invent a brand, material, "
+                "or detail that is not visible. Keep category and subcategory as the lowercase "
+                "stable taxonomy IDs below. Write every other user-facing text value in concise, "
+                "natural Simplified Chinese.\n\n"
                 f"{taxonomy_prompt()}"
             ),
         },

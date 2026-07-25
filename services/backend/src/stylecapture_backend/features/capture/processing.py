@@ -564,9 +564,13 @@ class CaptureProcessor:
             return ProcessingOutcome.partial(invalid_grounding_error)
 
         accepted = self._reliable_candidates(grounding, outfit_selection)
-        accepted_keys = {candidate.label for candidate in accepted}
+        accepted_keys: set[str] = set()
         for display_order, candidate in enumerate(accepted):
-            component = existing_components.get(candidate.label) or LookComponent.pending(
+            component = self._existing_component_for_candidate(
+                existing_components,
+                candidate,
+                claimed_keys=accepted_keys,
+            ) or LookComponent.pending(
                 look_id=look.id,
                 component_key=candidate.label,
                 evidence_region=_box_polygon(candidate.box),
@@ -575,6 +579,7 @@ class CaptureProcessor:
                 role=candidate.category.value,
                 display_order=display_order,
             )
+            accepted_keys.add(component.component_key)
             if component.status is LookComponentStatus.READY and component.item_id is not None:
                 ready_components.append(component)
                 continue
@@ -740,6 +745,33 @@ class CaptureProcessor:
             and is_valid_selection_key(candidate.label)
         )
 
+    @staticmethod
+    def _existing_component_for_candidate(
+        existing: Mapping[str, LookComponent],
+        candidate: GroundingCandidate,
+        *,
+        claimed_keys: set[str],
+    ) -> LookComponent | None:
+        exact = existing.get(candidate.label)
+        if exact is not None and exact.component_key not in claimed_keys:
+            return exact
+        compatible = (
+            component
+            for component in existing.values()
+            if component.component_key not in claimed_keys
+            and component.role == candidate.category.value
+        )
+        matches = (
+            (_polygon_box_iou(component.evidence_region, candidate.box), component)
+            for component in compatible
+        )
+        best_score, best_component = max(
+            matches,
+            key=lambda match: match[0],
+            default=(0.0, None),
+        )
+        return best_component if best_score >= 0.65 else None
+
     def _candidate_in_processing_scope(
         self,
         candidate: GroundingCandidate,
@@ -862,6 +894,23 @@ def _box_inside_polygon(box: NormalizedBox, polygon: tuple[NormalizedPoint, ...]
         round((box.y_min + box.y_max) / 2),
     )
     return _point_in_polygon(center, polygon)
+
+
+def _polygon_box_iou(
+    polygon: tuple[NormalizedPoint, ...],
+    box: NormalizedBox,
+) -> float:
+    left = max(min(point.x for point in polygon), box.x_min / 999)
+    top = max(min(point.y for point in polygon), box.y_min / 999)
+    right = min(max(point.x for point in polygon), box.x_max / 999)
+    bottom = min(max(point.y for point in polygon), box.y_max / 999)
+    intersection = max(0.0, right - left) * max(0.0, bottom - top)
+    polygon_area = (max(point.x for point in polygon) - min(point.x for point in polygon)) * (
+        max(point.y for point in polygon) - min(point.y for point in polygon)
+    )
+    box_area = ((box.x_max - box.x_min) / 999) * ((box.y_max - box.y_min) / 999)
+    union = polygon_area + box_area - intersection
+    return intersection / union if union > 0 else 0.0
 
 
 def _point_in_polygon(point: NormalizedPoint, polygon: tuple[NormalizedPoint, ...]) -> bool:

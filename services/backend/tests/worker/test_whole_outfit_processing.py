@@ -693,6 +693,35 @@ async def test_whole_outfit_retry_reuses_look_component_item_and_asset_identitie
 
 
 @pytest.mark.asyncio
+async def test_retry_reuses_same_region_when_grounder_renames_component() -> None:
+    capture, job = whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (box_candidate("sequined_dress", NormalizedBox(150, 160, 620, 870)),)
+    )
+    processor, _work, wardrobe, looks, objects = build_processor(
+        capture,
+        job,
+        grounder=grounder,
+    )
+
+    first_outcome = await processor.process(capture.id, job.id)
+    first_component = looks.components["sequined_dress"]
+    first_item = wardrobe.items[(capture.id, "sequined_dress")]
+    first_asset_keys = set(objects.derived or {})
+    grounder.candidates = (box_candidate("black_floral_dress", NormalizedBox(160, 170, 625, 875)),)
+
+    second_outcome = await processor.process(capture.id, job.id)
+
+    assert first_outcome == ProcessingOutcome.ready()
+    assert second_outcome == ProcessingOutcome.ready()
+    assert set(looks.components) == {"sequined_dress"}
+    assert set(wardrobe.items) == {(capture.id, "sequined_dress")}
+    assert looks.components["sequined_dress"].id == first_component.id
+    assert wardrobe.items[(capture.id, "sequined_dress")].id == first_item.id
+    assert set(objects.derived or {}) == first_asset_keys
+
+
+@pytest.mark.asyncio
 async def test_retry_completes_when_stale_error_component_disappears_from_grounding() -> None:
     capture, job = whole_outfit_capture_job()
     grounder = RecordingGrounder(

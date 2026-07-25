@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 import type { Item, Ownership } from "../../api/client";
+import { GARMENT_CATEGORY_OPTIONS, garmentLabel } from "./localization";
 import { useSourceImage } from "./useSourceImage";
 
 type ItemDetailProps = {
@@ -78,12 +79,24 @@ function DetailContent({
 
         <label className="form-field">
           <span>分类</span>
-          <input
+          <select
             value={category}
-            maxLength={80}
-            placeholder="例如：上装"
+            aria-label="分类"
             onChange={(event) => setCategory(event.target.value)}
-          />
+          >
+            <option value="">待分类</option>
+            {GARMENT_CATEGORY_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {garmentLabel(option)}
+              </option>
+            ))}
+          </select>
+          {category &&
+          !GARMENT_CATEGORY_OPTIONS.includes(
+            category as (typeof GARMENT_CATEGORY_OPTIONS)[number]
+          ) ? (
+            <small>当前分类：{garmentLabel(category)}</small>
+          ) : null}
         </label>
         <label className="form-field">
           <span>单品描述</span>

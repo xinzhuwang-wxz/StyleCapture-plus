@@ -36,6 +36,15 @@ type ApiErrorPayload = {
   };
 };
 
+const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
+  render_idempotency_conflict: "穿搭内容已经更新，请稍后重新生成成片",
+  render_dispatch_unavailable: "成片任务已保存，后台服务恢复后会继续",
+  render_artifact_not_found: "这张穿搭成片暂时不可用",
+  job_not_retryable: "当前任务正在处理或已经完成，无需重试",
+  source_deleted_not_retryable: "原始图片已删除，无法再次识别",
+  item_update_invalid: "修改内容不符合衣橱要求"
+};
+
 export class ProductApiError extends Error {
   readonly code: string;
 
@@ -96,9 +105,10 @@ async function sha256(file: File): Promise<string> {
 
 function throwApiError(error: unknown, fallback: string): never {
   const payload = error as ApiErrorPayload | undefined;
+  const code = payload?.error?.code ?? "request_failed";
   throw new ProductApiError(
-    payload?.error?.code ?? "request_failed",
-    payload?.error?.message ?? fallback
+    code,
+    PRODUCT_ERROR_MESSAGES[code] ?? fallback
   );
 }
 

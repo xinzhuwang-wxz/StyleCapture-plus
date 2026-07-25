@@ -30,7 +30,23 @@ function partialDetail(sourceAvailable = true): LookDetailData {
       source_image_url: sourceAvailable ? pendingLook.source_image_url : null
     },
     components: [],
-    analysis: null,
+    analysis: {
+      capability_alias: "outfit_analysis",
+      confidence: {
+        color: 0.91,
+        silhouette: 0.87,
+        style: 0.92
+      },
+      model_version: "outfit-analysis-model-v1",
+      prompt_version: "outfit-analysis-zh-v2",
+      schema_version: "look-analysis-v1",
+      taxonomy_version: "stylecapture-v1",
+      values: {
+        color: "黑底搭配银色花卉",
+        silhouette: "修身连衣裙",
+        style: "轻奢晚宴风"
+      }
+    },
     preferences: [],
     source_video_ref: "pexels-9512048",
     source_timestamp_ms: 2_300
@@ -211,5 +227,31 @@ describe("Look wardrobe states", () => {
     expect(
       screen.queryByRole("button", { name: "分享像素封面" })
     ).not.toBeInTheDocument();
+  });
+
+  it("localizes wardrobe taxonomy and outfit relationship labels for users", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("上装")).toBeInTheDocument();
+    expect(screen.getByText("配色")).toBeInTheDocument();
+    expect(screen.getByText("廓形")).toBeInTheDocument();
+    expect(screen.getByText("整体风格")).toBeInTheDocument();
+    expect(screen.getByText("黑底搭配银色花卉")).toBeInTheDocument();
+    expect(screen.queryByText("tops")).not.toBeInTheDocument();
+    expect(screen.queryByText("color")).not.toBeInTheDocument();
   });
 });

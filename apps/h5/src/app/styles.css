@@ -1246,6 +1246,7 @@ p {
 }
 
 .form-field input,
+.form-field select,
 .form-field textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -1254,9 +1255,22 @@ p {
   color: var(--ink);
 }
 
-.form-field input {
+.form-field input,
+.form-field select {
   min-height: 2.75rem;
   padding: 0 0.75rem;
+}
+
+.form-field select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--purple-500) 50%),
+    linear-gradient(135deg, var(--purple-500) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-repeat: no-repeat;
+  background-size: 6px 6px;
 }
 
 .form-field textarea {

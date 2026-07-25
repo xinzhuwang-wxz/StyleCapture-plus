@@ -40,7 +40,7 @@ const wardrobeItem: Item = {
   source_available: true,
   attributes: {
     category: {
-      value: "上装",
+      value: "tops",
       provenance: "model",
       confidence: 0.9,
       model_version: "test-model",
@@ -184,5 +184,44 @@ describe("StyleCapture garment ingest", () => {
       )
     );
     expect(screen.queryByLabelText("原图不可用")).not.toBeInTheDocument();
+  });
+
+  it("shows category choices in Chinese while saving stable taxonomy ids", async () => {
+    const user = userEvent.setup();
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    api.updateItem.mockResolvedValue({
+      ...wardrobeItem,
+      attributes: {
+        ...wardrobeItem.attributes,
+        category: {
+          ...wardrobeItem.attributes.category!,
+          value: "dresses"
+        }
+      }
+    });
+    renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "米白色针织上衣 可搭配 上装 我的衣服"
+      })
+    );
+
+    const category = screen.getByRole("combobox", { name: "分类" });
+    expect(category).toHaveValue("tops");
+    expect(screen.getByRole("option", { name: "上装" })).toHaveValue("tops");
+
+    await user.selectOptions(category, "dresses");
+    await user.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() =>
+      expect(api.updateItem).toHaveBeenCalledWith(
+        wardrobeItem.id,
+        expect.objectContaining({
+          corrections: expect.objectContaining({ category: "dresses" })
+        })
+      )
+    );
   });
 });

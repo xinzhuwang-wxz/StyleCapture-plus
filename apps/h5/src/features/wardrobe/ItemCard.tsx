@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 
 import type { Item, Job, Ownership } from "../../api/client";
+import { garmentLabel } from "./localization";
 import { useSourceImage } from "./useSourceImage";
 
 export type PendingItem = {
@@ -38,7 +39,9 @@ export function WardrobeItemCard({
   onOpen: () => void;
   onRetry: () => void;
 }) {
-  const category = String(item.attributes.subcategory?.value ?? item.attributes.category?.value ?? "待分类");
+  const category = garmentLabel(
+    item.attributes.subcategory?.value ?? item.attributes.category?.value
+  );
   return (
     <motion.article
       className="item-card"

@@ -6,6 +6,7 @@ import type {
   RenderArtifact,
   RenderKind
 } from "../../api/client";
+import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
 
 type LookDetailProps = {
   detail: LookDetailData | null;
@@ -187,13 +188,18 @@ function DetailContent({
               {detail.components.map((component) => (
                 <article key={component.component_key}>
                   {component.item_image_url ? (
-                    <img src={component.item_image_url} alt={component.role ?? "穿搭单品"} />
+                    <img
+                      src={component.item_image_url}
+                      alt={garmentImageAlt(component.role ?? component.layer)}
+                    />
                   ) : (
                     <div className="item-image-placeholder">
                       <span>衣</span>
                     </div>
                   )}
-                  <strong>{component.role ?? component.layer ?? "待识别单品"}</strong>
+                  <strong>
+                    {garmentLabel(component.role ?? component.layer, "待识别单品")}
+                  </strong>
                   <small>
                     {component.item_id ? "已进入单品衣橱" : "保留中，等待补全"}
                   </small>
@@ -308,7 +314,7 @@ function DetailContent({
             <div className="look-analysis">
               {Object.entries(values).map(([key, value]) => (
                 <p key={key}>
-                  <span>{key}</span>
+                  <span>{LOOK_ANALYSIS_LABELS[key] ?? key}</span>
                   <strong>{value}</strong>
                 </p>
               ))}
