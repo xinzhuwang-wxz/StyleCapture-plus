@@ -95,8 +95,17 @@ Concurrent replay of the same signed upload is idempotent: object and metadata
 writes use unique atomic temporary files, and both callers receive the same
 stored-object result.
 
-## Environment-gated evidence
+## Provider evidence
 
-No `ARK_API_KEY` was available during this pass. Therefore a successful Doubao response and the FashionSigLIP `ai-light` smoke are not claimed. Their adapters, schemas, resource-limited container profile, and contract tests are present; the product failure path remains honest and usable without them.
+On 2026-07-25 the user-supplied Ark credential was injected only through the
+Git-ignored local environment and the LiteLLM gateway was rebuilt. A real
+`vision_understanding` chat request returned HTTP 200 and `OK`; a second request
+sent the real checked-in pixel-character PNG as multimodal input and returned HTTP
+200 with the correct answer `是`. Both calls used the product capability alias, not
+a direct provider call. A tracked-file scan found no credential value.
+
+The FashionSigLIP `ai-light` smoke is still not claimed. Its adapter, schema,
+resource-limited container profile, and contract tests are present; the default
+core remains honest and usable without loading local model weights.
 
 The browser/API/worker stack used one local PostgreSQL container (~29MB), one Redis container (~10MB), one API process (~79MB), one Celery worker with concurrency 1 (~311MB), one LiteLLM gateway (~287MB), and one Nginx H5 container (~9MB). No local vision model was loaded.

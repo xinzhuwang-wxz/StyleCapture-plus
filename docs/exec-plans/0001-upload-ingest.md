@@ -374,4 +374,9 @@ Issue #1 now has a complete local product slice and reviewable evidence, pending
 
 Fresh verification is 66 Python tests, 4 Vitest tests, TypeScript, Vite production build, Ruff, format, mypy, architecture boundaries, stable regenerated OpenAPI, valid hardened Compose, clean Python/pnpm dependency audits, Python/cURL examples, and one 390×844 Playwright E2E with no route interception. The E2E passed in 7.7 seconds; explicit screenshots live under `artifacts/issue-1/`, and `08-source-deleted-reload-mobile.png` proves the deleted state after a real reload. Raw browser tracing is intentionally disabled because it records authenticated cookies, headers, and uploaded media. Visual verdict remains 92/pass.
 
-No Ark credential exists in the environment, so a successful Doubao response and real FashionSigLIP vector write are not claimed. The LiteLLM and embedding adapters remain honest: the visible product failure path uses the real queue/provider boundary and stores no synthetic tags. This credential-gated evidence must be added before the aggregate Goal can be declared complete, but it does not block implementing later Issues against the stable capability contracts.
+A user-supplied Ark credential is now injected only through the Git-ignored local
+environment. Fresh LiteLLM smoke evidence includes one real text response and one
+real multimodal response through `vision_understanding`, both HTTP 200, with no
+provider call or credential in product code. A real FashionSigLIP vector write is
+still pending the bounded `ai-light` validation; this does not block later Issues or
+the default CPU/hosted-provider product path.
