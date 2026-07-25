@@ -168,6 +168,10 @@ def _ingest_source_asset(
             str(source.direct_media_url),
             "-t",
             str(clip_duration_seconds),
+            "-filter_threads",
+            "1",
+            "-filter_complex_threads",
+            "1",
             "-vf",
             (
                 "scale=480:854:force_original_aspect_ratio=decrease,"
@@ -176,6 +180,8 @@ def _ingest_source_asset(
             "-an",
             "-c:v",
             "libx264",
+            "-threads",
+            "1",
             "-preset",
             "veryfast",
             "-crf",
