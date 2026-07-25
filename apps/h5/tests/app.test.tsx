@@ -210,8 +210,26 @@ describe("StyleCapture mini-program", () => {
 
     await user.click(screen.getByRole("tab", { name: /按单品/ }));
 
-    // 像素单品卡片 + 已有/未拥有文字（筛选器与卡片各出现一次）
+    // 真实入库的 Item 出现在卡片上，并带所有权角标
     expect(await screen.findByText("米白针织衫")).toBeInTheDocument();
-    expect(screen.getAllByText("已有").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("⭐ 已拥有")).toBeInTheDocument();
+    expect(screen.getByText("我的衣橱")).toBeInTheDocument();
+  });
+
+  it("opens the item detail page for a real wardrobe item", async () => {
+    const user = userEvent.setup();
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    renderApp();
+    await enterMini(user);
+
+    await user.click(screen.getByRole("tab", { name: /按单品/ }));
+    await user.click(await screen.findByText("米白针织衫"));
+
+    expect(
+      await screen.findByRole("heading", { name: "米白针织衫" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("单品图鉴 · 上装")).toBeInTheDocument();
+    // 新入库的单品没有人工写的价格，如实显示而不是编一个
+    expect(screen.getByText("暂无价格")).toBeInTheDocument();
   });
 });

@@ -1,0 +1,479 @@
+/* ═══ 穿搭详情：拼贴 / 试穿双栏、单品条、分享图鉴卡 ═══ */
+
+/* 撑满一屏：双栏图区吃掉多余高度，页面短时不留大片空白，
+   内容长时照常滚动。 */
+.outfit-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.outfit-detail__header {
+  display: flex;
+  align-items: center;
+  gap: var(--px-2);
+  margin-bottom: var(--px-3);
+}
+
+.outfit-detail__title {
+  margin: 0;
+  font-size: 1.18rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outfit-detail__star {
+  flex: none;
+  padding: 2px;
+  font-size: 1.6rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  filter: grayscale(1) opacity(0.45);
+  transform: scale(1);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.outfit-detail__star[data-on="true"] {
+  filter: drop-shadow(0 2px 4px rgba(245, 158, 11, 0.5));
+  transform: scale(1.15);
+}
+
+/* ─── 双栏：左拼贴 / 右试穿 ─── */
+.outfit-detail__panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1 1 auto;
+  min-height: 15rem;
+  max-height: 24rem;
+  gap: 2px;
+  margin-bottom: var(--px-3);
+  overflow: hidden;
+  background: var(--pixel-border);
+  border: 2px solid var(--pixel-border);
+  border-radius: 18px;
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.outfit-detail__collage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: var(--px-2);
+  background: #fff;
+  min-height: 0;
+}
+
+.outfit-detail__collage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.outfit-detail__collage-busy,
+.outfit-detail__collage-note {
+  display: grid;
+  gap: var(--px-2);
+  justify-items: center;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--pixel-text-muted);
+  text-align: center;
+}
+
+.outfit-detail__collage-tag {
+  position: absolute;
+  bottom: var(--px-2);
+  left: var(--px-2);
+  padding: 2px 8px;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  color: var(--pixel-text-muted);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--pixel-border);
+  border-radius: 999px;
+}
+
+/* ─── 试穿面板 ─── */
+.tryon-pane {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #f0eaf9;
+}
+
+.tryon-pane > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.35s ease;
+}
+
+.tryon-pane--busy {
+  gap: var(--px-2);
+  padding: var(--px-3);
+  text-align: center;
+}
+
+.tryon-pane__spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--pixel-border);
+  border-top-color: var(--pixel-primary);
+  border-radius: 50%;
+  animation: tryonSpin 0.9s linear infinite;
+}
+
+@keyframes tryonSpin {
+  to { transform: rotate(360deg); }
+}
+
+.tryon-pane__label {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: 0.72rem;
+  color: var(--pixel-text-muted);
+}
+
+.tryon-pane__note {
+  margin: 0;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--pixel-text-dim);
+}
+
+/* 降级：展示真实拼贴 + 明确说明没有生成试穿 */
+.tryon-pane--degraded {
+  position: relative;
+  align-content: end;
+  padding: 0;
+}
+
+.tryon-pane--degraded img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: var(--px-2);
+  opacity: 0.55;
+}
+
+.tryon-pane__degraded-body {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  width: 100%;
+  padding: var(--px-2);
+  background: linear-gradient(180deg, rgba(240, 234, 249, 0), #f0eaf9 42%);
+  text-align: center;
+}
+
+.tryon-pane__badge {
+  position: absolute;
+  bottom: var(--px-2);
+  left: 50%;
+  z-index: 3;
+  padding: 2px 8px;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+
+.tryon-pane__badge--user { color: var(--pixel-primary-dark); }
+.tryon-pane__badge--model { color: #a16207; background: #fef3c7; }
+
+.tryon-pane__badge--warn {
+  position: static;
+  transform: none;
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.tryon-pane__toggle {
+  position: relative;
+  z-index: 2;
+  max-width: 92%;
+  padding: 6px 13px;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--pixel-primary-dark);
+  background: rgba(255, 255, 255, 0.94);
+  border: 2px solid var(--pixel-primary);
+  border-radius: 999px;
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.tryon-pane__provenance {
+  position: absolute;
+  top: var(--px-2);
+  left: 50%;
+  z-index: 3;
+  max-width: 92%;
+  padding: 2px 8px;
+  font-size: 0.55rem;
+  color: var(--pixel-text-muted);
+  text-align: center;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+
+/* ─── AI 点评 ─── */
+.outfit-detail__comment {
+  display: flex;
+  gap: var(--px-3);
+  align-items: flex-start;
+  padding: var(--px-3) var(--px-4);
+  margin-bottom: var(--px-3);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 14px;
+}
+
+.outfit-detail__comment span { font-size: 1.2rem; line-height: 1.2; }
+
+.outfit-detail__comment p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.65;
+  color: var(--pixel-text-muted);
+  text-wrap: pretty;
+}
+
+/* ─── 单品横条 ─── */
+.outfit-detail__slots {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: var(--px-4);
+  scrollbar-width: none;
+}
+
+.outfit-detail__slots::-webkit-scrollbar { display: none; }
+
+.outfit-detail__slot {
+  flex: 0 0 88px;
+  padding: 5px;
+  text-align: center;
+  background: #f1eff5;
+  border: 1.5px solid #e2deeb;
+  border-radius: 14px;
+  box-shadow: 0 3px 0 #efe8fa;
+  filter: grayscale(0.5);
+}
+
+.outfit-detail__slot[data-owned="true"] {
+  background: #fff;
+  border-color: var(--pixel-secondary);
+  filter: none;
+}
+
+.outfit-detail__slot img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 9px;
+  margin-bottom: 4px;
+}
+
+.outfit-detail__slot strong {
+  display: block;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pixel-text-dim);
+}
+
+.outfit-detail__slot[data-owned="true"] strong { color: var(--pixel-text); }
+
+.outfit-detail__slot span {
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  color: var(--pixel-pink-dark);
+}
+
+.outfit-detail__slot[data-owned="true"] span { color: var(--pixel-accent-glow); }
+
+/* ─── 分享图鉴卡 ─── */
+.share-card {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: radial-gradient(
+    70% 50% at 50% 42%,
+    rgba(167, 139, 250, 0.5),
+    rgba(61, 44, 94, 0.72)
+  );
+  backdrop-filter: blur(3px);
+}
+
+.share-card__inner {
+  width: 100%;
+  max-width: 288px;
+  animation: sharePop 0.3s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+
+@keyframes sharePop {
+  from { opacity: 0; transform: scale(0.6) translateY(50px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.share-card__paper {
+  position: relative;
+  padding: 12px 12px 14px;
+  background: #fffdf9;
+  border: 3px solid var(--pixel-pink);
+  border-radius: 26px;
+  box-shadow: 0 20px 46px rgba(61, 44, 94, 0.4);
+}
+
+.share-card__doodle { position: absolute; }
+.share-card__doodle--star { top: -14px; left: -10px; font-size: 1.6rem; transform: rotate(-14deg); }
+.share-card__doodle--heart { top: -12px; right: -8px; font-size: 1.25rem; transform: rotate(12deg); }
+
+.share-card__frame {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #faf5ff, #fdeef5);
+  border: 2px dashed #f5d0e4;
+  border-radius: 18px;
+}
+
+.share-card__frame img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.share-card__frame-busy {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  font-family: var(--font-pixel);
+  font-size: 0.72rem;
+  color: var(--pixel-text-muted);
+}
+
+.share-card__tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 9px;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  color: var(--pixel-primary-dark);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+}
+
+.share-card__note {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 0.55rem;
+  text-align: center;
+  color: var(--pixel-text-muted);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+}
+
+.share-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-2);
+  margin-top: 10px;
+}
+
+.share-card__meta strong {
+  display: block;
+  font-family: var(--font-pixel);
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-card__meta span {
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  color: var(--pixel-text-dim);
+}
+
+.share-card__thumbs { display: flex; flex: none; gap: 4px; }
+
+.share-card__thumbs img {
+  width: 30px;
+  height: 30px;
+  object-fit: cover;
+  border: 1.5px solid var(--pixel-border-light);
+  border-radius: 7px;
+}
+
+.share-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 2px dashed var(--pixel-border-light);
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  color: var(--pixel-secondary);
+}
+
+.share-card__footer span:last-child { color: var(--pixel-pink-dark); }
+
+.share-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.share-card__actions > button {
+  padding: 13px;
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  border-radius: 999px;
+}
+
+.share-card__douyin {
+  color: #fff;
+  background: #16141c;
+  border: 2px solid #000;
+}
+
+.share-card__close {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.8);
+  background: transparent;
+  border: none;
+}
