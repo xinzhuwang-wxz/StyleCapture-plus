@@ -3,7 +3,9 @@ import {
   createCommunityScene,
   enterMyLook,
   reactToSelectedLook,
+  replaceMyLook,
   selectPartyLook,
+  startDance,
   toggleSavedLook
 } from "../src/features/community/communityScene";
 
@@ -16,7 +18,7 @@ describe("theme party scene", () => {
     });
 
     expect(scene.theme).toMatchObject({
-      title: "花房晚宴",
+      title: "花房夜宴",
       promise: "让每套像素搭配被看见、被收藏、被分享"
     });
     expect(scene.looks[0]).toMatchObject({
@@ -38,10 +40,42 @@ describe("theme party scene", () => {
     expect(selected.selectedLookId).toBe("curated-mint");
     expect(entering).toMatchObject({
       selectedLookId: scene.myLookId,
-      stage: "entrance",
+      stage: "runway",
       selectedReaction: null
     });
     expect(spotlight.stage).toBe("spotlight");
+  });
+
+  it("keeps a local upload backstage until the user explicitly enters", () => {
+    const scene = createCommunityScene();
+    const uploaded = replaceMyLook(scene, {
+      assetUrl: "blob:my-uploaded-look",
+      label: "my-look.png",
+      kind: "local-upload"
+    });
+
+    expect(uploaded).toMatchObject({
+      selectedLookId: scene.myLookId,
+      stage: "backstage",
+      selectedReaction: null
+    });
+    expect(
+      uploaded.looks.find((look) => look.id === uploaded.myLookId)
+    ).toMatchObject({
+      assetUrl: "blob:my-uploaded-look",
+      sourceLabel: "我的上传 Look · 仅本机",
+      presentation: "avatar"
+    });
+  });
+
+  it("moves from runway to spotlight and then into the dance floor", () => {
+    const runway = enterMyLook(createCommunityScene());
+    const spotlight = completeEntrance(runway);
+    const dancing = startDance(spotlight);
+
+    expect(runway.stage).toBe("runway");
+    expect(spotlight.stage).toBe("spotlight");
+    expect(dancing.stage).toBe("dance");
   });
 
   it("records only meaningful style reactions in the local demo state", () => {

@@ -22,36 +22,37 @@ function markImageReady(width = 1086, height = 1448) {
 describe("CommunityScreen", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("presents a purposeful theme room and lets the user browse, collect, enter, and react", async () => {
+  it("presents an interactive pixel runway and lets the user browse, collect, enter, and react", async () => {
+    const onPublishLook = vi.fn();
     const user = userEvent.setup();
-    render(<CommunityScreen />);
+    render(<CommunityScreen onPublishLook={onPublishLook} />);
 
     expect(
-      screen.getByRole("heading", { name: "花房晚宴" })
+      screen.getByRole("heading", { name: "穿上今晚的 Look，走进舞会" })
     ).toBeInTheDocument();
-    expect(screen.getByText("主题陈列室 Demo · 非实时社区")).toBeInTheDocument();
+    expect(screen.getByText("精选示例 · 非实时真人社区")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("使用 Pixel Agents 开源素材构成的像素舞会场景")
+    ).toBeInTheDocument();
     expect(screen.getAllByText("精选示例 · 非真人").length).toBeGreaterThan(0);
-    expect(screen.getByRole("img", { name: "暖棕复古 Look 像素形象" })).toHaveAttribute(
-      "src",
-      "/assets/community/pixel-look-1.png"
+    expect(screen.getByRole("button", { name: "查看暖棕复古" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
     );
 
     await user.click(screen.getByRole("button", { name: /查看薄荷花园/ }));
-    expect(
-      screen.getAllByRole("heading", { name: "薄荷花园" })
-    ).toHaveLength(2);
-    expect(screen.getAllByText(/轻柔层次/)).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "薄荷花园" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "收藏这个搭配灵感" }));
+    await user.click(screen.getByRole("button", { name: "收藏灵感" }));
     expect(screen.getByRole("status")).toHaveTextContent("已收藏：薄荷花园");
 
-    await user.click(screen.getByRole("button", { name: "带我的 Look 登场" }));
-    expect(screen.getByRole("status")).toHaveTextContent("你的 Look 已站上主题舞台");
-    await waitFor(() =>
-      expect(screen.getByRole("img", { name: "我的像素 Look" })).toHaveAttribute(
-        "src",
-        "/assets/char-default.png"
-      )
+    await user.click(screen.getByRole("button", { name: "上台走秀" }));
+    expect(screen.getByRole("status")).toHaveTextContent("走秀开始");
+    expect(onPublishLook).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[data-stage='runway']")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "我的像素 Look" })).toHaveAttribute(
+      "src",
+      "/assets/char-default.png"
     );
 
     await user.click(screen.getByRole("button", { name: "层次感" }));
@@ -59,6 +60,73 @@ describe("CommunityScreen", () => {
       "已记录：层次感 · 仅本次体验"
     );
 
+  });
+
+  it("keeps an uploaded Look backstage until explicit publish, then exports it", async () => {
+    const user = userEvent.setup();
+    const onPublishLook = vi.fn();
+    const drawImage = vi.fn();
+    markImageReady(512, 512);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      "data:image/png;base64,card"
+    );
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "",
+      font: "",
+      textAlign: "left",
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      drawImage
+    } as unknown as CanvasRenderingContext2D);
+
+    render(<CommunityScreen onPublishLook={onPublishLook} />);
+    const file = new File(["pixel-look"], "今晚的搭配.png", {
+      type: "image/png"
+    });
+
+    await user.upload(screen.getByLabelText("上传我的像素 Look"), file);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "已在后台预览；点击“上台走秀”才会登场"
+    );
+    expect(onPublishLook).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-stage='backstage']")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "我的像素 Look" })).toHaveAttribute(
+      "src",
+      "blob:preview"
+    );
+    await user.click(screen.getByRole("button", { name: "上台走秀" }));
+    expect(onPublishLook).toHaveBeenCalledWith(
+      expect.objectContaining({ assetUrl: "blob:preview" })
+    );
+    await user.click(screen.getByRole("button", { name: "配色好会" }));
+    await user.click(screen.getByRole("button", { name: "生成像素分享卡" }));
+
+    await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好");
+  });
+
+  it("rejects a non-image instead of replacing the current Look", async () => {
+    render(<CommunityScreen />);
+
+    fireEvent.change(screen.getByLabelText("上传我的像素 Look"), {
+      target: {
+        files: [
+          new File(["not-an-image"], "look.pdf", {
+            type: "application/pdf"
+          })
+        ]
+      }
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "请选择 JPG、PNG、WebP 或 HEIC 图片"
+    );
+    expect(screen.getByRole("button", { name: "查看暖棕复古" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
   });
 
   it("waits for the selected pixel Look before exporting and prevents duplicate requests", async () => {
@@ -78,9 +146,9 @@ describe("CommunityScreen", () => {
     } as unknown as CanvasRenderingContext2D);
 
     render(<CommunityScreen />);
-    const selectedImage = screen.getByRole("img", {
-      name: "暖棕复古 Look 像素形象"
-    });
+    const selectedImage = document.querySelector(
+      ".party-share__source"
+    ) as HTMLImageElement;
     Object.defineProperty(selectedImage, "complete", {
       configurable: true,
       value: false
@@ -152,7 +220,7 @@ describe("CommunityScreen", () => {
         }}
       />
     );
-    await user.click(screen.getByRole("button", { name: "带我的 Look 登场" }));
+    await user.click(screen.getByRole("button", { name: "上台走秀" }));
     await user.click(screen.getByRole("button", { name: "生成像素分享卡" }));
 
     await waitFor(() => expect(drawImage).toHaveBeenCalled());

@@ -40,7 +40,7 @@ function errorMessage(error: unknown): string {
   return "刚刚没有完成，请稍后再试";
 }
 
-export function App() {
+function ProductApp() {
   const queryClient = useQueryClient();
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -444,4 +444,11 @@ export function App() {
       </nav>
     </main>
   );
+}
+
+export function App() {
+  const directStyleParty =
+    new URLSearchParams(window.location.search).get("demo") === "style-party";
+
+  return directStyleParty ? <CommunityScreen /> : <ProductApp />;
 }

@@ -100,6 +100,7 @@ describe("StyleCapture garment ingest", () => {
   });
 
   afterEach(() => {
+    window.history.pushState({}, "", "/");
     vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
@@ -125,9 +126,24 @@ describe("StyleCapture garment ingest", () => {
     await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     await user.click(screen.getByRole("button", { name: "体验主题派对" }));
 
-    expect(screen.getByRole("heading", { name: "花房晚宴" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "穿上今晚的 Look，走进舞会" })
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "返回数字衣橱" }));
     expect(screen.getByRole("heading", { name: "我的衣橱" })).toBeInTheDocument();
+  });
+
+  it("opens the complete Style Party demo directly without loading wardrobe data", () => {
+    window.history.pushState({}, "", "/?demo=style-party");
+
+    renderApp();
+
+    expect(
+      screen.getByRole("heading", { name: "穿上今晚的 Look，走进舞会" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("上传我的像素 Look")).toBeInTheDocument();
+    expect(api.listItems).not.toHaveBeenCalled();
+    expect(api.listLooks).not.toHaveBeenCalled();
   });
 
   it("requires ownership before a real upload can enter the wardrobe", async () => {

@@ -1,12 +1,17 @@
 export type CommunityAvatarSource = {
   assetUrl: string;
   label: string;
-  kind: "demo-fallback" | "public-render-artifact";
+  kind: "demo-fallback" | "local-upload" | "public-render-artifact";
   presentation?: "avatar" | "card";
 };
 
 export type PartyReaction = "palette" | "layering" | "remix";
-export type PartyStage = "gallery" | "entrance" | "spotlight";
+export type PartyStage =
+  | "gallery"
+  | "backstage"
+  | "runway"
+  | "spotlight"
+  | "dance";
 
 export type PartyLook = {
   id: string;
@@ -90,13 +95,31 @@ function myLook(source: CommunityAvatarSource): PartyLook {
     alt: "我的像素 Look",
     sourceKind: "my-look",
     sourceLabel:
-      source.kind === "public-render-artifact"
-        ? "我的公开像素 Look"
-        : "我的示例形象 · 接口可替换",
+      source.kind === "local-upload"
+        ? "我的上传 Look · 仅本机"
+        : source.kind === "public-render-artifact"
+          ? "我的公开像素 Look"
+          : "我的示例形象 · 接口可替换",
     presentation: source.presentation ?? "avatar",
     tags: ["我的衣橱", "可分享封面"],
     description: "把你的像素搭配带到主题舞台，让这套 Look 成为今晚的主角。",
     outfitFormula: ["我的像素 Look", "主题舞台", "分享卡"]
+  };
+}
+
+export function replaceMyLook(
+  scene: CommunityScene,
+  source: CommunityAvatarSource
+): CommunityScene {
+  const replacement = myLook(source);
+  return {
+    ...scene,
+    looks: scene.looks.map((look) =>
+      look.id === scene.myLookId ? replacement : look
+    ),
+    selectedLookId: scene.myLookId,
+    selectedReaction: null,
+    stage: "backstage"
   };
 }
 
@@ -106,7 +129,7 @@ export function createCommunityScene(
   const ownLook = myLook(avatarSource);
   return {
     theme: {
-      title: "花房晚宴",
+      title: "花房夜宴",
       eyebrow: "STYLE PARTY · THEME 01",
       promise: "让每套像素搭配被看见、被收藏、被分享",
       prompt: "花朵、柔光、带一点复古——今晚你想怎样被记住？"
@@ -139,13 +162,18 @@ export function enterMyLook(scene: CommunityScene): CommunityScene {
     ...scene,
     selectedLookId: scene.myLookId,
     selectedReaction: null,
-    stage: "entrance"
+    stage: "runway"
   };
 }
 
 export function completeEntrance(scene: CommunityScene): CommunityScene {
-  if (scene.stage !== "entrance") return scene;
+  if (scene.stage !== "runway") return scene;
   return { ...scene, stage: "spotlight" };
+}
+
+export function startDance(scene: CommunityScene): CommunityScene {
+  if (scene.selectedLookId !== scene.myLookId) return scene;
+  return { ...scene, stage: "dance" };
 }
 
 export function reactToSelectedLook(
