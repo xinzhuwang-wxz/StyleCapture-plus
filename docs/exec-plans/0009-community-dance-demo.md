@@ -58,7 +58,7 @@ presence, or a general game engine.
 - [x] Share generation waits for image loading, prevents duplicate export, fails
   visibly, and can be retried.
 - [x] Fresh unit, typecheck, build, mobile browser, share-card, and visual evidence pass.
-- [ ] Commit, push, and update PR #10 without merging it.
+- [x] Commit, push, and update PR #10 without merging it.
 
 ## Progress
 
@@ -73,7 +73,8 @@ presence, or a general game engine.
 - [x] 2026-07-25: Completed 10-file / 42-test H5 regression, TypeScript check,
   production build, two 390×844 Chromium journeys, downloaded-card inspection, and a
   94/100 visual verdict.
-- [ ] 2026-07-25: Complete branch commit and PR update.
+- [x] 2026-07-25: Committed the redesign as `edd3b89`, pushed the existing PR branch,
+  and left the validation PR open without merging.
 
 ## Surprises and discoveries
 
