@@ -86,8 +86,10 @@ The client needs:
   its upstream PR and Issue remain untouched.
 - [x] 2026-07-25: PR #12 visual candidate audited. Reusable visual components and
   navigation were separated from its mock data/runtime.
+- [x] 2026-07-25: RenderArtifact domain, repository, migration and application tests
+  were added for exact input signatures, private provider trace, cache hits,
+  degraded fallback links and pixel-only share eligibility.
 - [ ] Finish adapting the approved first-level pixel UI to real Item/Look APIs.
-- [ ] Complete the RenderArtifact domain, repository, migration and application tests.
 - [ ] Add collage generation through the existing object store.
 - [ ] Add private try-on and image-generation provider adapters with bounded polling,
   timeouts, secret protection and honest fallback.
@@ -103,7 +105,7 @@ The client needs:
 | --- | --- | --- | --- | --- |
 | First-level pixel UI | PR #12; current H5; `_ref/StyleCapture-main` | Adapt PR #12 visual components onto current real screens | Preserves the approved visual result without importing mock state | User-owned project code |
 | Item/Look data | PR #12 mock API; current generated API client | Directly reuse current API and generated contracts | Prevents a second product truth and frontend/backend drift | This repo; `openapi-typescript` MIT |
-| Artifact persistence | New file store; current `LocalObjectStore` | Extend/reuse the existing content-addressed store | Avoids duplicate media validation, paths and private streaming rules | This repo; Pillow HPND |
+| Artifact persistence | New file store; current `LocalObjectStore`; Look SQLAlchemy repository | Extend/reuse the existing content-addressed and async repository patterns | Avoids duplicate media validation, paths, private streaming rules and idempotency mechanics | This repo; Pillow HPND |
 | Immediate collage | Browser canvas; ImageMagick; Pillow | Thin Pillow renderer in the media worker | Pillow is already installed and tested; output is deterministic and portable | Pillow HPND |
 | Async execution | New queue; current Capture Celery/Redis pipeline | Reuse task dispatch, worker lifecycle and retry conventions | One queue/state mechanism avoids task drift | This repo; Celery BSD-3-Clause |
 | Pixel generation | Browser procedural avatar; new diffusion pipeline; `_ref/StyleCapture-main` provider router | Adapt the existing provider-router contract to the LiteLLM `image_generation` capability | Keeps the approved character identity without shipping a local diffusion model | User-owned reference; LiteLLM MIT |
@@ -116,19 +118,29 @@ contract independently in the browser, API and worker.
 
 ## Verification
 
-- Backend domain/repository/application/provider/API/worker tests pass.
-- Contract generation is clean and H5 typecheck/tests/build pass.
-- An uncached completed Look produces a real collage from its Item display assets.
-- At least one real hosted generation call succeeds when its server-side credential
+- [x] Render core lint:
+  `uv run --project services/backend ruff check services/backend/src/stylecapture_backend/features/render services/backend/tests/render services/backend/migrations/versions/20260725_0009_render_artifacts.py`
+- [x] Render core typing:
+  `uv run mypy services/backend/src/stylecapture_backend/features/render services/backend/tests/render`
+- [x] Render domain/application/repository tests:
+  `uv run pytest services/backend/tests/render -q`
+- [x] Adjacent Look + Render tests:
+  `uv run pytest services/backend/tests/look/test_domain.py services/backend/tests/look/test_look_application.py services/backend/tests/look/test_repository.py services/backend/tests/render -q`
+- [x] Architecture boundary test:
+  `uv run pytest services/backend/tests/architecture/test_boundaries.py -q`
+- [ ] Backend domain/repository/application/provider/API/worker tests pass.
+- [ ] Contract generation is clean and H5 typecheck/tests/build pass.
+- [ ] An uncached completed Look produces a real collage from its Item display assets.
+- [ ] At least one real hosted generation call succeeds when its server-side credential
   is configured; missing credentials produce an explicit retryable/unavailable state,
   not a fixed image.
-- Try-on timeout, unsupported category and provider failure visibly fall back to the
+- [ ] Try-on timeout, unsupported category and provider failure visibly fall back to the
   collage without changing the try-on truth.
-- Repeating the exact successful request hits the recorded successful artifact;
+- [ ] Repeating the exact successful request hits the recorded successful artifact;
   changed Item/Look/reference inputs do not.
-- Share output contains only the pixel artifact and approved copy, never a user
+- [ ] Share output contains only the pixel artifact and approved copy, never a user
   reference photo, source frame, object key or signed provider URL.
-- A real 390x844 journey covers Look browsing, pending/success/failure states, opening
+- [ ] A real 390x844 journey covers Look browsing, pending/success/failure states, opening
   the accurate real Look and returning to source.
-- CPU, memory, disk and Docker use stay within the lightweight guardrails; no local
+- [ ] CPU, memory, disk and Docker use stay within the lightweight guardrails; no local
   diffusion or try-on weights are loaded by default.

@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+from stylecapture_backend.features.render.domain import (
+    RenderArtifact,
+    RenderArtifactKind,
+    RenderArtifactStatus,
+    RenderInputSignature,
+    RenderOutput,
+    RenderPrivacy,
+    RenderProviderTrace,
+)
+from stylecapture_backend.features.render.ports import (
+    RenderArtifactNotFound,
+    RenderArtifactRepository,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RenderArtifactView:
+    id: UUID
+    user_id: UUID
+    look_id: UUID
+    kind: RenderArtifactKind
+    status: RenderArtifactStatus
+    input_version: str
+    input_hash: str
+    request_key: str
+    object_key: str | None
+    content_hash: str | None
+    content_type: str | None
+    source_artifact_id: UUID | None
+    fallback_artifact_id: UUID | None
+    failure_message: str | None
+    share_eligible: bool
+    cache_hit: bool = False
+
+
+class RenderApplication:
+    def __init__(self, *, artifacts: RenderArtifactRepository) -> None:
+        self._artifacts = artifacts
+
+    async def create_or_get(
+        self,
+        *,
+        user_id: UUID,
+        look_id: UUID,
+        kind: RenderArtifactKind,
+        input_signature: RenderInputSignature,
+        request_key: str,
+        privacy: RenderPrivacy = RenderPrivacy.PRIVATE,
+        source_artifact_id: UUID | None = None,
+        provider_trace: RenderProviderTrace | None = None,
+    ) -> RenderArtifactView:
+        cached = await self._artifacts.find_cache_hit(
+            look_id=look_id,
+            kind=kind,
+            input_signature=input_signature,
+        )
+        if cached is not None and cached.user_id == user_id:
+            return _view(cached, cache_hit=True)
+        artifact = RenderArtifact.queued(
+            user_id=user_id,
+            look_id=look_id,
+            kind=kind,
+            input_signature=input_signature,
+            request_key=request_key,
+            privacy=privacy,
+            source_artifact_id=source_artifact_id,
+            provider_trace=provider_trace,
+        )
+        return _view(await self._artifacts.ensure_requested(artifact))
+
+    async def list_for_look(self, *, user_id: UUID, look_id: UUID) -> list[RenderArtifactView]:
+        return [_view(artifact) for artifact in await self._artifacts.list_for_look(user_id=user_id, look_id=look_id)]
+
+    async def get(self, *, user_id: UUID, artifact_id: UUID) -> RenderArtifactView:
+        artifact = await self._artifacts.get_for_user(user_id=user_id, artifact_id=artifact_id)
+        if artifact is None:
+            raise RenderArtifactNotFound("Render artifact not found")
+        return _view(artifact)
+
+    async def mark_succeeded(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        output: RenderOutput,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
+        return _view(await self._artifacts.save(artifact.mark_succeeded(output)))
+
+    async def mark_failed(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        code: str,
+        message: str,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
+        return _view(await self._artifacts.save(artifact.mark_failed(code=code, message=message)))
+
+    async def degrade_to_fallback(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        fallback_artifact_id: UUID,
+        reason: str,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
+        fallback = await self._require_artifact(user_id=user_id, artifact_id=fallback_artifact_id)
+        return _view(await self._artifacts.save(artifact.mark_degraded_to(fallback=fallback, reason=reason)))
+
+    async def _require_artifact(self, *, user_id: UUID, artifact_id: UUID) -> RenderArtifact:
+        artifact = await self._artifacts.get_for_user(user_id=user_id, artifact_id=artifact_id)
+        if artifact is None:
+            raise RenderArtifactNotFound("Render artifact not found")
+        return artifact
+
+
+def _view(artifact: RenderArtifact, *, cache_hit: bool = False) -> RenderArtifactView:
+    return RenderArtifactView(
+        id=artifact.id,
+        user_id=artifact.user_id,
+        look_id=artifact.look_id,
+        kind=artifact.kind,
+        status=artifact.status,
+        input_version=artifact.input_signature.version,
+        input_hash=artifact.input_signature.hash,
+        request_key=artifact.request_key,
+        object_key=artifact.output.object_key if artifact.output is not None else None,
+        content_hash=artifact.output.content_hash if artifact.output is not None else None,
+        content_type=artifact.output.content_type if artifact.output is not None else None,
+        source_artifact_id=artifact.source_artifact_id,
+        fallback_artifact_id=artifact.fallback_artifact_id,
+        failure_message=artifact.failure_message,
+        share_eligible=artifact.share_eligible,
+        cache_hit=cache_hit,
+    )
