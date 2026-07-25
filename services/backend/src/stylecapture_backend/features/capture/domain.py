@@ -7,6 +7,8 @@ from enum import StrEnum
 from math import isfinite
 from uuid import UUID, uuid4
 
+from stylecapture_backend.platform.image_payload import ImagePayload as ImagePayload
+
 
 class CaptureSourceKind(StrEnum):
     UPLOAD = "upload"
@@ -77,20 +79,6 @@ class FeedFrameContext:
         selection_keys = [selection.selection_key for selection in self.selections]
         if len(selection_keys) != len(set(selection_keys)):
             raise ValueError("selection keys must be unique within a feed frame")
-
-
-@dataclass(frozen=True, slots=True)
-class ImagePayload:
-    object_key: str
-    content_type: str
-    body: bytes
-    sha256: str
-
-    def __post_init__(self) -> None:
-        if not self.body:
-            raise ValueError("image body must not be empty")
-        if not self.content_type.startswith("image/"):
-            raise ValueError("content_type must describe an image")
 
 
 class OwnershipState(StrEnum):

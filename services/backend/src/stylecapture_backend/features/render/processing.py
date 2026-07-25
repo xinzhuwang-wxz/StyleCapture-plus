@@ -34,6 +34,7 @@ from stylecapture_backend.features.render.prompt_contracts import (
     TRY_ON_SCHEMA_VERSION,
 )
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
+from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
 
 class RetryableRenderError(RuntimeError):
@@ -174,8 +175,10 @@ class RenderProcessor:
         if self._pixel_generator is None:
             await self._degrade(artifact, fallback, "像素生成服务未配置。展示真实单品拼贴")
             return
-        collage_source = self._objects.read_image(
-            fallback.output.object_key  # type: ignore[union-attr]
+        collage_source = normalize_provider_image(
+            self._objects.read_image(
+                fallback.output.object_key  # type: ignore[union-attr]
+            )
         )
         source_images: tuple[ImagePayload, ...] = (collage_source,)
         detail = await self._looks.get_detail_for_user(
@@ -184,7 +187,9 @@ class RenderProcessor:
         )
         if detail is not None and detail.look.display_object_key is not None:
             try:
-                look_source = self._objects.read_image(detail.look.display_object_key)
+                look_source = normalize_provider_image(
+                    self._objects.read_image(detail.look.display_object_key)
+                )
             except (FileNotFoundError, KeyError):
                 pass
             else:
@@ -220,7 +225,7 @@ class RenderProcessor:
             await self._degrade(artifact, fallback, "请上传全身照后生成真人试穿。展示真实单品拼贴")
             return
         try:
-            model_image = self._objects.read_image(model_object_key)
+            model_image = normalize_provider_image(self._objects.read_image(model_object_key))
             _, item_assets = await self._look_item_assets(artifact)
         except (FileNotFoundError, KeyError):
             await self._degrade(artifact, fallback, "试穿输入不可用。展示真实单品拼贴")
@@ -381,7 +386,9 @@ class RenderProcessor:
             )
             if object_key is None:
                 raise CollageRenderError("render Item has no available display image")
-            assets.append((component.role, self._objects.read_image(object_key)))
+            assets.append(
+                (component.role, normalize_provider_image(self._objects.read_image(object_key)))
+            )
         return detail, tuple(assets)
 
     async def _fallback_artifact(

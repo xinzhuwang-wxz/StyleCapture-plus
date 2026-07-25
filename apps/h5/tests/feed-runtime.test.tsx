@@ -159,7 +159,7 @@ function stubCapturedFrame() {
   });
 }
 
-async function drawAndConfirm() {
+async function drawAndConfirm(intent: "item" | "whole_outfit" = "item") {
   const overlay = await screen.findByRole("application", {
     name: "圈选穿搭"
   });
@@ -197,9 +197,20 @@ async function drawAndConfirm() {
   await act(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 710));
   });
+  if (intent === "whole_outfit") {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "存整套" }));
+      await Promise.resolve();
+    });
+  }
   await act(async () => {
     fireEvent.click(
-      screen.getByRole("button", { name: "保存圈选到数字衣橱" })
+      screen.getByRole("button", {
+        name:
+          intent === "whole_outfit"
+            ? "保存整套到数字衣橱"
+            : "保存圈选到数字衣橱"
+      })
     );
     await Promise.resolve();
   });
@@ -385,7 +396,8 @@ describe("Feed runtime", () => {
             }
           ]
         },
-        expect.any(String)
+        expect.any(String),
+        "item"
       )
     );
     expect(onAccepted).toHaveBeenCalledWith(accepted, expect.any(File));
@@ -393,6 +405,40 @@ describe("Feed runtime", () => {
       "已存入数字衣橱"
     );
     expect(play).toHaveBeenCalled();
+  });
+
+  it("submits whole-outfit lasso selections with the look ingest intent", async () => {
+    installMediaAndCanvasDoubles();
+    stubCapturedFrame();
+    renderFeed();
+
+    const video = (await screen.findByLabelText(
+      "Demo creator 的穿搭视频"
+    )) as HTMLVideoElement;
+    prepareVideo(video);
+    fireEvent.canPlay(video);
+    const selectButton = screen.getAllByRole("button", {
+      name: "暂停并圈选"
+    })[0]!;
+    await waitFor(() => expect(selectButton).toBeEnabled());
+    await act(async () => {
+      fireEvent.click(selectButton);
+      await Promise.resolve();
+    });
+
+    await drawAndConfirm("whole_outfit");
+
+    await waitFor(() =>
+      expect(api.ingestFeedFrame).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "image/png" }),
+        expect.objectContaining({
+          video_ref: "look-01",
+          intent: "whole_outfit"
+        }),
+        expect.any(String),
+        "whole_outfit"
+      )
+    );
   });
 
   it("keeps circle selection active while paused and resumes on an empty screen tap", async () => {
@@ -448,6 +494,27 @@ describe("Feed runtime", () => {
       ).not.toBeInTheDocument()
     );
     expect(play).toHaveBeenCalled();
+  });
+
+  it("removes inactive Feed videos and actions from keyboard navigation", async () => {
+    installMediaAndCanvasDoubles();
+    renderFeed();
+
+    const videos = (await screen.findAllByLabelText(
+      /的穿搭视频$/
+    )) as HTMLVideoElement[];
+    videos.forEach((video) => prepareVideo(video));
+    videos.forEach((video) => fireEvent.canPlay(video));
+
+    expect(videos[0]).toHaveAttribute("tabindex", "0");
+    expect(videos[1]).toHaveAttribute("tabindex", "-1");
+    const circleButtons = screen.getAllByRole(
+      "button",
+      { name: "暂停并圈选", hidden: true }
+    );
+    expect(circleButtons[0]).toHaveAttribute("tabindex", "0");
+    expect(circleButtons[1]).toHaveAttribute("tabindex", "-1");
+    expect(circleButtons[1]).toBeDisabled();
   });
 
   it("keeps a failed decision for an idempotent retry", async () => {

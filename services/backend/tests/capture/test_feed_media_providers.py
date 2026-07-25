@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
+import types
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -18,11 +20,14 @@ from stylecapture_backend.features.capture.feed_media import (
     SegmentationPrompt,
 )
 from stylecapture_backend.features.capture.infrastructure.feed_media import (
+    SAM2_TINY_MODEL_ID,
+    SAM2_TINY_REVISION,
     CoarsePolygonSegmentationProvider,
     FfmpegFrameExtractor,
     PillowSelectionImageRenderer,
     Sam2MaskCandidate,
     Sam2PromptableSegmentationProvider,
+    TransformersSam2Backend,
 )
 from stylecapture_backend.features.capture.processing import ProviderError
 
@@ -233,6 +238,53 @@ def test_sam2_provider_loads_runtime_once_per_process() -> None:
     provider.segment(prompt)
 
     assert loads == 1
+
+
+def test_transformers_sam2_backend_pins_revision_and_disables_remote_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeProcessor:
+        @classmethod
+        def from_pretrained(cls, model: str, **kwargs: object) -> FakeProcessor:
+            calls.append((f"processor:{model}", kwargs))
+            return cls()
+
+    class FakeModel:
+        @classmethod
+        def from_pretrained(cls, model: str, **kwargs: object) -> FakeModel:
+            calls.append((f"model:{model}", kwargs))
+            return cls()
+
+        def to(self, device: str) -> FakeModel:
+            calls.append((f"device:{device}", {}))
+            return self
+
+        def eval(self) -> None:
+            calls.append(("eval", {}))
+
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace())
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        types.SimpleNamespace(Sam2Model=FakeModel, Sam2Processor=FakeProcessor),
+    )
+
+    TransformersSam2Backend(device="cpu")
+
+    assert calls[0] == (
+        f"processor:{SAM2_TINY_MODEL_ID}",
+        {"revision": SAM2_TINY_REVISION, "trust_remote_code": False},
+    )
+    assert calls[1] == (
+        f"model:{SAM2_TINY_MODEL_ID}",
+        {
+            "revision": SAM2_TINY_REVISION,
+            "trust_remote_code": False,
+            "use_safetensors": True,
+        },
+    )
 
 
 @pytest.mark.parametrize(

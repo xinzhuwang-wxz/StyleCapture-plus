@@ -1,9 +1,7 @@
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from threading import Barrier
 from unittest.mock import patch
 from uuid import UUID
 
@@ -84,41 +82,136 @@ def test_derived_display_asset_is_content_addressed_and_readable(tmp_path: Path)
     assert store.read_image(stored.object_key) == stored
 
 
-def test_concurrent_upload_replay_is_idempotent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_private_source_asset_uses_originals_prefix_and_is_readable(tmp_path: Path) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    body = png_bytes()
+
+    stored = store.write_private_source_image(
+        ImagePayload(
+            object_key="curated-seed/source/衣服.png",
+            content_type="image/png",
+            body=body,
+            sha256=sha256(body).hexdigest(),
+        ),
+        owner_id=OWNER_ID,
+        prefix="originals/curated-seed/user-1",
+    )
+
+    assert stored.object_key == (
+        f"originals/curated-seed/user-1/{sha256(body).hexdigest()}.png"
+    )
+    assert store.describe(stored.object_key).owner_id == OWNER_ID
+    assert store.read_image(stored.object_key) == stored
+
+
+def test_upload_token_cannot_be_replayed_after_success(tmp_path: Path) -> None:
     store = LocalObjectStore(
         root=tmp_path,
         signing_secret="test-signing-secret-with-enough-entropy",
     )
     body = png_bytes()
     prepared = store.prepare_upload(request_for(body))
-    barrier = Barrier(2)
-    original_write_bytes = Path.write_bytes
 
-    def synchronized_write(path: Path, data: bytes) -> int:
-        result = original_write_bytes(path, data)
-        if ".uploading" in path.name:
-            barrier.wait(timeout=2)
-        return result
+    stored = store.accept_upload(
+        prepared.token,
+        body=body,
+        content_type="image/png",
+    )
 
-    monkeypatch.setattr(Path, "write_bytes", synchronized_write)
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(
-            pool.map(
-                lambda _: store.accept_upload(
-                    prepared.token,
-                    body=body,
-                    content_type="image/png",
-                ),
-                range(2),
-            )
+    with pytest.raises(CaptureError) as error:
+        store.accept_upload(
+            prepared.token,
+            body=body,
+            content_type="image/png",
         )
 
-    assert results == [results[0], results[0]]
-    assert store.read(results[0].object_key) == body
+    assert error.value.code == "upload_token_consumed"
+    assert store.read(stored.object_key) == body
+
+
+def test_unattached_upload_quota_is_persistent_and_attachment_frees_slot(
+    tmp_path: Path,
+) -> None:
+    body = png_bytes()
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+        max_unattached_uploads_per_owner=1,
+    )
+    first = store.prepare_upload(request_for(body))
+    stored = store.accept_upload(first.token, body=body, content_type="image/png")
+
+    restarted = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+        max_unattached_uploads_per_owner=1,
+    )
+    blocked = restarted.prepare_upload(request_for(body))
+    with pytest.raises(CaptureError) as error:
+        restarted.accept_upload(blocked.token, body=body, content_type="image/png")
+    assert error.value.code == "upload_unattached_quota_exceeded"
+
+    restarted.mark_attached(stored.object_key, OWNER_ID)
+    allowed = restarted.prepare_upload(request_for(body))
+    restarted.accept_upload(allowed.token, body=body, content_type="image/png")
+
+
+def test_expired_unattached_upload_is_collected_before_accepting_next(
+    tmp_path: Path,
+) -> None:
+    current = datetime(2026, 7, 25, 3, 30, tzinfo=UTC)
+    body = png_bytes()
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+        max_unattached_uploads_per_owner=1,
+        unattached_upload_ttl=timedelta(hours=1),
+        now=lambda: current,
+    )
+    first = store.prepare_upload(request_for(body))
+    stale = store.accept_upload(first.token, body=body, content_type="image/png")
+
+    current += timedelta(hours=2)
+    second = store.prepare_upload(request_for(body))
+    store.accept_upload(second.token, body=body, content_type="image/png")
+
+    with pytest.raises(FileNotFoundError):
+        store.read(stale.object_key)
+
+
+def test_discard_only_deletes_an_unattached_upload(tmp_path: Path) -> None:
+    body = png_bytes()
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    prepared = store.prepare_upload(request_for(body))
+    stored = store.accept_upload(prepared.token, body=body, content_type="image/png")
+
+    store.discard_unattached_upload(stored.object_key, OWNER_ID)
+
+    with pytest.raises(FileNotFoundError):
+        store.read(stored.object_key)
+
+
+def test_discard_refuses_to_delete_an_attached_upload(tmp_path: Path) -> None:
+    body = png_bytes()
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    prepared = store.prepare_upload(request_for(body))
+    stored = store.accept_upload(prepared.token, body=body, content_type="image/png")
+    store.mark_attached(stored.object_key, OWNER_ID)
+
+    with pytest.raises(CaptureError) as error:
+        store.discard_unattached_upload(stored.object_key, OWNER_ID)
+
+    assert error.value.code == "upload_already_attached"
+    assert store.read(stored.object_key) == body
 
 
 @pytest.mark.parametrize(

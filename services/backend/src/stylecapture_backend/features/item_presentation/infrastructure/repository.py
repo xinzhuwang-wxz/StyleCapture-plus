@@ -37,7 +37,7 @@ class SqlAlchemyItemPresentationRepository:
     ) -> ItemPresentationAsset:
         try:
             async with self._sessions() as session:
-                existing = (
+                existing_request = (
                     await session.execute(
                         select(ItemPresentationAssetRecord).where(
                             ItemPresentationAssetRecord.user_id == asset.user_id,
@@ -45,23 +45,35 @@ class SqlAlchemyItemPresentationRepository:
                         )
                     )
                 ).scalar_one_or_none()
-                if existing is not None:
-                    _raise_on_idempotency_conflict(existing, asset)
-                    return _asset_from_record(existing)
+                if existing_request is not None:
+                    _raise_on_idempotency_conflict(existing_request, asset)
+                    return _asset_from_record(existing_request)
+                equivalent = await _find_equivalent(session, asset)
+                if equivalent is not None:
+                    return _asset_from_record(equivalent)
                 await session.execute(
                     insert(ItemPresentationAssetRecord)
                     .values(**_asset_values(asset))
-                    .on_conflict_do_nothing(index_elements=["user_id", "request_key"])
+                    .on_conflict_do_nothing()
                 )
-                stored = (
+                stored_request = (
                     await session.execute(
                         select(ItemPresentationAssetRecord).where(
                             ItemPresentationAssetRecord.user_id == asset.user_id,
                             ItemPresentationAssetRecord.request_key == asset.request_key,
                         )
                     )
-                ).scalar_one()
-                _raise_on_idempotency_conflict(stored, asset)
+                ).scalar_one_or_none()
+                stored: ItemPresentationAssetRecord | None
+                if stored_request is not None:
+                    _raise_on_idempotency_conflict(stored_request, asset)
+                    stored = stored_request
+                else:
+                    stored = await _find_equivalent(session, asset)
+                    if stored is None:
+                        raise ItemPresentationPersistenceUnavailable(
+                            "Equivalent item presentation was not visible after insert"
+                        )
                 await session.commit()
                 return _asset_from_record(stored)
         except OperationalError as error:
@@ -84,10 +96,15 @@ class SqlAlchemyItemPresentationRepository:
                 ).scalar_one_or_none()
                 values = _asset_values(asset)
                 if record is not None:
+                    current_status = ItemPresentationStatus(record.status)
+                    if current_status is ItemPresentationStatus.SUCCEEDED and (
+                        current_status is not asset.status
+                    ):
+                        return _asset_from_record(record)
                     if (
-                        ItemPresentationStatus(record.status)
-                        in {ItemPresentationStatus.SUCCEEDED, ItemPresentationStatus.FAILED}
-                        and ItemPresentationStatus(record.status) is not asset.status
+                        current_status is ItemPresentationStatus.FAILED
+                        and asset.status is not ItemPresentationStatus.QUEUED
+                        and current_status is not asset.status
                     ):
                         return _asset_from_record(record)
                     record.status = asset.status.value
@@ -251,3 +268,20 @@ def _raise_on_idempotency_conflict(
         raise ItemPresentationIdempotencyConflict(
             "Item presentation idempotency key was reused with different input"
         )
+
+
+async def _find_equivalent(
+    session: AsyncSession,
+    asset: ItemPresentationAsset,
+) -> ItemPresentationAssetRecord | None:
+    return (
+        await session.execute(
+            select(ItemPresentationAssetRecord).where(
+                ItemPresentationAssetRecord.user_id == asset.user_id,
+                ItemPresentationAssetRecord.item_id == asset.item_id,
+                ItemPresentationAssetRecord.kind == asset.kind.value,
+                ItemPresentationAssetRecord.input_version == asset.input_signature.version,
+                ItemPresentationAssetRecord.input_hash == asset.input_signature.hash,
+            )
+        )
+    ).scalar_one_or_none()

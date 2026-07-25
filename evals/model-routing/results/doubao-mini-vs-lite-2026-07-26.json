@@ -1,0 +1,963 @@
+{
+  "schema_version": "stylecapture-model-routing-eval-v1",
+  "run_utc": "2026-07-25T21:10:21.632156+00:00",
+  "execution": {
+    "gateway": "local_litellm",
+    "serial": true,
+    "max_concurrency": 1,
+    "retries": 0,
+    "interval_seconds": 0.5,
+    "credentials_persisted": false,
+    "image_bytes_persisted": false,
+    "seedream_invoked": false
+  },
+  "pricing": {
+    "currency": "CNY",
+    "tier": "0-32k",
+    "unit": "per_million_tokens",
+    "source": "https://www.volcengine.com/docs/84458/1585097?lang=zh&redirect=1",
+    "candidates": {
+      "lite": {
+        "label": "lite",
+        "alias": "candidate_doubao_seed_2_0_lite_260428",
+        "provider_model": "doubao-seed-2-0-lite-260428",
+        "input_cny_per_million": 0.6,
+        "output_cny_per_million": 3.6
+      },
+      "mini": {
+        "label": "mini",
+        "alias": "candidate_doubao_seed_2_0_mini_260428",
+        "provider_model": "doubao-seed-2-0-mini-260428",
+        "input_cny_per_million": 0.2,
+        "output_cny_per_million": 2.0
+      }
+    }
+  },
+  "corpus": {
+    "garment_images": 3,
+    "look_images": 3,
+    "reasoning_requests": 3,
+    "requests_per_model": 9
+  },
+  "calls": {
+    "lite": [
+      {
+        "capability": "garment_understanding",
+        "case": "blue_yellow_print_dress",
+        "source_ref": "local-curated-seed:single-item-presets/item-01",
+        "status": "success",
+        "wall_latency_ms": 20154,
+        "provider_latency_ms": 20119,
+        "usage": {
+          "prompt_tokens": 2368,
+          "completion_tokens": 988,
+          "total_tokens": 3356
+        },
+        "estimated_cost_cny": 0.0049776,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "category_expected": true,
+          "subcategory_expected": true,
+          "color_term_recall": 1.0,
+          "evidence_term_recall": 1.0
+        },
+        "quality_score": 100.0,
+        "output": {
+          "category": "dresses",
+          "subcategory": "dress",
+          "description": "细吊带收腰晕染印花鱼尾连衣裙",
+          "colors": [
+            "浅黄色",
+            "浅蓝色",
+            "米白色"
+          ],
+          "materials": [
+            "轻薄半透面料"
+          ],
+          "pattern": "晕染暗纹花卉印花",
+          "silhouette": "鱼尾版型",
+          "fit": "修身收腰",
+          "styles": [
+            "温柔风",
+            "浪漫风"
+          ],
+          "seasons": [
+            "春季",
+            "夏季",
+            "初秋"
+          ],
+          "occasions": [
+            "约会",
+            "度假",
+            "轻社交场合"
+          ],
+          "length": "中长款，裙长至小腿位置",
+          "neckline": "心形吊带领",
+          "sleeve_type": "无袖，细肩带设计",
+          "details": [
+            "胸前抽褶设计",
+            "腰侧收皱设计",
+            "鱼尾裙摆",
+            "细吊带肩带"
+          ]
+        }
+      },
+      {
+        "capability": "garment_understanding",
+        "case": "black_sneakers",
+        "source_ref": "local-curated-seed:single-item-presets/item-03",
+        "status": "success",
+        "wall_latency_ms": 22956,
+        "provider_latency_ms": 22908,
+        "usage": {
+          "prompt_tokens": 2368,
+          "completion_tokens": 1076,
+          "total_tokens": 3444
+        },
+        "estimated_cost_cny": 0.0052944,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "category_expected": true,
+          "subcategory_expected": true,
+          "color_term_recall": 1.0,
+          "evidence_term_recall": 1.0
+        },
+        "quality_score": 100.0,
+        "output": {
+          "category": "shoes",
+          "subcategory": "sneakers",
+          "description": "一双成对的低帮休闲运动鞋，鞋头为标志性贝壳头造型，搭配黑色鞋带，鞋侧带有三条白色装饰条，鞋舌配有金色品牌标识，后跟处有白色装饰块",
+          "colors": [
+            "黑色",
+            "白色",
+            "金色"
+          ],
+          "materials": [
+            "皮革质感鞋面",
+            "橡胶鞋底"
+          ],
+          "pattern": "纯色搭配条纹装饰",
+          "silhouette": "低帮板鞋版型",
+          "fit": "常规合脚版型",
+          "styles": [
+            "运动风",
+            "休闲风",
+            "复古街头风"
+          ],
+          "seasons": [
+            "春季",
+            "夏季",
+            "秋季",
+            "冬季"
+          ],
+          "occasions": [
+            "日常出行",
+            "休闲运动",
+            "日常穿搭"
+          ],
+          "length": "低帮短款",
+          "neckline": "无",
+          "sleeve_type": "无",
+          "details": [
+            "贝壳头纹理鞋头",
+            "鞋侧三条白色条纹",
+            "黑色系带设计",
+            "鞋舌金色品牌铭牌",
+            "后跟白色装饰块"
+          ]
+        }
+      },
+      {
+        "capability": "garment_understanding",
+        "case": "pale_green_cardigan",
+        "source_ref": "local-curated-seed:single-item-presets/item-04",
+        "status": "success",
+        "wall_latency_ms": 21310,
+        "provider_latency_ms": 21303,
+        "usage": {
+          "prompt_tokens": 2368,
+          "completion_tokens": 1122,
+          "total_tokens": 3490
+        },
+        "estimated_cost_cny": 0.00546,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "category_expected": true,
+          "subcategory_expected": true,
+          "color_term_recall": 1.0,
+          "evidence_term_recall": 1.0
+        },
+        "quality_score": 100.0,
+        "output": {
+          "category": "outerwear",
+          "subcategory": "cardigan",
+          "description": "浅色系圆领长袖针织开衫，正面有一排同色系纽扣，下摆和袖口做罗纹收边设计",
+          "colors": [
+            "浅绿色"
+          ],
+          "materials": [
+            "针织面料"
+          ],
+          "pattern": "纯色无图案",
+          "silhouette": "直筒版型",
+          "fit": "合身偏宽松",
+          "styles": [
+            "简约",
+            "日常",
+            "基础款"
+          ],
+          "seasons": [
+            "春季",
+            "秋季",
+            "初夏"
+          ],
+          "occasions": [
+            "日常休闲",
+            "通勤",
+            "居家"
+          ],
+          "length": "常规衣长",
+          "neckline": "圆领",
+          "sleeve_type": "长袖",
+          "details": [
+            "正面同色纽扣开合",
+            "罗纹圆领",
+            "罗纹下摆收边",
+            "罗纹袖口收边"
+          ]
+        }
+      },
+      {
+        "capability": "outfit_analysis",
+        "case": "city_commute",
+        "source_ref": "https://www.pexels.com/video/7681932/",
+        "status": "success",
+        "wall_latency_ms": 25305,
+        "provider_latency_ms": 25301,
+        "usage": {
+          "prompt_tokens": 1498,
+          "completion_tokens": 1184,
+          "total_tokens": 2682
+        },
+        "estimated_cost_cny": 0.0051612,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "semantic_fields": {
+            "scene": true,
+            "style": true,
+            "color": true,
+            "layering": true
+          }
+        },
+        "quality_score": 100.0,
+        "output": {
+          "color": "整体以浅卡其色、米白色为主，搭配黑色腰带、包袋与鞋履，属于低饱和柔和大地配色",
+          "silhouette": "长款宽松风衣搭配高腰垂感阔腿裤，整体为舒展利落的直身通勤廓形",
+          "material": "风衣为挺括防风的混纺面料，内搭T恤为亲肤棉质，下装为垂顺西装面料",
+          "layering": "内搭基础白色圆领T恤，外穿长款卡其色风衣，下装搭配同色系高腰阔腿裤，层次清晰",
+          "focal_point": "视觉焦点集中在同色系风衣与高腰裤打造的协调统一的干练穿搭主体上",
+          "scene": "晴日白天的户外，带有古典石材立柱的公共建筑旁的石板步行道",
+          "style": "简约随性的都市通勤风，大气利落兼具日常实用性"
+        }
+      },
+      {
+        "capability": "outfit_analysis",
+        "case": "evening_blue",
+        "source_ref": "https://www.pexels.com/video/15396483/",
+        "status": "success",
+        "wall_latency_ms": 12414,
+        "provider_latency_ms": 12411,
+        "usage": {
+          "prompt_tokens": 1464,
+          "completion_tokens": 898,
+          "total_tokens": 2362
+        },
+        "estimated_cost_cny": 0.0041112,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "semantic_fields": {
+            "scene": true,
+            "style": true,
+            "color": true,
+            "focal_point": true
+          }
+        },
+        "quality_score": 100.0,
+        "output": {
+          "color": "服饰主色调为亮眼宝蓝色，搭配黑色高跟凉鞋",
+          "silhouette": "单肩露腰高开叉修身长款版型，贴合身体曲线",
+          "material": "礼服主体布满亮片装饰，拼接半透垂坠感蓝色面料，鞋履为皮质细带设计",
+          "layering": "单套礼服直接搭配高跟凉鞋，无额外叠穿外搭",
+          "focal_point": "缀满亮片的宝蓝色露腰高开叉长裙是视觉焦点",
+          "scene": "户外红色阶梯的公开时尚活动场景",
+          "style": "华丽性感的正式派对红毯礼服风格"
+        }
+      },
+      {
+        "capability": "outfit_analysis",
+        "case": "weekend_denim",
+        "source_ref": "https://www.pexels.com/video/7760056/",
+        "status": "success",
+        "wall_latency_ms": 21493,
+        "provider_latency_ms": 21489,
+        "usage": {
+          "prompt_tokens": 1498,
+          "completion_tokens": 1081,
+          "total_tokens": 2579
+        },
+        "estimated_cost_cny": 0.0047904,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "semantic_fields": {
+            "scene": true,
+            "style": true,
+            "color": true,
+            "layering": true
+          }
+        },
+        "quality_score": 100.0,
+        "output": {
+          "color": "整体为白色短背心、浅蓝牛仔裤、卡其色风衣搭配黑白厚底鞋的低饱和清爽配色",
+          "silhouette": "上短下宽的对比廓形，短款露腰上衣搭配高腰直筒牛仔裤，线条舒展利落",
+          "material": "上衣为弹力针织面料，下装是丹宁牛仔布，风衣为挺括斜纹面料，鞋履是厚底皮质",
+          "layering": "当前上身仅短背心加牛仔裤两层，风衣手持未穿着，腰带收束腰线，层次简洁",
+          "focal_point": "视觉焦点集中在露腰设计打造的高腰线区域，突出优化身材比例",
+          "scene": "浅灰纯色背景的极简室内摄影棚场景，无多余装饰元素",
+          "style": "简约休闲通勤风格，随性日常同时兼具利落时尚感"
+        }
+      },
+      {
+        "capability": "outfit_reasoning",
+        "case": "business_interview",
+        "status": "success",
+        "wall_latency_ms": 28040,
+        "provider_latency_ms": 28040,
+        "usage": {
+          "prompt_tokens": 673,
+          "completion_tokens": 1200,
+          "total_tokens": 1873
+        },
+        "estimated_cost_cny": 0.0047238,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "closed_candidate_set_preserved": true,
+          "expected_top_plan": true
+        },
+        "quality_score": 100,
+        "output": [
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "rationale": "低饱和配色克制利落，正式得体适配面试会议，适配初秋气温",
+            "style_match_score": 92
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000102",
+            "rationale": "休闲感偏重正式度不足，胜在舒适轻便，适配步行通勤",
+            "style_match_score": 72
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000103",
+            "rationale": "亮片礼服完全不符商务场景，和面试会议需求严重冲突",
+            "style_match_score": 35
+          }
+        ]
+      },
+      {
+        "capability": "outfit_reasoning",
+        "case": "weekend_garden",
+        "status": "success",
+        "wall_latency_ms": 14650,
+        "provider_latency_ms": 14650,
+        "usage": {
+          "prompt_tokens": 671,
+          "completion_tokens": 634,
+          "total_tokens": 1305
+        },
+        "estimated_cost_cny": 0.002685,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "closed_candidate_set_preserved": true,
+          "expected_top_plan": true
+        },
+        "quality_score": 100,
+        "output": [
+          {
+            "id": "00000000-0000-0000-0000-000000000102",
+            "rationale": "轻松复古适配场景，透气舒适，厚底鞋适配长时间步行",
+            "style_match_score": 92
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "rationale": "偏正式厚重，不符合暖多云天气，步行舒适度一般",
+            "style_match_score": 65
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000103",
+            "rationale": "礼服高跟鞋完全不符合休闲散步场景，适配度极低",
+            "style_match_score": 15
+          }
+        ]
+      },
+      {
+        "capability": "outfit_reasoning",
+        "case": "evening_reception",
+        "status": "success",
+        "wall_latency_ms": 14740,
+        "provider_latency_ms": 14740,
+        "usage": {
+          "prompt_tokens": 673,
+          "completion_tokens": 739,
+          "total_tokens": 1412
+        },
+        "estimated_cost_cny": 0.0030642,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "closed_candidate_set_preserved": true,
+          "expected_top_plan": true
+        },
+        "quality_score": 100,
+        "output": [
+          {
+            "id": "00000000-0000-0000-0000-000000000103",
+            "rationale": "亮片礼服契合晚宴正式调性，华丽克制，合影出片久站舒适",
+            "style_match_score": 92
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "rationale": "版型正式配色克制，室内脱外套后得体，适配正式场合",
+            "style_match_score": 78
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000102",
+            "rationale": "牛仔配运动鞋过于休闲，不符合晚宴高正式度要求",
+            "style_match_score": 60
+          }
+        ]
+      }
+    ],
+    "mini": [
+      {
+        "capability": "garment_understanding",
+        "case": "blue_yellow_print_dress",
+        "source_ref": "local-curated-seed:single-item-presets/item-01",
+        "status": "success",
+        "wall_latency_ms": 10811,
+        "provider_latency_ms": 10772,
+        "usage": {
+          "prompt_tokens": 2368,
+          "completion_tokens": 1555,
+          "total_tokens": 3923
+        },
+        "estimated_cost_cny": 0.0035836,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "category_expected": true,
+          "subcategory_expected": true,
+          "color_term_recall": 1.0,
+          "evidence_term_recall": 0.5
+        },
+        "quality_score": 90.0,
+        "output": {
+          "category": "dresses",
+          "subcategory": "dress",
+          "description": "细吊带中长款连衣裙，胸前与腰部有褶皱设计，裙摆呈鱼尾状，带有蓝黄相间的水彩花卉图案",
+          "colors": [
+            "浅蓝",
+            "黄色",
+            "米白"
+          ],
+          "materials": [
+            "雪纺"
+          ],
+          "pattern": "水彩风格花卉图案",
+          "silhouette": "鱼尾型",
+          "fit": "修身鱼尾版型",
+          "styles": [
+            "浪漫风",
+            "甜美风"
+          ],
+          "seasons": [
+            "春季",
+            "夏季"
+          ],
+          "occasions": [
+            "日常出行",
+            "约会",
+            "轻社交场合"
+          ],
+          "length": "中长款（及小腿中部）",
+          "neckline": "心形领",
+          "sleeve_type": "细吊带",
+          "details": [
+            "胸前褶皱",
+            "腰部褶皱",
+            "鱼尾裙摆",
+            "细肩带"
+          ]
+        }
+      },
+      {
+        "capability": "garment_understanding",
+        "case": "black_sneakers",
+        "source_ref": "local-curated-seed:single-item-presets/item-03",
+        "status": "success",
+        "wall_latency_ms": 13479,
+        "provider_latency_ms": 13441,
+        "usage": {
+          "prompt_tokens": 2368,
+          "completion_tokens": 1894,
+          "total_tokens": 4262
+        },
+        "estimated_cost_cny": 0.0042616,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "category_expected": true,
+          "subcategory_expected": true,
+          "color_term_recall": 1.0,
+          "evidence_term_recall": 0.75
+        },
+        "quality_score": 95.0,
+        "output": {
+          "category": "shoes",
+          "subcategory": "sneakers",
+          "description": "一双黑色低帮运动鞋，鞋身带有白色三条纹装饰，鞋头为贝壳头设计",
+          "colors": [
+            "黑色",
+            "白色"
+          ],
+          "materials": [
+            "合成皮革"
+          ],
+          "pattern": "三条纹装饰",
+          "silhouette": "低帮",
+          "fit": "常规",
+          "styles": [
+            "经典",
+            "休闲"
+          ],
+          "seasons": [
+            "四季"
+          ],
+          "occasions": [
+            "日常休闲",
+            "日常出行"
+          ],
+          "length": "无",
+          "neckline": "无",
+          "sleeve_type": "无",
+          "details": [
+            "贝壳头设计",
+            "三条纹装饰",
+            "金色鞋舌标识"
+          ]
+        }
+      },
+      {
+        "capability": "garment_understanding",
+        "case": "pale_green_cardigan",
+        "source_ref": "local-curated-seed:single-item-presets/item-04",
+        "status": "success",
+        "wall_latency_ms": 10556,
+        "provider_latency_ms": 10550,
+        "usage": {
+          "prompt_tokens": 2368,
+          "completion_tokens": 1455,
+          "total_tokens": 3823
+        },
+        "estimated_cost_cny": 0.0033836,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "category_expected": false,
+          "subcategory_expected": false,
+          "color_term_recall": 1.0,
+          "evidence_term_recall": 0.75
+        },
+        "quality_score": 35.0,
+        "output": {
+          "category": "tops",
+          "subcategory": "knitwear",
+          "description": "浅绿圆领长袖纽扣开襟针织衫",
+          "colors": [
+            "浅绿"
+          ],
+          "materials": [
+            "针织面料"
+          ],
+          "pattern": "纯色",
+          "silhouette": "直筒型",
+          "fit": "常规合身",
+          "styles": [
+            "休闲",
+            "日常"
+          ],
+          "seasons": [
+            "春季",
+            "秋季"
+          ],
+          "occasions": [
+            "日常出行",
+            "休闲场合"
+          ],
+          "length": "及腰长度",
+          "neckline": "圆领",
+          "sleeve_type": "长袖",
+          "details": [
+            "纽扣开合",
+            "罗纹领口",
+            "罗纹下摆"
+          ]
+        }
+      },
+      {
+        "capability": "outfit_analysis",
+        "case": "city_commute",
+        "source_ref": "https://www.pexels.com/video/7681932/",
+        "status": "success",
+        "wall_latency_ms": 8703,
+        "provider_latency_ms": 8700,
+        "usage": {
+          "prompt_tokens": 1498,
+          "completion_tokens": 1043,
+          "total_tokens": 2541
+        },
+        "estimated_cost_cny": 0.0023856,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "semantic_fields": {
+            "scene": true,
+            "style": true,
+            "color": true,
+            "layering": true
+          }
+        },
+        "quality_score": 100.0,
+        "output": {
+          "color": "米白、卡其、黑色",
+          "silhouette": "长款宽松廓形、阔腿裤型",
+          "material": "梭织面料（风衣、西裤）、针织内搭面料",
+          "layering": "内搭基础上衣+外穿长款风衣",
+          "focal_point": "中性色系长款风衣与阔腿裤的搭配",
+          "scene": "户外古典石材建筑廊下的阳光场景",
+          "style": "极简都市通勤风格"
+        }
+      },
+      {
+        "capability": "outfit_analysis",
+        "case": "evening_blue",
+        "source_ref": "https://www.pexels.com/video/15396483/",
+        "status": "success",
+        "wall_latency_ms": 10033,
+        "provider_latency_ms": 10029,
+        "usage": {
+          "prompt_tokens": 1464,
+          "completion_tokens": 1362,
+          "total_tokens": 2826
+        },
+        "estimated_cost_cny": 0.0030168,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "semantic_fields": {
+            "scene": true,
+            "style": true,
+            "color": true,
+            "focal_point": true
+          }
+        },
+        "quality_score": 100.0,
+        "output": {
+          "color": "宝蓝色",
+          "silhouette": "修身单肩高开叉长款裙装",
+          "material": "亮片面料",
+          "layering": "无额外外搭，裙装自带薄纱拼接设计",
+          "focal_point": "宝蓝色亮片单肩高开叉礼服裙",
+          "scene": "户外红色台阶的城市公共场景",
+          "style": "华丽晚宴礼服风格"
+        }
+      },
+      {
+        "capability": "outfit_analysis",
+        "case": "weekend_denim",
+        "source_ref": "https://www.pexels.com/video/7760056/",
+        "status": "success",
+        "wall_latency_ms": 7439,
+        "provider_latency_ms": 7437,
+        "usage": {
+          "prompt_tokens": 1498,
+          "completion_tokens": 1048,
+          "total_tokens": 2546
+        },
+        "estimated_cost_cny": 0.0023956,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "semantic_fields": {
+            "scene": true,
+            "style": true,
+            "color": true,
+            "layering": true
+          }
+        },
+        "quality_score": 100.0,
+        "output": {
+          "color": "白色、浅蓝、卡其色、黑白色",
+          "silhouette": "短款背心、直筒牛仔裤、长款风衣、厚底鞋",
+          "material": "棉质、牛仔布、织物、合成革",
+          "layering": "内搭短款背心，手持长款风衣（未上身）",
+          "focal_point": "人物的休闲穿搭，手持的卡其色风衣",
+          "scene": "简约浅色调室内摄影棚",
+          "style": "休闲简约风"
+        }
+      },
+      {
+        "capability": "outfit_reasoning",
+        "case": "business_interview",
+        "status": "success",
+        "wall_latency_ms": 7516,
+        "provider_latency_ms": 7516,
+        "usage": {
+          "prompt_tokens": 673,
+          "completion_tokens": 1063,
+          "total_tokens": 1736
+        },
+        "estimated_cost_cny": 0.0022606,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "closed_candidate_set_preserved": true,
+          "expected_top_plan": false
+        },
+        "quality_score": 70,
+        "output": [
+          {
+            "id": "00000000-0000-0000-0000-000000000102",
+            "rationale": "适配商务正式，厚底鞋适合步行，风格克制利落不刻板",
+            "style_match_score": 85
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "rationale": "结构正式但偏刻板，步行舒适度不足，适配度稍低",
+            "style_match_score": 70
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000103",
+            "rationale": "亮片礼服裙风格不符，不适合面试会议场景",
+            "style_match_score": 10
+          }
+        ]
+      },
+      {
+        "capability": "outfit_reasoning",
+        "case": "weekend_garden",
+        "status": "success",
+        "wall_latency_ms": 7782,
+        "provider_latency_ms": 7782,
+        "usage": {
+          "prompt_tokens": 671,
+          "completion_tokens": 1087,
+          "total_tokens": 1758
+        },
+        "estimated_cost_cny": 0.0023082,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "closed_candidate_set_preserved": true,
+          "expected_top_plan": true
+        },
+        "quality_score": 100,
+        "output": [
+          {
+            "id": "00000000-0000-0000-0000-000000000102",
+            "rationale": "符合轻松复古休闲风格，厚底鞋方便步行，适配植物园散步喝咖啡场景",
+            "style_match_score": 95
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "rationale": "偏正式，大衣和皮鞋不适配温暖天气及步行需求",
+            "style_match_score": 50
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000103",
+            "rationale": "礼服裙过于正式，不适合日常休闲的散步喝咖啡场景",
+            "style_match_score": 10
+          }
+        ]
+      },
+      {
+        "capability": "outfit_reasoning",
+        "case": "evening_reception",
+        "status": "success",
+        "wall_latency_ms": 6129,
+        "provider_latency_ms": 6129,
+        "usage": {
+          "prompt_tokens": 673,
+          "completion_tokens": 815,
+          "total_tokens": 1488
+        },
+        "estimated_cost_cny": 0.0017646,
+        "checks": {
+          "json_schema_valid": true,
+          "taxonomy_valid": true,
+          "chinese_complete": true,
+          "closed_candidate_set_preserved": true,
+          "expected_top_plan": true
+        },
+        "quality_score": 100,
+        "output": [
+          {
+            "id": "00000000-0000-0000-0000-000000000103",
+            "rationale": "宝蓝亮片礼服正式华丽不堆叠，适配晚宴合影，室内穿着合适",
+            "style_match_score": 88
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "rationale": "结构正式配色克制，适配晚宴但大衣室内略厚重，风格偏简约",
+            "style_match_score": 70
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000102",
+            "rationale": "牛仔裤搭配运动鞋偏休闲，不符合晚宴正式着装要求",
+            "style_match_score": 45
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "lite": {
+      "provider_model": "doubao-seed-2-0-lite-260428",
+      "candidate_alias": "candidate_doubao_seed_2_0_lite_260428",
+      "attempts": 9,
+      "successes": 9,
+      "errors": 0,
+      "error_rate": 0.0,
+      "schema_pass_rate": 1.0,
+      "taxonomy_pass_rate": 1.0,
+      "chinese_pass_rate": 1.0,
+      "mean_quality_score": 100.0,
+      "median_latency_ms": 21310,
+      "p95_latency_ms": 28040,
+      "usage": {
+        "prompt_tokens": 13581,
+        "completion_tokens": 8922,
+        "total_tokens": 22503
+      },
+      "estimated_cost_cny": 0.0402678,
+      "by_capability": {
+        "garment_understanding": {
+          "attempts": 3,
+          "successes": 3,
+          "error_rate": 0.0,
+          "mean_quality_score": 100.0,
+          "mean_latency_ms": 21473
+        },
+        "outfit_analysis": {
+          "attempts": 3,
+          "successes": 3,
+          "error_rate": 0.0,
+          "mean_quality_score": 100.0,
+          "mean_latency_ms": 19737
+        },
+        "outfit_reasoning": {
+          "attempts": 3,
+          "successes": 3,
+          "error_rate": 0.0,
+          "mean_quality_score": 100.0,
+          "mean_latency_ms": 19143
+        }
+      }
+    },
+    "mini": {
+      "provider_model": "doubao-seed-2-0-mini-260428",
+      "candidate_alias": "candidate_doubao_seed_2_0_mini_260428",
+      "attempts": 9,
+      "successes": 9,
+      "errors": 0,
+      "error_rate": 0.0,
+      "schema_pass_rate": 1.0,
+      "taxonomy_pass_rate": 1.0,
+      "chinese_pass_rate": 1.0,
+      "mean_quality_score": 87.8,
+      "median_latency_ms": 8703,
+      "p95_latency_ms": 13479,
+      "usage": {
+        "prompt_tokens": 13581,
+        "completion_tokens": 11322,
+        "total_tokens": 24903
+      },
+      "estimated_cost_cny": 0.0253602,
+      "by_capability": {
+        "garment_understanding": {
+          "attempts": 3,
+          "successes": 3,
+          "error_rate": 0.0,
+          "mean_quality_score": 73.3,
+          "mean_latency_ms": 11615
+        },
+        "outfit_analysis": {
+          "attempts": 3,
+          "successes": 3,
+          "error_rate": 0.0,
+          "mean_quality_score": 100.0,
+          "mean_latency_ms": 8725
+        },
+        "outfit_reasoning": {
+          "attempts": 3,
+          "successes": 3,
+          "error_rate": 0.0,
+          "mean_quality_score": 90.0,
+          "mean_latency_ms": 7142
+        }
+      }
+    }
+  },
+  "decision": {
+    "mini_meets_gate": false,
+    "quality_delta_points_mini_minus_lite": -12.2,
+    "latency_delta_median_ms_mini_minus_lite": -12607,
+    "estimated_cost_saving_fraction": 0.37,
+    "capability_routes": {
+      "garment_understanding": "keep_lite",
+      "outfit_analysis": "mini_with_lite_fallback",
+      "outfit_reasoning": "keep_lite"
+    },
+    "alias_recommendation": {
+      "vision_understanding": "keep_lite",
+      "outfit_analysis": "mini_with_lite_fallback",
+      "reasoning": "keep_lite",
+      "visual_grounding": "keep_lite_not_evaluated",
+      "image_generation": "keep_seedream_not_evaluated"
+    }
+  },
+  "rubric_rescored_utc": "2026-07-25T21:13:11.763249+00:00"
+}

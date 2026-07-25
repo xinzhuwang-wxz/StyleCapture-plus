@@ -41,6 +41,9 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
     assert settings.segmentation_device == "cpu"
     assert settings.segmentation_score_threshold == 0.7
     assert settings.outfit_reasoning_timeout_seconds == 60
+    assert settings.outfit_analysis_model_alias == "outfit_analysis"
+    assert settings.outfit_analysis_fallback_model_alias == "outfit_analysis_fallback"
+    assert settings.demo_seed_new_session_quota == 512
 
 
 @pytest.mark.parametrize(

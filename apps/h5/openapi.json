@@ -337,6 +337,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
           "failure_message": {
             "anyOf": [
               {
@@ -391,6 +402,7 @@
           "kind",
           "status",
           "output_image_url",
+          "failure_code",
           "failure_message",
           "retryable",
           "created_at",
@@ -501,6 +513,28 @@
           },
           "source_kind": {
             "$ref": "#/components/schemas/CaptureSourceKind"
+          },
+          "source_timestamp_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Timestamp Ms"
+          },
+          "source_video_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Video Ref"
           },
           "status": {
             "$ref": "#/components/schemas/ItemStatus"
@@ -1390,6 +1424,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
           "failure_message": {
             "anyOf": [
               {
@@ -1439,6 +1484,7 @@
           "status",
           "subject_attached",
           "output_image_url",
+          "failure_code",
           "failure_message",
           "retryable",
           "created_at",
@@ -1676,6 +1722,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
           "failure_message": {
             "anyOf": [
               {
@@ -1762,6 +1819,7 @@
           "personalized",
           "output_image_url",
           "fallback_artifact_id",
+          "failure_code",
           "failure_message",
           "retryable",
           "share_eligible",
@@ -3133,6 +3191,142 @@
           }
         },
         "summary": "Ensure Item Pixel Presentation"
+      }
+    },
+    "/v1/items/{item_id}/presentations/pixel/retry": {
+      "post": {
+        "operationId": "retry_item_pixel_presentation_v1_items__item_id__presentations_pixel_retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemPresentationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Retry Item Pixel Presentation"
       }
     },
     "/v1/items/{item_id}/retry": {

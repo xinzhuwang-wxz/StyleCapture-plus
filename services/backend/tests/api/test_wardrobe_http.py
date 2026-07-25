@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from io import BytesIO
 from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from PIL import Image
+from pillow_heif import from_pillow
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     JobRetryApplication,
@@ -214,3 +217,45 @@ async def test_item_routes_do_not_reveal_another_users_asset() -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "item_not_found"
+
+
+@pytest.mark.asyncio
+async def test_heic_source_is_preserved_while_display_is_browser_safe() -> None:
+    client, user_id, item = build_client()
+    del client
+    heic_buffer = BytesIO()
+    from_pillow(Image.new("RGB", (20, 30), (120, 180, 140))).save(
+        heic_buffer,
+        format="HEIF",
+    )
+    heic_body = heic_buffer.getvalue()
+    source_only = replace(
+        item,
+        display_object_key=None,
+        source_object_key="originals/upload/phone-photo.heic",
+    )
+
+    class HeicSources:
+        def read_image(self, object_key: str) -> ImagePayload:
+            return ImagePayload(
+                object_key=object_key,
+                content_type="image/heic",
+                body=heic_body,
+                sha256="a" * 64,
+            )
+
+        def delete(self, object_key: str) -> None:
+            raise AssertionError(f"unexpected delete: {object_key}")
+
+    application = WardrobeApplication(
+        wardrobe=MemoryWardrobe(source_only),
+        sources=HeicSources(),
+    )
+
+    display = await application.read_display(user_id, source_only.id)
+    source = await application.read_source(user_id, source_only.id)
+
+    assert display.content_type == "image/jpeg"
+    assert display.body.startswith(b"\xff\xd8\xff")
+    assert source.content_type == "image/heic"
+    assert source.body == heic_body

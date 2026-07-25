@@ -38,6 +38,7 @@ class PixelTrialResponse(BaseModel):
     status: PixelTrialStatus
     subject_attached: bool
     output_image_url: str | None
+    failure_code: str | None
     failure_message: str | None
     retryable: bool
     created_at: datetime
@@ -52,7 +53,12 @@ class PixelTrialResponse(BaseModel):
             output_image_url=(
                 f"/v1/pixel-trials/{view.id}/image" if view.object_key is not None else None
             ),
-            failure_message=view.failure_message,
+            failure_code=view.failure_code,
+            failure_message=(
+                "像素形象暂时没有生成。可以重试。"
+                if view.failure_code is not None
+                else None
+            ),
             retryable=view.status is PixelTrialStatus.FAILED and view.subject_attached,
             created_at=view.created_at,
             updated_at=view.updated_at,
@@ -145,9 +151,8 @@ def build_pixel_trial_router(
         user_id: UUID = principal,
     ) -> Response:
         view = await services.trials.delete(user_id=user_id, trial_id=trial_id)
-        for object_key in (view.subject_object_key, view.object_key):
-            if object_key is not None:
-                services.objects.delete(object_key)
+        if view.object_key is not None:
+            services.objects.delete(view.object_key)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

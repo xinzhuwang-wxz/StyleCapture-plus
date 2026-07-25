@@ -208,4 +208,5 @@ def build_app() -> FastAPI:
         cors_origins=settings.cors_origins,
         session_signing_secret=settings.session_signing_secret.get_secret_value(),
         session_cookie_secure=settings.session_cookie_secure,
+        demo_seed_new_session_quota=settings.demo_seed_new_session_quota,
     )

@@ -23,6 +23,7 @@ class PixelTrialView:
     content_type: str | None
     subject_object_key: str | None
     subject_attached: bool
+    failure_code: str | None
     failure_message: str | None
     created_at: datetime
     updated_at: datetime
@@ -118,6 +119,7 @@ def _view(trial: PixelTrial, *, dispatch_required: bool = False) -> PixelTrialVi
         content_type=trial.output.content_type if trial.output is not None else None,
         subject_object_key=trial.subject_object_key,
         subject_attached=trial.subject_object_key is not None,
+        failure_code=trial.failure_code,
         failure_message=trial.failure_message,
         created_at=trial.created_at,
         updated_at=trial.updated_at,

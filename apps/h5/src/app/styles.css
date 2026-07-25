@@ -271,6 +271,49 @@ p {
   color: var(--muted);
 }
 
+.feed-liking-prompt {
+  position: fixed;
+  z-index: 95;
+  right: max(1rem, calc((100vw - min(100vw, 430px)) / 2 + 1rem));
+  bottom: 6.8rem;
+  left: max(1rem, calc((100vw - min(100vw, 430px)) / 2 + 1rem));
+  padding: 0.85rem;
+  border: 1px solid rgba(220, 202, 255, 0.5);
+  border-radius: 1.15rem;
+  background: rgba(30, 20, 45, 0.88);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.32);
+  color: white;
+  backdrop-filter: blur(1rem);
+}
+
+.feed-liking-prompt > strong,
+.feed-liking-prompt > span {
+  display: block;
+}
+
+.feed-liking-prompt > span {
+  margin-top: 0.2rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.68rem;
+}
+
+.feed-liking-prompt > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.feed-liking-prompt button {
+  padding: 0.42rem 0.62rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  font-size: 0.68rem;
+}
+
 .capture-panel {
   position: relative;
   overflow: hidden;
@@ -426,7 +469,7 @@ p {
   border: 0;
   border-radius: 0.68rem;
   background: transparent;
-  color: var(--muted);
+  color: var(--pixel-text-muted);
   font-size: 0.68rem;
   font-weight: 650;
 }
@@ -436,7 +479,7 @@ p {
 .segmented-control button.is-selected {
   background: white;
   box-shadow: 0 0.25rem 0.85rem rgba(71, 48, 106, 0.11);
-  color: var(--purple-700);
+  color: var(--pixel-primary-dark);
 }
 
 .wardrobe-view-tabs {
@@ -817,11 +860,28 @@ p {
   margin-top: 0.9rem;
   border: 0;
   border-radius: 0.95rem;
-  background: linear-gradient(135deg, var(--purple-700), var(--purple-500));
+  background: linear-gradient(135deg, var(--pixel-primary-dark), var(--pixel-primary));
   box-shadow: 0 0.7rem 1.5rem rgba(102, 53, 199, 0.22);
   color: white;
   font-size: 0.82rem;
   font-weight: 750;
+}
+
+.wardrobe-empty--error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--pixel-error) 42%, var(--pixel-border));
+  background: color-mix(in srgb, var(--pixel-error) 8%, var(--pixel-surface));
+}
+
+.wardrobe-error-retry {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.9rem;
+  border: 2px solid var(--pixel-primary-dark);
+  border-radius: 999px;
+  background: var(--pixel-surface);
+  color: var(--pixel-primary-dark);
+  font: inherit;
+  font-weight: 850;
 }
 
 .primary-action:disabled {
@@ -1009,6 +1069,16 @@ p {
 
 .look-recovery button:disabled {
   opacity: 0.5;
+}
+
+.look-detail__source-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.look-detail__source-actions button {
+  margin-top: 0.25rem;
 }
 
 .look-detail__section {
@@ -1395,7 +1465,7 @@ p {
 .ai-constraints__row button.is-selected {
   border-color: var(--pixel-primary);
   background: color-mix(in srgb, var(--pixel-primary) 14%, white);
-  color: var(--pixel-primary);
+  color: var(--pixel-primary-dark);
   font-weight: 800;
 }
 
@@ -1513,6 +1583,34 @@ p {
   color: var(--pixel-text-muted);
   font-size: 0.64rem;
   line-height: 1.45;
+}
+
+.capture-heic-preview,
+.pending-heic-preview {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--pixel-text);
+  background:
+    radial-gradient(circle at 50% 25%, rgb(140 93 255 / 16%), transparent 45%),
+    linear-gradient(145deg, var(--pixel-surface), var(--pixel-surface-raised));
+}
+
+.capture-heic-preview strong,
+.pending-heic-preview strong {
+  font-family: var(--font-pixel);
+  color: var(--pixel-primary-dark);
+}
+
+.capture-heic-preview span,
+.pending-heic-preview span {
+  color: var(--pixel-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .visually-hidden {

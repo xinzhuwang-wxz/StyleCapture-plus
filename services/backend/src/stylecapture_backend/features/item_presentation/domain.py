@@ -122,3 +122,16 @@ class ItemPresentationAsset:
             failure_message=message.strip(),
             updated_at=datetime.now(UTC),
         )
+
+    def retry(self) -> ItemPresentationAsset:
+        if self.status is not ItemPresentationStatus.FAILED:
+            return self
+        return replace(
+            self,
+            status=ItemPresentationStatus.QUEUED,
+            output=None,
+            failure_code=None,
+            failure_message=None,
+            provider_trace=None,
+            updated_at=datetime.now(UTC),
+        )

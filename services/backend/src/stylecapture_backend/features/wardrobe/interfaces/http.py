@@ -62,6 +62,8 @@ class ItemResponse(BaseModel):
     status: ItemStatus
     ownership: OwnershipState
     source_kind: CaptureSourceKind
+    source_video_ref: str | None = None
+    source_timestamp_ms: int | None = None
     display_image_url: str
     display_image_kind: DisplayImageKind = "source_capture"
     display_image_issue: DisplayImageIssue | None = None
@@ -92,12 +94,24 @@ class ItemResponse(BaseModel):
                 display_image_issue = "no_reliable_garment"
             elif normalization.get("status") == "fallback":
                 display_image_issue = "normalization_unavailable"
+        feed_source = item.model_metadata.get("feed_source")
+        source_video_ref = None
+        source_timestamp_ms = None
+        if isinstance(feed_source, Mapping):
+            raw_video_ref = feed_source.get("video_ref")
+            raw_timestamp_ms = feed_source.get("timestamp_ms")
+            if isinstance(raw_video_ref, str) and raw_video_ref:
+                source_video_ref = raw_video_ref
+            if isinstance(raw_timestamp_ms, int) and raw_timestamp_ms >= 0:
+                source_timestamp_ms = raw_timestamp_ms
         return cls(
             id=item.id,
             capture_id=item.capture_id,
             status=item.status,
             ownership=item.ownership,
             source_kind=item.source_kind,
+            source_video_ref=source_video_ref,
+            source_timestamp_ms=source_timestamp_ms,
             display_image_url=f"/v1/items/{item.id}/image",
             display_image_kind=(
                 "derived_garment"

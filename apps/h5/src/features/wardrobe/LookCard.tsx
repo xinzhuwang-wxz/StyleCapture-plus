@@ -19,6 +19,13 @@ export function LookCard({
   pixelCover?: RenderArtifact | null;
   onOpen: () => void;
 }) {
+  const coverReady =
+    pixelCover?.status === "succeeded" && Boolean(pixelCover.output_image_url);
+  const coverFailed =
+    pixelCover?.status === "failed" || pixelCover?.status === "degraded";
+  const coverAlt = coverFailed
+    ? "像素穿搭封面生成失败，当前显示临时像素形象"
+    : "像素穿搭封面生成中";
   return (
     <motion.article
       className="item-card look-card pixel-card wardrobe-card"
@@ -28,16 +35,16 @@ export function LookCard({
     >
       <button className="item-card__open" type="button" onClick={onOpen}>
         <div className="item-card__image look-card__image wardrobe-card__cover wardrobe-card__cover--outfit">
-          {pixelCover?.output_image_url ? (
+          {coverReady ? (
             <img
-              src={pixelCover.output_image_url}
+              src={pixelCover.output_image_url!}
               alt="已生成的像素穿搭封面"
               data-image-kind="look-pixel-cover"
             />
           ) : (
             <img
               src={pixelAvatarDataUrl(look.id, { size: 300 })}
-              alt="像素穿搭封面生成中"
+              alt={coverAlt}
               data-image-kind="look-pixel-pending"
               data-pixel="true"
             />
@@ -48,18 +55,22 @@ export function LookCard({
           {look.status === "processing" ? (
             <div className="processing-sheen" aria-hidden="true" />
           ) : null}
-          {pixelCover?.output_image_url ? (
+          {coverReady ? (
             <span className="look-card__cover-label">像素封面</span>
           ) : (
-            <span className="look-card__cover-label">生成中</span>
+            <span className="look-card__cover-label">
+              {coverFailed ? "生成失败 · 点开重试" : "生成中"}
+            </span>
           )}
         </div>
         <div className="item-card__body wardrobe-card__meta">
           <strong>{look.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}</strong>
           <span>
-            {look.status === "ready"
-              ? "查看真实单品与搭配关系"
-              : "原始穿搭已保存，AI 在后台理解"}
+            {coverFailed
+              ? "真实单品仍可查看，点开可重新生成封面"
+              : look.status === "ready"
+                ? "查看真实单品与搭配关系"
+                : "原始穿搭已保存，AI 在后台理解"}
           </span>
         </div>
       </button>

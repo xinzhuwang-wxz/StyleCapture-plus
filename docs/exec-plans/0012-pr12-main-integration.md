@@ -42,7 +42,8 @@
 - [x] 删除运行时 mock、固定产物和重复业务合同，并增加静态防回流测试。
 - [x] 按 ADR-0005 统一 AI Capability、Prompt 版本、Skill 边界与 Promptfoo 评测入口。
 - [x] 跑合同生成、lint、typecheck、单元/集成、Docker 与真实移动端截图验证。
-- [ ] 更新 PR #12，确认无 P0/P1 后再合并。
+- [x] 完成 PR #12 融合分支的独立代码、产品、移动端与证据审查；通过新的集成 PR
+  取代旧 PR #12，旧 PR 在集成 PR 合并后关闭为 superseded。
 
 ## 复用审计
 
@@ -86,6 +87,14 @@
   而不擅自猜测目标衣服，AutoResearch 需继续检查这条歧义路径的提示与恢复是否足够清楚。
 - Promptfoo 不能为每个 case 新建独立 demo 会话，否则会重复冷启动种子并增加主机和托管
   provider 负担；自定义 Product API provider 在单次评测进程内复用同一匿名 session。
+- 预置衣橱和运行期新增资产不能共享同一“最新优先”排序：18 组经过人工策展的
+  `curated_seed` 实物图↔像素图应稳定排在一级单品页前部，Feed、上传和拍照新增资产随后按
+  原有顺序展示。排序只读取策展元数据，不改变 Item 真源或推荐权重。
+- 策展像素图 request key 不能只依赖固定 `seed_key`；当真实图、像素图或展示元数据升级时，
+  presentation signature 也会变化，request key 必须携带 signature hash，才能同时保持同版本
+  幂等和跨版本可升级。
+- 浏览器恢复的 pending job 可能已经被后端清理。只有后端明确返回 `job_not_found` 时才删除
+  本地占位；网络抖动和临时服务失败继续保留恢复入口，避免误删真实任务。
 
 ## Decision Log
 
@@ -101,11 +110,15 @@
   可点，前两条 Feed 同时提供可重播的非阻塞画圈手势引导。
 - 2026-07-26：Promptfoo 固定为 `0.121.19`，通过 Product API 串行执行并复用会话；当前
   3 个中文成功场景与 1 个请求校验失败场景共 4/4 通过，不把评测工具加入产品镜像。
+- 2026-07-26：套装搭配关系分析继续使用 `outfit_analysis` 的 Lite 模型别名；Mini 对比结果
+  只保留为历史评测，不覆盖本项目对搭配语义质量的明确要求。
+- 2026-07-26：前两个 Feed 在圈选闭合、主体浮起后增加“左划取消 / 右划加入”教学；提示可
+  自动消退且不拦截原有左右滑和按钮操作，后续 Feed 不重复打扰。
 
 ## Fresh Evidence
 
-- Backend：Ruff 通过；Mypy `100 source files` 通过；Pytest `254 passed`。
-- H5：Vitest `59 passed`；TypeScript 通过；Vite production build 通过；Skill 合同测试
+- Backend：Ruff 通过；Mypy `102 source files` 通过；Pytest `289 passed in 9.22s`。
+- H5：Vitest `12 files / 83 tests passed`；TypeScript 通过；Vite production build 通过；Skill 合同测试
   `4 passed`；OpenAPI 已从当前后端重新生成。
 - Promptfoo：真实 Compose Product API，`4 passed / 0 failed / 0 errors`，并发为 1。
 - Docker：API、H5、LiteLLM、PostgreSQL、Redis、light worker 均健康；真实日志包含
@@ -113,6 +126,8 @@
 - 手机 390×844：已实操 Feed 暂停/常亮圈选/画圈引导/整套保存、衣橱双视图、真实单品
   详情、中文 AI 推荐、真实拼贴、真人试穿、像素封面、照片像素 Try 和用户上传实物图。
 - 证据截图：`docs/evidence/pr12-integration/`。
+- 最终手机证据：`41-clean-curated-items-first.png` 证明 28 件单品中策展资产稳定前置且无测试
+  占位；`42-feed-post-lasso-swipe-guide.png` 证明真实圈选闭合后出现“左划取消 / 右划加入”。
 - AutoResearch 第 1/3 轮：更新旧版 Feed E2E 为当前 PR12 真实入口，并机械验证播放态与
   暂停态的圈选按钮均可用、前两条 Feed 展示画圈引导、空白轻点恢复播放、整套真实入库；
   Playwright `1 passed (1.5m)`，H5 Vitest `59 passed`，TypeScript 与 diff check 通过。

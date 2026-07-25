@@ -245,19 +245,7 @@ def build_capture_router(
         object_key: str,
         user_id: UUID = principal,
     ) -> Response:
-        try:
-            stored = services.objects.describe(object_key)
-        except (FileNotFoundError, KeyError) as error:
-            raise CaptureError(
-                "upload_not_found",
-                "The private upload is unavailable",
-            ) from error
-        if stored.owner_id != user_id or not stored.object_key.startswith("originals/"):
-            raise CaptureError(
-                "upload_not_found",
-                "The private upload is unavailable",
-            )
-        services.objects.delete(stored.object_key)
+        services.objects.discard_unattached_upload(object_key, user_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.post(
@@ -285,6 +273,7 @@ def build_capture_router(
                 ),
             )
         )
+        services.objects.mark_attached(body.object_key, user_id)
         return CaptureAcceptedResponse(
             capture_id=submission.capture.id,
             job_id=submission.job.id,

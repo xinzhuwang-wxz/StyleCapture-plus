@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from io import BytesIO
 from threading import Lock
 from typing import Protocol
-
-from PIL import Image
 
 from stylecapture_backend.features.capture.processing import (
     EmbeddingResult,
@@ -82,32 +79,12 @@ class DisabledImageEmbedder:
 
 class TransformersFashionSiglipBackend:
     def __init__(self, *, device: str) -> None:
-        import torch  # type: ignore[import-not-found,unused-ignore]
-        from transformers import (  # type: ignore[import-not-found,unused-ignore]
-            AutoModel,
-            AutoProcessor,
+        del device
+        raise RuntimeError(
+            "FashionSigLIP local embedding requires executable remote model code and is disabled; "
+            "use hosted embedding through LiteLLM instead"
         )
-
-        self._torch = torch
-        self._device = device
-        self._processor = AutoProcessor.from_pretrained(
-            FASHION_SIGLIP_MODEL_ID,
-            revision=FASHION_SIGLIP_REVISION,
-            trust_remote_code=True,
-        )
-        self._model = AutoModel.from_pretrained(
-            FASHION_SIGLIP_MODEL_ID,
-            revision=FASHION_SIGLIP_REVISION,
-            trust_remote_code=True,
-            use_safetensors=True,
-        ).to(device)
-        self._model.eval()
 
     def encode(self, image: ImagePayload) -> tuple[float, ...]:
-        with Image.open(BytesIO(image.body)) as source:
-            rendered = source.convert("RGB")
-        processed = self._processor(images=[rendered], return_tensors="pt")
-        pixel_values = processed["pixel_values"].to(self._device)
-        with self._torch.inference_mode():
-            features = self._model.get_image_features(pixel_values, normalize=True)
-        return tuple(float(value) for value in features[0].float().cpu().tolist())
+        del image
+        raise RuntimeError("FashionSigLIP local embedding is disabled")

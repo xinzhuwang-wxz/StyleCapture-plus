@@ -16,7 +16,7 @@ test("uploads a real garment, normalizes its display image, and preserves the as
   await page.goto("/");
   await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
   await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible();
-  await page.getByRole("button", { name: "按单品", exact: true }).click();
+  await page.getByRole("tab", { name: "按单品", exact: true }).click();
   await expect(page.locator(".item-card")).toHaveCount(10);
   const existingCount = await page.locator(".item-card").count();
 
@@ -83,7 +83,7 @@ test("uploads a real garment, normalizes its display image, and preserves the as
     .toBe(true);
 
   await detail.getByRole("button", { name: "删除原图" }).click();
-  await expect(detail.getByRole("alert")).toContainText("删除后原图无法恢复");
+  await expect(detail.getByRole("alert")).toContainText("删除后原始上传图无法恢复");
   await detail.getByRole("button", { name: "确认删除原图" }).click();
 
   await expect(detail).toHaveCount(0);

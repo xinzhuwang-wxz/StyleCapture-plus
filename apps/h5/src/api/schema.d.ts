@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/items/{item_id}/presentations/pixel/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Item Pixel Presentation */
+        post: operations["retry_item_pixel_presentation_v1_items__item_id__presentations_pixel_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/items/{item_id}/retry": {
         parameters: {
             query?: never;
@@ -774,6 +791,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Failure Code */
+            failure_code: string | null;
             /** Failure Message */
             failure_message: string | null;
             /**
@@ -847,6 +866,10 @@ export interface components {
             /** Source Image Url */
             source_image_url: string;
             source_kind: components["schemas"]["CaptureSourceKind"];
+            /** Source Timestamp Ms */
+            source_timestamp_ms?: number | null;
+            /** Source Video Ref */
+            source_video_ref?: string | null;
             status: components["schemas"]["ItemStatus"];
             /**
              * Updated At
@@ -1164,6 +1187,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Failure Code */
+            failure_code: string | null;
             /** Failure Message */
             failure_message: string | null;
             /**
@@ -1289,6 +1314,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Failure Code */
+            failure_code: string | null;
             /** Failure Message */
             failure_message: string | null;
             /** Fallback Artifact Id */
@@ -2177,6 +2204,111 @@ export interface operations {
             header?: {
                 "Idempotency-Key"?: string | null;
             };
+            path: {
+                item_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemPresentationResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    retry_item_pixel_presentation_v1_items__item_id__presentations_pixel_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
             path: {
                 item_id: string;
             };

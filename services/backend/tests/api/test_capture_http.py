@@ -333,6 +333,7 @@ async def test_request_validation_uses_the_stable_error_envelope(
     assert payload["code"] == "request_invalid"
     assert payload["request_id"]
     assert payload["details"]["violations"]
+    assert all("input" not in violation for violation in payload["details"]["violations"])
 
 
 @pytest.mark.asyncio
@@ -436,6 +437,76 @@ async def test_upload_and_capture_submission_are_real_and_idempotent(
     ]
     assert first.json()["state"] == "queued"
     assert first.json()["status_url"].endswith(first.json()["job_id"])
+
+
+@pytest.mark.asyncio
+async def test_upload_can_only_be_discarded_before_capture_submission(
+    api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
+) -> None:
+    client, _, _ = api
+    body = png_bytes()
+    digest = sha256(body).hexdigest()
+    async with client:
+        await start_session(client)
+
+        unattached = (
+            await client.post(
+                "/v1/uploads/prepare",
+                json={
+                    "file_name": "discard-me.png",
+                    "content_type": "image/png",
+                    "byte_size": len(body),
+                    "sha256": digest,
+                },
+            )
+        ).json()
+        uploaded = await client.put(
+            unattached["upload_url"],
+            content=body,
+            headers={
+                "Content-Type": "image/png",
+                "X-Upload-Token": unattached["upload_token"],
+            },
+        )
+        assert uploaded.status_code == 201
+        assert (await client.delete(f"/v1/uploads/{unattached['object_key']}" )).status_code == 204
+
+        attached = (
+            await client.post(
+                "/v1/uploads/prepare",
+                json={
+                    "file_name": "keep-me.png",
+                    "content_type": "image/png",
+                    "byte_size": len(body),
+                    "sha256": digest,
+                },
+            )
+        ).json()
+        uploaded = await client.put(
+            attached["upload_url"],
+            content=body,
+            headers={
+                "Content-Type": "image/png",
+                "X-Upload-Token": attached["upload_token"],
+            },
+        )
+        assert uploaded.status_code == 201
+        submitted = await client.post(
+            "/v1/captures",
+            headers={"Idempotency-Key": "attached-upload-delete-guard"},
+            json={
+                "object_key": attached["object_key"],
+                "sha256": digest,
+                "source_kind": "camera",
+                "ownership": "owned",
+            },
+        )
+        assert submitted.status_code == 202
+
+        rejected = await client.delete(f"/v1/uploads/{attached['object_key']}")
+
+    assert rejected.status_code == 409
+    assert rejected.json()["error"]["code"] == "upload_already_attached"
 
 
 @pytest.mark.asyncio

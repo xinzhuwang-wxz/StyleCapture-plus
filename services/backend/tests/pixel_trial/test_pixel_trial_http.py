@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from hashlib import sha256
 from io import BytesIO
+from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -22,7 +23,10 @@ from stylecapture_backend.features.pixel_trial.application import PixelTrialAppl
 from stylecapture_backend.features.pixel_trial.domain import PixelTrial
 from stylecapture_backend.features.pixel_trial.interfaces.http import PixelTrialHttpServices
 from stylecapture_backend.features.pixel_trial.ports import PixelTrialIdempotencyConflict
-from stylecapture_backend.features.wardrobe.application import WardrobeApplication
+from stylecapture_backend.features.wardrobe.application import (
+    WardrobeApplication,
+    WardrobeRepository,
+)
 from stylecapture_backend.main import BackendServices, create_app
 
 
@@ -118,7 +122,7 @@ def store_private_image(
 
 
 @pytest.mark.asyncio
-async def test_pixel_trial_http_creates_private_queued_task(tmp_path) -> None:
+async def test_pixel_trial_http_creates_private_queued_task(tmp_path: Path) -> None:
     repository = MemoryPixelTrials()
     dispatcher = RecordingPixelTrialDispatcher()
     objects = LocalObjectStore(
@@ -131,7 +135,10 @@ async def test_pixel_trial_http_creates_private_queued_task(tmp_path) -> None:
             jobs=cast(JobRepository, None),
             objects=objects,
             retries=cast(JobRetryApplication, None),
-            wardrobe=WardrobeApplication(wardrobe=cast(object, None), sources=objects),
+            wardrobe=WardrobeApplication(
+                wardrobe=cast(WardrobeRepository, None),
+                sources=objects,
+            ),
             pixel_trials=PixelTrialHttpServices(
                 trials=PixelTrialApplication(trials=repository),
                 objects=objects,
@@ -167,7 +174,7 @@ async def test_pixel_trial_http_creates_private_queued_task(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_pixel_trial_rejects_other_users_subject_photo(tmp_path) -> None:
+async def test_pixel_trial_rejects_other_users_subject_photo(tmp_path: Path) -> None:
     repository = MemoryPixelTrials()
     objects = LocalObjectStore(
         root=tmp_path / "uploads",
@@ -179,7 +186,10 @@ async def test_pixel_trial_rejects_other_users_subject_photo(tmp_path) -> None:
             jobs=cast(JobRepository, None),
             objects=objects,
             retries=cast(JobRetryApplication, None),
-            wardrobe=WardrobeApplication(wardrobe=cast(object, None), sources=objects),
+            wardrobe=WardrobeApplication(
+                wardrobe=cast(WardrobeRepository, None),
+                sources=objects,
+            ),
             pixel_trials=PixelTrialHttpServices(
                 trials=PixelTrialApplication(trials=repository),
                 objects=objects,

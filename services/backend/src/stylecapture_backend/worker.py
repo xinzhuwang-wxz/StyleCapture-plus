@@ -32,9 +32,6 @@ from stylecapture_backend.features.item_presentation.interfaces.worker import (
 from stylecapture_backend.features.item_presentation.processing import (
     ItemPresentationProcessor,
 )
-from stylecapture_backend.features.look.infrastructure.outfit_analysis import (
-    LiteLLMOutfitAnalyzer,
-)
 from stylecapture_backend.features.look.infrastructure.repository import (
     SqlAlchemyLookRepository,
 )
@@ -66,7 +63,10 @@ from stylecapture_backend.features.wardrobe.infrastructure.repository import (
 from stylecapture_backend.platform.celery import build_celery
 from stylecapture_backend.platform.config import BackendSettings
 from stylecapture_backend.platform.database import build_session_factory
-from stylecapture_backend.platform.worker_dependencies import build_promptable_segmenter
+from stylecapture_backend.platform.worker_dependencies import (
+    build_outfit_analyzer,
+    build_promptable_segmenter,
+)
 
 settings = BackendSettings()  # type: ignore[call-arg]
 sessions = build_session_factory(
@@ -96,11 +96,7 @@ grounder = LiteLLMVisualGrounder(
     gateway_base_url=settings.litellm_base_url,
     gateway_api_key=settings.litellm_api_key.get_secret_value(),
 )
-outfit_analyzer = LiteLLMOutfitAnalyzer(
-    capability_alias=settings.outfit_analysis_model_alias,
-    gateway_base_url=settings.litellm_base_url,
-    gateway_api_key=settings.litellm_api_key.get_secret_value(),
-)
+outfit_analyzer = build_outfit_analyzer(settings)
 embedder: ImageEmbedder
 if settings.embedding_mode == "hosted":
     embedder = LiteLLMMultimodalEmbedder(

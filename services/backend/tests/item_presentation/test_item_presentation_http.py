@@ -15,7 +15,10 @@ from stylecapture_backend.features.capture.ports import JobRepository, ObjectSto
 from stylecapture_backend.features.item_presentation.application import (
     ItemPresentationApplication,
 )
-from stylecapture_backend.features.item_presentation.domain import ItemPresentationAsset
+from stylecapture_backend.features.item_presentation.domain import (
+    ItemPresentationAsset,
+    ItemPresentationKind,
+)
 from stylecapture_backend.features.item_presentation.interfaces.http import (
     ItemPresentationHttpServices,
 )
@@ -67,7 +70,7 @@ class MemoryItemPresentationAssets:
         *,
         user_id: UUID,
         item_id: UUID,
-        kind,
+        kind: ItemPresentationKind,
         input_signature: RenderInputSignature,
     ) -> ItemPresentationAsset | None:
         for asset in self.assets.values():
@@ -188,3 +191,17 @@ async def test_item_pixel_presentation_http_creates_queued_task() -> None:
         not_ready = await client.get(f"/v1/item-presentations/{payload['id']}/image")
         assert not_ready.status_code == 404
         assert not_ready.json()["error"]["code"] == "item_presentation_not_found"
+
+        failed = repository.assets[UUID(payload["id"])].mark_failed(
+            code="provider_unavailable",
+            message="provider failed",
+        )
+        await repository.save(failed)
+        dispatcher.calls.clear()
+        retry = await client.post(f"/v1/items/{item.id}/presentations/pixel/retry")
+
+        assert retry.status_code == 202
+        assert retry.json()["status"] == "queued"
+        assert retry.json()["failure_message"] is None
+        assert retry.json()["retryable"] is False
+        assert dispatcher.calls == [(user_id, UUID(payload["id"]))]

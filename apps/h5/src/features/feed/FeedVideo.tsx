@@ -59,6 +59,7 @@ export function FeedVideo({
   restoreRequest
 }: FeedVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
   const frameRef = useRef<FrameState | null>(null);
   const mountedRef = useRef(true);
   const savedTimerRef = useRef<number | null>(null);
@@ -104,6 +105,12 @@ export function FeedVideo({
       setGestureGuideToken((current) => current + 1);
     }
   };
+
+  useEffect(() => {
+    if (articleRef.current) {
+      articleRef.current.inert = !active;
+    }
+  }, [active]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -208,7 +215,8 @@ export function FeedVideo({
       const accepted = await wardrobeApi.ingestFeedFrame(
         frame.file,
         feedContext(asset, frame, nextAttempt.decision),
-        nextAttempt.idempotencyKey
+        nextAttempt.idempotencyKey,
+        nextAttempt.decision.intent === "whole_outfit" ? "whole_outfit" : "item"
       );
       onAccepted(accepted, frame.file);
       releaseFrame();
@@ -245,9 +253,11 @@ export function FeedVideo({
 
   return (
     <article
+      aria-hidden={!active}
       className="feed-video"
       data-active={active ? "true" : "false"}
       aria-label={`${asset.creatorName} 的穿搭`}
+      ref={articleRef}
     >
       <video
         aria-label={`${asset.creatorName} 的穿搭视频`}
@@ -258,6 +268,7 @@ export function FeedVideo({
         muted
         playsInline
         preload={active ? "auto" : "metadata"}
+        tabIndex={active ? 0 : -1}
         ref={videoRef}
         src={feedMediaUrl(asset.localPath)}
         onCanPlay={() => {
@@ -281,7 +292,12 @@ export function FeedVideo({
       <div className="feed-video__meta">
         <strong>@{asset.creatorName}</strong>
         <p>暂停画面，圈住想带进衣橱的单品或整套穿搭</p>
-        <a href={asset.sourcePageUrl} target="_blank" rel="noreferrer">
+        <a
+          href={asset.sourcePageUrl}
+          target="_blank"
+          rel="noreferrer"
+          tabIndex={active ? 0 : -1}
+        >
           {asset.sourcePlatform} · {asset.licenseName}
         </a>
       </div>
@@ -289,7 +305,8 @@ export function FeedVideo({
         <button
           aria-label="暂停并圈选"
           className="feed-video__circle-button"
-          disabled={!mediaReady || capturing || submitting}
+          disabled={!active || !mediaReady || capturing || submitting}
+          tabIndex={active ? 0 : -1}
           type="button"
           onClick={() => void pauseAndCapture()}
         >

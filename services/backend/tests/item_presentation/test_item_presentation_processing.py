@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from hashlib import sha256
+from io import BytesIO
 from uuid import UUID, uuid4
 
 import pytest
+from PIL import Image
+from pillow_heif import from_pillow
 from stylecapture_backend.features.capture.domain import (
     CaptureSourceKind,
     ImagePayload,
@@ -93,15 +97,19 @@ class MemoryObjects:
 
 
 class SuccessfulGenerator:
+    def __init__(self) -> None:
+        self.images: tuple[ImagePayload, ...] = ()
+
     async def generate(
         self,
         *,
         prompt: str,
-        images: tuple[ImagePayload, ...],
+        images: Sequence[ImagePayload],
         size: str = "1024x1024",
     ) -> GeneratedImage:
         assert "只出现一个目标单品" in prompt
         assert len(images) == 1
+        self.images = tuple(images)
         body = b"real-provider-item-pixel-output"
         return GeneratedImage(
             body=body,
@@ -152,11 +160,12 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
     )
     repository = MemoryPresentations(asset)
     wardrobe = OneItemWardrobe(item)
+    generator = SuccessfulGenerator()
     processor = ItemPresentationProcessor(
-        presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),  # type: ignore[arg-type]
-        wardrobe=wardrobe,  # type: ignore[arg-type]
+        presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
+        wardrobe=wardrobe,
         objects=MemoryObjects(source),
-        generator=SuccessfulGenerator(),
+        generator=generator,
     )
 
     await processor.process(user_id=user_id, asset_id=asset.id)
@@ -170,3 +179,63 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
         stored.provider_trace.parameters["prompt_version"] == "stylecapture-item-pixel-2026-07-26"
     )
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
+
+
+@pytest.mark.asyncio
+async def test_item_pixel_converts_heic_source_before_render_provider() -> None:
+    user_id = uuid4()
+    now = datetime.now(UTC)
+    source = _heic_payload("originals/upload/sweater.heic")
+    item = WardrobeItem(
+        id=uuid4(),
+        user_id=user_id,
+        capture_id=uuid4(),
+        selection_key="whole_capture",
+        source_object_key=source.object_key,
+        display_object_key=None,
+        source_available=True,
+        source_kind=CaptureSourceKind.UPLOAD,
+        ownership=OwnershipState.OWNED,
+        status=ItemStatus.READY,
+        attributes=ItemAttributes(),
+        model_metadata={},
+        embedding=None,
+        created_at=now,
+        updated_at=now,
+    )
+    asset = ItemPresentationAsset.queued(
+        user_id=user_id,
+        item_id=item.id,
+        kind=ItemPresentationKind.PIXEL_ITEM,
+        input_signature=pixel_item_signature(item),
+        request_key="item-pixel-heic",
+    )
+    repository = MemoryPresentations(asset)
+    wardrobe = OneItemWardrobe(item)
+    generator = SuccessfulGenerator()
+    processor = ItemPresentationProcessor(
+        presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
+        wardrobe=wardrobe,
+        objects=MemoryObjects(source),
+        generator=generator,
+    )
+
+    await processor.process(user_id=user_id, asset_id=asset.id)
+
+    assert repository.assets[asset.id].status is ItemPresentationStatus.SUCCEEDED
+    assert generator.images[0].content_type == "image/jpeg"
+    assert generator.images[0].object_key.endswith(".render-input.jpg")
+
+
+def _heic_payload(object_key: str) -> ImagePayload:
+    image = Image.new("RGB", (8, 6), (210, 180, 140))
+    heif = from_pillow(image)
+    buffer = BytesIO()
+    heif.save(buffer, format="HEIF")
+    body = buffer.getvalue()
+    return ImagePayload(
+        object_key=object_key,
+        content_type="image/heic",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )

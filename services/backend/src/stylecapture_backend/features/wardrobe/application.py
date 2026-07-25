@@ -10,6 +10,7 @@ from stylecapture_backend.features.capture.domain import (
     ProcessingJob,
 )
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
+from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
 EDITABLE_FIELDS = frozenset(
     {
@@ -72,6 +73,15 @@ class SourceDeletedNotRetryableError(ValueError):
     pass
 
 
+def _wardrobe_display_order(item: WardrobeItem) -> tuple[int, int]:
+    """Keep reviewed showcase assets first without disturbing new-item recency."""
+
+    raw_order = item.model_metadata.get("showcase_order")
+    if isinstance(raw_order, int) and not isinstance(raw_order, bool) and raw_order >= 0:
+        return (0, raw_order)
+    return (1, 0)
+
+
 class WardrobeApplication:
     def __init__(
         self,
@@ -87,7 +97,8 @@ class WardrobeApplication:
         self._retries = retries
 
     async def list_items(self, user_id: UUID) -> list[WardrobeItem]:
-        return await self._wardrobe.list_for_user(user_id)
+        items = await self._wardrobe.list_for_user(user_id)
+        return sorted(items, key=_wardrobe_display_order)
 
     async def get_item(self, user_id: UUID, item_id: UUID) -> WardrobeItem:
         item = await self._wardrobe.get_for_user(item_id, user_id)
@@ -126,7 +137,7 @@ class WardrobeApplication:
         object_key = item.display_object_key or item.source_object_key
         if object_key == item.source_object_key and not item.source_available:
             raise FileNotFoundError(item.source_object_key)
-        return self._sources.read_image(object_key)
+        return normalize_provider_image(self._sources.read_image(object_key))
 
     async def delete_source(self, user_id: UUID, item_id: UUID) -> None:
         item = await self.get_item(user_id, item_id)

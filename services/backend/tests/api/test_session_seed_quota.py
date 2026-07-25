@@ -66,11 +66,27 @@ async def test_demo_seed_is_idempotent_per_cookie_and_bounded_for_new_sessions()
     assert repeated_response.json()["user_id"] == str(first_user)
     assert [first_response.status_code, repeated_response.status_code] == [201, 201]
     assert [second_response.status_code, third_response.status_code] == [201, 201]
-    assert demo_wardrobe.users == [
-        first_user,
-        UUID(second_response.json()["user_id"]),
-    ]
+    second_user = UUID(second_response.json()["user_id"])
+    assert demo_wardrobe.users == [first_user, first_user, second_user]
     assert UUID(third_response.json()["user_id"]) not in demo_wardrobe.users
+
+
+@pytest.mark.asyncio
+async def test_demo_seed_reensure_for_existing_cookie_does_not_consume_new_session_quota() -> None:
+    demo_wardrobe = RecordingDemoWardrobe()
+    app = build_app(demo_wardrobe, quota=1)
+    transport = ASGITransport(app=app)  # type: ignore[arg-type]
+
+    async with AsyncClient(transport=transport, base_url="http://test") as first:
+        first_response = await first.post("/v1/session")
+        repeated_response = await first.post("/v1/session")
+    async with AsyncClient(transport=transport, base_url="http://test") as second:
+        second_response = await second.post("/v1/session")
+
+    first_user = UUID(first_response.json()["user_id"])
+    assert repeated_response.json()["user_id"] == str(first_user)
+    assert demo_wardrobe.users == [first_user, first_user]
+    assert UUID(second_response.json()["user_id"]) not in demo_wardrobe.users
 
 
 def test_demo_seed_quota_rejects_negative_values() -> None:

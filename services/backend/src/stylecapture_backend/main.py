@@ -108,6 +108,10 @@ CAPTURE_ERROR_STATUS = {
     "upload_size_invalid": status.HTTP_413_CONTENT_TOO_LARGE,
     "upload_token_expired": status.HTTP_410_GONE,
     "upload_not_found": status.HTTP_404_NOT_FOUND,
+    "upload_already_attached": status.HTTP_409_CONFLICT,
+    "upload_unattached_quota_exceeded": status.HTTP_429_TOO_MANY_REQUESTS,
+    "upload_daily_quota_exceeded": status.HTTP_429_TOO_MANY_REQUESTS,
+    "upload_capacity_exceeded": status.HTTP_503_SERVICE_UNAVAILABLE,
     "upload_object_conflict": status.HTTP_409_CONFLICT,
     "source_hash_mismatch": status.HTTP_409_CONFLICT,
     "invalid_idempotency_key": status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -145,6 +149,17 @@ def _error_response(
     )
 
 
+def _public_validation_errors(error: RequestValidationError) -> list[dict[str, object]]:
+    encoded = jsonable_encoder(error.errors())
+    if not isinstance(encoded, list):
+        return []
+    return [
+        {key: value for key, value in violation.items() if key != "input"}
+        for violation in encoded
+        if isinstance(violation, dict)
+    ]
+
+
 def create_app(
     services: BackendServices,
     *,
@@ -160,10 +175,11 @@ def create_app(
     sessions = SessionSigner(session_signing_secret)
     demo_seed_admission_lock = asyncio.Lock()
     admitted_demo_seed_sessions = 0
-
-    async def admit_demo_seed_for_new_session() -> bool:
+    async def should_seed_demo_wardrobe(*, existing_user: bool) -> bool:
         nonlocal admitted_demo_seed_sessions
         async with demo_seed_admission_lock:
+            if existing_user:
+                return True
             if admitted_demo_seed_sessions >= demo_seed_new_session_quota:
                 return False
             admitted_demo_seed_sessions += 1
@@ -482,7 +498,7 @@ def create_app(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             code="request_invalid",
             message="The request does not match the API contract",
-            details={"violations": jsonable_encoder(error.errors())},
+            details={"violations": _public_validation_errors(error)},
         )
 
     @app.get("/healthz")
@@ -504,10 +520,8 @@ def create_app(
         except InvalidSessionError:
             user_id = None
         user_id, token = sessions.issue(user_id)
-        if (
-            services.demo_wardrobe is not None
-            and not existing_user
-            and await admit_demo_seed_for_new_session()
+        if services.demo_wardrobe is not None and await should_seed_demo_wardrobe(
+            existing_user=existing_user
         ):
             await services.demo_wardrobe.ensure_for_user(user_id)
         response.set_cookie(

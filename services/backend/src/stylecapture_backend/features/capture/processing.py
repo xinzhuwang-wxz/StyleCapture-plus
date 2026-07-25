@@ -38,6 +38,7 @@ from stylecapture_backend.features.wardrobe.domain import (
     ModelField,
     WardrobeItem,
 )
+from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
 if TYPE_CHECKING:
     from stylecapture_backend.features.capture.grounding import (
@@ -268,7 +269,6 @@ class CaptureProcessor:
         capture: Capture,
         job: ProcessingJob,
     ) -> ProcessingOutcome:
-        item = await self._processing_item(capture, WHOLE_CAPTURE_SELECTION_KEY)
         try:
             image = self._objects.read_image(capture.source.object_key)
         except (FileNotFoundError, KeyError):
@@ -277,7 +277,12 @@ class CaptureProcessor:
                 "The original image is no longer available",
                 retryable=False,
             )
-            await self._wardrobe.save(item.with_status(ItemStatus.ERROR))
+            existing_item = await self._wardrobe.get_by_capture(
+                capture.id,
+                WHOLE_CAPTURE_SELECTION_KEY,
+            )
+            if existing_item is not None:
+                await self._wardrobe.save(existing_item.with_status(ItemStatus.ERROR))
             await self._jobs.update(
                 job.transition(
                     JobState.ERROR,
@@ -287,11 +292,33 @@ class CaptureProcessor:
             )
             return ProcessingOutcome.error(error)
 
-        item, analysis_image = await self._normalize_uploaded_garment(
+        provider_image = normalize_provider_image(image)
+        item, item_already_existed = await self._upload_item_candidate(
+            capture,
+            WHOLE_CAPTURE_SELECTION_KEY,
+        )
+        item, analysis_image, normalization_error = await self._normalize_uploaded_garment(
             capture,
             item,
-            image,
+            provider_image,
+            persist=False,
         )
+        if normalization_error is not None:
+            error = ProviderError(
+                normalization_error,
+                "未识别到单件可入库服装, 请换一张只包含一件衣服的清晰照片",
+                retryable=False,
+            )
+            if item_already_existed:
+                await self._wardrobe.save(item.with_status(ItemStatus.ERROR))
+            await self._jobs.update(
+                job.transition(
+                    JobState.ERROR,
+                    error_code=error.code,
+                    error_message=error.message,
+                )
+            )
+            return ProcessingOutcome.error(error)
         try:
             analysis = await self._vision.describe(analysis_image)
         except ProviderError as error:
@@ -338,14 +365,16 @@ class CaptureProcessor:
         capture: Capture,
         item: WardrobeItem,
         source_image: ImagePayload,
-    ) -> tuple[WardrobeItem, ImagePayload]:
+        *,
+        persist: bool = True,
+    ) -> tuple[WardrobeItem, ImagePayload, str | None]:
         if (
             self._grounder is None
             or self._segmenter is None
             or self._selection_images is None
             or self._display_assets is None
         ):
-            return item, source_image
+            return item, source_image, None
 
         full_frame = FeedSelection(
             selection_key=WHOLE_CAPTURE_SELECTION_KEY,
@@ -361,18 +390,18 @@ class CaptureProcessor:
             candidates = self._reliable_candidates(grounding, full_frame)
             if len(candidates) != 1:
                 reason = "multiple_garments" if candidates else "no_reliable_garment"
-                item = await self._wardrobe.save(
-                    item.with_model_metadata(
-                        {
-                            "normalization": {
-                                "status": "not_applied",
-                                "reason": reason,
-                                "candidate_count": len(candidates),
-                            }
+                item = item.with_model_metadata(
+                    {
+                        "normalization": {
+                            "status": "not_applied",
+                            "reason": reason,
+                            "candidate_count": len(candidates),
                         }
-                    )
+                    }
                 )
-                return item, source_image
+                if persist:
+                    item = await self._wardrobe.save(item)
+                return item, source_image, reason
 
             candidate = candidates[0]
             garment_selection = FeedSelection(
@@ -388,48 +417,48 @@ class CaptureProcessor:
                 owner_id=capture.user_id,
                 prefix="derived/items",
             )
-            item = await self._wardrobe.save(
-                item.with_display_object(display_image.object_key).with_model_metadata(
-                    {
-                        "normalization": {
-                            "status": "succeeded",
-                            "source": "runtime_extraction",
-                            "grounding": _grounding_metadata(
-                                grounding.metadata,
-                                candidate,
-                            ),
-                            "segmentation": _segmentation_metadata(segmentation),
-                        }
+            item = item.with_display_object(display_image.object_key).with_model_metadata(
+                {
+                    "normalization": {
+                        "status": "succeeded",
+                        "source": "runtime_extraction",
+                        "grounding": _grounding_metadata(
+                            grounding.metadata,
+                            candidate,
+                        ),
+                        "segmentation": _segmentation_metadata(segmentation),
                     }
-                )
+                }
             )
-            return item, selected_image
+            if persist:
+                item = await self._wardrobe.save(item)
+            return item, selected_image, None
         except ProviderError as error:
-            item = await self._wardrobe.save(
-                item.with_model_metadata(
-                    {
-                        "normalization": {
-                            "status": "fallback",
-                            "reason": error.code,
-                            "retryable": error.retryable,
-                        }
+            item = item.with_model_metadata(
+                {
+                    "normalization": {
+                        "status": "fallback",
+                        "reason": error.code,
+                        "retryable": error.retryable,
                     }
-                )
+                }
             )
-            return item, source_image
+            if persist:
+                item = await self._wardrobe.save(item)
+            return item, source_image, None
         except (OSError, ValueError):
-            item = await self._wardrobe.save(
-                item.with_model_metadata(
-                    {
-                        "normalization": {
-                            "status": "fallback",
-                            "reason": "derived_asset_unavailable",
-                            "retryable": False,
-                        }
+            item = item.with_model_metadata(
+                {
+                    "normalization": {
+                        "status": "fallback",
+                        "reason": "derived_asset_unavailable",
+                        "retryable": False,
                     }
-                )
+                }
             )
-            return item, source_image
+            if persist:
+                item = await self._wardrobe.save(item)
+            return item, source_image, None
 
     async def _process_feed(
         self,
@@ -921,6 +950,21 @@ class CaptureProcessor:
             )
         return await self._wardrobe.save(
             item.with_model_metadata({"processing_error": None}).with_status(ItemStatus.PROCESSING)
+        )
+
+    async def _upload_item_candidate(
+        self,
+        capture: Capture,
+        selection_key: str,
+    ) -> tuple[WardrobeItem, bool]:
+        item = await self._wardrobe.get_by_capture(capture.id, selection_key)
+        if item is None:
+            return WardrobeItem.processing(capture, selection_key=selection_key), False
+        return (
+            item.with_model_metadata({"processing_error": None}).with_status(
+                ItemStatus.PROCESSING
+            ),
+            True,
         )
 
     async def _item_candidate(

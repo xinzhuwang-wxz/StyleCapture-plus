@@ -231,6 +231,101 @@ describe("FeedSelectionOverlay", () => {
     );
   });
 
+  it("lifts the whole frame before a keyboard-accessible save decision", () => {
+    const { onConfirm } = renderOverlay();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "一键保存整套穿搭" })
+    );
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    const lifted = screen.getByRole("group", {
+      name: "已圈选的穿搭主体"
+    });
+    expect(lifted).toHaveAttribute("data-selection-count", "1");
+
+    fireEvent.keyDown(lifted, { key: "ArrowRight" });
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      frame,
+      intent: "whole_outfit",
+      selections: [
+        {
+          id: "whole-outfit-full-frame",
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("lets the user reject a lifted whole-frame shortcut without writing", () => {
+    const { onConfirm, onDismiss } = renderOverlay();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "一键保存整套穿搭" })
+    );
+    fireEvent.keyDown(
+      screen.getByRole("group", { name: "已圈选的穿搭主体" }),
+      { key: "ArrowLeft" }
+    );
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("returns a settled selection to drawing so more items can be added", () => {
+    const { overlay } = renderOverlay();
+    drawLoop(overlay, 1, [
+      { x: 40, y: 80 },
+      { x: 160, y: 80 },
+      { x: 160, y: 260 },
+      { x: 40, y: 80 }
+    ]);
+    act(() => vi.advanceTimersByTime(700));
+
+    fireEvent.click(screen.getByRole("button", { name: "继续圈选" }));
+    expect(
+      screen.queryByRole("group", { name: "已圈选的穿搭主体" })
+    ).not.toBeInTheDocument();
+
+    drawLoop(overlay, 2, [
+      { x: 220, y: 360 },
+      { x: 360, y: 360 },
+      { x: 360, y: 620 },
+      { x: 220, y: 360 }
+    ]);
+    act(() => vi.advanceTimersByTime(700));
+
+    expect(
+      screen.getByRole("group", { name: "已圈选的穿搭主体" })
+    ).toHaveAttribute("data-selection-count", "2");
+  });
+
+  it("exposes the selected save intent to assistive technology", () => {
+    const { overlay } = renderOverlay();
+    drawLoop(overlay, 1, [
+      { x: 40, y: 80 },
+      { x: 360, y: 80 },
+      { x: 360, y: 700 },
+      { x: 40, y: 80 }
+    ]);
+    act(() => vi.advanceTimersByTime(700));
+
+    const itemIntent = screen.getByRole("button", { name: "存单品" });
+    const outfitIntent = screen.getByRole("button", { name: "存整套" });
+    expect(itemIntent).toHaveAttribute("aria-pressed", "true");
+    expect(outfitIntent).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(outfitIntent);
+    expect(itemIntent).toHaveAttribute("aria-pressed", "false");
+    expect(outfitIntent).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("dismisses without a write when the lifted subject is swiped left", () => {
     const { onConfirm, onDismiss, overlay } = renderOverlay();
     drawLoop(overlay, 1, [
@@ -457,5 +552,25 @@ describe("FeedSelectionOverlay", () => {
     expect(
       screen.getByRole("status", { name: "沿着衣服边缘画一圈" })
     ).toHaveAttribute("data-guide-token", "2");
+  });
+
+  it("teaches the first Feed users what to do after the subject lifts", () => {
+    const { overlay } = renderOverlay({ gestureGuideToken: 1 });
+
+    drawLoop(overlay, 31, [
+      { x: 120, y: 220 },
+      { x: 280, y: 220 },
+      { x: 280, y: 560 },
+      { x: 120, y: 560 },
+      { x: 120, y: 220 }
+    ]);
+    act(() => vi.advanceTimersByTime(700));
+
+    expect(
+      screen.getByRole("status", { name: "左划取消，右划加入" })
+    ).toHaveTextContent("左划取消");
+    expect(
+      screen.getByRole("status", { name: "左划取消，右划加入" })
+    ).toHaveTextContent("右划加入");
   });
 });

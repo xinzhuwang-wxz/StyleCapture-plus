@@ -10,27 +10,45 @@ def test_litellm_config_exposes_capability_alias_without_embedded_credentials() 
     raw = config_path.read_text(encoding="utf-8")
     config = yaml.safe_load(raw)
 
-    assert [entry["model_name"] for entry in config["model_list"]] == [
+    entries = config["model_list"]
+    models = {entry["model_name"]: entry["litellm_params"] for entry in entries}
+    assert len(models) == len(entries)
+    assert {
         "reasoning",
         "vision_understanding",
         "visual_grounding",
         "outfit_analysis",
+        "outfit_analysis_fallback",
         "image_generation",
-    ]
-    reasoning = config["model_list"][0]["litellm_params"]
-    vision = config["model_list"][1]["litellm_params"]
-    grounding = config["model_list"][2]["litellm_params"]
-    outfit_analysis = config["model_list"][3]["litellm_params"]
-    image_generation = config["model_list"][4]["litellm_params"]
+    }.issubset(models)
+    reasoning = models["reasoning"]
+    vision = models["vision_understanding"]
+    grounding = models["visual_grounding"]
+    outfit_analysis = models["outfit_analysis"]
+    image_generation = models["image_generation"]
     assert reasoning["model"] == "openai/doubao-seed-2-0-lite-260428"
     assert vision["model"] == "openai/doubao-seed-2-0-lite-260428"
     assert grounding["model"] == "openai/doubao-seed-2-0-lite-260428"
     assert outfit_analysis["model"] == "openai/doubao-seed-2-0-lite-260428"
+    assert models["outfit_analysis_fallback"]["model"] == ("openai/doubao-seed-2-0-lite-260428")
     assert image_generation["model"] == "openai/doubao-seedream-5-0-260128"
+    assert models["candidate_doubao_seed_2_0_lite_260428"]["model"] == (
+        "openai/doubao-seed-2-0-lite-260428"
+    )
+    assert models["candidate_doubao_seed_2_0_mini_260428"]["model"] == (
+        "openai/doubao-seed-2-0-mini-260428"
+    )
+    for candidate_alias in (
+        "candidate_doubao_seed_2_0_lite_260428",
+        "candidate_doubao_seed_2_0_mini_260428",
+    ):
+        assert models[candidate_alias]["api_base"] == "os.environ/ARK_BASE_URL"
+        assert models[candidate_alias]["api_key"] == "os.environ/ARK_API_KEY"
     assert reasoning["api_key"] == "os.environ/ARK_API_KEY"
     assert vision["api_key"] == "os.environ/ARK_API_KEY"
     assert grounding["api_key"] == "os.environ/ARK_API_KEY"
     assert outfit_analysis["api_key"] == "os.environ/ARK_API_KEY"
+    assert models["outfit_analysis_fallback"]["api_key"] == "os.environ/ARK_API_KEY"
     assert image_generation["api_key"] == "os.environ/ARK_API_KEY"
     assert vision["api_base"] == "os.environ/ARK_BASE_URL"
     assert "sk-" not in raw

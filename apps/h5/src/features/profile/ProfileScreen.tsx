@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { ProductApiError, type PixelTrial, validateImage, wardrobeApi } from "../../api/client";
 import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import {
+  createBrowserImagePreview,
+  releaseBrowserImagePreview
+} from "../../media/browserImagePreview";
 import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 import "./profile.css";
 
@@ -10,6 +14,14 @@ interface ProfileScreenProps {
   itemCount: number;
   outfitCount: number;
   onNotice?: (message: string) => void;
+}
+
+const PIXEL_TRIAL_STORAGE_KEY = "stylecapture:pixel-trial:v1";
+
+function restoreTrialId(): string | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.sessionStorage.getItem(PIXEL_TRIAL_STORAGE_KEY);
+  return stored && stored.trim() ? stored : null;
 }
 
 function messageFor(error: unknown): string {
@@ -30,7 +42,7 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
   const queryClient = useQueryClient();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [trialId, setTrialId] = useState<string | null>(null);
+  const [trialId, setTrialId] = useState<string | null>(restoreTrialId);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +57,21 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
   });
   const trial = trialQuery.data ?? null;
   const generating = trial?.status === "queued" || trial?.status === "running";
+  const trialStatusUnavailable = trialId !== null && trialQuery.isError;
+
+  useEffect(() => {
+    if (trialId) {
+      window.sessionStorage.setItem(PIXEL_TRIAL_STORAGE_KEY, trialId);
+    } else {
+      window.sessionStorage.removeItem(PIXEL_TRIAL_STORAGE_KEY);
+    }
+  }, [trialId]);
+
+  useEffect(() => {
+    if (trial?.status !== "succeeded" && trial?.status !== "failed") return;
+    releaseBrowserImagePreview(localPreviewUrl);
+    setLocalPreviewUrl(null);
+  }, [localPreviewUrl, trial?.status]);
 
   const createTrialMutation = useMutation({
     mutationFn: (file: File) =>
@@ -66,7 +93,7 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
       setTrialId(null);
       setError(null);
       if (localPreviewUrl) {
-        URL.revokeObjectURL(localPreviewUrl);
+        releaseBrowserImagePreview(localPreviewUrl);
         setLocalPreviewUrl(null);
       }
       onNotice?.("像素形象草稿已删除，衣橱资产没有变化");
@@ -83,15 +110,17 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
       setError(validationError);
       return;
     }
-    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
-    setLocalPreviewUrl(URL.createObjectURL(file));
+    releaseBrowserImagePreview(localPreviewUrl);
+    setLocalPreviewUrl(createBrowserImagePreview(file));
     setError(null);
     createTrialMutation.mutate(file);
   }
 
   const imageUrl = trialPreviewUrl(trial);
   const statusCopy =
-    trial?.status === "succeeded"
+    trialStatusUnavailable
+      ? "状态暂时无法更新，照片没有丢失"
+      : trial?.status === "succeeded"
       ? "已生成，可作为展示形象"
       : generating
         ? "生成中，可以切走页面"
@@ -109,7 +138,9 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="pixel-title profile__name">我的 StyleCapture</h1>
-          <span className="profile__level">Lv.3 穿搭收藏家</span>
+          <span className="profile__level">
+            {itemCount > 0 ? `已收录 ${itemCount} 件单品` : "数字衣橱新用户"}
+          </span>
         </div>
         <span className="profile__edit">{statusCopy}</span>
       </section>
@@ -138,7 +169,7 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
       </div>
 
       <PixelSectionHeader
-        kicker="Try Pixel"
+        kicker="像素试验室"
         title="拍自己，生成像素风格图"
         action={
           generating ? <span className="pixel-label">后台生成中…</span> : null
@@ -151,6 +182,11 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
             <img src={imageUrl} alt="像素形象生成结果" data-pixel="true" />
           ) : localPreviewUrl ? (
             <img src={localPreviewUrl} alt="本次上传的全身照预览" />
+          ) : createTrialMutation.isPending || generating ? (
+            <div className="pending-heic-preview" role="status">
+              <strong>正在转换 iPhone 照片</strong>
+              <span>转换完成后继续生成像素形象</span>
+            </div>
           ) : (
             <img
               src={pixelAvatarDataUrl("profile-empty", { size: 260, hat: false })}
@@ -159,7 +195,9 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
             />
           )}
           <span>
-            {trial?.status === "succeeded"
+            {trialStatusUnavailable
+              ? "状态待恢复"
+              : trial?.status === "succeeded"
               ? "生成完成"
               : generating
                 ? "生成中"
@@ -170,8 +208,18 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
           这条链路只用于快速体验“真人照片 → 像素形象”，不会新增单品或套装；真正入库仍从拍照/相册/Feed 入口完成。
         </p>
         {error ? <div className="profile__error" role="alert">{error}</div> : null}
-        {trial?.failure_message ? (
-          <div className="profile__error" role="alert">{trial.failure_message}</div>
+        {trialStatusUnavailable ? (
+          <div className="profile__error" role="alert">
+            像素形象状态暂时无法更新，已上传的照片不会丢失。
+            <button type="button" onClick={() => void trialQuery.refetch()}>
+              重试状态
+            </button>
+          </div>
+        ) : null}
+        {trial?.status === "failed" ? (
+          <div className="profile__error" role="alert">
+            像素形象这次没有生成成功，可换一张正面全身照重试。
+          </div>
         ) : null}
         <div className="profile__actions">
           <PixelButton

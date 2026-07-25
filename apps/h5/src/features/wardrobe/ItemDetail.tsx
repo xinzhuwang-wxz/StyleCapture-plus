@@ -1,8 +1,12 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Item, Ownership } from "../../api/client";
-import { GARMENT_CATEGORY_OPTIONS, garmentLabel } from "./localization";
+import {
+  GARMENT_CATEGORY_OPTIONS,
+  garmentLabel,
+  sourceKindLabel
+} from "./localization";
 import { useDisplayImage } from "./useDisplayImage";
 
 type ItemDetailProps = {
@@ -18,6 +22,7 @@ type ItemDetailProps = {
   ) => void;
   onDeleteSource: (itemId: string) => void;
   onBuildOutfit: (itemId: string) => void;
+  onReturnToFeed: (videoRef: string, timestampMs: number) => void;
 };
 
 function DetailContent({
@@ -26,7 +31,8 @@ function DetailContent({
   onClose,
   onSave,
   onDeleteSource,
-  onBuildOutfit
+  onBuildOutfit,
+  onReturnToFeed
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
   const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
@@ -35,6 +41,13 @@ function DetailContent({
     String(item.attributes.description?.value ?? "")
   );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const displayImageNote =
     item.display_image_kind === "derived_garment"
@@ -52,7 +65,26 @@ function DetailContent({
     setCategory(String(item.attributes.category?.value ?? ""));
     setDescription(String(item.attributes.description?.value ?? ""));
     setConfirmingDelete(false);
+    setImageFailed(false);
   }, [item]);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+        previouslyFocused.focus();
+      }
+    };
+  }, [item.id]);
 
   return (
     <motion.section
@@ -66,7 +98,13 @@ function DetailContent({
       transition={{ type: "spring", stiffness: 340, damping: 36 }}
     >
       <div className="detail-topbar">
-        <button className="icon-button" type="button" aria-label="返回衣橱" onClick={onClose}>
+        <button
+          ref={closeButtonRef}
+          className="icon-button"
+          type="button"
+          aria-label="返回衣橱"
+          onClick={onClose}
+        >
           ‹
         </button>
         <strong id="item-detail-title">单品详情</strong>
@@ -74,10 +112,11 @@ function DetailContent({
       </div>
 
       <div className="detail-image">
-        {imageUrl ? (
+        {imageUrl && !imageFailed ? (
           <img
             src={imageUrl}
             alt={description || "衣橱单品原图"}
+            onError={() => setImageFailed(true)}
             data-image-kind={
               item.display_image_kind === "derived_garment"
                 ? "wardrobe-display"
@@ -87,16 +126,34 @@ function DetailContent({
         ) : (
           <div className="item-image-placeholder">
             <span>衣</span>
-            <small>原图已删除或不可用</small>
+            <small>
+              {imageFailed ? "图片格式暂不可预览，识别结果仍保留" : "原图已删除或不可用"}
+            </small>
           </div>
         )}
       </div>
 
       <div className="detail-content">
         <div className="detail-meta">
-          <span>{item.source_kind === "camera" ? "拍照录入" : "相册录入"}</span>
+          <span>{sourceKindLabel(item.source_kind)}</span>
           <span>{item.status === "ready" ? "已完成理解" : "仍可编辑"}</span>
         </div>
+
+        {item.source_kind === "feed" ? (
+          item.source_video_ref && item.source_timestamp_ms !== null ? (
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() =>
+                onReturnToFeed(item.source_video_ref!, item.source_timestamp_ms!)
+              }
+            >
+              回看 Feed 来源
+            </button>
+          ) : (
+            <p className="privacy-note">来源视频暂不可回看，已保存的单品不受影响。</p>
+          )
+        ) : null}
 
         <p
           className={`display-image-note${
@@ -182,10 +239,14 @@ function DetailContent({
           用这件搭一套
         </button>
         {!item.source_available ? (
-          <p className="privacy-note">原图已删除，保留的标签和描述仍可继续编辑。</p>
+          <p className="privacy-note">
+            原始上传图已删除；抠出的单品图、标签和描述仍保留并可继续使用。
+          </p>
         ) : confirmingDelete ? (
           <div className="delete-confirmation" role="alert">
-            <p>删除后原图无法恢复，但分类、描述和归属仍会保留。</p>
+            <p>
+              删除后原始上传图无法恢复；抠出的单品图、分类、描述和归属仍会保留。
+            </p>
             <div>
               <button type="button" onClick={() => setConfirmingDelete(false)}>
                 保留原图

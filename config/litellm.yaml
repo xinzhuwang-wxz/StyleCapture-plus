@@ -23,9 +23,30 @@ model_list:
       api_base: os.environ/ARK_BASE_URL
       api_key: os.environ/ARK_API_KEY
 
+  # Server-only sequential retry alias. Product code records only the stable
+  # outfit_analysis capability alias in public provenance.
+  - model_name: outfit_analysis_fallback
+    litellm_params:
+      model: openai/doubao-seed-2-0-lite-260428
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
   - model_name: image_generation
     litellm_params:
       model: openai/doubao-seedream-5-0-260128
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
+  # Server-only candidates retained for reproducible offline model-routing evaluation.
+  - model_name: candidate_doubao_seed_2_0_lite_260428
+    litellm_params:
+      model: openai/doubao-seed-2-0-lite-260428
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
+  - model_name: candidate_doubao_seed_2_0_mini_260428
+    litellm_params:
+      model: openai/doubao-seed-2-0-mini-260428
       api_base: os.environ/ARK_BASE_URL
       api_key: os.environ/ARK_API_KEY
 

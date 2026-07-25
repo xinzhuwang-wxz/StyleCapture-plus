@@ -39,6 +39,7 @@ class ItemPresentationView:
     object_key: str | None
     content_hash: str | None
     content_type: str | None
+    failure_code: str | None
     failure_message: str | None
     created_at: datetime
     updated_at: datetime
@@ -87,6 +88,28 @@ class ItemPresentationApplication:
         if asset is None:
             raise ItemPresentationNotFound("Item presentation asset not found")
         return _view(asset)
+
+    async def retry_pixel_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+    ) -> ItemPresentationView:
+        item = await self._wardrobe.get_item(user_id, item_id)
+        signature = pixel_item_signature(item)
+        existing = await self._assets.find_current(
+            user_id=user_id,
+            item_id=item_id,
+            kind=ItemPresentationKind.PIXEL_ITEM,
+            input_signature=signature,
+        )
+        if existing is None:
+            return await self.ensure_pixel_item(user_id=user_id, item_id=item_id)
+        retried = await self._assets.save(existing.retry())
+        return _view(
+            retried,
+            dispatch_required=retried.status is ItemPresentationStatus.QUEUED,
+        )
 
     async def mark_running(
         self,
@@ -181,6 +204,7 @@ def _view(
         object_key=asset.output.object_key if asset.output is not None else None,
         content_hash=asset.output.content_hash if asset.output is not None else None,
         content_type=asset.output.content_type if asset.output is not None else None,
+        failure_code=asset.failure_code,
         failure_message=asset.failure_message,
         created_at=asset.created_at,
         updated_at=asset.updated_at,

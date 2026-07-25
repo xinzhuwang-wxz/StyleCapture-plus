@@ -286,14 +286,15 @@ async function ingest(
 async function ingestFeedFrame(
   file: File,
   feedContext: FeedFrameContext,
-  idempotencyKey: string
+  idempotencyKey: string,
+  intent: "item" | "whole_outfit" = "item"
 ): Promise<CaptureAccepted> {
   return submitCapture(
     file,
     "feed",
     "inspiration",
     idempotencyKey,
-    "item",
+    intent,
     feedContext
   );
 }
@@ -437,6 +438,20 @@ async function retryItem(itemId: string): Promise<void> {
   if (!response.data) {
     throwApiError(response.error, "暂时无法重新识别");
   }
+}
+
+async function retryItemPixel(itemId: string): Promise<ItemPresentation> {
+  await ensureSession();
+  const response = await client.POST(
+    "/v1/items/{item_id}/presentations/pixel/retry",
+    {
+      params: { path: { item_id: itemId } }
+    }
+  );
+  if (!response.data) {
+    throwApiError(response.error, "像素展示图暂时无法重试");
+  }
+  return response.data;
 }
 
 async function updateItem(
@@ -692,6 +707,7 @@ export const wardrobeApi = {
   getJob,
   retryJob,
   retryItem,
+  retryItemPixel,
   updateItem,
   deleteSource,
   displayImage,

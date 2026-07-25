@@ -54,6 +54,7 @@ class RenderArtifactResponse(BaseModel):
     personalized: bool
     output_image_url: str | None
     fallback_artifact_id: UUID | None
+    failure_code: str | None
     failure_message: str | None
     retryable: bool
     share_eligible: bool
@@ -81,7 +82,12 @@ class RenderArtifactResponse(BaseModel):
                 f"/v1/render-artifacts/{view.id}/image" if view.object_key is not None else None
             ),
             fallback_artifact_id=view.fallback_artifact_id,
-            failure_message=view.failure_message,
+            failure_code=view.failure_code,
+            failure_message=(
+                "真实效果图暂时没有生成。可以重试。"
+                if view.failure_code is not None
+                else None
+            ),
             retryable=view.status in {RenderArtifactStatus.FAILED, RenderArtifactStatus.DEGRADED},
             share_eligible=view.share_eligible,
             cache_hit=view.cache_hit,
@@ -268,7 +274,6 @@ def build_render_router(
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         if stored.owner_id != user_id:
             raise RenderArtifactNotFound("Try-on subject photo does not exist")
-        services.objects.delete(view.subject_object_key)
         await services.renders.forget_subject_photo(
             user_id=user_id,
             artifact_id=artifact_id,

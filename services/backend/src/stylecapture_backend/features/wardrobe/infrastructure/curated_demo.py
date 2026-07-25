@@ -75,6 +75,14 @@ class DemoLookRepository(Protocol):
 
 
 class DemoObjectWriter(Protocol):
+    def write_private_source_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload: ...
+
     def write_derived_image(
         self,
         image: ImagePayload,
@@ -108,9 +116,18 @@ class SeedItem:
     subcategory: str
     ownership: OwnershipState
     colors: tuple[str, ...]
-    style: tuple[str, ...]
+    styles: tuple[str, ...]
     source_ref: str
     pixel_file_name: str | None = None
+    materials: tuple[str, ...] = ()
+    pattern: str | None = None
+    silhouette: str | None = None
+    fit: str | None = None
+    seasons: tuple[str, ...] = ()
+    occasions: tuple[str, ...] = ()
+    details: tuple[str, ...] = ()
+    source_file_name: str | None = None
+    source_pixel_file_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,8 +160,17 @@ def _load_seed_manifest(path: Path) -> tuple[tuple[SeedItem, ...], tuple[SeedLoo
             subcategory=str(entry["subcategory"]),
             ownership=OwnershipState(str(entry["ownership"])),
             colors=tuple(str(value) for value in cast(list[object], entry["colors"])),
-            style=tuple(str(value) for value in cast(list[object], entry["styles"])),
+            styles=tuple(str(value) for value in cast(list[object], entry["styles"])),
             source_ref=str(entry["source_ref"]),
+            materials=_optional_tuple(entry, "materials"),
+            pattern=_optional_str(entry, "pattern"),
+            silhouette=_optional_str(entry, "silhouette"),
+            fit=_optional_str(entry, "fit"),
+            seasons=_optional_tuple(entry, "seasons"),
+            occasions=_optional_tuple(entry, "occasions"),
+            details=_optional_tuple(entry, "details"),
+            source_file_name=_nested_optional_str(entry, "source_files", "real"),
+            source_pixel_file_name=_nested_optional_str(entry, "source_files", "pixel"),
         )
         for entry in raw_items
     )
@@ -164,9 +190,57 @@ def _load_seed_manifest(path: Path) -> tuple[tuple[SeedItem, ...], tuple[SeedLoo
     return items, looks
 
 
+def _optional_tuple(entry: dict[str, object], key: str) -> tuple[str, ...]:
+    values = entry.get(key)
+    if values is None:
+        return ()
+    return tuple(str(value) for value in cast(list[object], values))
+
+
+def _optional_str(entry: dict[str, object], key: str) -> str | None:
+    value = entry.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _nested_optional_str(entry: dict[str, object], key: str, nested_key: str) -> str | None:
+    value = entry.get(key)
+    if not isinstance(value, dict):
+        return None
+    nested = value.get(nested_key)
+    if nested is None:
+        return None
+    text = str(nested).strip()
+    return text or None
+
+
 SEED_ITEMS, SEED_LOOKS = _load_seed_manifest(
     Path(__file__).resolve().parents[3] / "demo_assets" / "seed-manifest.json"
 )
+SHOWCASE_SEED_ORDER = {
+    item.key: order
+    for order, item in enumerate(item for item in SEED_ITEMS if item.key.startswith("user_"))
+}
+
+
+def _seed_item_metadata(definition: SeedItem) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "annotation_provenance": "curated_seed",
+        "review_state": "human_reviewed",
+        "seed_key": definition.key,
+        "source_ref": definition.source_ref,
+        "asset_pair": {
+            "real": definition.file_name,
+            "pixel": definition.pixel_file_name,
+            "source_real": definition.source_file_name,
+            "source_pixel": definition.source_pixel_file_name,
+        },
+    }
+    if definition.key in SHOWCASE_SEED_ORDER:
+        metadata["showcase_order"] = SHOWCASE_SEED_ORDER[definition.key]
+    return metadata
 
 
 class CuratedDemoWardrobeBootstrapper:
@@ -200,15 +274,22 @@ class CuratedDemoWardrobeBootstrapper:
             await self._ensure_look(user_id, look_definition, stored_items)
 
     async def _ensure_item(self, user_id: UUID, definition: SeedItem) -> WardrobeItem:
-        body = (self._assets_root / definition.file_name).read_bytes()
-        digest = sha256(body).hexdigest()
-        image = self._objects.write_derived_image(
-            ImagePayload(
-                object_key=f"curated-seed/{definition.file_name}",
-                content_type="image/jpeg",
-                body=body,
-                sha256=digest,
-            ),
+        source_file_name = _seed_source_file_name(self._assets_root, definition)
+        source_seed_image = _read_seed_image(
+            self._assets_root / source_file_name,
+            object_key=f"curated-seed/source/{source_file_name}",
+        )
+        display_seed_image = _read_seed_image(
+            self._assets_root / definition.file_name,
+            object_key=f"curated-seed/display/{definition.file_name}",
+        )
+        source_image = self._objects.write_private_source_image(
+            source_seed_image,
+            owner_id=user_id,
+            prefix=f"originals/curated-seed/{user_id}/{definition.key}",
+        )
+        display_image = self._objects.write_derived_image(
+            display_seed_image,
             owner_id=user_id,
             prefix=f"derived/curated-seed/{user_id}",
         )
@@ -220,8 +301,8 @@ class CuratedDemoWardrobeBootstrapper:
                     if definition.ownership is OwnershipState.OWNED
                     else CaptureSourceKind.FEED
                 ),
-                object_key=image.object_key,
-                sha256=image.sha256,
+                object_key=source_image.object_key,
+                sha256=source_image.sha256,
                 origin_ref=definition.source_ref,
             ),
             ownership=definition.ownership,
@@ -241,6 +322,20 @@ class CuratedDemoWardrobeBootstrapper:
         )
         existing = await self._wardrobe.get_by_capture(submitted.capture.id)
         if existing is not None:
+            updated = existing
+            if (
+                existing.model_metadata.get("annotation_provenance") == "curated_seed"
+                and existing.display_object_key != display_image.object_key
+            ):
+                updated = updated.with_display_object(display_image.object_key)
+            expected_metadata = _seed_item_metadata(definition)
+            if any(
+                updated.model_metadata.get(name) != value
+                for name, value in expected_metadata.items()
+            ):
+                updated = updated.with_model_metadata(expected_metadata)
+            if updated != existing:
+                existing = await self._wardrobe.save(updated)
             await self._ensure_item_pixel(existing, definition)
             return existing
         fields = {
@@ -248,25 +343,28 @@ class CuratedDemoWardrobeBootstrapper:
             "subcategory": _seed_field(definition.subcategory),
             "description": _seed_field(definition.name),
             "colors": _seed_field(list(definition.colors)),
-            "style": _seed_field(list(definition.style)),
+            "styles": _seed_field(list(definition.styles)),
         }
+        _add_seed_field(fields, "materials", list(definition.materials))
+        _add_seed_field(fields, "pattern", definition.pattern)
+        _add_seed_field(fields, "silhouette", definition.silhouette)
+        _add_seed_field(fields, "fit", definition.fit)
+        _add_seed_field(fields, "seasons", list(definition.seasons))
+        _add_seed_field(fields, "occasions", list(definition.occasions))
+        _add_seed_field(fields, "details", list(definition.details))
         item = WardrobeItem(
             id=UUID(int=(submitted.capture.id.int ^ 2) % (1 << 128)),
             user_id=user_id,
             capture_id=submitted.capture.id,
             selection_key="whole_capture",
-            source_object_key=image.object_key,
-            display_object_key=image.object_key,
+            source_object_key=source_image.object_key,
+            display_object_key=display_image.object_key,
             source_available=True,
             source_kind=submitted.capture.source.kind,
             ownership=definition.ownership,
             status=ItemStatus.READY,
             attributes=ItemAttributes(fields),
-            model_metadata={
-                "annotation_provenance": "curated_seed",
-                "review_state": "human_reviewed",
-                "source_ref": definition.source_ref,
-            },
+            model_metadata=_seed_item_metadata(definition),
             embedding=None,
             created_at=now,
             updated_at=now,
@@ -298,7 +396,9 @@ class CuratedDemoWardrobeBootstrapper:
                 item_id=item.id,
                 kind=ItemPresentationKind.PIXEL_ITEM,
                 input_signature=signature,
-                request_key=f"curated-seed:item-pixel:{definition.key}",
+                request_key=(
+                    f"curated-seed:item-pixel:{definition.key}:{signature.hash[:16]}"
+                ),
             )
         )
         if requested.output is not None:
@@ -437,6 +537,12 @@ def _seed_field(value: object) -> FieldEnvelope:
     )
 
 
+def _add_seed_field(fields: dict[str, FieldEnvelope], name: str, value: object) -> None:
+    if value in (None, "", []):
+        return
+    fields[name] = _seed_field(value)
+
+
 def _read_seed_image(path: Path, *, object_key: str) -> ImagePayload:
     body = path.read_bytes()
     return ImagePayload(
@@ -445,6 +551,12 @@ def _read_seed_image(path: Path, *, object_key: str) -> ImagePayload:
         body=body,
         sha256=sha256(body).hexdigest(),
     )
+
+
+def _seed_source_file_name(assets_root: Path, definition: SeedItem) -> str:
+    if definition.source_file_name is not None and (assets_root / definition.source_file_name).is_file():
+        return definition.source_file_name
+    return definition.file_name
 
 
 def _seed_content_type(path: Path) -> str:

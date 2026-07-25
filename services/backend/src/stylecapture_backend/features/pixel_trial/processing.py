@@ -9,6 +9,7 @@ from stylecapture_backend.features.pixel_trial.application import PixelTrialAppl
 from stylecapture_backend.features.pixel_trial.ports import PixelTrialNotFound
 from stylecapture_backend.features.render.domain import RenderOutput
 from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
+from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
 
 class RetryablePixelTrialError(RuntimeError):
@@ -38,15 +39,19 @@ class PixelImageGenerator(Protocol):
 
 
 PIXEL_TRIAL_PROMPT = """
-把用户上传的正面全身照转换为可爱的像素风小人头像。
+把用户上传的正面全身照转换为一张轻盈、可爱的全身像素角色卡。
 要求:
-- 保留用户真实服装的主色、层次、轮廓和发型/体态特征;
-- 生成完整站姿小人, 透明或浅色纯背景;
+- 只生成一个居中的完整人物, 保留身份线索、姿势、发型、体态、鞋履、配饰和有意义的手持物;
+- 准确保留真实服装的主色、层次、轮廓、色块和搭配关系;
+- 使用清晰可见的粗像素方块与阶梯边缘, 像素块约为成图的 6-10px, 不要细碎微像素、写实纹理或油画笔触;
+- 每个服装平面控制在 3-4 个色阶, 面部和头发控制在 4-5 个色阶, 使用细暗色像素描边和少量抖色;
+- 背景从原图提取克制的两色基调, 只加入 1-3 个与原场景有关的低对比像素小图标、少量星点和脚下柔和椭圆阴影, 不复刻完整房间或街景;
+- 主题由服装和场景决定, 不默认使用粉色、蝴蝶结、爱心、花朵或与原图无关的装饰;
 - 不添加品牌标识、文字、水印或额外人物;
-- 输出应适合作为 StyleCapture 数字衣橱里的像素形象预览。
+- 输出应在手机小尺寸下仍能看清人物、表情和穿搭, 适合作为 StyleCapture 像素形象预览。
 """.strip()
 PIXEL_TRIAL_CAPABILITY_ID = "photo.pixel_trial"
-PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v1"
+PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v2"
 PIXEL_TRIAL_SCHEMA_VERSION = "generated-image-v1"
 
 
@@ -85,7 +90,7 @@ class PixelTrialProcessor:
             return
         running = await self._trials.mark_running(user_id=user_id, trial_id=trial_id)
         try:
-            subject = self._objects.read_image(trial.subject_object_key)
+            subject = normalize_provider_image(self._objects.read_image(trial.subject_object_key))
             generated = await self._generator.generate(
                 prompt=PIXEL_TRIAL_PROMPT,
                 images=(subject,),

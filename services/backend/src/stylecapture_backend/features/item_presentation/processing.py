@@ -22,6 +22,7 @@ from stylecapture_backend.features.item_presentation.ports import (
 from stylecapture_backend.features.render.domain import RenderOutput
 from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
 from stylecapture_backend.features.wardrobe.domain import FieldEnvelope, WardrobeItem
+from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
 
 class RetryableItemPresentationError(RuntimeError):
@@ -123,7 +124,7 @@ class ItemPresentationProcessor:
             object_key = item.display_object_key or item.source_object_key
             if object_key == item.source_object_key and not item.source_available:
                 raise FileNotFoundError(item.source_object_key)
-            source = self._objects.read_image(object_key)
+            source = normalize_provider_image(self._objects.read_image(object_key))
             generated = await self._generator.generate(
                 prompt=pixel_item_prompt(item),
                 images=(source,),

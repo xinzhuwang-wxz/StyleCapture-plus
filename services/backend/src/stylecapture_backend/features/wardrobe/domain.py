@@ -132,6 +132,7 @@ class WardrobeItem:
         selection_key: str = WHOLE_CAPTURE_SELECTION_KEY,
     ) -> WardrobeItem:
         now = datetime.now(UTC)
+        feed_context = capture.feed_context
         return cls(
             id=uuid4(),
             user_id=capture.user_id,
@@ -144,7 +145,16 @@ class WardrobeItem:
             ownership=capture.ownership,
             status=ItemStatus.PROCESSING,
             attributes=ItemAttributes(),
-            model_metadata={},
+            model_metadata=(
+                {
+                    "feed_source": {
+                        "video_ref": feed_context.video_ref,
+                        "timestamp_ms": feed_context.timestamp_ms,
+                    }
+                }
+                if feed_context is not None
+                else {}
+            ),
             embedding=None,
             created_at=now,
             updated_at=now,

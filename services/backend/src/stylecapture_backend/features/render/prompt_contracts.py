@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 PIXEL_COVER_CAPABILITY_ID = "look.pixel_cover"
-PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v2"
+PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v3"
 PIXEL_COVER_SCHEMA_VERSION = "generated-image-v1"
 
 TRY_ON_CAPABILITY_ID = "look.virtual_try_on"
@@ -14,8 +14,12 @@ PIXEL_COVER_PROMPT = (
     "把参考图里的上衣、下装、外套、鞋履和配饰组合到同一个且仅一个"
     "StyleCapture 可爱像素小人身上。画面中必须只有1个人物,全身正面"
     "站立并居中,完整展示从头到脚。保持真实单品的颜色、轮廓、材质、"
-    "层次和搭配关系。浅色纯净单色背景。禁止多人、分镜、九宫格、"
-    "备选造型、换装前后对比、文字、品牌、水印或额外服饰。"
+    "层次和搭配关系。使用清晰可见的粗像素方块与阶梯边缘,像素块约为"
+    "成图的6-10px,每个服装平面只用3-4个色阶,避免细碎微像素、写实"
+    "纹理、3D光照或油画笔触。背景从参考图提取克制的两色基调,只加入"
+    "1-3个与场景有关的低对比像素小图标、少量星点和脚下椭圆阴影;不要"
+    "复刻完整房间或默认使用粉色、蝴蝶结、爱心、花朵。禁止多人、分镜、"
+    "九宫格、备选造型、换装前后对比、文字、品牌、水印或额外服饰。"
 )
 
 TRY_ON_PROMPT = (

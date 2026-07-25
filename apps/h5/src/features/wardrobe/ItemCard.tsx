@@ -7,9 +7,11 @@ import { garmentLabel } from "./localization";
 export type PendingItem = {
   captureId: string;
   jobId: string;
-  previewUrl: string;
+  previewUrl: string | null;
   ownership: Ownership;
   state: Job["state"];
+  errorCode?: string | null;
+  errorMessage?: string | null;
 };
 
 const STATUS_LABELS: Record<Item["status"], string> = {
@@ -52,11 +54,13 @@ function PixelItemImage({
 export function WardrobeItemCard({
   item,
   onOpen,
-  onRetry
+  onRetry,
+  onRetryPixel
 }: {
   item: Item;
   onOpen: () => void;
   onRetry: () => void;
+  onRetryPixel: () => void;
 }) {
   const category = garmentLabel(
     item.attributes.subcategory?.value ?? item.attributes.category?.value
@@ -84,6 +88,8 @@ export function WardrobeItemCard({
           {item.pixel_image_status === "queued" ||
           item.pixel_image_status === "running" ? (
             <span className="item-card__pixel-status">像素图生成中</span>
+          ) : item.pixel_image_status === "failed" ? (
+            <span className="item-card__pixel-status">像素图未生成</span>
           ) : null}
         </div>
         <div className="item-card__body wardrobe-card__meta">
@@ -97,11 +103,35 @@ export function WardrobeItemCard({
           重新识别
         </button>
       ) : null}
+      {item.pixel_image_status === "failed" ? (
+        <button className="retry-link" type="button" onClick={onRetryPixel}>
+          重试像素图
+        </button>
+      ) : null}
     </motion.article>
   );
 }
 
-export function PendingItemCard({ pending }: { pending: PendingItem }) {
+function pendingFailureMessage(pending: PendingItem): string {
+  if (pending.errorCode === "no_reliable_garment") {
+    return "没有识别到清晰的衣服，请换一张主体更完整的照片";
+  }
+  if (pending.errorCode === "multiple_garments") {
+    return "识别到多件衣服，请按“整套穿搭”重新保存";
+  }
+  return "这次没有识别成功，原图仍保留，可直接重试";
+}
+
+export function PendingItemCard({
+  pending,
+  onRetry,
+  onDismiss
+}: {
+  pending: PendingItem;
+  onRetry: () => void;
+  onDismiss: () => void;
+}) {
+  const failed = pending.state === "error";
   return (
     <motion.article
       className="item-card item-card--pending pixel-card wardrobe-card"
@@ -110,13 +140,38 @@ export function PendingItemCard({ pending }: { pending: PendingItem }) {
       animate={{ opacity: 1, scale: 1 }}
     >
       <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">
-        <img src={pending.previewUrl} alt="正在入库的衣服" />
-        <span className="status-badge status-badge--processing">后台处理中</span>
-        <div className="processing-sheen" aria-hidden="true" />
+        {pending.previewUrl ? (
+          <img src={pending.previewUrl} alt="正在入库的衣服" />
+        ) : (
+          <div className="pending-heic-preview" role="status">
+            <strong>正在转换 iPhone 照片</strong>
+            <span>完成后会显示标准实物图</span>
+          </div>
+        )}
+        <span
+          className={`status-badge status-badge--${failed ? "error" : "processing"}`}
+        >
+          {failed ? "识别失败" : "后台处理中"}
+        </span>
+        {!failed ? <div className="processing-sheen" aria-hidden="true" /> : null}
       </div>
       <div className="item-card__body wardrobe-card__meta">
-        <strong>正在理解这件衣服</strong>
-        <span>可以继续浏览，完成后会自动出现</span>
+        <strong>{failed ? "这张照片暂时无法入库" : "正在理解这件衣服"}</strong>
+        <span>
+          {failed
+            ? pendingFailureMessage(pending)
+            : "可以继续浏览，完成后会自动出现"}
+        </span>
+        {failed ? (
+          <div className="pending-item__actions">
+            <button type="button" className="retry-link" onClick={onRetry}>
+              重新识别
+            </button>
+            <button type="button" className="retry-link" onClick={onDismiss}>
+              移除此条
+            </button>
+          </div>
+        ) : null}
       </div>
     </motion.article>
   );

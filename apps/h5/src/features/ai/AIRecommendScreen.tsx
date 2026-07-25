@@ -5,13 +5,15 @@ import {
   ProductApiError,
   type OutfitPlan,
   type OutfitPlanSet,
+  type SavedOutfitLook,
   wardrobeApi
 } from "../../api/client";
 import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { sourceKindLabel } from "../wardrobe/localization";
 
 interface AIRecommendScreenProps {
   onGoWardrobe: () => void;
-  onSavedLook: (lookId: string) => void;
+  onSavedLook: (result: SavedOutfitLook) => void;
   onOpenLook: (lookId: string) => void;
   presetPrompt?: string | null;
   anchorItemId?: string | null;
@@ -37,12 +39,6 @@ const ROLE_LABELS: Record<string, string> = {
 const OWNERSHIP_LABELS: Record<string, string> = {
   owned: "我有",
   inspiration: "已收藏",
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  camera: "拍照录入",
-  upload: "相册录入",
-  feed: "Feed 收藏"
 };
 
 const WEATHER_OPTIONS = ["炎热高温", "温和", "寒冷低温"];
@@ -186,7 +182,7 @@ function PlanCard({
               {slot.source_kind ? (
                 <>
                   <br />
-                  {SOURCE_LABELS[slot.source_kind] ?? "真实来源"}
+                  {sourceKindLabel(slot.source_kind)}
                 </>
               ) : null}
             </p>
@@ -299,7 +295,7 @@ export function AIRecommendScreen({
         ...current,
         [variables.plan.id]: result.look_id
       }));
-      onSavedLook(result.look_id);
+      onSavedLook(result);
     }
   });
   const replacing = useMutation({
@@ -424,6 +420,7 @@ export function AIRecommendScreen({
                   key={option}
                   type="button"
                   className={selected === option ? "is-selected" : ""}
+                  aria-pressed={selected === option}
                   onClick={() => setSelected(selected === option ? "" : option)}
                 >
                   {option}
@@ -480,7 +477,14 @@ export function AIRecommendScreen({
         {planning.isError ? (
           <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="alert">
             ◇ {errorMessage(planning.error)}
-            <div style={{ marginTop: "var(--px-2)" }}>
+            <div style={{ marginTop: "var(--px-2)", display: "flex", gap: "var(--px-2)", flexWrap: "wrap" }}>
+              <PixelButton
+                variant="primary"
+                disabled={planning.isPending || !input.trim()}
+                onClick={() => submit(input)}
+              >
+                重试当前需求
+              </PixelButton>
               <PixelButton variant="ghost" onClick={onGoWardrobe}>
                 打开数字衣橱
               </PixelButton>
@@ -574,7 +578,7 @@ export function AIRecommendScreen({
           variant="primary"
           onClick={() => submit(input)}
           disabled={!input.trim() || planning.isPending}
-          ariaLabel="生成穿搭"
+          ariaLabel="生成穿搭推荐"
         >
           ➤
         </PixelButton>

@@ -52,6 +52,7 @@ def test_dependent_render_signature_does_not_change_when_source_finishes() -> No
         content_type=None,
         source_artifact_id=None,
         fallback_artifact_id=None,
+        failure_code=None,
         failure_message=None,
         share_eligible=False,
         created_at=look.created_at,

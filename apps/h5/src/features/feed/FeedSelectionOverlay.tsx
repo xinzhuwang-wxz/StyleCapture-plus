@@ -46,6 +46,15 @@ export interface FeedSelectionDecision {
 
 const SWIPE_DECISION_THRESHOLD_PX = 88;
 const EMPTY_TAP_MAX_DISTANCE_PX = 12;
+const WHOLE_FRAME_SELECTION: ClosedFeedSelection = {
+  id: "whole-outfit-full-frame",
+  path: [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 }
+  ]
+};
 
 function isEmptyTap(points: readonly ViewportPoint[]) {
   const first = points[0];
@@ -67,11 +76,13 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
   const [guideVisible, setGuideVisible] = useState(
     Boolean(props.gestureGuideToken)
   );
+  const [decisionGuideVisible, setDecisionGuideVisible] = useState(false);
   const [intent, setIntent] =
     useState<FeedSelectionDecision["intent"]>("item_selections");
   const pointsRef = useRef<ViewportPoint[]>([]);
   const selectionNumberRef = useRef(0);
   const dragRef = useRef<{ pointerId: number; startX: number } | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const trailGradientId = useId().replaceAll(":", "");
   const clipId = useId().replaceAll(":", "");
   const reduceMotion = useReducedMotion();
@@ -100,6 +111,19 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
 
     return () => window.clearTimeout(timeout);
   }, [session.phase, session.settleAtMs]);
+
+  useEffect(() => {
+    if (session.phase !== "settled" || !props.gestureGuideToken) {
+      setDecisionGuideVisible(false);
+      return;
+    }
+    setDecisionGuideVisible(true);
+    const timeout = window.setTimeout(
+      () => setDecisionGuideVisible(false),
+      reduceMotion ? 2_800 : 2_200
+    );
+    return () => window.clearTimeout(timeout);
+  }, [props.gestureGuideToken, reduceMotion, session.phase]);
 
   const contentBoxFor = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
@@ -225,6 +249,31 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     resetSelection();
   };
 
+  const confirmWholeFrame = () => {
+    if (!overlayRef.current) return;
+    const measuredContentBox = contentBoxFor(overlayRef.current);
+    if (!measuredContentBox) return;
+    setGuideVisible(false);
+    setContentBox(measuredContentBox);
+    setIntent("whole_outfit");
+    setSession({
+      phase: "settled",
+      frame: props.frame,
+      selections: [WHOLE_FRAME_SELECTION],
+      settleAtMs: null
+    });
+  };
+
+  const continueSelecting = () => {
+    setDragOffsetX(0);
+    setIntent("item_selections");
+    setSession((current) => ({
+      ...current,
+      phase: "collecting",
+      settleAtMs: null
+    }));
+  };
+
   const dismissSelection = () => {
     props.onDismiss();
     resetSelection();
@@ -293,6 +342,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
 
   return (
     <div
+      ref={overlayRef}
       aria-label="圈选穿搭"
       className="feed-selection-overlay"
       role="application"
@@ -301,6 +351,18 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
+      {session.selections.length === 0 ? (
+        <button
+          aria-label="一键保存整套穿搭"
+          className="feed-whole-outfit-shortcut"
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={confirmWholeFrame}
+        >
+          一键存整套
+        </button>
+      ) : null}
+
       {guideVisible && session.selections.length === 0 ? (
         <div
           aria-label="沿着衣服边缘画一圈"
@@ -377,6 +439,23 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
 
       {session.phase === "settled" && contentBox ? (
         <>
+          {decisionGuideVisible ? (
+            <div
+              aria-label="左划取消，右划加入"
+              className="feed-swipe-guide"
+              role="status"
+            >
+              <span>← 左划取消</span>
+              <motion.b
+                aria-hidden="true"
+                animate={reduceMotion ? undefined : { x: [0, -28, 0, 28, 0] }}
+                transition={{ duration: 1.35, ease: "easeInOut" }}
+              >
+                ☝︎
+              </motion.b>
+              <span>右划加入 →</span>
+            </div>
+          ) : null}
           <motion.div
             aria-label="已圈选的穿搭主体"
             className="feed-lifted-selection"
@@ -430,6 +509,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
           >
             <div className="feed-intent-toggle" aria-label="保存方式">
               <button
+                aria-pressed={intent === "item_selections"}
                 className={intent === "item_selections" ? "is-selected" : ""}
                 type="button"
                 onClick={() => setIntent("item_selections")}
@@ -437,6 +517,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
                 {session.selections.length > 1 ? "存这些单品" : "存单品"}
               </button>
               <button
+                aria-pressed={intent === "whole_outfit"}
                 className={intent === "whole_outfit" ? "is-selected" : ""}
                 disabled={session.selections.length !== 1}
                 type="button"
@@ -445,6 +526,13 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
                 存整套
               </button>
             </div>
+            <button
+              className="feed-selection-continue"
+              type="button"
+              onClick={continueSelecting}
+            >
+              继续圈选
+            </button>
             <button
               aria-label="拒绝本次圈选"
               className="feed-selection-action feed-selection-action--dismiss"

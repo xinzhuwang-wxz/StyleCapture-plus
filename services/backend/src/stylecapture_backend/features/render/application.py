@@ -34,6 +34,7 @@ class RenderArtifactView:
     content_type: str | None
     source_artifact_id: UUID | None
     fallback_artifact_id: UUID | None
+    failure_code: str | None
     failure_message: str | None
     share_eligible: bool
     created_at: datetime
@@ -186,6 +187,7 @@ def _view(
         content_type=artifact.output.content_type if artifact.output is not None else None,
         source_artifact_id=artifact.source_artifact_id,
         fallback_artifact_id=artifact.fallback_artifact_id,
+        failure_code=artifact.failure_code,
         failure_message=artifact.failure_message,
         share_eligible=artifact.share_eligible,
         created_at=artifact.created_at,
