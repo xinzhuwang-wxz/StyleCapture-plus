@@ -26,7 +26,9 @@ export function FeedScreen({
   const manifestQuery = useQuery({
     queryKey: ["feed-manifest"],
     queryFn: ({ signal }) => loadFeedManifest(signal),
-    staleTime: 5 * 60_000
+    staleTime: 5 * 60_000,
+    refetchInterval: (query) =>
+      query.state.status === "error" && active ? 1_500 : false
   });
 
   useEffect(() => {
