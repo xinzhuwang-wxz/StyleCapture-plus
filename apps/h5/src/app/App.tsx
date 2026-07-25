@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient
+} from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -6,6 +11,8 @@ import {
   type Item,
   type Look,
   type Ownership,
+  type RenderArtifact,
+  type RenderKind,
   type SourceKind,
   ProductApiError,
   validateImage,
@@ -70,6 +77,33 @@ export function App() {
     refetchInterval: 2_000
   });
   const looks = looksQuery.data ?? [];
+  const lookRenderQueries = useQueries({
+    queries: looks.map((look) => ({
+      queryKey: ["look-renders", look.id],
+      queryFn: () => wardrobeApi.listRenders(look.id),
+      enabled: look.status === "ready" || look.status === "partial",
+      refetchInterval: (query: {
+        state: { data?: RenderArtifact[] };
+      }) =>
+        query.state.data?.some(
+          (render) => render.status === "queued" || render.status === "running"
+        )
+          ? 1_500
+          : false
+    }))
+  });
+  const pixelCovers = Object.fromEntries(
+    looks.flatMap((look, index) => {
+      const cover = lookRenderQueries[index]?.data?.find(
+        (render) =>
+          render.kind === "pixel_cover" &&
+          render.status === "succeeded" &&
+          render.share_eligible &&
+          render.output_image_url !== null
+      );
+      return cover ? [[look.id, cover] as const] : [];
+    })
+  );
   const lookQuery = useQuery({
     queryKey: ["wardrobe-look", selectedLookId],
     queryFn: () => wardrobeApi.getLook(selectedLookId!),
@@ -78,6 +112,17 @@ export function App() {
       query.state.data?.look.status === "processing" ||
       query.state.data?.look.status === "partial"
         ? 2_000
+        : false
+  });
+  const rendersQuery = useQuery({
+    queryKey: ["look-renders", selectedLookId],
+    queryFn: () => wardrobeApi.listRenders(selectedLookId!),
+    enabled: selectedLookId !== null,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (render) => render.status === "queued" || render.status === "running"
+      )
+        ? 1_500
         : false
   });
 
@@ -180,6 +225,52 @@ export function App() {
     },
     onError: (error) => setNotice(errorMessage(error))
   });
+  const renderMutation = useMutation({
+    mutationFn: ({
+      lookId,
+      kind,
+      idempotencyKey
+    }: {
+      lookId: string;
+      kind: RenderKind;
+      idempotencyKey: string;
+    }) => wardrobeApi.createRender(lookId, kind, idempotencyKey),
+    onSuccess: (render) => {
+      queryClient.setQueryData<RenderArtifact[]>(
+        ["look-renders", render.look_id],
+        (current = []) => [
+          render,
+          ...current.filter((candidate) => candidate.id !== render.id)
+        ]
+      );
+    },
+    onError: (error) => setNotice(errorMessage(error)),
+    onSettled: (_data, _error, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["look-renders", variables.lookId]
+      });
+    }
+  });
+  const autoRenderKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    const detail = lookQuery.data;
+    if (
+      !detail ||
+      !detail.components.some((component) => component.item_id !== null) ||
+      (detail.look.status !== "ready" && detail.look.status !== "partial")
+    ) {
+      return;
+    }
+    const key = `auto-collage:${detail.look.id}:${detail.look.updated_at}`;
+    if (autoRenderKey.current === key) return;
+    autoRenderKey.current = key;
+    renderMutation.mutate({
+      lookId: detail.look.id,
+      kind: "collage",
+      idempotencyKey: key
+    });
+  }, [lookQuery.data]);
 
   function chooseFile(file: File | undefined, sourceKind: SourceKind) {
     if (!file) return;
@@ -380,6 +471,7 @@ export function App() {
 
             <WardrobeScreen
               looks={looks}
+              pixelCovers={pixelCovers}
               items={items}
               pending={pending}
               itemsLoading={itemsQuery.isLoading}
@@ -432,6 +524,11 @@ export function App() {
         <LookDetail
           detail={lookQuery.data ?? null}
           loading={lookQuery.isLoading}
+          renders={rendersQuery.data ?? []}
+          rendersLoading={rendersQuery.isLoading}
+          generatingKind={
+            renderMutation.isPending ? renderMutation.variables.kind : null
+          }
           retrying={lookRetryMutation.isPending}
           saving={lookReasonMutation.isPending}
           onClose={() => setSelectedLookId(null)}
@@ -447,6 +544,13 @@ export function App() {
           onRetry={(lookId) => lookRetryMutation.mutate(lookId)}
           onSaveReason={(lookId, reason) =>
             lookReasonMutation.mutate({ lookId, reason })
+          }
+          onGenerate={(lookId, kind) =>
+            renderMutation.mutate({
+              lookId,
+              kind,
+              idempotencyKey: `manual-${kind}:${crypto.randomUUID()}`
+            })
           }
         />
       </div>

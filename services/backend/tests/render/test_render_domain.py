@@ -78,6 +78,32 @@ def test_try_on_degradation_references_the_real_collage_fallback_without_success
     assert degraded.failure_message == "hosted try-on timeout; showing deterministic collage"
 
 
+def test_degraded_pixel_fallback_is_not_share_eligible() -> None:
+    collage = RenderArtifact.queued(
+        user_id=uuid4(),
+        look_id=uuid4(),
+        kind=RenderArtifactKind.COLLAGE,
+        input_signature=signature(),
+        request_key="collage",
+    )
+    collage = collage.mark_succeeded(output())
+    pixel = RenderArtifact.queued(
+        user_id=collage.user_id,
+        look_id=collage.look_id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        input_signature=signature(),
+        request_key="pixel",
+        privacy=RenderPrivacy.SHAREABLE_PIXEL,
+    )
+
+    degraded = pixel.mark_degraded_to(
+        fallback=collage,
+        reason="pixel provider unavailable",
+    )
+
+    assert degraded.share_eligible is False
+
+
 def test_non_terminal_artifacts_cannot_claim_output() -> None:
     queued = RenderArtifact.queued(
         user_id=uuid4(),

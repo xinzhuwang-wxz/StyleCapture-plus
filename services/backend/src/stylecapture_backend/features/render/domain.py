@@ -36,7 +36,9 @@ class RenderInputSignature:
         normalized_version = self.version.strip()
         if not 1 <= len(normalized_version) <= 80:
             raise ValueError("render input version must contain between 1 and 80 characters")
-        if len(self.hash) != 64 or any(character not in "0123456789abcdef" for character in self.hash):
+        if len(self.hash) != 64 or any(
+            character not in "0123456789abcdef" for character in self.hash
+        ):
             raise ValueError("render input hash must be lowercase SHA-256")
         object.__setattr__(self, "version", normalized_version)
 
@@ -121,7 +123,10 @@ class RenderArtifact:
             raise ValueError("failure code must not be blank")
         if self.failure_message is not None and not self.failure_message.strip():
             raise ValueError("failure message must not be blank")
-        if self.privacy is RenderPrivacy.SHAREABLE_PIXEL and self.kind is not RenderArtifactKind.PIXEL_COVER:
+        if (
+            self.privacy is RenderPrivacy.SHAREABLE_PIXEL
+            and self.kind is not RenderArtifactKind.PIXEL_COVER
+        ):
             raise ValueError("only pixel cover render artifacts may be public-share eligible")
 
     @classmethod
@@ -162,17 +167,22 @@ class RenderArtifact:
         return (
             self.kind is RenderArtifactKind.PIXEL_COVER
             and self.privacy is RenderPrivacy.SHAREABLE_PIXEL
-            and self.status in {RenderArtifactStatus.SUCCEEDED, RenderArtifactStatus.DEGRADED}
+            and self.status is RenderArtifactStatus.SUCCEEDED
             and self.output is not None
         )
 
-    def mark_running(self) -> RenderArtifact:
+    def mark_running(
+        self,
+        *,
+        provider_trace: RenderProviderTrace | None = None,
+    ) -> RenderArtifact:
         return replace(
             self,
             status=RenderArtifactStatus.RUNNING,
             output=None,
             failure_code=None,
             failure_message=None,
+            provider_trace=provider_trace or self.provider_trace,
             updated_at=datetime.now(UTC),
         )
 

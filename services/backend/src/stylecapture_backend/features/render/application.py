@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from stylecapture_backend.features.render.domain import (
@@ -35,6 +36,8 @@ class RenderArtifactView:
     fallback_artifact_id: UUID | None
     failure_message: str | None
     share_eligible: bool
+    created_at: datetime
+    updated_at: datetime
     cache_hit: bool = False
 
 
@@ -74,13 +77,28 @@ class RenderApplication:
         return _view(await self._artifacts.ensure_requested(artifact))
 
     async def list_for_look(self, *, user_id: UUID, look_id: UUID) -> list[RenderArtifactView]:
-        return [_view(artifact) for artifact in await self._artifacts.list_for_look(user_id=user_id, look_id=look_id)]
+        return [
+            _view(artifact)
+            for artifact in await self._artifacts.list_for_look(user_id=user_id, look_id=look_id)
+        ]
 
     async def get(self, *, user_id: UUID, artifact_id: UUID) -> RenderArtifactView:
         artifact = await self._artifacts.get_for_user(user_id=user_id, artifact_id=artifact_id)
         if artifact is None:
             raise RenderArtifactNotFound("Render artifact not found")
         return _view(artifact)
+
+    async def mark_running(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        provider_trace: RenderProviderTrace | None = None,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
+        return _view(
+            await self._artifacts.save(artifact.mark_running(provider_trace=provider_trace))
+        )
 
     async def mark_succeeded(
         self,
@@ -113,7 +131,9 @@ class RenderApplication:
     ) -> RenderArtifactView:
         artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
         fallback = await self._require_artifact(user_id=user_id, artifact_id=fallback_artifact_id)
-        return _view(await self._artifacts.save(artifact.mark_degraded_to(fallback=fallback, reason=reason)))
+        return _view(
+            await self._artifacts.save(artifact.mark_degraded_to(fallback=fallback, reason=reason))
+        )
 
     async def _require_artifact(self, *, user_id: UUID, artifact_id: UUID) -> RenderArtifact:
         artifact = await self._artifacts.get_for_user(user_id=user_id, artifact_id=artifact_id)
@@ -139,5 +159,7 @@ def _view(artifact: RenderArtifact, *, cache_hit: bool = False) -> RenderArtifac
         fallback_artifact_id=artifact.fallback_artifact_id,
         failure_message=artifact.failure_message,
         share_eligible=artifact.share_eligible,
+        created_at=artifact.created_at,
+        updated_at=artifact.updated_at,
         cache_hit=cache_hit,
     )

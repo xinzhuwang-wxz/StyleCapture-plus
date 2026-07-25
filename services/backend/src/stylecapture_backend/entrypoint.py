@@ -16,6 +16,12 @@ from stylecapture_backend.features.look.infrastructure.repository import (
     SqlAlchemyLookRepository,
 )
 from stylecapture_backend.features.look.interfaces.http import LookHttpServices
+from stylecapture_backend.features.render.application import RenderApplication
+from stylecapture_backend.features.render.infrastructure.repository import (
+    SqlAlchemyRenderArtifactRepository,
+)
+from stylecapture_backend.features.render.infrastructure.tasks import CeleryRenderDispatcher
+from stylecapture_backend.features.render.interfaces.http import RenderHttpServices
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.infrastructure.repository import (
     SqlAlchemyWardrobeRepository,
@@ -34,7 +40,9 @@ def build_app() -> FastAPI:
     repository = SqlAlchemyCaptureRepository(sessions)
     wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
     look_repository = SqlAlchemyLookRepository(sessions)
+    render_repository = SqlAlchemyRenderArtifactRepository(sessions)
     looks = LookApplication(looks=look_repository)
+    renders = RenderApplication(artifacts=render_repository)
     objects = LocalObjectStore(
         root=settings.upload_root,
         signing_secret=settings.upload_signing_secret.get_secret_value(),
@@ -45,6 +53,10 @@ def build_app() -> FastAPI:
     dispatcher = CeleryJobDispatcher(
         build_celery(redis_url),
         queue=settings.capture_queue,
+    )
+    render_dispatcher = CeleryRenderDispatcher(
+        build_celery(redis_url),
+        queue=settings.render_queue,
     )
     retries = JobRetryApplication(
         jobs=repository,
@@ -73,6 +85,13 @@ def build_app() -> FastAPI:
                 jobs=repository,
                 objects=objects,
                 retries=retries,
+            ),
+            renders=RenderHttpServices(
+                renders=renders,
+                looks=looks,
+                captures=repository,
+                objects=objects,
+                dispatcher=render_dispatcher,
             ),
         ),
         max_upload_bytes=settings.max_upload_bytes,

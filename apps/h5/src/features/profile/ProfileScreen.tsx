@@ -9,7 +9,7 @@ interface ProfileScreenProps {
 
 /**
  * 我的页面：
- * 像素形象 + 我的形象照管理（真人试穿参考图）。
+ * 像素形象 + 尚未接入服务端前的形象照本机预览。
  */
 export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
   const [photos, setPhotos] = useState<string[]>([]);
@@ -92,8 +92,8 @@ export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
 
       {/* 我的形象 */}
       <PixelSectionHeader
-        kicker="真人试穿参考"
-        title="我的形象"
+        kicker="形象照草稿"
+        title="本机预览"
         action={
           uploading ? (
             <span className="pixel-label">处理中…</span>
@@ -125,15 +125,15 @@ export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
             还没有形象照
             <br />
             <small style={{ fontSize: "0.68rem", color: "var(--pixel-text-dim)" }}>
-              上传正面全身照，用于 AI 真人试穿效果
+              当前试穿使用固定模特；这里的照片不会参与生成
             </small>
           </p>
           <div style={{ display: "flex", gap: "var(--px-3)", justifyContent: "center" }}>
             <PixelButton variant="primary" onClick={() => fileInputRef.current?.click()}>
-              📷 上传照片
+              📷 预览照片
             </PixelButton>
             <PixelButton variant="accent" onClick={() => fileInputRef.current?.click()}>
-              🤳 拍一张
+              🤳 拍照预览
             </PixelButton>
           </div>
         </section>
@@ -169,7 +169,7 @@ export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
                 borderRadius: "999px"
               }}
             >
-              ✓ 试穿使用这张
+              仅本机预览
             </span>
           </div>
 
@@ -248,9 +248,9 @@ export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
             lineHeight: 1.8
           }}
         >
-          <li>上传正面全身照，作为真人试穿的参考图</li>
-          <li>照片仅保存在本机，不会上传服务器</li>
-          <li>可以保存多张，点缩略图随时切换</li>
+          <li>当前真人效果使用固定模特，不会读取这里的照片</li>
+          <li>照片仅在当前页面内存中预览，不会上传服务器</li>
+          <li>刷新页面后预览会清除；接入真实形象资产 API 后再开放保存</li>
         </ul>
       </section>
     </div>

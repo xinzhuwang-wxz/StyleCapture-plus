@@ -1,38 +1,113 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
-import type { LookDetail as LookDetailData } from "../../api/client";
+import type {
+  LookDetail as LookDetailData,
+  RenderArtifact,
+  RenderKind
+} from "../../api/client";
 
 type LookDetailProps = {
   detail: LookDetailData | null;
   loading: boolean;
+  renders?: RenderArtifact[];
+  rendersLoading?: boolean;
+  generatingKind?: RenderKind | null;
   retrying: boolean;
   saving: boolean;
   onClose: () => void;
   onReturnToSource: (videoRef: string, timestampMs: number) => void;
   onRetry: (lookId: string) => void;
   onSaveReason: (lookId: string, reason: string) => void;
+  onGenerate?: (lookId: string, kind: RenderKind) => void;
 };
 
 function DetailContent({
   detail,
+  renders = [],
+  rendersLoading = false,
+  generatingKind = null,
   retrying,
   saving,
   onClose,
   onReturnToSource,
   onRetry,
-  onSaveReason
+  onSaveReason,
+  onGenerate
 }: Omit<LookDetailProps, "detail" | "loading"> & {
   detail: LookDetailData;
 }) {
   const [reason, setReason] = useState("");
+  const [activeRenderKind, setActiveRenderKind] =
+    useState<RenderKind>("collage");
+  const [sharing, setSharing] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const values = detail.analysis?.values ?? {};
   const heroImageUrl =
     detail.look.source_image_url ?? detail.look.display_image_url;
 
   useEffect(() => {
     setReason("");
+    setActiveRenderKind("collage");
+    setShareMessage(null);
   }, [detail.look.id]);
+
+  useEffect(() => {
+    if (generatingKind) setActiveRenderKind(generatingKind);
+  }, [generatingKind]);
+
+  const latestByKind = new Map<RenderKind, RenderArtifact>();
+  [...renders]
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+    .forEach((render) => {
+      if (!latestByKind.has(render.kind)) latestByKind.set(render.kind, render);
+    });
+  const collage = latestByKind.get("collage");
+  const activeRender = latestByKind.get(activeRenderKind);
+  const visibleRender =
+    activeRender?.output_image_url ? activeRender : collage;
+  const pixelCover = latestByKind.get("pixel_cover");
+
+  async function sharePixelCover() {
+    if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
+    setSharing(true);
+    setShareMessage(null);
+    try {
+      const response = await fetch(pixelCover.output_image_url, {
+        cache: "no-store",
+        credentials: "same-origin"
+      });
+      if (!response.ok) throw new Error("像素封面暂时无法读取");
+      const blob = await response.blob();
+      const file = new File([blob], `stylecapture-${detail.look.id}.png`, {
+        type: blob.type || "image/png"
+      });
+      if (
+        navigator.share &&
+        (!navigator.canShare || navigator.canShare({ files: [file] }))
+      ) {
+        await navigator.share({
+          files: [file],
+          title: "我的 StyleCapture 穿搭",
+          text: "把今天喜欢的穿搭收进数字衣橱"
+        });
+        setShareMessage("已打开系统分享");
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        URL.revokeObjectURL(url);
+        setShareMessage("像素封面已下载");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareMessage(error instanceof Error ? error.message : "分享没有完成");
+    } finally {
+      setSharing(false);
+    }
+  }
 
   return (
     <motion.section
@@ -128,6 +203,102 @@ function DetailContent({
           </section>
         ) : null}
 
+        {detail.components.some((component) => component.item_id !== null) ? (
+          <section className="look-detail__section render-studio" aria-labelledby="look-renders-title">
+            <div className="section-heading">
+              <h3 id="look-renders-title">穿搭成片</h3>
+              <span>真实资产生成</span>
+            </div>
+            <div className="render-studio__tabs" role="tablist" aria-label="穿搭成片类型">
+              {(
+                [
+                  ["collage", "真实拼贴"],
+                  ["try_on", "固定模特"],
+                  ["pixel_cover", "像素封面"]
+                ] as const
+              ).map(([kind, label]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeRenderKind === kind}
+                  className={activeRenderKind === kind ? "is-selected" : ""}
+                  onClick={() => setActiveRenderKind(kind)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="render-studio__preview">
+              {visibleRender?.output_image_url ? (
+                <img
+                  src={`${visibleRender.output_image_url}?v=${encodeURIComponent(
+                    visibleRender.updated_at
+                  )}`}
+                  alt={visibleRender.presentation_label}
+                  data-pixel={visibleRender.kind === "pixel_cover" ? "true" : "false"}
+                />
+              ) : (
+                <div className="render-studio__empty">
+                  <span aria-hidden="true">✦</span>
+                  <strong>
+                    {rendersLoading || activeRender?.status === "queued" || activeRender?.status === "running"
+                      ? "正在生成穿搭成片"
+                      : activeRenderKind === "collage"
+                        ? "正在准备真实单品拼贴"
+                        : "选择生成后，不用停在这里等"}
+                  </strong>
+                  <small>任务会在后台完成，退出详情也不会丢失。</small>
+                </div>
+              )}
+              {activeRender && activeRender.status !== "succeeded" ? (
+                <div className={`render-studio__status render-studio__status--${activeRender.status}`}>
+                  <strong>{activeRender.presentation_label}</strong>
+                  <span>
+                    {activeRender.status === "queued" || activeRender.status === "running"
+                      ? "后台生成中…"
+                      : activeRender.failure_message ?? "已保留真实拼贴结果"}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <p className="render-studio__truth">
+              {activeRenderKind === "try_on"
+                ? "当前使用固定模特，不会冒充你的真人试穿。"
+                : activeRenderKind === "pixel_cover"
+                  ? "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"
+                  : "拼贴直接来自这套穿搭里已入库的真实单品图。"}
+            </p>
+            {activeRenderKind !== "collage" && onGenerate ? (
+              <button
+                className="primary-action"
+                type="button"
+                disabled={generatingKind !== null}
+                onClick={() => onGenerate(detail.look.id, activeRenderKind)}
+              >
+                {generatingKind === activeRenderKind
+                  ? "任务启动中…"
+                  : activeRenderKind === "try_on"
+                    ? "生成固定模特效果"
+                    : "生成像素封面"}
+              </button>
+            ) : null}
+            {activeRenderKind === "pixel_cover" &&
+            pixelCover?.share_eligible &&
+            pixelCover.output_image_url ? (
+              <button
+                className="secondary-action"
+                type="button"
+                disabled={sharing}
+                onClick={() => void sharePixelCover()}
+              >
+                {sharing ? "正在准备分享…" : "分享像素封面"}
+              </button>
+            ) : null}
+            {shareMessage ? <p className="render-studio__message" role="status">{shareMessage}</p> : null}
+          </section>
+        ) : null}
+
         {detail.analysis ? (
           <section className="look-detail__section" aria-labelledby="look-analysis-title">
             <div className="section-heading">
@@ -206,12 +377,16 @@ export function LookDetail(props: LookDetailProps) {
         <div className="detail-layer">
           <DetailContent
             detail={props.detail}
+            renders={props.renders}
+            rendersLoading={props.rendersLoading}
+            generatingKind={props.generatingKind}
             retrying={props.retrying}
             saving={props.saving}
             onClose={props.onClose}
             onReturnToSource={props.onReturnToSource}
             onRetry={props.onRetry}
             onSaveReason={props.onSaveReason}
+            onGenerate={props.onGenerate}
           />
         </div>
       ) : null}

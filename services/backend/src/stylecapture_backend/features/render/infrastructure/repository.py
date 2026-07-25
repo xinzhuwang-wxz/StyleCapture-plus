@@ -106,12 +106,7 @@ class SqlAlchemyRenderArtifactRepository:
                         RenderArtifactRecord.kind == kind.value,
                         RenderArtifactRecord.input_version == input_signature.version,
                         RenderArtifactRecord.input_hash == input_signature.hash,
-                        RenderArtifactRecord.status.in_(
-                            [
-                                RenderArtifactStatus.SUCCEEDED.value,
-                                RenderArtifactStatus.DEGRADED.value,
-                            ]
-                        ),
+                        RenderArtifactRecord.status == RenderArtifactStatus.SUCCEEDED.value,
                         RenderArtifactRecord.object_key.is_not(None),
                     )
                     .order_by(RenderArtifactRecord.updated_at.desc())

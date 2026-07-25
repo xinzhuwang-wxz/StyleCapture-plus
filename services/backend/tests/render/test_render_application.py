@@ -46,7 +46,7 @@ class MemoryRenderRepository:
                 and artifact.kind is kind
                 and artifact.input_signature == input_signature
                 and artifact.output is not None
-                and artifact.status in {"succeeded", "degraded"}
+                and artifact.status == "succeeded"
             ),
             None,
         )
@@ -152,6 +152,18 @@ async def test_degraded_try_on_view_keeps_fallback_relationship_and_not_shareabl
     assert degraded.fallback_artifact_id == collage.id
     assert degraded.share_eligible is False
 
+    retried = await application.create_or_get(
+        user_id=user_id,
+        look_id=look_id,
+        kind=RenderArtifactKind.TRY_ON,
+        input_signature=signature(),
+        request_key="try-on-request-2",
+    )
+
+    assert retried.id != degraded.id
+    assert retried.status == "queued"
+    assert retried.cache_hit is False
+
 
 @pytest.mark.asyncio
 async def test_only_pixel_cover_views_report_share_eligibility() -> None:
@@ -173,3 +185,32 @@ async def test_only_pixel_cover_views_report_share_eligibility() -> None:
     )
 
     assert succeeded.share_eligible is True
+
+
+@pytest.mark.asyncio
+async def test_mark_running_records_private_trace_without_exposing_it() -> None:
+    repository = MemoryRenderRepository()
+    application = RenderApplication(artifacts=repository)
+    requested = await application.create_or_get(
+        user_id=uuid4(),
+        look_id=uuid4(),
+        kind=RenderArtifactKind.PIXEL_COVER,
+        input_signature=signature(),
+        request_key="pixel-running",
+    )
+
+    running = await application.mark_running(
+        user_id=requested.user_id,
+        artifact_id=requested.id,
+        provider_trace=RenderProviderTrace(
+            provider="private-provider",
+            model="private-model",
+            parameters={"quality": "balanced"},
+        ),
+    )
+
+    assert running.status == "running"
+    assert not hasattr(running, "provider_trace")
+    stored = repository.artifacts[running.id]
+    assert stored.provider_trace is not None
+    assert stored.provider_trace.provider == "private-provider"

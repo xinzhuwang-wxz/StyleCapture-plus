@@ -29,6 +29,15 @@ from stylecapture_backend.features.look.interfaces.http import (
     LookImageNotFoundError,
     build_look_router,
 )
+from stylecapture_backend.features.render.infrastructure.tasks import RenderDispatchError
+from stylecapture_backend.features.render.interfaces.http import (
+    RenderHttpServices,
+    build_render_router,
+)
+from stylecapture_backend.features.render.ports import (
+    RenderArtifactNotFound,
+    RenderIdempotencyConflict,
+)
 from stylecapture_backend.features.wardrobe.application import (
     SourceDeletedNotRetryableError,
     WardrobeApplication,
@@ -55,6 +64,7 @@ class BackendServices:
     retries: JobRetryApplication
     wardrobe: WardrobeApplication
     looks: LookHttpServices | None = None
+    renders: RenderHttpServices | None = None
 
 
 CAPTURE_ERROR_STATUS = {
@@ -231,6 +241,42 @@ def create_app(
             message="The saved Look image is no longer available",
         )
 
+    @app.exception_handler(RenderArtifactNotFound)
+    async def render_artifact_not_found_handler(
+        request: Request,
+        error: LookupError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="render_artifact_not_found",
+            message="The render artifact does not exist",
+        )
+
+    @app.exception_handler(RenderIdempotencyConflict)
+    async def render_idempotency_conflict_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="render_idempotency_conflict",
+            message=str(error),
+        )
+
+    @app.exception_handler(RenderDispatchError)
+    async def render_dispatch_error_handler(
+        request: Request,
+        error: RuntimeError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="render_dispatch_unavailable",
+            message="Render request was saved but the worker queue is temporarily unavailable",
+        )
+
     @app.exception_handler(WardrobeValidationError)
     async def wardrobe_validation_handler(
         request: Request,
@@ -320,6 +366,13 @@ def create_app(
         app.include_router(
             build_look_router(
                 services.looks,
+                current_user=current_user,
+            )
+        )
+    if services.renders is not None:
+        app.include_router(
+            build_render_router(
+                services.renders,
                 current_user=current_user,
             )
         )

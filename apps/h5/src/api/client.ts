@@ -9,6 +9,8 @@ export type Job = components["schemas"]["JobResponse"];
 export type Look = components["schemas"]["LookSummaryResponse"];
 export type LookDetail = components["schemas"]["LookDetailResponse"];
 export type Ownership = components["schemas"]["OwnershipState"];
+export type RenderArtifact = components["schemas"]["RenderArtifactResponse"];
+export type RenderKind = components["schemas"]["RenderArtifactKind"];
 export type SourceKind = components["schemas"]["CaptureSourceKind"];
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -238,6 +240,36 @@ async function retryLook(lookId: string): Promise<void> {
   }
 }
 
+async function listRenders(lookId: string): Promise<RenderArtifact[]> {
+  await ensureSession();
+  const response = await client.GET("/v1/looks/{look_id}/renders", {
+    params: { path: { look_id: lookId } }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "穿搭成片暂时无法加载");
+  }
+  return response.data.renders;
+}
+
+async function createRender(
+  lookId: string,
+  kind: RenderKind,
+  idempotencyKey: string
+): Promise<RenderArtifact> {
+  await ensureSession();
+  const response = await client.POST("/v1/looks/{look_id}/renders", {
+    params: {
+      path: { look_id: lookId },
+      header: { "Idempotency-Key": idempotencyKey }
+    },
+    body: { kind }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "成片任务没有启动");
+  }
+  return response.data;
+}
+
 async function getJob(jobId: string): Promise<Job> {
   await ensureSession();
   const response = await client.GET("/v1/jobs/{job_id}", {
@@ -330,6 +362,8 @@ export const wardrobeApi = {
   getLook,
   addLikingReason,
   retryLook,
+  listRenders,
+  createRender,
   getJob,
   retryJob,
   retryItem,

@@ -233,6 +233,14 @@ async def test_repository_preserves_degraded_fallback_and_share_privacy() -> Non
     assert degraded.fallback_artifact_id == collage.id
     assert degraded.output == collage.output
     assert degraded.share_eligible is False
+    assert (
+        await repository.find_cache_hit(
+            look_id=look.id,
+            kind=RenderArtifactKind.TRY_ON,
+            input_signature=signature("e"),
+        )
+        is None
+    )
     assert pixel.share_eligible is True
     assert [artifact.id for artifact in listed] == [collage.id, degraded.id, pixel.id]
     assert await repository.get_for_user(user_id=uuid4(), artifact_id=pixel.id) is None

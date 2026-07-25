@@ -89,12 +89,16 @@ The client needs:
 - [x] 2026-07-25: RenderArtifact domain, repository, migration and application tests
   were added for exact input signatures, private provider trace, cache hits,
   degraded fallback links and pixel-only share eligibility.
-- [ ] Finish adapting the approved first-level pixel UI to real Item/Look APIs.
-- [ ] Add collage generation through the existing object store.
-- [ ] Add private try-on and image-generation provider adapters with bounded polling,
+- [x] Finish adapting the approved first-level pixel UI to real Item/Look APIs.
+- [x] Add collage generation through the existing object store.
+- [x] Add private try-on and image-generation provider adapters with bounded polling,
   timeouts, secret protection and honest fallback.
-- [ ] Wire API, task dispatch and worker execution.
-- [ ] Generate the TypeScript contract and connect Look list/detail presentation.
+- [x] Wire API, task dispatch and worker execution.
+- [x] Generate the TypeScript contract and connect Look list/detail presentation.
+- [x] Remove the unused simulated-share modal and relabel the local-only profile photo
+  preview so it cannot be mistaken for a persisted personal try-on input.
+- [x] Use only a successful share-safe `pixel_cover` artifact as the Look-card pixel
+  cover; otherwise retain the real Look image or honest pending placeholder.
 - [ ] Run real mobile journeys, visual review, privacy/failure/cache tests and the full
   product CI suite.
 - [ ] Push the tested integration branch without closing or merging upstream PRs.
@@ -128,8 +132,10 @@ contract independently in the browser, API and worker.
   `uv run pytest services/backend/tests/look/test_domain.py services/backend/tests/look/test_look_application.py services/backend/tests/look/test_repository.py services/backend/tests/render -q`
 - [x] Architecture boundary test:
   `uv run pytest services/backend/tests/architecture/test_boundaries.py -q`
-- [ ] Backend domain/repository/application/provider/API/worker tests pass.
-- [ ] Contract generation is clean and H5 typecheck/tests/build pass.
+- [x] Backend domain/repository/application/provider/API/worker tests pass:
+  `207 passed`.
+- [x] Contract generation is clean and H5 typecheck/tests/build pass:
+  `35` H5 tests and `14` matching-skill tests.
 - [ ] An uncached completed Look produces a real collage from its Item display assets.
 - [ ] At least one real hosted generation call succeeds when its server-side credential
   is configured; missing credentials produce an explicit retryable/unavailable state,
@@ -142,5 +148,18 @@ contract independently in the browser, API and worker.
   reference photo, source frame, object key or signed provider URL.
 - [ ] A real 390x844 journey covers Look browsing, pending/success/failure states, opening
   the accurate real Look and returning to source.
+- [ ] A clean new-user session is operated end to end as a person would: enter Feed,
+  pause, lasso, save Item and whole Look, observe background processing, browse Item
+  and Look wardrobes, open analysis/recommendation entry points, request every render
+  kind, recover from provider failure, share only the safe pixel result, and return to
+  the exact source frame. Record screenshots/trace and inspect the corresponding API,
+  queue, database and object-store state after every durable transition.
+- [ ] Run bounded concurrent save/list/detail/render/status/image traffic and inspect
+  browser responsiveness, API latency/error rate, queue depth/retry behavior,
+  database integrity/connection use and object-store hashes. Fix data races,
+  idempotency drift, stale UI, duplicate work and resource regressions before signoff.
+- [ ] Senior product, architecture, security, code and visual reviews independently
+  assess the experience from evaluator, first-time user and failure-recovery
+  perspectives. P0/P1 findings are fixed on this branch before Issue #6 is considered.
 - [ ] CPU, memory, disk and Docker use stay within the lightweight guardrails; no local
   diffusion or try-on weights are loaded by default.

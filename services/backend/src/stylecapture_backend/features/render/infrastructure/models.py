@@ -49,9 +49,7 @@ class RenderArtifactRecord(Base):
             "input_version",
             "input_hash",
             unique=True,
-            postgresql_where=text(
-                "status IN ('succeeded','degraded') AND object_key IS NOT NULL"
-            ),
+            postgresql_where=text("status = 'succeeded' AND object_key IS NOT NULL"),
         ),
     )
 

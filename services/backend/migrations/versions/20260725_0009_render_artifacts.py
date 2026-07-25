@@ -102,7 +102,7 @@ def upgrade() -> None:
         "render_artifacts",
         ["look_id", "kind", "input_version", "input_hash"],
         unique=True,
-        postgresql_where=sa.text("status IN ('succeeded','degraded') AND object_key IS NOT NULL"),
+        postgresql_where=sa.text("status = 'succeeded' AND object_key IS NOT NULL"),
     )
 
 
