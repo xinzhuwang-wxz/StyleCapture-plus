@@ -88,8 +88,7 @@ class FeedFrameContextBody(BaseModel):
                     FeedSelection(
                         selection_key=selection.selection_key,
                         polygon=tuple(
-                            NormalizedPoint(x=point.x, y=point.y)
-                            for point in selection.polygon
+                            NormalizedPoint(x=point.x, y=point.y) for point in selection.polygon
                         ),
                     )
                     for selection in self.selections

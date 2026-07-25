@@ -45,6 +45,6 @@ class ItemRecord(Base):
     description: Mapped[str | None] = mapped_column(String(1000))
     attributes: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     model_metadata: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(768))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

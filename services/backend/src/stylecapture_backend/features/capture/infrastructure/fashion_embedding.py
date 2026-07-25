@@ -16,6 +16,7 @@ from stylecapture_backend.features.capture.processing import (
 
 FASHION_SIGLIP_MODEL_ID = "Marqo/marqo-fashionSigLIP"
 FASHION_SIGLIP_REVISION = "c56244cc94f92419e8369fa71efdaf403b124ce8"
+FASHION_SIGLIP_DIMENSION = 768
 
 
 class FashionEmbeddingBackend(Protocol):
@@ -45,6 +46,8 @@ class FashionSiglipEmbedder:
                 retryable=True,
             ) from error
         try:
+            if len(vector) != FASHION_SIGLIP_DIMENSION:
+                raise ValueError("FashionSigLIP returned an unexpected dimension")
             return EmbeddingResult(
                 vector=vector,
                 model_version=f"{FASHION_SIGLIP_MODEL_ID}@{FASHION_SIGLIP_REVISION}",

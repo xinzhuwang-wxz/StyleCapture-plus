@@ -79,8 +79,8 @@ async def test_wardrobe_repository_round_trips_locked_fields_metadata_and_vector
         {"capability_alias": "vision_understanding", "schema_version": "garment-v1"},
     )
     item = item.with_embedding(
-        (1.0,) + (0.0,) * 767,
-        model_version="Marqo/marqo-fashionSigLIP@c56244c",
+        (1.0,) + (0.0,) * 2047,
+        model_version="doubao-embedding-vision-250615",
     ).with_status(ItemStatus.READY)
 
     await repository.save(item)
@@ -96,8 +96,8 @@ async def test_wardrobe_repository_round_trips_locked_fields_metadata_and_vector
     assert stored.attributes.fields["category"].value == "outerwear"
     assert stored.attributes.fields["category"].provenance is FieldProvenance.USER
     assert stored.attributes.fields["description"].value == "一件蓝色外套"
-    assert str(stored.model_metadata["embedding_model"]).startswith("Marqo/")
-    assert stored.embedding == (1.0,) + (0.0,) * 767
+    assert stored.model_metadata["embedding_model"] == "doubao-embedding-vision-250615"
+    assert stored.embedding == (1.0,) + (0.0,) * 2047
 
 
 @pytest.mark.asyncio
@@ -220,12 +220,8 @@ async def test_repository_persists_multiple_feed_items_by_stable_selection_key()
 
     repository = SqlAlchemyWardrobeRepository(sessions)
     hat = await repository.save(WardrobeItem.processing(capture, selection_key="hat"))
-    jacket = await repository.save(
-        WardrobeItem.processing(capture, selection_key="jacket")
-    )
-    duplicate_hat = await repository.save(
-        WardrobeItem.processing(capture, selection_key="hat")
-    )
+    jacket = await repository.save(WardrobeItem.processing(capture, selection_key="jacket"))
+    duplicate_hat = await repository.save(WardrobeItem.processing(capture, selection_key="hat"))
 
     assert hat.id != jacket.id
     assert duplicate_hat.id == hat.id

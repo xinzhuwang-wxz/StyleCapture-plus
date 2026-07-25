@@ -8,6 +8,8 @@ import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from pydantic import HttpUrl
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPOSITORY_ROOT))
 
@@ -304,14 +306,12 @@ def test_ingest_source_asset_transcodes_real_video_atomically(tmp_path: Path) ->
     try:
         source = FeedSourceAsset(
             asset_id="asset-ingest",
-            source_page_url="https://www.pexels.com/video/example-1/",
-            direct_media_url=(
-                f"http://127.0.0.1:{server.server_port}/{source_video.name}"
-            ),
+            source_page_url=HttpUrl("https://www.pexels.com/video/example-1/"),
+            direct_media_url=HttpUrl(f"http://127.0.0.1:{server.server_port}/{source_video.name}"),
             source_platform="pexels",
             creator_name="Example Creator",
             license_name="Pexels License",
-            license_url="https://www.pexels.com/license/",
+            license_url=HttpUrl("https://www.pexels.com/license/"),
             content_type="video",
             category_bucket="street_style",
             orientation="vertical",

@@ -130,7 +130,9 @@ def test_ffmpeg_extracts_the_requested_frame_and_atomically_publishes_it(
     assert frame.sha256 == sha256(frame.body).hexdigest()
     with Image.open(BytesIO(frame.body)) as image:
         assert image.size == (32, 24)
-        red, green, blue = image.convert("RGB").getpixel((16, 12))
+        pixel = image.convert("RGB").getpixel((16, 12))
+        assert isinstance(pixel, tuple)
+        red, green, blue = pixel
     assert blue > red
     assert blue > green
     assert (frame_root / frame.object_key).read_bytes() == frame.body

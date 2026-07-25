@@ -32,7 +32,8 @@ class BackendSettings(BaseSettings):
     vision_model_alias: str = "vision_understanding"
     litellm_base_url: str = "http://litellm:4000/v1"
     litellm_api_key: SecretStr = SecretStr(PLACEHOLDER_GATEWAY_SECRET)
-    embedding_mode: Literal["disabled", "fashion_siglip"] = "disabled"
+    embedding_mode: Literal["hosted", "fashion_siglip", "disabled"] = "hosted"
+    embedding_model: str = "doubao-embedding-vision-250615"
     embedding_device: str = "cpu"
     capture_queue: str = "capture"
     worker_max_retries: int = 2

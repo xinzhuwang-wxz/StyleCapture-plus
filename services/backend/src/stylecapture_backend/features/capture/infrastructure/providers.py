@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 from collections.abc import Awaitable, Callable
-from io import BytesIO
 from time import perf_counter
 from typing import Any, cast
 
 from litellm import acompletion
-from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from stylecapture_backend.features.capture.domain import FeedSelection
+from stylecapture_backend.features.capture.infrastructure.image_data import (
+    image_to_jpeg_data_url,
+)
 from stylecapture_backend.features.capture.processing import (
     ImagePayload,
     ModelMetadata,
@@ -212,19 +212,13 @@ def _messages(
 
 def _vision_data_url(image: ImagePayload) -> str:
     try:
-        with Image.open(BytesIO(image.body)) as source:
-            rendered = source.convert("RGB")
-            rendered.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
-            buffer = BytesIO()
-            rendered.save(buffer, format="JPEG", quality=90, optimize=True)
+        return image_to_jpeg_data_url(image)
     except (OSError, ValueError) as error:
         raise ProviderError(
             "vision_image_invalid",
             "The uploaded image could not be prepared for vision understanding",
             retryable=False,
         ) from error
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/jpeg;base64,{encoded}"
 
 
 def _model_fields(

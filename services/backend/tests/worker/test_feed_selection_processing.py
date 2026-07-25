@@ -58,7 +58,7 @@ class MemoryWardrobeRepository:
     async def get_by_capture(
         self,
         capture_id: UUID,
-        selection_key: str,
+        selection_key: str = "whole_capture",
     ) -> WardrobeItem | None:
         return self.items.get((capture_id, selection_key))
 
@@ -153,8 +153,8 @@ class RecordingVision:
 class FixedEmbedder:
     async def embed(self, image: ImagePayload) -> EmbeddingResult:
         return EmbeddingResult(
-            vector=(1.0,) + (0.0,) * 767,
-            model_version="embedding-v1",
+            vector=(1.0,) + (0.0,) * 2047,
+            model_version="doubao-embedding-vision-250615",
         )
 
 
@@ -262,12 +262,11 @@ async def test_feed_batch_creates_one_item_per_selection_with_prompt_boundaries(
         item = wardrobe.items[(capture.id, selection.selection_key)]
         assert item.status is ItemStatus.READY
         assert item.selection_key == selection.selection_key
-        assert (
-            item.attributes.fields["category"].value
-            == f"category-for-{selection.selection_key}"
-        )
-        assert item.model_metadata["segmentation"]["selection_key"] == selection.selection_key
-        assert item.model_metadata["segmentation"]["coarse_polygon"] == [
+        assert item.attributes.fields["category"].value == f"category-for-{selection.selection_key}"
+        segmentation = item.model_metadata["segmentation"]
+        assert isinstance(segmentation, dict)
+        assert segmentation["selection_key"] == selection.selection_key
+        assert segmentation["coarse_polygon"] == [
             {"x": point.x, "y": point.y} for point in selection.polygon
         ]
 
@@ -289,10 +288,7 @@ async def test_feed_batch_retry_reuses_stable_selection_items() -> None:
     )
 
     first_outcome = await processor.process(capture.id, job.id)
-    original_ids = {
-        selection_key: item.id
-        for (_, selection_key), item in wardrobe.items.items()
-    }
+    original_ids = {selection_key: item.id for (_, selection_key), item in wardrobe.items.items()}
 
     first_vision.error = None
     second_outcome = await processor.process(capture.id, job.id)
@@ -302,13 +298,11 @@ async def test_feed_batch_retry_reuses_stable_selection_items() -> None:
     assert second_outcome == ProcessingOutcome.ready()
     assert work.job.state is JobState.READY
     assert {
-        selection_key: item.id
-        for (_, selection_key), item in wardrobe.items.items()
+        selection_key: item.id for (_, selection_key), item in wardrobe.items.items()
     } == original_ids
     assert len(wardrobe.items) == 2
     assert all(
-        item.model_metadata.get("processing_error") is None
-        for item in wardrobe.items.values()
+        item.model_metadata.get("processing_error") is None for item in wardrobe.items.values()
     )
 
 
@@ -337,7 +331,9 @@ async def test_feed_without_vlm_keeps_real_selection_items_partial_without_tags(
     for item in wardrobe.items.values():
         assert item.status is ItemStatus.PARTIAL
         assert not item.attributes.fields
-        assert item.model_metadata["segmentation"]["representation"] == "coarse_polygon"
+        segmentation = item.model_metadata["segmentation"]
+        assert isinstance(segmentation, dict)
+        assert segmentation["representation"] == "coarse_polygon"
 
 
 @pytest.mark.asyncio

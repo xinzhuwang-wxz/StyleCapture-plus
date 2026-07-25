@@ -26,9 +26,7 @@ class NormalizedPoint:
             or not 0 <= self.x <= 1
             or not 0 <= self.y <= 1
         ):
-            raise ValueError(
-                "normalized point coordinates must be finite and between 0 and 1"
-            )
+            raise ValueError("normalized point coordinates must be finite and between 0 and 1")
 
 
 def is_valid_selection_key(value: str) -> bool:
@@ -47,9 +45,7 @@ class FeedSelection:
 
     def __post_init__(self) -> None:
         if not is_valid_selection_key(self.selection_key):
-            raise ValueError(
-                "selection key must be a 1-64 character ASCII alphanumeric identifier"
-            )
+            raise ValueError("selection key must be a 1-64 character ASCII alphanumeric identifier")
         if len(set(self.polygon)) < 3:
             raise ValueError("selection polygon must contain at least 3 unique points")
 

@@ -65,11 +65,11 @@ class EmbeddingResult:
     model_version: str
 
     def __post_init__(self) -> None:
-        if len(self.vector) != 768:
-            raise ValueError("fashion embedding must have 768 dimensions")
+        if not self.vector:
+            raise ValueError("embedding must not be empty")
         norm = sqrt(sum(value * value for value in self.vector))
         if not isclose(norm, 1, rel_tol=1e-5, abs_tol=1e-5):
-            raise ValueError("fashion embedding must be L2-normalized")
+            raise ValueError("embedding must be L2-normalized")
         if not self.model_version.strip():
             raise ValueError("embedding model version must not be empty")
 
@@ -379,9 +379,7 @@ class CaptureProcessor:
                 )
             )
         return await self._wardrobe.save(
-            item.with_model_metadata({"processing_error": None}).with_status(
-                ItemStatus.PROCESSING
-            )
+            item.with_model_metadata({"processing_error": None}).with_status(ItemStatus.PROCESSING)
         )
 
     def _prepare_feed_selection(
@@ -420,7 +418,5 @@ def _segmentation_metadata(result: SegmentationResult) -> dict[str, object]:
         "latency_ms": result.metadata.latency_ms,
         "fallback_reason": result.metadata.fallback_reason,
         "provider": result.metadata.provider,
-        "coarse_polygon": [
-            {"x": point.x, "y": point.y} for point in result.coarse_polygon
-        ],
+        "coarse_polygon": [{"x": point.x, "y": point.y} for point in result.coarse_polygon],
     }

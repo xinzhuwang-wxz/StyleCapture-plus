@@ -69,10 +69,13 @@ the stored mask asynchronously but is not the source of the user's save decision
   normalized lasso paths and same-frame multi-selection settling after 700 ms.
 - [x] 2026-07-25: Added the real Feed signed-upload client path and truthful
   FFmpeg/coarse-polygon provider boundaries without loading a segmentation model.
-- [ ] Add provenance-recorded Feed corpus manifest and at least 30 local review clips.
-- [ ] Integrate Feed browsing, pause, multi-lasso, lifted subject, and direct swipe.
-- [ ] Connect right-swipe to the real upload/capture/job API with idempotent batching.
-- [ ] Add FFmpeg extraction and promptable segmentation provider/fallback behavior.
+- [x] Add provenance-recorded Feed corpus manifest and 30 local review clips.
+- [x] Integrate Feed browsing, pause, multi-lasso, lifted subject, and direct swipe.
+- [x] Connect right-swipe to the real upload/capture/job API with idempotent batching.
+- [x] Add FFmpeg extraction and promptable segmentation provider/fallback behavior.
+- [x] Route the lightweight default through hosted Doubao vision and multimodal
+  embedding behind LiteLLM; keep FashionSigLIP and disabled embedding explicit
+  non-default modes.
 - [ ] Generate OpenAPI client types and complete automated, real-user, visual, resource,
   architecture, security, and trace evidence.
 - [ ] Merge the reviewed Issue #2 pull request and immediately advance the Goal.
@@ -114,6 +117,12 @@ the stored mask asynchronously but is not the source of the user's save decision
   environment. Fresh LiteLLM calls through `vision_understanding` returned HTTP 200
   for both text and real PNG multimodal input; the Feed remains independent of this
   provider and curated corpus labels remain explicitly manual.
+- 2026-07-25: The previous Worker default disabled embedding and therefore presented a
+  fully tagged Item as `partial`. Live contract testing proved Ark's multimodal
+  embedding endpoint returns a normalized-provider-compatible 2048-dimensional vector
+  and does not accept an arbitrary 768-dimensional request. The database now stores
+  provider-native vector dimensions and the lightweight default is complete without
+  local model weights.
 
 ## Decision Log
 
@@ -134,6 +143,12 @@ the stored mask asynchronously but is not the source of the user's save decision
 - 2026-07-25 — Curated demo annotations are stored as `curated_seed` provenance, never
   accepted as runtime provider evidence. Rationale: known corpus preparation must not
   be confused with product AI. Affected contracts: corpus manifest and trace review.
+- 2026-07-25 — Make hosted Doubao multimodal embedding the default through an
+  authenticated LiteLLM pass-through and retain provider-native dimensions. Rationale:
+  “lightweight” means moving inference to a hosted provider, not silently removing
+  similarity capability or projecting a 2048-dimensional response into a lossy
+  handwritten 768-dimensional vector. Affected contracts: Worker provider selection,
+  LiteLLM config, Item embedding storage, migration, and readiness state.
 
 ## Context and Orientation
 
@@ -181,6 +196,7 @@ Rejected reuse:
 | Corpus download and review transcoding | Custom HTTP downloader/decoder; curl; HTTPX; FFmpeg | Reuse FFmpeg's HTTPS demuxer and transcoder behind a sequential, atomic thin wrapper | Avoids a second decoder and full-size UHD staging files; one asset is bounded and published only after FFprobe succeeds, so retries resume without laptop saturation | local FFmpeg 8.0.1, LGPL/GPL build terms retained with deployment |
 | Still-frame segmentation | Coarse polygon; MobileSAM; SAM2.1; Grounded-SAM2 | Coarse polygon truth + adapted MobileSAM default; heavier candidates quality-only | Keeps core CPU-compatible and preserves save intent when inference fails | `MobileSAM@f706ad9`, Apache-2.0; `sam2@2b90b9f`, Apache-2.0; `Grounded-SAM-2@b7a9c29`, Apache-2.0 |
 | Gesture animation | Handwritten animation engine; Motion; SVG/Canvas | Reuse Motion and browser primitives | Existing dependency supplies drag/spring behavior; Canvas/SVG supplies exact lasso visuals without a 3D engine | `motion@12.23.24`, MIT; browser standards |
+| Lightweight visual embedding | Disabled stage; local FashionSigLIP; custom provider proxy; LiteLLM pass-through to Ark multimodal embedding | Reuse LiteLLM authenticated pass-through and Ark hosted embedding; retain FashionSigLIP as optional comparison | Completes similarity without a GPU or another proxy/SDK, keeps credentials server-side, and preserves the provider's 2048-dimensional signal | `LiteLLM@1.93.0`, MIT; Volcengine Ark hosted API |
 
 ## Plan of Work
 

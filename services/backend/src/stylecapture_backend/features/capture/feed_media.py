@@ -60,7 +60,10 @@ class SegmentationMetadata:
             raise ValueError("segmentation latency must not be negative")
         if self.refined and self.representation is not SegmentationRepresentation.REFINED_MASK:
             raise ValueError("refined segmentation must use the refined-mask representation")
-        if not self.refined and self.representation is not SegmentationRepresentation.COARSE_POLYGON:
+        if (
+            not self.refined
+            and self.representation is not SegmentationRepresentation.COARSE_POLYGON
+        ):
             raise ValueError("unrefined segmentation must use the coarse-polygon representation")
 
 

@@ -115,15 +115,13 @@ class WardrobeItem:
     def __post_init__(self) -> None:
         object.__setattr__(self, "model_metadata", MappingProxyType(dict(self.model_metadata)))
         if not is_valid_selection_key(self.selection_key):
-            raise ValueError(
-                "selection key must be a 1-64 character ASCII alphanumeric identifier"
-            )
+            raise ValueError("selection key must be a 1-64 character ASCII alphanumeric identifier")
         if self.embedding is not None:
-            if len(self.embedding) != 768:
-                raise ValueError("fashion embedding must have 768 dimensions")
+            if not self.embedding:
+                raise ValueError("embedding must not be empty")
             norm = sqrt(sum(value * value for value in self.embedding))
             if not isclose(norm, 1, rel_tol=1e-5, abs_tol=1e-5):
-                raise ValueError("fashion embedding must be L2-normalized")
+                raise ValueError("embedding must be L2-normalized")
 
     @classmethod
     def processing(

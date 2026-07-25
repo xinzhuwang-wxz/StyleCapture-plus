@@ -217,7 +217,8 @@ services:
       - --without-mingle
     environment:
       <<: *backend-environment
-      STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-disabled}
+      STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-hosted}
+      STYLECAPTURE_EMBEDDING_MODEL: ${STYLECAPTURE_EMBEDDING_MODEL:-doubao-embedding-vision-250615}
     depends_on:
       litellm:
         condition: service_healthy

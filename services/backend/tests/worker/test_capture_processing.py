@@ -167,8 +167,8 @@ def analysis(fields: Mapping[str, ModelField] | None = None) -> VisionAnalysis:
 
 def embedding() -> EmbeddingResult:
     return EmbeddingResult(
-        vector=(1.0,) + (0.0,) * 767,
-        model_version="Marqo/marqo-fashionSigLIP@c56244c",
+        vector=(1.0,) + (0.0,) * 2047,
+        model_version="doubao-embedding-vision-250615",
     )
 
 

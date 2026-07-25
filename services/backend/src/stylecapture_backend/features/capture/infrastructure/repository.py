@@ -189,9 +189,7 @@ def _feed_context_to_json(context: FeedFrameContext | None) -> dict[str, object]
             "selections": [
                 {
                     "selection_key": selection.selection_key,
-                    "polygon": [
-                        {"x": point.x, "y": point.y} for point in selection.polygon
-                    ],
+                    "polygon": [{"x": point.x, "y": point.y} for point in selection.polygon],
                 }
                 for selection in context.selections
             ],

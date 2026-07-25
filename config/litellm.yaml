@@ -25,3 +25,13 @@ litellm_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+  pass_through_endpoints:
+    - path: /v1/embeddings/multimodal
+      target: https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal
+      headers:
+        Authorization: Bearer os.environ/ARK_API_KEY
+        Content-Type: application/json
+      auth: true
+      methods:
+        - POST
+      timeout: 45

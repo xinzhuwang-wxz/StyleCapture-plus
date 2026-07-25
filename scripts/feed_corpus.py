@@ -275,9 +275,7 @@ def _ingest(
         for source in source_manifest.assets
     ]
     manifest = FeedCorpusManifest(schema_version=1, assets=assets)
-    staging_manifest = output_manifest_path.with_suffix(
-        f"{output_manifest_path.suffix}.part"
-    )
+    staging_manifest = output_manifest_path.with_suffix(f"{output_manifest_path.suffix}.part")
     staging_manifest.write_text(manifest.model_dump_json(indent=2) + "\n", encoding="utf-8")
     staging_manifest.replace(output_manifest_path)
     return _verify(output_manifest_path, probe_media=True)
