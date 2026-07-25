@@ -70,3 +70,7 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
   slow from the host. Deployment now transfers the exact local commit over SSH and uses
   Tencent Cloud's internal PyPI mirror plus npmmirror only through optional Docker build
   arguments; normal Dockerfile defaults still use the official registries.
+- `uv.lock` stores immutable `files.pythonhosted.org` artifact URLs, so changing only
+  `UV_DEFAULT_INDEX` did not affect locked downloads. The production build optionally
+  rewrites those copied in-image URLs to Tencent's path-compatible HTTPS mirror while
+  retaining every locked hash; the tracked lockfile remains byte-identical.

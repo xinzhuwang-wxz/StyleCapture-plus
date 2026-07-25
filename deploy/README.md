@@ -17,9 +17,12 @@ Ubuntu 22.04 or 24.04 with Docker Engine and Compose v2 is supported. Copy
 `deploy/production.env.example` to a server-only `.env`, generate unique secrets, and
 set `ARK_API_KEY`. Never commit or expose that file.
 
-The example also enables Tencent Cloud's internal PyPI mirror and the public npmmirror
-registry as build-only inputs. The Dockerfiles retain the official package registries as
-their defaults, so local and non-Tencent builds are unchanged.
+The example also enables Tencent Cloud's HTTPS PyPI mirror and the public npmmirror
+registry as build-only inputs. Because `uv.lock` records immutable artifact URLs, the
+optional `UV_LOCK_MIRROR_BASE` rewrites only the copied lockfile inside the image build;
+package hashes remain enforced and the repository lockfile is untouched. The
+Dockerfiles retain the official package registries as their defaults, so local and
+non-Tencent builds are unchanged.
 
 ```bash
 docker compose \
