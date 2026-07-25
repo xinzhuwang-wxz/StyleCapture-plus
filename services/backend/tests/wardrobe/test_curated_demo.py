@@ -146,8 +146,7 @@ class MemoryItemPresentations:
             (
                 existing
                 for existing in self.assets.values()
-                if existing.user_id == asset.user_id
-                and existing.request_key == asset.request_key
+                if existing.user_id == asset.user_id and existing.request_key == asset.request_key
             ),
             None,
         )
@@ -179,9 +178,7 @@ class MemoryRenders:
 
 
 def test_curated_manifest_tracks_real_and_pixel_assets() -> None:
-    assets_root = (
-        Path(curated_demo.__file__).resolve().parents[3] / "demo_assets"
-    )
+    assets_root = Path(curated_demo.__file__).resolve().parents[3] / "demo_assets"
 
     assert len(curated_demo.SEED_ITEMS) == 28
     assert len(curated_demo.SEED_LOOKS) == 3
@@ -196,9 +193,7 @@ def test_curated_manifest_tracks_real_and_pixel_assets() -> None:
 
 
 def test_user_curated_items_have_searchable_tags_and_source_pairing() -> None:
-    user_items = [
-        item for item in curated_demo.SEED_ITEMS if item.key.startswith("user_")
-    ]
+    user_items = [item for item in curated_demo.SEED_ITEMS if item.key.startswith("user_")]
 
     assert len(user_items) == 18
     for item in user_items:
@@ -392,7 +387,9 @@ async def test_bootstrap_stores_user_seed_tags_and_png_source() -> None:
     assert objects.images[1].content_type == "image/png"
     assert stored.source_object_key != stored.display_object_key
     assert stored.ownership is curated_demo.OwnershipState.OWNED
-    assert stored.attributes.fields["styles"].provenance is curated_demo.FieldProvenance.CURATED_SEED
+    assert (
+        stored.attributes.fields["styles"].provenance is curated_demo.FieldProvenance.CURATED_SEED
+    )
     assert stored.attributes.fields["materials"].value == ["轻薄梭织", "雪纺感面料"]
     assert stored.attributes.fields["pattern"].value == "抽象花卉印花"
     assert stored.attributes.fields["seasons"].value == ["夏季", "春季"]
@@ -582,8 +579,5 @@ async def test_curated_seed_reensure_upgrades_stale_display_without_overwriting_
     assert upgraded.display_object_key is not None
     assert upgraded.display_object_key.endswith(".png")
     assert upgraded.attributes.fields["category"].value == "outerwear"
-    assert (
-        upgraded.attributes.fields["category"].provenance
-        is curated_demo.FieldProvenance.USER
-    )
+    assert upgraded.attributes.fields["category"].provenance is curated_demo.FieldProvenance.USER
     assert len(presentations.assets) == 2

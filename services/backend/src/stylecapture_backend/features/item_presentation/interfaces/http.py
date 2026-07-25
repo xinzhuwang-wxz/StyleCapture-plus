@@ -56,9 +56,7 @@ class ItemPresentationResponse(BaseModel):
             ),
             failure_code=view.failure_code,
             failure_message=(
-                "像素单品图暂时没有生成。可以重试。"
-                if view.failure_code is not None
-                else None
+                "像素单品图暂时没有生成。可以重试。" if view.failure_code is not None else None
             ),
             retryable=view.status is ItemPresentationStatus.FAILED,
             created_at=view.created_at,

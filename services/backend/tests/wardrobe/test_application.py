@@ -106,12 +106,8 @@ async def test_lists_only_the_current_users_items_and_returns_source_kind() -> N
 async def test_lists_reviewed_showcase_items_before_later_user_captures() -> None:
     user_id = uuid4()
     uploaded = make_item(user_id=user_id)
-    showcase_second = make_item(user_id=user_id).with_model_metadata(
-        {"showcase_order": 1}
-    )
-    showcase_first = make_item(user_id=user_id).with_model_metadata(
-        {"showcase_order": 0}
-    )
+    showcase_second = make_item(user_id=user_id).with_model_metadata({"showcase_order": 1})
+    showcase_first = make_item(user_id=user_id).with_model_metadata({"showcase_order": 0})
     application = WardrobeApplication(
         wardrobe=MemoryWardrobe([uploaded, showcase_second, showcase_first]),
         sources=MemorySources(

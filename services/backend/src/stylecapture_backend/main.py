@@ -175,6 +175,7 @@ def create_app(
     sessions = SessionSigner(session_signing_secret)
     demo_seed_admission_lock = asyncio.Lock()
     admitted_demo_seed_sessions = 0
+
     async def should_seed_demo_wardrobe(*, existing_user: bool) -> bool:
         nonlocal admitted_demo_seed_sessions
         async with demo_seed_admission_lock:

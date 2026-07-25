@@ -961,9 +961,7 @@ class CaptureProcessor:
         if item is None:
             return WardrobeItem.processing(capture, selection_key=selection_key), False
         return (
-            item.with_model_metadata({"processing_error": None}).with_status(
-                ItemStatus.PROCESSING
-            ),
+            item.with_model_metadata({"processing_error": None}).with_status(ItemStatus.PROCESSING),
             True,
         )
 

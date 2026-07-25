@@ -55,9 +55,7 @@ class PixelTrialResponse(BaseModel):
             ),
             failure_code=view.failure_code,
             failure_message=(
-                "像素形象暂时没有生成。可以重试。"
-                if view.failure_code is not None
-                else None
+                "像素形象暂时没有生成。可以重试。" if view.failure_code is not None else None
             ),
             retryable=view.status is PixelTrialStatus.FAILED and view.subject_attached,
             created_at=view.created_at,

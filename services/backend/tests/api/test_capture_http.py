@@ -469,7 +469,7 @@ async def test_upload_can_only_be_discarded_before_capture_submission(
             },
         )
         assert uploaded.status_code == 201
-        assert (await client.delete(f"/v1/uploads/{unattached['object_key']}" )).status_code == 204
+        assert (await client.delete(f"/v1/uploads/{unattached['object_key']}")).status_code == 204
 
         attached = (
             await client.post(

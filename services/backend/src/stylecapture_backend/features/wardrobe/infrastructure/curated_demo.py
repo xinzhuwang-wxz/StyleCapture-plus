@@ -396,9 +396,7 @@ class CuratedDemoWardrobeBootstrapper:
                 item_id=item.id,
                 kind=ItemPresentationKind.PIXEL_ITEM,
                 input_signature=signature,
-                request_key=(
-                    f"curated-seed:item-pixel:{definition.key}:{signature.hash[:16]}"
-                ),
+                request_key=(f"curated-seed:item-pixel:{definition.key}:{signature.hash[:16]}"),
             )
         )
         if requested.output is not None:
@@ -554,7 +552,10 @@ def _read_seed_image(path: Path, *, object_key: str) -> ImagePayload:
 
 
 def _seed_source_file_name(assets_root: Path, definition: SeedItem) -> str:
-    if definition.source_file_name is not None and (assets_root / definition.source_file_name).is_file():
+    if (
+        definition.source_file_name is not None
+        and (assets_root / definition.source_file_name).is_file()
+    ):
         return definition.source_file_name
     return definition.file_name
 

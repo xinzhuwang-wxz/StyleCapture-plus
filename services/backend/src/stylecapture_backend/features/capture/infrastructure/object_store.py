@@ -371,7 +371,9 @@ class LocalObjectStore:
         return payload
 
     def _claim_upload_token(self, token: str) -> Path:
-        claim_path = self._root / ".upload-tokens" / f"{sha256(token.encode('utf-8')).hexdigest()}.json"
+        claim_path = (
+            self._root / ".upload-tokens" / f"{sha256(token.encode('utf-8')).hexdigest()}.json"
+        )
         claim_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with claim_path.open("x", encoding="utf-8") as handle:

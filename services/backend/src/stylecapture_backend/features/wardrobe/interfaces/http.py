@@ -114,9 +114,7 @@ class ItemResponse(BaseModel):
             source_timestamp_ms=source_timestamp_ms,
             display_image_url=f"/v1/items/{item.id}/image",
             display_image_kind=(
-                "derived_garment"
-                if item.display_object_key is not None
-                else "source_capture"
+                "derived_garment" if item.display_object_key is not None else "source_capture"
             ),
             display_image_issue=display_image_issue,
             pixel_image_url=pixel_image_url,

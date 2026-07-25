@@ -75,7 +75,8 @@ class SqlAlchemyPixelTrialRepository:
                 values = _trial_values(trial)
                 if record is not None:
                     if (
-                        PixelTrialStatus(record.status) in {
+                        PixelTrialStatus(record.status)
+                        in {
                             PixelTrialStatus.SUCCEEDED,
                             PixelTrialStatus.FAILED,
                         }

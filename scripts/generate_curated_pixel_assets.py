@@ -91,9 +91,7 @@ async def main() -> None:
     if args.concurrency < 1 or args.concurrency > 3:
         raise SystemExit("--concurrency must be between 1 and 3")
     repo_root = Path(__file__).resolve().parents[1]
-    assets_root = (
-        repo_root / "services/backend/src/stylecapture_backend/demo_assets"
-    )
+    assets_root = repo_root / "services/backend/src/stylecapture_backend/demo_assets"
     manifest = cast(
         dict[str, object],
         json.loads((assets_root / "seed-manifest.json").read_text(encoding="utf-8")),
@@ -117,13 +115,9 @@ async def main() -> None:
     )
     semaphore = asyncio.Semaphore(args.concurrency)
     item_entries = [
-        cast(dict[str, object], entry)
-        for entry in cast(list[object], manifest["items"])
+        cast(dict[str, object], entry) for entry in cast(list[object], manifest["items"])
     ]
-    item_generation_entries = [
-        (entry, item_prompt(entry))
-        for entry in item_entries
-    ]
+    item_generation_entries = [(entry, item_prompt(entry)) for entry in item_entries]
     look_generation_entries = [
         (cast(dict[str, object], entry), LOOK_PROMPT)
         for entry in cast(list[object], manifest["looks"])
@@ -136,13 +130,9 @@ async def main() -> None:
     if args.seed_key:
         selected_keys = set(args.seed_key)
         entries = [
-            (entry, prompt)
-            for entry, prompt in entries
-            if str(entry["seed_key"]) in selected_keys
+            (entry, prompt) for entry, prompt in entries if str(entry["seed_key"]) in selected_keys
         ]
-        missing = selected_keys.difference(
-            str(entry["seed_key"]) for entry, _ in entries
-        )
+        missing = selected_keys.difference(str(entry["seed_key"]) for entry, _ in entries)
         if missing:
             raise SystemExit(f"unknown seed keys: {', '.join(sorted(missing))}")
 
@@ -160,9 +150,7 @@ async def main() -> None:
         save_png(generated.body, destination)
         return f"generated {entry['seed_key']}"
 
-    results = await asyncio.gather(
-        *(generate(entry, prompt) for entry, prompt in entries)
-    )
+    results = await asyncio.gather(*(generate(entry, prompt) for entry, prompt in entries))
     for result in results:
         print(result)
 

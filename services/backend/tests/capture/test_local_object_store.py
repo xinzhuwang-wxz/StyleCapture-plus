@@ -100,9 +100,7 @@ def test_private_source_asset_uses_originals_prefix_and_is_readable(tmp_path: Pa
         prefix="originals/curated-seed/user-1",
     )
 
-    assert stored.object_key == (
-        f"originals/curated-seed/user-1/{sha256(body).hexdigest()}.png"
-    )
+    assert stored.object_key == (f"originals/curated-seed/user-1/{sha256(body).hexdigest()}.png")
     assert store.describe(stored.object_key).owner_id == OWNER_ID
     assert store.read_image(stored.object_key) == stored
 

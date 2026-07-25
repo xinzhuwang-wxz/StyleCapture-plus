@@ -86,8 +86,7 @@ async def _reset_database() -> None:
     async with sessions() as session:
         await session.execute(
             text(
-                "TRUNCATE TABLE item_presentation_assets, items, processing_jobs, "
-                "captures CASCADE"
+                "TRUNCATE TABLE item_presentation_assets, items, processing_jobs, captures CASCADE"
             )
         )
         await session.commit()
