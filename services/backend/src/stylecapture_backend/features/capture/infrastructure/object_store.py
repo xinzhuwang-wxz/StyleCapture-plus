@@ -15,7 +15,7 @@ from typing import Any
 from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
-from pillow_heif import register_heif_opener  # type: ignore[import-untyped]
+from pillow_heif import register_heif_opener
 
 from stylecapture_backend.features.capture.application import CaptureError
 from stylecapture_backend.features.capture.domain import ImagePayload

@@ -4,7 +4,7 @@ from hashlib import sha256
 from io import BytesIO
 
 from PIL import Image
-from pillow_heif import register_heif_opener  # type: ignore[import-untyped]
+from pillow_heif import register_heif_opener
 
 from stylecapture_backend.platform.image_payload import ImagePayload
 
