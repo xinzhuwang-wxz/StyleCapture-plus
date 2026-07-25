@@ -69,4 +69,32 @@ describe("CommunityScreen", () => {
     expect(screen.getByRole("button", { name: "回到后台" })).toBeInTheDocument();
     expect(container.querySelector(".scene-avatar img")).not.toBeInTheDocument();
   });
+
+  it("draws the current runway applause and reaction onto the share card", async () => {
+    const user = userEvent.setup();
+    const download = vi.fn();
+    const drawImage = vi.fn();
+    const fillText = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(download);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "",
+      font: "",
+      fillRect: vi.fn(),
+      fillText,
+      drawImage
+    } as unknown as CanvasRenderingContext2D);
+
+    render(<CommunityScreen />);
+
+    await user.click(screen.getByRole("button", { name: "闪闪" }));
+    await user.click(screen.getByRole("button", { name: "轮到我上台" }));
+    await user.click(screen.getByRole("button", { name: "生成分享卡" }));
+
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(drawImage).toHaveBeenCalled();
+    expect(fillText).toHaveBeenCalledWith("正在走秀 · 喝彩 12", 64, 918);
+    expect(fillText).toHaveBeenCalledWith("✦ Demo 像素形象 · #StyleCapture", 64, 952);
+    expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好");
+  });
 });

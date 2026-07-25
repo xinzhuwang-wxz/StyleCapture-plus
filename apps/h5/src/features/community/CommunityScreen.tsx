@@ -83,10 +83,11 @@ function drawShareCard(
   context.fillText("今晚舞会", 64, 824);
   context.font = "30px sans-serif";
   context.fillText(scene.avatar.isDancing ? "我的搭配正在舞池发光" : "我的搭配来到像素舞会", 64, 874);
+  context.fillText(`${scene.runway.isShowing ? "正在走秀" : "等待上台"} · 喝彩 ${scene.runway.applause}`, 64, 918);
   context.fillText(
     `${scene.avatar.reaction ? reactionLabels[scene.avatar.reaction].symbol : "✦"} ${avatarSource.label} · #StyleCapture`,
     64,
-    918
+    952
   );
 }
 
