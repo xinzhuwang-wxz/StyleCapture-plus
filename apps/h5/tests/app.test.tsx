@@ -115,6 +115,7 @@ describe("StyleCapture garment ingest", () => {
     expect(camera).toHaveAttribute("capture", "environment");
     expect(gallery).not.toHaveAttribute("capture");
     expect(camera).toHaveAttribute("accept", expect.stringContaining("image/heic"));
+    expect(gallery).toHaveAttribute("accept", expect.stringContaining(".heic"));
   });
 
   it("requires ownership before a real upload can enter the wardrobe", async () => {

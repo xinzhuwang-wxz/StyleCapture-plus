@@ -7,7 +7,14 @@ from time import perf_counter
 from typing import Any, cast
 
 from litellm import acompletion
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from stylecapture_backend.features.capture.domain import FeedSelection
 from stylecapture_backend.features.capture.infrastructure.image_data import (
@@ -27,7 +34,7 @@ from stylecapture_backend.features.wardrobe.taxonomy import (
     taxonomy_prompt,
 )
 
-GARMENT_PROMPT_VERSION = "garment-zh-v2"
+GARMENT_PROMPT_VERSION = "garment-zh-v3"
 GARMENT_SCHEMA_VERSION = "garment-v1"
 
 
@@ -45,6 +52,28 @@ class ConfidentValues(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+def _contains_cjk(value: str) -> bool:
+    return any("\u3400" <= character <= "\u9fff" for character in value)
+
+
+class ChineseConfidentText(ConfidentText):
+    @field_validator("value")
+    @classmethod
+    def require_simplified_chinese(cls, value: str) -> str:
+        if not _contains_cjk(value):
+            raise ValueError("user-facing garment text must contain Chinese")
+        return value
+
+
+class ChineseConfidentValues(ConfidentValues):
+    @field_validator("value")
+    @classmethod
+    def require_simplified_chinese(cls, values: list[str]) -> list[str]:
+        if any(not _contains_cjk(value) for value in values):
+            raise ValueError("user-facing garment tags must contain Chinese")
+        return values
+
+
 class ConfidentCategory(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -57,19 +86,19 @@ class GarmentVisionSchema(BaseModel):
 
     category: ConfidentCategory
     subcategory: ConfidentText
-    description: ConfidentText
-    colors: ConfidentValues
-    materials: ConfidentValues
-    pattern: ConfidentText
-    silhouette: ConfidentText
-    fit: ConfidentText
-    styles: ConfidentValues
-    seasons: ConfidentValues
-    occasions: ConfidentValues
-    length: ConfidentText
-    neckline: ConfidentText
-    sleeve_type: ConfidentText
-    details: ConfidentValues
+    description: ChineseConfidentText
+    colors: ChineseConfidentValues
+    materials: ChineseConfidentValues
+    pattern: ChineseConfidentText
+    silhouette: ChineseConfidentText
+    fit: ChineseConfidentText
+    styles: ChineseConfidentValues
+    seasons: ChineseConfidentValues
+    occasions: ChineseConfidentValues
+    length: ChineseConfidentText
+    neckline: ChineseConfidentText
+    sleeve_type: ChineseConfidentText
+    details: ChineseConfidentValues
 
     @model_validator(mode="after")
     def validate_taxonomy_pair(self) -> GarmentVisionSchema:
@@ -187,11 +216,12 @@ def _messages(
         {
             "role": "system",
             "content": (
-                "You are a garment asset analyst. Return only the requested strict JSON schema. "
-                "Describe visible evidence conservatively and never invent a brand, material, "
-                "or detail that is not visible. Keep category and subcategory as the lowercase "
-                "stable taxonomy IDs below. Write every other user-facing text value in concise, "
-                "natural Simplified Chinese.\n\n"
+                "你是数字衣橱的服装资产分析师。只返回指定的严格 JSON schema。"
+                "仅描述画面中能确认的证据，不得虚构品牌、材质或细节。"
+                "category 与 subcategory 必须使用下方小写英文稳定分类 ID；"
+                "除此之外，description、颜色、材质、图案、版型、风格、季节、"
+                "场景、长度、领型、袖型和细节的每一个文本值都必须使用简洁自然的"
+                "简体中文，不能返回英文标签。\n\n"
                 f"{taxonomy_prompt()}"
             ),
         },
@@ -201,8 +231,8 @@ def _messages(
                 {
                     "type": "text",
                     "text": (
-                        "Analyze the primary garment or accessory in this image for a digital "
-                        "wardrobe. Confidence is field-specific from 0 to 1."
+                        "分析图片中最主要的一件服装或配饰，用于数字衣橱。"
+                        "每个字段分别给出 0 到 1 的置信度。"
                         f"{selection_instruction}"
                     ),
                 },

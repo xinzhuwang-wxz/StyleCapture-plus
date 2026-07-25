@@ -448,7 +448,7 @@ export function App() {
                 ref={cameraInput}
                 className="visually-hidden"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
                 capture="environment"
                 aria-label="拍摄衣物照片"
                 onChange={(event) => {
@@ -460,7 +460,7 @@ export function App() {
                 ref={galleryInput}
                 className="visually-hidden"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
                 aria-label="选择衣物照片"
                 onChange={(event) => {
                   chooseFile(event.target.files?.[0], "upload");
