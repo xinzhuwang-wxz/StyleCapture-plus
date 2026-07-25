@@ -10,7 +10,9 @@ import {
 import {
   createCommunityScene,
   moveAvatarTo,
+  returnAvatarBackstage,
   selectReaction,
+  sendAvatarToRunway,
   type CommunityReaction,
   type CommunityResident,
   type CommunityScene
@@ -23,7 +25,16 @@ const reactionLabels: Record<CommunityReaction, { label: string; symbol: string 
   wave: { label: "挥挥", symbol: "⌁" }
 };
 
-type SceneStyle = CSSProperties & Record<"--resident-x" | "--resident-y" | "--resident-accent" | "--avatar-x" | "--avatar-y", string>;
+type SceneStyle = CSSProperties & Record<string, string>;
+
+const runwayAudience = [
+  { id: "audience-pink", accent: "#ed68aa" },
+  { id: "audience-gold", accent: "#fbdb83" },
+  { id: "audience-mint", accent: "#86e6cf" },
+  { id: "audience-violet", accent: "#9d68ff" },
+  { id: "audience-coral", accent: "#ff9b7b" },
+  { id: "audience-sky", accent: "#75d7ff" }
+] as const;
 
 export type CommunityAvatarSource = {
   assetUrl: string;
@@ -139,6 +150,14 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
     setMessage(`发送了 ${reactionLabels[reaction].symbol}`);
   }
 
+  function takeRunwayTurn() {
+    setScene((current) => {
+      const next = current.runway.isShowing ? returnAvatarBackstage(current) : sendAvatarToRunway(current);
+      setMessage(next.runway.isShowing ? "正在走秀" : "已回到后台");
+      return next;
+    });
+  }
+
   function prepareShareCard() {
     try {
       const canvas = shareCanvas.current;
@@ -199,6 +218,23 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
             <i />
           </div>
           <div className="pixel-ballroom__floor" aria-hidden="true" />
+          <div className="runway-audience" aria-label="像素观众" role="region">
+            {runwayAudience.map((audienceMember) => (
+              <span
+                key={audienceMember.id}
+                aria-hidden="true"
+                className="pixel-person pixel-person--audience"
+                style={{
+                  "--audience-accent": audienceMember.accent
+                } as SceneStyle}
+              />
+            ))}
+          </div>
+          <div className="runway-lookboard" aria-label="走秀看板" role="region">
+            <span>{scene.runway.isShowing ? "正在走秀" : "等待上台"}</span>
+            <strong>{scene.runway.isShowing ? avatarSource.label : "今晚空位"}</strong>
+            <small>喝彩 {scene.runway.applause}</small>
+          </div>
           {scene.residents.map((resident) => (
             <button
               key={resident.id}
@@ -230,7 +266,6 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
               </span>
             ) : null}
             <span className="pixel-person pixel-person--me" aria-hidden="true" />
-            <img ref={avatarImage} src={avatarSource.assetUrl} alt="" />
             <small>我</small>
           </div>
         </div>
@@ -243,6 +278,13 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
         <p className="community-hint" role="status">
           {message}
         </p>
+
+        <div className="community-runway-controls">
+          <button type="button" onClick={takeRunwayTurn}>
+            {scene.runway.isShowing ? "回到后台" : "轮到我上台"}
+          </button>
+          <span>当前喝彩 {scene.runway.applause}</span>
+        </div>
 
         <div className="community-controls" aria-label="移动我的形象">
           <button aria-label="向上移动" type="button" onClick={() => moveBy({ x: 0, y: -8 })}>
@@ -284,6 +326,7 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
         <button type="button" onClick={prepareShareCard}>
           {shareState === "error" ? "重试生成分享卡" : "生成分享卡"}
         </button>
+        <img ref={avatarImage} src={avatarSource.assetUrl} alt="" className="community-share__avatar-source" />
         <canvas ref={shareCanvas} aria-hidden="true" className="community-share__canvas" />
       </section>
 

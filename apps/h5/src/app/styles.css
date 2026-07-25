@@ -397,6 +397,63 @@ p {
   box-shadow: 0 0 2rem rgba(225, 120, 255, 0.52);
 }
 
+.runway-audience {
+  position: absolute;
+  z-index: 1;
+  inset: 7% 6% auto;
+  height: 22%;
+  pointer-events: none;
+}
+
+.runway-audience .pixel-person {
+  bottom: auto;
+  left: auto;
+  width: 1.15rem;
+  height: 1.45rem;
+  background: var(--audience-accent);
+  opacity: 0.88;
+  transform: none;
+}
+
+.runway-audience .pixel-person:nth-child(1) { top: 18%; left: 3%; }
+.runway-audience .pixel-person:nth-child(2) { top: 2%; left: 21%; }
+.runway-audience .pixel-person:nth-child(3) { top: 20%; left: 42%; }
+.runway-audience .pixel-person:nth-child(4) { top: 0; right: 29%; }
+.runway-audience .pixel-person:nth-child(5) { top: 22%; right: 11%; }
+.runway-audience .pixel-person:nth-child(6) { top: 8%; right: 0; }
+
+.runway-lookboard {
+  position: absolute;
+  z-index: 3;
+  top: 3.6%;
+  left: 50%;
+  display: grid;
+  width: min(68%, 15rem);
+  gap: 0.12rem;
+  padding: 0.42rem 0.5rem;
+  border: 0.14rem solid rgba(251, 219, 131, 0.75);
+  border-radius: 0.45rem;
+  background: rgba(14, 8, 28, 0.84);
+  box-shadow: 0 0.55rem 1.6rem rgba(6, 4, 17, 0.34);
+  color: #fff;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.runway-lookboard span,
+.runway-lookboard small {
+  color: #fbdb83;
+  font-size: 0.55rem;
+  font-weight: 850;
+}
+
+.runway-lookboard strong {
+  overflow: hidden;
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .scene-resident,
 .scene-avatar {
   position: absolute;
@@ -533,7 +590,15 @@ p {
   margin-top: 0.65rem;
 }
 
+.community-runway-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
 .community-controls button,
+.community-runway-controls button,
 .reaction-list button,
 .community-share > button {
   min-height: 2.5rem;
@@ -546,6 +611,25 @@ p {
 .community-controls button {
   background: rgba(255, 255, 255, 0.12);
   font-size: 1rem;
+}
+
+.community-runway-controls button {
+  background: linear-gradient(135deg, #fbdb83, #ed68aa);
+  color: #241637;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.community-runway-controls span {
+  display: grid;
+  min-width: 4.6rem;
+  min-height: 2.5rem;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: rgba(251, 219, 131, 0.16);
+  color: #fbdb83;
+  font-size: 0.67rem;
+  font-weight: 850;
 }
 
 .community-actions,
@@ -586,6 +670,10 @@ p {
   background: linear-gradient(135deg, #ed68aa, #9d68ff);
   font-size: 0.67rem;
   font-weight: 800;
+}
+
+.community-share__avatar-source {
+  display: none;
 }
 
 .community-dialog-backdrop {

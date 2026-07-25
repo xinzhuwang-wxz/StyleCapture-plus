@@ -55,4 +55,18 @@ describe("CommunityScreen", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() => expect(residentButton).toHaveFocus());
   });
+
+  it("sends the user to a pixel-only runway with applause and a return control", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CommunityScreen />);
+
+    await user.click(screen.getByRole("button", { name: "轮到我上台" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("正在走秀");
+    expect(screen.getByText("喝彩 12")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "像素观众" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "走秀看板" })).toHaveTextContent("Demo 像素形象");
+    expect(screen.getByRole("button", { name: "回到后台" })).toBeInTheDocument();
+    expect(container.querySelector(".scene-avatar img")).not.toBeInTheDocument();
+  });
 });
