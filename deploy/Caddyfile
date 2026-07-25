@@ -1,0 +1,14 @@
+{
+	admin 127.0.0.1:2019
+}
+
+{$STYLECAPTURE_PUBLIC_HOST} {
+	encode zstd gzip
+	header -Server
+	reverse_proxy h5:80
+
+	log {
+		output stdout
+		format json
+	}
+}

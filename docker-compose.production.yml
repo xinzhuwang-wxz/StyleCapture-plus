@@ -1,0 +1,135 @@
+name: stylecapture
+
+x-production-logging: &production-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-production-backend-environment: &production-backend-environment
+  STYLECAPTURE_ENVIRONMENT: production
+  STYLECAPTURE_DATABASE_URL: postgresql+asyncpg://stylecapture:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/stylecapture
+  STYLECAPTURE_REDIS_URL: redis://redis:6379/0
+  STYLECAPTURE_LITELLM_BASE_URL: http://litellm:4000/v1
+  STYLECAPTURE_LITELLM_API_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required}
+  STYLECAPTURE_UPLOAD_ROOT: /data/uploads
+  STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:?STYLECAPTURE_UPLOAD_SIGNING_SECRET is required}
+  STYLECAPTURE_SESSION_SIGNING_SECRET: ${STYLECAPTURE_SESSION_SIGNING_SECRET:?STYLECAPTURE_SESSION_SIGNING_SECRET is required}
+  STYLECAPTURE_SESSION_COOKIE_SECURE: "true"
+  STYLECAPTURE_CORS_ORIGINS: '["https://${STYLECAPTURE_PUBLIC_HOST:?STYLECAPTURE_PUBLIC_HOST is required}"]'
+  STYLECAPTURE_DEMO_SEED_ENABLED: "true"
+  STYLECAPTURE_DEMO_SEED_NEW_SESSION_QUOTA: "512"
+  STYLECAPTURE_CAPTURE_QUEUE: ${STYLECAPTURE_CAPTURE_QUEUE:-capture}
+  STYLECAPTURE_RENDER_QUEUE: ${STYLECAPTURE_RENDER_QUEUE:-render}
+
+services:
+  edge:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    environment:
+      STYLECAPTURE_PUBLIC_HOST: ${STYLECAPTURE_PUBLIC_HOST:?STYLECAPTURE_PUBLIC_HOST is required}
+    depends_on:
+      h5:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - stylecapture-caddy-data:/data
+      - stylecapture-caddy-config:/config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp
+    logging: *production-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  h5:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "80"
+    logging: *production-logging
+
+  api:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "8000"
+    environment:
+      <<: *production-backend-environment
+    logging: *production-logging
+
+  litellm:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "4000"
+    logging: *production-logging
+
+  postgres:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: stylecapture
+      POSTGRES_USER: stylecapture
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    logging: *production-logging
+
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "6379"
+    logging: *production-logging
+
+  worker:
+    restart: unless-stopped
+    environment:
+      <<: *production-backend-environment
+      STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-hosted}
+      STYLECAPTURE_EMBEDDING_MODEL: ${STYLECAPTURE_EMBEDDING_MODEL:-doubao-embedding-vision-250615}
+      STYLECAPTURE_SEGMENTATION_MODE: coarse
+      STYLECAPTURE_SEGMENTATION_MODEL: ${STYLECAPTURE_SEGMENTATION_MODEL:-facebook/sam2.1-hiera-tiny}
+      STYLECAPTURE_SEGMENTATION_DEVICE: ${STYLECAPTURE_SEGMENTATION_DEVICE:-cpu}
+      STYLECAPTURE_SEGMENTATION_SCORE_THRESHOLD: ${STYLECAPTURE_SEGMENTATION_SCORE_THRESHOLD:-0.7}
+      OMP_NUM_THREADS: ${STYLECAPTURE_AI_THREAD_LIMIT:-1}
+      MKL_NUM_THREADS: ${STYLECAPTURE_AI_THREAD_LIMIT:-1}
+      OPENBLAS_NUM_THREADS: ${STYLECAPTURE_AI_THREAD_LIMIT:-1}
+      STYLECAPTURE_FASHN_API_KEY: ${FASHN_API_KEY:-}
+      STYLECAPTURE_FIXED_MODEL_OBJECT_KEY: ${STYLECAPTURE_FIXED_MODEL_OBJECT_KEY:-}
+    logging: *production-logging
+
+  worker-ai-light:
+    restart: unless-stopped
+    environment:
+      <<: *production-backend-environment
+      STYLECAPTURE_EMBEDDING_MODE: ${STYLECAPTURE_EMBEDDING_MODE:-hosted}
+      STYLECAPTURE_EMBEDDING_MODEL: ${STYLECAPTURE_EMBEDDING_MODEL:-doubao-embedding-vision-250615}
+      STYLECAPTURE_SEGMENTATION_MODE: sam2
+      STYLECAPTURE_SEGMENTATION_MODEL: ${STYLECAPTURE_SEGMENTATION_MODEL:-facebook/sam2.1-hiera-tiny}
+      STYLECAPTURE_SEGMENTATION_DEVICE: ${STYLECAPTURE_SEGMENTATION_DEVICE:-cpu}
+      STYLECAPTURE_SEGMENTATION_SCORE_THRESHOLD: ${STYLECAPTURE_SEGMENTATION_SCORE_THRESHOLD:-0.7}
+      OMP_NUM_THREADS: ${STYLECAPTURE_AI_THREAD_LIMIT:-1}
+      MKL_NUM_THREADS: ${STYLECAPTURE_AI_THREAD_LIMIT:-1}
+      OPENBLAS_NUM_THREADS: ${STYLECAPTURE_AI_THREAD_LIMIT:-1}
+      STYLECAPTURE_FASHN_API_KEY: ${FASHN_API_KEY:-}
+      STYLECAPTURE_FIXED_MODEL_OBJECT_KEY: ${STYLECAPTURE_FIXED_MODEL_OBJECT_KEY:-}
+    logging: *production-logging
+
+volumes:
+  stylecapture-caddy-data:
+  stylecapture-caddy-config:
