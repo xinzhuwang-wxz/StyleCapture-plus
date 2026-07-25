@@ -25,7 +25,7 @@ function DetailContent({
   onSave,
   onDeleteSource
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
-  const imageUrl = useSourceImage(item.id, !item.source_available);
+  const imageUrl = useSourceImage(item.id);
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const [description, setDescription] = useState(

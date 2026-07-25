@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<Item["status"], string> = {
 };
 
 function ItemImage({ item }: { item: Item }) {
-  const imageUrl = useSourceImage(item.id, !item.source_available);
+  const imageUrl = useSourceImage(item.id);
   return imageUrl ? (
     <img src={imageUrl} alt={String(item.attributes.description?.value ?? "衣橱单品")} />
   ) : (

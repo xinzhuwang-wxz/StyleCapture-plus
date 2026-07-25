@@ -1,0 +1,337 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Annotated, Protocol
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header, Response, status
+from pydantic import BaseModel, Field
+
+from stylecapture_backend.features.capture.application import JobRetryApplication
+from stylecapture_backend.features.capture.domain import Capture, JobState
+from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.look.application import LookApplication, LookNotFoundError
+from stylecapture_backend.features.look.domain import (
+    Look,
+    LookAnalysis,
+    LookComponent,
+    LookDetail,
+    LookSource,
+    LookStatus,
+    PreferenceSignal,
+    PreferenceSignalKind,
+)
+from stylecapture_backend.platform.errors import STABLE_ERROR_RESPONSES
+
+
+class CaptureReader(Protocol):
+    async def get_capture(self, capture_id: UUID) -> Capture | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class LookHttpServices:
+    looks: LookApplication
+    captures: CaptureReader
+    jobs: JobRepository
+    objects: ObjectStore
+    retries: JobRetryApplication
+
+
+class LookImageNotFoundError(FileNotFoundError):
+    """The Look's derived or source image is unavailable."""
+
+
+class LookSummaryResponse(BaseModel):
+    id: UUID
+    capture_id: UUID
+    status: LookStatus
+    source: LookSource
+    display_image_url: str | None
+    source_image_url: str | None
+    display_ready: bool
+    source_available: bool
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_domain(
+        cls,
+        look: Look,
+        *,
+        source_available: bool,
+    ) -> LookSummaryResponse:
+        return cls(
+            id=look.id,
+            capture_id=look.capture_id,
+            status=look.status,
+            source=look.source,
+            display_image_url=(
+                f"/v1/looks/{look.id}/image" if look.display_object_key is not None else None
+            ),
+            source_image_url=(f"/v1/looks/{look.id}/source" if source_available else None),
+            display_ready=look.display_object_key is not None,
+            source_available=source_available,
+            created_at=look.created_at,
+            updated_at=look.updated_at,
+        )
+
+
+class LookListResponse(BaseModel):
+    looks: list[LookSummaryResponse]
+
+
+class LookComponentResponse(BaseModel):
+    component_key: str
+    status: str
+    item_id: UUID | None
+    item_image_url: str | None
+    role: str | None
+    layer: str | None
+    display_order: int
+    confidence: float
+
+    @classmethod
+    def from_domain(cls, component: LookComponent) -> LookComponentResponse:
+        return cls(
+            component_key=component.component_key,
+            status=component.status.value,
+            item_id=component.item_id,
+            item_image_url=(
+                f"/v1/items/{component.item_id}/image" if component.item_id is not None else None
+            ),
+            role=component.role,
+            layer=component.layer,
+            display_order=component.display_order,
+            confidence=component.confidence,
+        )
+
+
+class LookAnalysisResponse(BaseModel):
+    values: dict[str, str]
+    confidence: dict[str, float]
+    capability_alias: str
+    model_version: str
+    prompt_version: str
+    schema_version: str
+    taxonomy_version: str
+
+    @classmethod
+    def from_domain(cls, analysis: LookAnalysis) -> LookAnalysisResponse:
+        fields = {
+            "color": analysis.color,
+            "silhouette": analysis.silhouette,
+            "material": analysis.material,
+            "layering": analysis.layering,
+            "focal_point": analysis.focal_point,
+            "scene": analysis.scene,
+            "style": analysis.style,
+        }
+        return cls(
+            values={name: field.value for name, field in fields.items()},
+            confidence={name: field.confidence for name, field in fields.items()},
+            capability_alias=analysis.metadata.capability_alias,
+            model_version=analysis.metadata.model_version,
+            prompt_version=analysis.metadata.prompt_version,
+            schema_version=analysis.metadata.schema_version,
+            taxonomy_version=analysis.metadata.taxonomy_version,
+        )
+
+
+class PreferenceResponse(BaseModel):
+    id: UUID
+    kind: PreferenceSignalKind
+    payload: dict[str, object]
+    created_at: datetime
+
+    @classmethod
+    def from_domain(cls, signal: PreferenceSignal) -> PreferenceResponse:
+        return cls(
+            id=signal.id,
+            kind=signal.kind,
+            payload=dict(signal.payload),
+            created_at=signal.created_at,
+        )
+
+
+class LookDetailResponse(BaseModel):
+    look: LookSummaryResponse
+    components: list[LookComponentResponse]
+    analysis: LookAnalysisResponse | None
+    preferences: list[PreferenceResponse]
+    source_video_ref: str | None
+    source_timestamp_ms: int | None
+
+    @classmethod
+    def from_domain(
+        cls,
+        detail: LookDetail,
+        capture: Capture,
+        *,
+        source_available: bool,
+    ) -> LookDetailResponse:
+        context = capture.feed_context
+        return cls(
+            look=LookSummaryResponse.from_domain(
+                detail.look,
+                source_available=source_available,
+            ),
+            components=[
+                LookComponentResponse.from_domain(component) for component in detail.components
+            ],
+            analysis=(
+                LookAnalysisResponse.from_domain(detail.look.analysis)
+                if detail.look.analysis is not None
+                else None
+            ),
+            preferences=[
+                PreferenceResponse.from_domain(signal) for signal in detail.preference_signals
+            ],
+            source_video_ref=context.video_ref if context is not None else None,
+            source_timestamp_ms=context.timestamp_ms if context is not None else None,
+        )
+
+
+class AddLikingReasonBody(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class LookRetryResponse(BaseModel):
+    job_id: UUID
+    state: JobState
+    attempt: int
+
+
+def build_look_router(
+    services: LookHttpServices,
+    *,
+    current_user: Callable[..., UUID],
+) -> APIRouter:
+    router = APIRouter(prefix="/v1/looks")
+    principal = Depends(current_user)
+
+    async def owned_detail(user_id: UUID, look_id: UUID) -> tuple[LookDetail, Capture]:
+        detail = await services.looks.get_look(user_id=user_id, look_id=look_id)
+        capture = await services.captures.get_capture(detail.look.capture_id)
+        if capture is None or capture.user_id != user_id:
+            raise LookNotFoundError("Look source not found")
+        return detail, capture
+
+    def source_available(capture: Capture) -> bool:
+        try:
+            services.objects.describe(capture.source.object_key)
+        except (FileNotFoundError, KeyError):
+            return False
+        return True
+
+    async def summary(look: Look) -> LookSummaryResponse:
+        capture = await services.captures.get_capture(look.capture_id)
+        available = (
+            capture is not None and capture.user_id == look.user_id and source_available(capture)
+        )
+        return LookSummaryResponse.from_domain(
+            look,
+            source_available=available,
+        )
+
+    async def image_response(
+        user_id: UUID,
+        look_id: UUID,
+        *,
+        source_only: bool,
+    ) -> Response:
+        detail, capture = await owned_detail(user_id, look_id)
+        object_key = capture.source.object_key if source_only else detail.look.display_object_key
+        if object_key is None:
+            raise LookImageNotFoundError(look_id)
+        try:
+            stored = services.objects.describe(object_key)
+            body = services.objects.read(object_key)
+        except (FileNotFoundError, KeyError) as error:
+            raise LookImageNotFoundError(look_id) from error
+        return Response(
+            content=body,
+            media_type=stored.content_type,
+            headers={
+                "Cache-Control": "private, no-store",
+                "ETag": f'"{stored.sha256}"',
+            },
+        )
+
+    @router.get("", response_model=LookListResponse, responses=STABLE_ERROR_RESPONSES)
+    async def list_looks(user_id: UUID = principal) -> LookListResponse:
+        looks = await services.looks.list_looks(user_id=user_id)
+        return LookListResponse(looks=[await summary(look) for look in looks])
+
+    @router.get(
+        "/{look_id}",
+        response_model=LookDetailResponse,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def get_look(
+        look_id: UUID,
+        user_id: UUID = principal,
+    ) -> LookDetailResponse:
+        detail, capture = await owned_detail(user_id, look_id)
+        return LookDetailResponse.from_domain(
+            detail,
+            capture,
+            source_available=source_available(capture),
+        )
+
+    @router.get("/{look_id}/image", responses=STABLE_ERROR_RESPONSES)
+    async def get_look_image(
+        look_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        return await image_response(user_id, look_id, source_only=False)
+
+    @router.get("/{look_id}/source", responses=STABLE_ERROR_RESPONSES)
+    async def get_look_source(
+        look_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        return await image_response(user_id, look_id, source_only=True)
+
+    @router.post(
+        "/{look_id}/retry",
+        response_model=LookRetryResponse,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def retry_look(
+        look_id: UUID,
+        user_id: UUID = principal,
+    ) -> LookRetryResponse:
+        _, capture = await owned_detail(user_id, look_id)
+        job = await services.jobs.get_by_capture_for_user(capture.id, user_id)
+        if job is None:
+            raise LookNotFoundError("Look processing job not found")
+        retried = await services.retries.retry(user_id, job.id)
+        return LookRetryResponse(
+            job_id=retried.id,
+            state=retried.state,
+            attempt=retried.attempt,
+        )
+
+    @router.post(
+        "/{look_id}/feedback",
+        response_model=PreferenceResponse,
+        status_code=status.HTTP_201_CREATED,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def add_liking_reason(
+        look_id: UUID,
+        body: AddLikingReasonBody,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+        user_id: UUID = principal,
+    ) -> PreferenceResponse:
+        signal = await services.looks.record_liking_reason(
+            user_id=user_id,
+            look_id=look_id,
+            reason=body.reason,
+            idempotency_key=idempotency_key,
+        )
+        return PreferenceResponse.from_domain(signal)
+
+    return router

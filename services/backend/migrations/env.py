@@ -11,6 +11,11 @@ from stylecapture_backend.features.capture.infrastructure.models import (
     CaptureRecord,
     ProcessingJobRecord,
 )
+from stylecapture_backend.features.look.infrastructure.models import (
+    LookComponentRecord,
+    LookRecord,
+    PreferenceSignalRecord,
+)
 from stylecapture_backend.features.wardrobe.infrastructure.models import ItemRecord
 from stylecapture_backend.platform.database import Base
 
@@ -19,7 +24,14 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-_MODELS = (CaptureRecord, ProcessingJobRecord, ItemRecord)
+_MODELS = (
+    CaptureRecord,
+    ProcessingJobRecord,
+    ItemRecord,
+    LookRecord,
+    LookComponentRecord,
+    PreferenceSignalRecord,
+)
 
 
 def run_migrations_offline() -> None:

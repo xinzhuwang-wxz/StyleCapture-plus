@@ -121,6 +121,13 @@ class WardrobeApplication:
             raise FileNotFoundError(item.source_object_key)
         return self._sources.read_image(item.source_object_key)
 
+    async def read_display(self, user_id: UUID, item_id: UUID) -> ImagePayload:
+        item = await self.get_item(user_id, item_id)
+        object_key = item.display_object_key or item.source_object_key
+        if object_key == item.source_object_key and not item.source_available:
+            raise FileNotFoundError(item.source_object_key)
+        return self._sources.read_image(object_key)
+
     async def delete_source(self, user_id: UUID, item_id: UUID) -> None:
         item = await self.get_item(user_id, item_id)
         self._sources.delete(item.source_object_key)

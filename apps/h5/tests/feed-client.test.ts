@@ -72,6 +72,7 @@ describe("Feed capture client", () => {
         timestamp_ms: 2400,
         frame_width: 480,
         frame_height: 854,
+        intent: "item_selections",
         selections: [
           {
             selection_key: "selection-1",

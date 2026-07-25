@@ -38,6 +38,7 @@ export interface FeedSelectionOverlayProps {
 
 export interface FeedSelectionDecision {
   frame: FeedFrameIdentity;
+  intent: "item_selections" | "whole_outfit";
   selections: readonly ClosedFeedSelection[];
 }
 
@@ -48,6 +49,8 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
   const [activePoints, setActivePoints] = useState<ViewportPoint[]>([]);
   const [contentBox, setContentBox] = useState<VideoContentBox | null>(null);
   const [dragOffsetX, setDragOffsetX] = useState(0);
+  const [intent, setIntent] =
+    useState<FeedSelectionDecision["intent"]>("item_selections");
   const pointsRef = useRef<ViewportPoint[]>([]);
   const selectionNumberRef = useRef(0);
   const dragRef = useRef<{ pointerId: number; startX: number } | null>(null);
@@ -173,6 +176,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     pointsRef.current = [];
     setActivePoints([]);
     setDragOffsetX(0);
+    setIntent("item_selections");
     setSession(createSelectionSession());
   };
 
@@ -182,6 +186,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     }
     props.onConfirm({
       frame: session.frame,
+      intent,
       selections: session.selections
     });
     resetSelection();
@@ -353,7 +358,25 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
             aria-label="圈选决策"
             className="feed-selection-actions"
             role="group"
+            onPointerDown={(event) => event.stopPropagation()}
           >
+            <div className="feed-intent-toggle" aria-label="保存方式">
+              <button
+                className={intent === "item_selections" ? "is-selected" : ""}
+                type="button"
+                onClick={() => setIntent("item_selections")}
+              >
+                {session.selections.length > 1 ? "存这些单品" : "存单品"}
+              </button>
+              <button
+                className={intent === "whole_outfit" ? "is-selected" : ""}
+                disabled={session.selections.length !== 1}
+                type="button"
+                onClick={() => setIntent("whole_outfit")}
+              >
+                存整套
+              </button>
+            </div>
             <button
               aria-label="拒绝本次圈选"
               className="feed-selection-action feed-selection-action--dismiss"
@@ -363,12 +386,16 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
               ←
             </button>
             <button
-              aria-label="保存圈选到数字衣橱"
+              aria-label={
+                intent === "whole_outfit"
+                  ? "保存整套到数字衣橱"
+                  : "保存圈选到数字衣橱"
+              }
               className="feed-selection-action feed-selection-action--confirm"
               type="button"
               onClick={confirmSelection}
             >
-              收藏
+              {intent === "whole_outfit" ? "存整套" : "收藏"}
             </button>
           </div>
         </>

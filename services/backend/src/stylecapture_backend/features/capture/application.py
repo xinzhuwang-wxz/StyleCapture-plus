@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    FeedCaptureIntent,
     FeedFrameContext,
     JobState,
     OwnershipState,
@@ -19,7 +20,9 @@ from stylecapture_backend.features.capture.ports import (
     JobDispatchError,
     JobRepository,
     ObjectLookup,
+    WholeOutfitRegistrar,
 )
+from stylecapture_backend.features.look.ports import LookPersistenceUnavailable
 
 
 class CaptureError(ValueError):
@@ -54,10 +57,12 @@ class CaptureApplication:
         captures: CaptureRepository,
         objects: ObjectLookup,
         dispatcher: JobDispatcher,
+        whole_outfits: WholeOutfitRegistrar | None = None,
     ) -> None:
         self._captures = captures
         self._objects = objects
         self._dispatcher = dispatcher
+        self._whole_outfits = whole_outfits
 
     async def submit(self, command: SubmitCaptureCommand) -> CaptureSubmission:
         idempotency_key = command.idempotency_key.strip()
@@ -71,6 +76,7 @@ class CaptureApplication:
             idempotency_key,
         )
         if existing is not None:
+            existing = await self._ensure_whole_outfit(existing, idempotency_key)
             self._dispatch(existing)
             return existing
         try:
@@ -124,8 +130,44 @@ class CaptureApplication:
             job,
             idempotency_key,
         )
+        submission = await self._ensure_whole_outfit(submission, idempotency_key)
         self._dispatch(submission)
         return submission
+
+    async def _ensure_whole_outfit(
+        self,
+        submission: CaptureSubmission,
+        idempotency_key: str,
+    ) -> CaptureSubmission:
+        context = submission.capture.feed_context
+        if context is None or context.intent is not FeedCaptureIntent.WHOLE_OUTFIT:
+            return submission
+        if self._whole_outfits is None:
+            raise CaptureError(
+                "look_registration_unavailable",
+                "The outfit frame is safe, but its Look could not be registered; retry this request",
+                details={
+                    "capture_id": str(submission.capture.id),
+                    "job_id": str(submission.job.id),
+                    "retryable": True,
+                },
+            )
+        try:
+            look = await self._whole_outfits.ensure_saved_look(
+                submission.capture,
+                idempotency_key=idempotency_key,
+            )
+        except LookPersistenceUnavailable as error:
+            raise CaptureError(
+                "look_registration_unavailable",
+                "The outfit frame is safe, but its Look could not be registered; retry this request",
+                details={
+                    "capture_id": str(submission.capture.id),
+                    "job_id": str(submission.job.id),
+                    "retryable": True,
+                },
+            ) from error
+        return replace(submission, look_id=look.id)
 
     def _dispatch(self, submission: CaptureSubmission) -> None:
         try:
