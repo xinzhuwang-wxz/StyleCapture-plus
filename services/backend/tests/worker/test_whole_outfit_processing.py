@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSource,
     CaptureSourceKind,
     FeedCaptureIntent,
@@ -46,6 +47,7 @@ from stylecapture_backend.features.look.domain import (
     LookComponent,
     LookComponentStatus,
     LookDetail,
+    LookSource,
     LookStatus,
     PreferenceSignal,
 )
@@ -407,6 +409,20 @@ def whole_outfit_capture_job() -> tuple[Capture, ProcessingJob]:
     return capture, ProcessingJob.queued(capture_id=capture.id)
 
 
+def uploaded_whole_outfit_capture_job() -> tuple[Capture, ProcessingJob]:
+    capture = Capture.create(
+        user_id=uuid4(),
+        source=CaptureSource(
+            kind=CaptureSourceKind.UPLOAD,
+            object_key="originals/upload/full-body.jpg",
+            sha256="b" * 64,
+        ),
+        ownership=OwnershipState.OWNED,
+        intent=CaptureIntent.WHOLE_OUTFIT,
+    )
+    return capture, ProcessingJob.queued(capture_id=capture.id)
+
+
 def image_for(capture: Capture) -> ImagePayload:
     return ImagePayload(
         object_key=capture.source.object_key,
@@ -434,10 +450,18 @@ def build_processor(
 ]:
     work = MemoryWorkRepository(capture, job)
     wardrobe = MemoryWardrobeRepository()
-    look = Look.feed_saved(
-        user_id=capture.user_id,
-        capture_id=capture.id,
-        source_selection_key=OUTFIT_SELECTION_KEY,
+    look = (
+        Look.feed_saved(
+            user_id=capture.user_id,
+            capture_id=capture.id,
+            source_selection_key=OUTFIT_SELECTION_KEY,
+        )
+        if capture.source.kind is CaptureSourceKind.FEED
+        else Look.user_created(
+            user_id=capture.user_id,
+            capture_id=capture.id,
+            source_selection_key="whole_outfit",
+        )
     )
     looks = MemoryLookRepository(look)
     objects = MemoryObjects(image_for(capture))
@@ -526,6 +550,43 @@ async def test_whole_outfit_creates_components_items_display_assets_and_analysis
         )
     for component in looks.components.values():
         assert_no_provider_identity(component.grounding_metadata)
+
+
+@pytest.mark.asyncio
+async def test_uploaded_full_body_outfit_uses_the_full_frame_and_creates_a_user_look() -> None:
+    capture, job = uploaded_whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (
+            box_candidate("knit_top", NormalizedBox(160, 150, 590, 510)),
+            box_candidate(
+                "long_skirt",
+                NormalizedBox(190, 500, 640, 940),
+                category=GarmentCategory.BOTTOMS,
+            ),
+        )
+    )
+    processor, work, wardrobe, looks, _ = build_processor(
+        capture,
+        job,
+        grounder=grounder,
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome == ProcessingOutcome.ready()
+    assert work.job.state is JobState.READY
+    assert looks.look.source is LookSource.USER_CREATED
+    assert looks.look.source_selection_key == "whole_outfit"
+    assert set(wardrobe.items) == {
+        (capture.id, "knit_top"),
+        (capture.id, "long_skirt"),
+    }
+    assert grounder.calls[0].polygon == (
+        NormalizedPoint(0, 0),
+        NormalizedPoint(1, 0),
+        NormalizedPoint(1, 1),
+        NormalizedPoint(0, 1),
+    )
 
 
 @pytest.mark.asyncio
@@ -690,6 +751,35 @@ async def test_whole_outfit_retry_reuses_look_component_item_and_asset_identitie
     assert len(objects.derived or {}) == 3
     assert first_asset_keys <= set(objects.derived or {})
     assert looks.look.status is LookStatus.READY
+
+
+@pytest.mark.asyncio
+async def test_retry_reuses_same_region_when_grounder_renames_component() -> None:
+    capture, job = whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (box_candidate("sequined_dress", NormalizedBox(150, 160, 620, 870)),)
+    )
+    processor, _work, wardrobe, looks, objects = build_processor(
+        capture,
+        job,
+        grounder=grounder,
+    )
+
+    first_outcome = await processor.process(capture.id, job.id)
+    first_component = looks.components["sequined_dress"]
+    first_item = wardrobe.items[(capture.id, "sequined_dress")]
+    first_asset_keys = set(objects.derived or {})
+    grounder.candidates = (box_candidate("black_floral_dress", NormalizedBox(160, 170, 625, 875)),)
+
+    second_outcome = await processor.process(capture.id, job.id)
+
+    assert first_outcome == ProcessingOutcome.ready()
+    assert second_outcome == ProcessingOutcome.ready()
+    assert set(looks.components) == {"sequined_dress"}
+    assert set(wardrobe.items) == {(capture.id, "sequined_dress")}
+    assert looks.components["sequined_dress"].id == first_component.id
+    assert wardrobe.items[(capture.id, "sequined_dress")].id == first_item.id
+    assert set(objects.derived or {}) == first_asset_keys
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,9 @@
     "build": "pnpm -r --if-present build",
     "contracts:generate": "pnpm --filter @stylecapture/h5 generate:api",
     "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
+    "playground:scene-outfit": "node skills/scene-outfit-matching/scripts/match.js --request '{\"scene\":\"通勤面试\",\"formality\":\"正式商务\",\"comfort\":\"久坐舒适\"}'",
+    "test": "pnpm -r --if-present test && pnpm test:scene-outfit",
+    "test:scene-outfit": "node --test skills/scene-outfit-matching/tests/*.test.js",
     "typecheck": "pnpm -r --if-present typecheck"
   },
   "pnpm": {

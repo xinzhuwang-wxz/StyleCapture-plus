@@ -12,6 +12,10 @@ from stylecapture_backend.features.capture.domain import (
     NormalizedPoint,
     OwnershipState,
 )
+from stylecapture_backend.features.outfit.domain import (
+    OutfitCategory,
+    OutfitRecallRequirements,
+)
 from stylecapture_backend.features.wardrobe.domain import (
     FieldProvenance,
     ItemStatus,
@@ -25,7 +29,7 @@ from stylecapture_backend.platform.database import build_session_factory, run_mi
 
 TEST_DATABASE_URL = os.environ.get(
     "STYLECAPTURE_TEST_DATABASE_URL",
-    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture",
+    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture_test",
 )
 
 
@@ -86,11 +90,24 @@ async def test_wardrobe_repository_round_trips_locked_fields_metadata_and_vector
     await repository.save(item)
     stored = await repository.get_by_capture(capture.id)
     listed = await repository.list_for_user(capture.user_id)
+    recalled = await repository.recall_for_outfit(
+        user_id=capture.user_id,
+        requirements=OutfitRecallRequirements(
+            scene="通勤",
+            weather="温和",
+            formality="日常得体",
+            season="春季",
+            exclude_item_ids=(),
+            required_roles=(OutfitCategory.OUTERWEAR,),
+            anchor_item_id=item.id,
+        ),
+    )
     owner_scoped = await repository.get_for_user(item.id, capture.user_id)
 
     assert stored is not None
     assert stored == item
     assert listed == [item]
+    assert recalled == [item]
     assert owner_scoped == item
     assert await repository.get_for_user(item.id, uuid4()) is None
     assert stored.attributes.fields["category"].value == "outerwear"
@@ -98,6 +115,150 @@ async def test_wardrobe_repository_round_trips_locked_fields_metadata_and_vector
     assert stored.attributes.fields["description"].value == "一件蓝色外套"
     assert stored.model_metadata["embedding_model"] == "doubao-embedding-vision-250615"
     assert stored.embedding == (1.0,) + (0.0,) * 2047
+
+
+@pytest.mark.asyncio
+async def test_outfit_recall_filters_assets_and_stably_ranks_owned_vectors() -> None:
+    await run_migrations(TEST_DATABASE_URL)
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    user_id = uuid4()
+    captures = [
+        Capture.create(
+            user_id=user_id,
+            source=CaptureSource(
+                kind=CaptureSourceKind.UPLOAD,
+                object_key=f"originals/2026/07/26/recall-{index}.png",
+                sha256=f"{index:x}" * 64,
+            ),
+            ownership=ownership,
+        )
+        for index, ownership in enumerate(
+            (
+                OwnershipState.OWNED,
+                OwnershipState.OWNED,
+                OwnershipState.OWNED,
+                OwnershipState.INSPIRATION,
+                OwnershipState.OWNED,
+                OwnershipState.OWNED,
+                OwnershipState.OWNED,
+            ),
+            start=1,
+        )
+    ]
+    async with sessions() as session:
+        await session.execute(text("TRUNCATE TABLE items, processing_jobs, captures CASCADE"))
+        await session.execute(
+            text(
+                """
+                INSERT INTO captures (
+                    id, user_id, source_kind, object_key, sha256,
+                    ownership, idempotency_key, created_at
+                ) VALUES (
+                    :id, :user_id, :source_kind, :object_key, :sha256,
+                    :ownership, :idempotency_key, :created_at
+                )
+                """
+            ),
+            [
+                {
+                    "id": capture.id,
+                    "user_id": capture.user_id,
+                    "source_kind": capture.source.kind.value,
+                    "object_key": capture.source.object_key,
+                    "sha256": capture.source.sha256,
+                    "ownership": capture.ownership.value,
+                    "idempotency_key": f"outfit-recall-{index}",
+                    "created_at": capture.created_at,
+                }
+                for index, capture in enumerate(captures, start=1)
+            ],
+        )
+        await session.commit()
+
+    def ready_item(
+        capture: Capture,
+        *,
+        category: str,
+        vector: tuple[float, ...],
+        status: ItemStatus = ItemStatus.READY,
+    ) -> WardrobeItem:
+        return (
+            WardrobeItem.processing(capture)
+            .correct("category", category)
+            .with_embedding(vector, model_version="test-vector-v1")
+            .with_status(status)
+        )
+
+    anchor = ready_item(
+        captures[0],
+        category="tops",
+        vector=(1.0,) + (0.0,) * 2047,
+    )
+    near = ready_item(
+        captures[1],
+        category="tops",
+        vector=(0.9938837347, 0.1104315261) + (0.0,) * 2046,
+        status=ItemStatus.PARTIAL,
+    )
+    far = ready_item(
+        captures[2],
+        category="tops",
+        vector=(0.0, 1.0) + (0.0,) * 2046,
+    )
+    inspiration = ready_item(
+        captures[3],
+        category="tops",
+        vector=(1.0,) + (0.0,) * 2047,
+    )
+    excluded = ready_item(
+        captures[4],
+        category="tops",
+        vector=(1.0,) + (0.0,) * 2047,
+    )
+    wrong_category = ready_item(
+        captures[5],
+        category="bottoms",
+        vector=(1.0,) + (0.0,) * 2047,
+    )
+    errored = ready_item(
+        captures[6],
+        category="tops",
+        vector=(1.0,) + (0.0,) * 2047,
+        status=ItemStatus.ERROR,
+    )
+    repository = SqlAlchemyWardrobeRepository(sessions)
+    for item in (
+        anchor,
+        near,
+        far,
+        inspiration,
+        excluded,
+        wrong_category,
+        errored,
+    ):
+        await repository.save(item)
+
+    recalled = await repository.recall_for_outfit(
+        user_id=user_id,
+        requirements=OutfitRecallRequirements(
+            scene="客户提案",
+            weather="温和",
+            formality="正式",
+            season="春季",
+            exclude_item_ids=(excluded.id,),
+            required_roles=(OutfitCategory.TOP,),
+            anchor_item_id=anchor.id,
+        ),
+    )
+
+    assert [item.id for item in recalled] == [
+        anchor.id,
+        near.id,
+        far.id,
+        inspiration.id,
+    ]
+    assert all(item.attributes.fields["category"].value == "tops" for item in recalled)
+    assert all(item.status in {ItemStatus.READY, ItemStatus.PARTIAL} for item in recalled)
 
 
 @pytest.mark.asyncio

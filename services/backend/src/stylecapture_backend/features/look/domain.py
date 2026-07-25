@@ -35,6 +35,9 @@ class PreferenceSignalKind(StrEnum):
     LIKING_REASON_ADDED = "liking_reason_added"
 
 
+COMPOSITION_ITEM_EVIDENCE = "composition_item_reference"
+
+
 @dataclass(frozen=True, slots=True)
 class PreferenceSignal:
     id: UUID
@@ -171,10 +174,17 @@ class LookComponent:
         )
         if not is_valid_selection_key(self.component_key):
             raise ValueError("component key must be a 1-64 character ASCII alphanumeric identifier")
-        if len(set(self.evidence_region)) < 3:
+        composition_reference = (
+            self.grounding_metadata.get("evidence_type") == COMPOSITION_ITEM_EVIDENCE
+        )
+        if not self.evidence_region and not composition_reference:
+            raise ValueError("component evidence region must contain at least 3 unique points")
+        if self.evidence_region and len(set(self.evidence_region)) < 3:
             raise ValueError("component evidence region must contain at least 3 unique points")
         if not 0 <= self.confidence <= 1:
             raise ValueError("component confidence must be between 0 and 1")
+        if composition_reference and (self.evidence_region or self.confidence != 0):
+            raise ValueError("composition item references must not claim frame-region confidence")
         if self.display_order < 0:
             raise ValueError("component display order must not be negative")
         if self.status is LookComponentStatus.READY and self.item_id is None:
@@ -235,7 +245,7 @@ class LookComponent:
 class Look:
     id: UUID
     user_id: UUID
-    capture_id: UUID
+    capture_id: UUID | None
     source_selection_key: str
     source: LookSource
     status: LookStatus
@@ -254,6 +264,10 @@ class Look:
             if not normalized_key or len(normalized_key) > 512:
                 raise ValueError("display object key must contain between 1 and 512 characters")
             object.__setattr__(self, "display_object_key", normalized_key)
+        if self.source is LookSource.AI_GENERATED and self.capture_id is not None:
+            raise ValueError("AI-generated composition must not claim a single source capture")
+        if self.source is not LookSource.AI_GENERATED and self.capture_id is None:
+            raise ValueError("captured Look must reference its source capture")
 
     @classmethod
     def feed_saved(
@@ -270,6 +284,50 @@ class Look:
             capture_id=capture_id,
             source_selection_key=source_selection_key,
             source=LookSource.FEED_SAVED,
+            status=LookStatus.PROCESSING,
+            analysis=None,
+            display_object_key=None,
+            created_at=now,
+            updated_at=now,
+        )
+
+    @classmethod
+    def ai_generated(
+        cls,
+        *,
+        user_id: UUID,
+        source_selection_key: str,
+        analysis: LookAnalysis,
+    ) -> Look:
+        now = datetime.now(UTC)
+        return cls(
+            id=uuid4(),
+            user_id=user_id,
+            capture_id=None,
+            source_selection_key=source_selection_key,
+            source=LookSource.AI_GENERATED,
+            status=LookStatus.READY,
+            analysis=analysis,
+            display_object_key=None,
+            created_at=now,
+            updated_at=now,
+        )
+
+    @classmethod
+    def user_created(
+        cls,
+        *,
+        user_id: UUID,
+        capture_id: UUID,
+        source_selection_key: str,
+    ) -> Look:
+        now = datetime.now(UTC)
+        return cls(
+            id=uuid4(),
+            user_id=user_id,
+            capture_id=capture_id,
+            source_selection_key=source_selection_key,
+            source=LookSource.USER_CREATED,
             status=LookStatus.PROCESSING,
             analysis=None,
             display_object_key=None,

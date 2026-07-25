@@ -14,6 +14,11 @@ class CaptureSourceKind(StrEnum):
     FEED = "feed"
 
 
+class CaptureIntent(StrEnum):
+    ITEM = "item"
+    WHOLE_OUTFIT = "whole_outfit"
+
+
 @dataclass(frozen=True, slots=True)
 class NormalizedPoint:
     x: float
@@ -125,6 +130,7 @@ class Capture:
     ownership: OwnershipState
     created_at: datetime
     feed_context: FeedFrameContext | None = None
+    intent: CaptureIntent = CaptureIntent.ITEM
 
     @classmethod
     def create(
@@ -134,6 +140,7 @@ class Capture:
         source: CaptureSource,
         ownership: OwnershipState,
         feed_context: FeedFrameContext | None = None,
+        intent: CaptureIntent = CaptureIntent.ITEM,
     ) -> Capture:
         return cls(
             id=uuid4(),
@@ -142,6 +149,7 @@ class Capture:
             ownership=ownership,
             created_at=datetime.now(UTC),
             feed_context=feed_context,
+            intent=intent,
         )
 
 

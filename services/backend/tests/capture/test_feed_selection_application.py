@@ -12,6 +12,7 @@ from stylecapture_backend.features.capture.application import (
 )
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSourceKind,
     FeedCaptureIntent,
     FeedFrameContext,
@@ -329,6 +330,52 @@ async def test_whole_outfit_submit_ensures_pending_look_before_dispatch() -> Non
     assert submission.look_id == registrar.looks[submission.capture.id].id
     assert events == ["look", "dispatch"]
     assert dispatcher.calls == [(submission.capture.id, submission.job.id)]
+
+
+@pytest.mark.asyncio
+async def test_uploaded_whole_outfit_registers_a_look_before_dispatch() -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/upload/full-body.jpg",
+        content_type="image/jpeg",
+        byte_size=456,
+        sha256="7" * 64,
+        width=1080,
+        height=1920,
+    )
+    repository = MemoryCaptureRepository()
+    events: list[str] = []
+    registrar = MemoryWholeOutfitRegistrar(events)
+
+    class OrderedDispatcher(RecordingDispatcher):
+        def enqueue_capture(self, capture_id: UUID, job_id: UUID) -> None:
+            events.append("dispatch")
+            super().enqueue_capture(capture_id, job_id)
+
+    dispatcher = OrderedDispatcher()
+    application = CaptureApplication(
+        captures=repository,
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=dispatcher,
+        whole_outfits=registrar,
+    )
+
+    submission = await application.submit(
+        SubmitCaptureCommand(
+            user_id=user_id,
+            object_key=stored.object_key,
+            sha256=stored.sha256,
+            source_kind=CaptureSourceKind.UPLOAD,
+            ownership=OwnershipState.OWNED,
+            idempotency_key="upload-whole-outfit-001",
+            intent=CaptureIntent.WHOLE_OUTFIT,
+        )
+    )
+
+    assert submission.look_id == registrar.looks[submission.capture.id].id
+    assert submission.capture.intent is CaptureIntent.WHOLE_OUTFIT
+    assert events == ["look", "dispatch"]
 
 
 @pytest.mark.asyncio

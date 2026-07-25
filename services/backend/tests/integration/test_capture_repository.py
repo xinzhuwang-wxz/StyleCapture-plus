@@ -25,7 +25,7 @@ from stylecapture_backend.platform.database import (
 
 TEST_DATABASE_URL = os.environ.get(
     "STYLECAPTURE_TEST_DATABASE_URL",
-    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture",
+    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture_test",
 )
 
 

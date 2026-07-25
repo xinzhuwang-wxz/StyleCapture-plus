@@ -45,7 +45,7 @@ class LookImageNotFoundError(FileNotFoundError):
 
 class LookSummaryResponse(BaseModel):
     id: UUID
-    capture_id: UUID
+    capture_id: UUID | None
     status: LookStatus
     source: LookSource
     display_image_url: str | None
@@ -167,11 +167,11 @@ class LookDetailResponse(BaseModel):
     def from_domain(
         cls,
         detail: LookDetail,
-        capture: Capture,
+        capture: Capture | None,
         *,
         source_available: bool,
     ) -> LookDetailResponse:
-        context = capture.feed_context
+        context = capture.feed_context if capture is not None else None
         return cls(
             look=LookSummaryResponse.from_domain(
                 detail.look,
@@ -211,14 +211,21 @@ def build_look_router(
     router = APIRouter(prefix="/v1/looks")
     principal = Depends(current_user)
 
-    async def owned_detail(user_id: UUID, look_id: UUID) -> tuple[LookDetail, Capture]:
+    async def owned_detail(
+        user_id: UUID,
+        look_id: UUID,
+    ) -> tuple[LookDetail, Capture | None]:
         detail = await services.looks.get_look(user_id=user_id, look_id=look_id)
+        if detail.look.capture_id is None:
+            return detail, None
         capture = await services.captures.get_capture(detail.look.capture_id)
         if capture is None or capture.user_id != user_id:
             raise LookNotFoundError("Look source not found")
         return detail, capture
 
-    def source_available(capture: Capture) -> bool:
+    def source_available(look: Look, capture: Capture | None) -> bool:
+        if look.source is LookSource.AI_GENERATED or capture is None:
+            return False
         try:
             services.objects.describe(capture.source.object_key)
         except (FileNotFoundError, KeyError):
@@ -226,9 +233,15 @@ def build_look_router(
         return True
 
     async def summary(look: Look) -> LookSummaryResponse:
-        capture = await services.captures.get_capture(look.capture_id)
+        capture = (
+            await services.captures.get_capture(look.capture_id)
+            if look.capture_id is not None
+            else None
+        )
         available = (
-            capture is not None and capture.user_id == look.user_id and source_available(capture)
+            capture is not None
+            and capture.user_id == look.user_id
+            and source_available(look, capture)
         )
         return LookSummaryResponse.from_domain(
             look,
@@ -242,7 +255,13 @@ def build_look_router(
         source_only: bool,
     ) -> Response:
         detail, capture = await owned_detail(user_id, look_id)
-        object_key = capture.source.object_key if source_only else detail.look.display_object_key
+        if source_only and capture is None:
+            raise LookImageNotFoundError(look_id)
+        object_key = (
+            capture.source.object_key
+            if source_only and capture is not None
+            else detail.look.display_object_key
+        )
         if object_key is None:
             raise LookImageNotFoundError(look_id)
         try:
@@ -277,7 +296,7 @@ def build_look_router(
         return LookDetailResponse.from_domain(
             detail,
             capture,
-            source_available=source_available(capture),
+            source_available=source_available(detail.look, capture),
         )
 
     @router.get("/{look_id}/image", responses=STABLE_ERROR_RESPONSES)
@@ -304,6 +323,8 @@ def build_look_router(
         user_id: UUID = principal,
     ) -> LookRetryResponse:
         _, capture = await owned_detail(user_id, look_id)
+        if capture is None:
+            raise LookNotFoundError("AI-generated Look has no capture job to retry")
         job = await services.jobs.get_by_capture_for_user(capture.id, user_id)
         if job is None:
             raise LookNotFoundError("Look processing job not found")

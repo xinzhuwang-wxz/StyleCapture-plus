@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSource,
     CaptureSourceKind,
     FeedCaptureIntent,
@@ -22,6 +24,7 @@ from stylecapture_backend.features.look.domain import (
     Look,
     LookComponent,
     LookDetail,
+    LookSource,
     PreferenceSignal,
 )
 
@@ -36,7 +39,8 @@ class MemoryLookRepository:
         look: Look,
         signal: PreferenceSignal,
     ) -> Look:
-        identity = (look.capture_id, look.source_selection_key)
+        capture_id = cast(UUID, look.capture_id)
+        identity = (capture_id, look.source_selection_key)
         stored = self.looks.setdefault(identity, look)
         preference_identity = (signal.user_id, signal.idempotency_key)
         self.preferences.setdefault(
@@ -87,11 +91,22 @@ class MemoryLookRepository:
         )
 
     async def save(self, look: Look) -> Look:
-        self.looks[(look.capture_id, look.source_selection_key)] = look
+        capture_id = cast(UUID, look.capture_id)
+        self.looks[(capture_id, look.source_selection_key)] = look
         return look
 
     async def save_component(self, component: LookComponent) -> LookComponent:
         return component
+
+    async def save_bundle(
+        self,
+        look: Look,
+        components: tuple[LookComponent, ...],
+        signal: PreferenceSignal,
+    ) -> Look:
+        del components
+        stored = await self.ensure_placeholder(look, signal)
+        return stored
 
 
 def whole_outfit_capture(*, user_id: UUID) -> Capture:
@@ -125,6 +140,19 @@ def whole_outfit_capture(*, user_id: UUID) -> Capture:
     )
 
 
+def uploaded_whole_outfit_capture(*, user_id: UUID) -> Capture:
+    return Capture.create(
+        user_id=user_id,
+        source=CaptureSource(
+            kind=CaptureSourceKind.UPLOAD,
+            object_key="originals/upload/full-body.jpg",
+            sha256="b" * 64,
+        ),
+        ownership=OwnershipState.OWNED,
+        intent=CaptureIntent.WHOLE_OUTFIT,
+    )
+
+
 @pytest.mark.asyncio
 async def test_ensure_saved_look_is_idempotent_with_one_append_only_save_signal() -> None:
     user_id = uuid4()
@@ -147,6 +175,22 @@ async def test_ensure_saved_look_is_idempotent_with_one_append_only_save_signal(
     signal = next(iter(repository.preferences.values()))
     assert signal.look_id == first.id
     assert signal.user_id == user_id
+
+
+@pytest.mark.asyncio
+async def test_uploaded_full_body_image_registers_a_user_created_look() -> None:
+    user_id = uuid4()
+    repository = MemoryLookRepository()
+    application = LookApplication(looks=repository)
+
+    look = await application.ensure_saved_look(
+        uploaded_whole_outfit_capture(user_id=user_id),
+        idempotency_key="upload-whole-outfit",
+    )
+
+    assert look.source is LookSource.USER_CREATED
+    assert look.source_selection_key == "whole_outfit"
+    assert look.user_id == user_id
 
 
 @pytest.mark.asyncio

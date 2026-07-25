@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -19,6 +19,7 @@ from stylecapture_backend.features.capture.application import (
     SubmitCaptureCommand,
 )
 from stylecapture_backend.features.capture.domain import (
+    CaptureIntent,
     CaptureSourceKind,
     FeedCaptureIntent,
     FeedFrameContext,
@@ -110,6 +111,7 @@ class SubmitCaptureBody(BaseModel):
     sha256: str = Field(min_length=64, max_length=64)
     source_kind: CaptureSourceKind
     ownership: OwnershipState
+    intent: CaptureIntent = CaptureIntent.ITEM
     feed_context: FeedFrameContextBody | None = None
 
 
@@ -234,6 +236,30 @@ def build_capture_router(
             height=stored.height,
         )
 
+    @router.delete(
+        "/uploads/{object_key:path}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def discard_private_upload(
+        object_key: str,
+        user_id: UUID = principal,
+    ) -> Response:
+        try:
+            stored = services.objects.describe(object_key)
+        except (FileNotFoundError, KeyError) as error:
+            raise CaptureError(
+                "upload_not_found",
+                "The private upload is unavailable",
+            ) from error
+        if stored.owner_id != user_id or not stored.object_key.startswith("originals/"):
+            raise CaptureError(
+                "upload_not_found",
+                "The private upload is unavailable",
+            )
+        services.objects.delete(stored.object_key)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     @router.post(
         "/captures",
         response_model=CaptureAcceptedResponse,
@@ -253,6 +279,7 @@ def build_capture_router(
                 source_kind=body.source_kind,
                 ownership=body.ownership,
                 idempotency_key=idempotency_key,
+                intent=body.intent,
                 feed_context=(
                     body.feed_context.to_domain() if body.feed_context is not None else None
                 ),

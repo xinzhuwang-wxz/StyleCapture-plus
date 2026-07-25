@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Annotated
@@ -29,12 +30,34 @@ from stylecapture_backend.features.look.interfaces.http import (
     LookImageNotFoundError,
     build_look_router,
 )
+from stylecapture_backend.features.outfit.application import (
+    OutfitPlanInvalidError,
+    OutfitWardrobeEmptyError,
+    OutfitWorkflowTraceNotFoundError,
+)
+from stylecapture_backend.features.outfit.infrastructure.tickets import (
+    InvalidOutfitPlanTicket,
+)
+from stylecapture_backend.features.outfit.interfaces.http import (
+    OutfitHttpServices,
+    build_outfit_router,
+)
+from stylecapture_backend.features.render.infrastructure.tasks import RenderDispatchError
+from stylecapture_backend.features.render.interfaces.http import (
+    RenderHttpServices,
+    build_render_router,
+)
+from stylecapture_backend.features.render.ports import (
+    RenderArtifactNotFound,
+    RenderIdempotencyConflict,
+)
 from stylecapture_backend.features.wardrobe.application import (
     SourceDeletedNotRetryableError,
     WardrobeApplication,
     WardrobeNotFoundError,
     WardrobeValidationError,
 )
+from stylecapture_backend.features.wardrobe.demo import DemoWardrobeBootstrapper
 from stylecapture_backend.features.wardrobe.interfaces.http import (
     ItemSourceNotFoundError,
     build_wardrobe_router,
@@ -55,6 +78,9 @@ class BackendServices:
     retries: JobRetryApplication
     wardrobe: WardrobeApplication
     looks: LookHttpServices | None = None
+    renders: RenderHttpServices | None = None
+    outfits: OutfitHttpServices | None = None
+    demo_wardrobe: DemoWardrobeBootstrapper | None = None
 
 
 CAPTURE_ERROR_STATUS = {
@@ -72,6 +98,7 @@ CAPTURE_ERROR_STATUS = {
 }
 
 CurrentUser = Callable[..., UUID]
+DEFAULT_DEMO_SEED_NEW_SESSION_QUOTA = 64
 
 
 def _error_response(
@@ -106,8 +133,22 @@ def create_app(
     cors_origins: Sequence[str] = (),
     session_signing_secret: str = "test-session-signing-secret-with-enough-entropy",
     session_cookie_secure: bool = False,
+    demo_seed_new_session_quota: int = DEFAULT_DEMO_SEED_NEW_SESSION_QUOTA,
 ) -> FastAPI:
+    if demo_seed_new_session_quota < 0:
+        raise ValueError("demo seed new-session quota must not be negative")
     sessions = SessionSigner(session_signing_secret)
+    demo_seed_admission_lock = asyncio.Lock()
+    admitted_demo_seed_sessions = 0
+
+    async def admit_demo_seed_for_new_session() -> bool:
+        nonlocal admitted_demo_seed_sessions
+        async with demo_seed_admission_lock:
+            if admitted_demo_seed_sessions >= demo_seed_new_session_quota:
+                return False
+            admitted_demo_seed_sessions += 1
+            return True
+
     app = FastAPI(
         title="StyleCapture Product API",
         version="0.1.0",
@@ -231,6 +272,90 @@ def create_app(
             message="The saved Look image is no longer available",
         )
 
+    @app.exception_handler(RenderArtifactNotFound)
+    async def render_artifact_not_found_handler(
+        request: Request,
+        error: LookupError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="render_artifact_not_found",
+            message="The render artifact does not exist",
+        )
+
+    @app.exception_handler(RenderIdempotencyConflict)
+    async def render_idempotency_conflict_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="render_idempotency_conflict",
+            message=str(error),
+        )
+
+    @app.exception_handler(RenderDispatchError)
+    async def render_dispatch_error_handler(
+        request: Request,
+        error: RuntimeError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="render_dispatch_unavailable",
+            message="Render request was saved but the worker queue is temporarily unavailable",
+        )
+
+    @app.exception_handler(OutfitWardrobeEmptyError)
+    async def outfit_wardrobe_empty_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="outfit_wardrobe_empty",
+            message=str(error),
+        )
+
+    @app.exception_handler(OutfitPlanInvalidError)
+    async def outfit_plan_invalid_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="outfit_plan_invalid",
+            message=str(error),
+        )
+
+    @app.exception_handler(OutfitWorkflowTraceNotFoundError)
+    async def outfit_workflow_trace_not_found_handler(
+        request: Request,
+        error: LookupError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="outfit_trace_not_found",
+            message="The outfit workflow trace does not exist",
+        )
+
+    @app.exception_handler(InvalidOutfitPlanTicket)
+    async def outfit_plan_ticket_invalid_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="outfit_plan_invalid",
+            message=str(error),
+        )
+
     @app.exception_handler(WardrobeValidationError)
     async def wardrobe_validation_handler(
         request: Request,
@@ -280,11 +405,19 @@ def create_app(
             Cookie(alias=SESSION_COOKIE_NAME),
         ] = None,
     ) -> dict[str, UUID]:
+        existing_user = False
         try:
             user_id = sessions.verify(session_token) if session_token else None
+            existing_user = user_id is not None
         except InvalidSessionError:
             user_id = None
         user_id, token = sessions.issue(user_id)
+        if (
+            services.demo_wardrobe is not None
+            and not existing_user
+            and await admit_demo_seed_for_new_session()
+        ):
+            await services.demo_wardrobe.ensure_for_user(user_id)
         response.set_cookie(
             SESSION_COOKIE_NAME,
             token,
@@ -320,6 +453,20 @@ def create_app(
         app.include_router(
             build_look_router(
                 services.looks,
+                current_user=current_user,
+            )
+        )
+    if services.renders is not None:
+        app.include_router(
+            build_render_router(
+                services.renders,
+                current_user=current_user,
+            )
+        )
+    if services.outfits is not None:
+        app.include_router(
+            build_outfit_router(
+                services.outfits,
                 current_user=current_user,
             )
         )

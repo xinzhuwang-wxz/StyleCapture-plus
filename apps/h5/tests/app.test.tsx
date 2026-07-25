@@ -23,7 +23,7 @@ vi.mock("../src/api/client", async (importOriginal) => {
       retryItem: vi.fn(),
       updateItem: vi.fn(),
       deleteSource: vi.fn(),
-      sourceImage: vi.fn()
+      displayImage: vi.fn()
     }
   };
 });
@@ -40,7 +40,7 @@ const wardrobeItem: Item = {
   source_available: true,
   attributes: {
     category: {
-      value: "上装",
+      value: "tops",
       provenance: "model",
       confidence: 0.9,
       model_version: "test-model",
@@ -96,7 +96,7 @@ describe("StyleCapture garment ingest", () => {
       status_url: "/v1/jobs/33333333-3333-4333-8333-333333333333",
       events_url: "/v1/jobs/33333333-3333-4333-8333-333333333333/events"
     });
-    api.sourceImage.mockResolvedValue("blob:item");
+    api.displayImage.mockResolvedValue("blob:item");
   });
 
   afterEach(() => {
@@ -115,9 +115,10 @@ describe("StyleCapture garment ingest", () => {
     expect(camera).toHaveAttribute("capture", "environment");
     expect(gallery).not.toHaveAttribute("capture");
     expect(camera).toHaveAttribute("accept", expect.stringContaining("image/heic"));
+    expect(gallery).toHaveAttribute("accept", expect.stringContaining(".heic"));
   });
 
-  it("requires ownership before a real upload can enter the wardrobe", async () => {
+  it("requires an asset type and ownership before a real upload can enter the wardrobe", async () => {
     const user = userEvent.setup();
     renderApp();
     await user.click(screen.getByRole("button", { name: "数字衣橱" }));
@@ -127,22 +128,69 @@ describe("StyleCapture garment ingest", () => {
 
     const confirmation = screen.getByRole("dialog", { name: "确认加入衣橱" });
     expect(within(confirmation).getByRole("heading", { name: "确认加入衣橱" })).toBeInTheDocument();
-    const submit = within(confirmation).getByRole("button", { name: "加入衣橱" });
+    const submit = within(confirmation).getByRole("button", {
+      name: "请选择保存类型"
+    });
     expect(submit).toBeDisabled();
 
-    await user.click(within(confirmation).getByRole("button", { name: /^穿搭灵感/ }));
-    await user.click(submit);
+    await user.click(within(confirmation).getByRole("button", { name: /单件衣服/ }));
+    const itemSubmit = within(confirmation).getByRole("button", {
+      name: /加入单品衣橱/
+    });
+    expect(itemSubmit).toBeDisabled();
+    await user.click(within(confirmation).getByRole("button", { name: /穿搭灵感/ }));
+    await user.click(itemSubmit);
 
     await waitFor(() =>
       expect(api.ingest).toHaveBeenCalledWith(
         file,
         "upload",
         "inspiration",
-        expect.any(String)
+        expect.any(String),
+        "item"
       )
     );
     expect(screen.queryByRole("heading", { name: "确认加入衣橱" })).not.toBeInTheDocument();
     expect(screen.getByText("正在理解这件衣服")).toBeInTheDocument();
+  });
+
+  it("submits a full-body upload as one Look for decomposition and pixel rendering", async () => {
+    const user = userEvent.setup();
+    api.ingest.mockResolvedValueOnce({
+      capture_id: "capture-full-body",
+      job_id: "job-full-body",
+      look_id: "look-full-body",
+      state: "queued",
+      status_url: "/v1/jobs/job-full-body",
+      events_url: "/v1/jobs/job-full-body/events"
+    });
+    renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
+    const file = new File(["full-body"], "full-body.jpg", { type: "image/jpeg" });
+
+    await user.upload(screen.getByLabelText("选择衣物照片"), file);
+
+    const confirmation = screen.getByRole("dialog", { name: "确认加入衣橱" });
+    await user.click(within(confirmation).getByRole("button", { name: /整套穿搭/ }));
+    await user.click(within(confirmation).getByRole("button", { name: /我的衣服/ }));
+    await user.click(
+      within(confirmation).getByRole("button", {
+        name: /保存整套并生成像素小人/
+      })
+    );
+
+    await waitFor(() =>
+      expect(api.ingest).toHaveBeenCalledWith(
+        file,
+        "upload",
+        "owned",
+        expect.any(String),
+        "whole_outfit"
+      )
+    );
+    expect(
+      screen.getByText("整套已保存，AI 正在拆解单品并准备像素小人")
+    ).toBeInTheDocument();
   });
 
   it("rejects a non-image locally without opening the confirmation surface", async () => {
@@ -184,5 +232,58 @@ describe("StyleCapture garment ingest", () => {
       )
     );
     expect(screen.queryByLabelText("原图不可用")).not.toBeInTheDocument();
+  });
+
+  it("shows category choices in Chinese while saving stable taxonomy ids", async () => {
+    const user = userEvent.setup();
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    api.updateItem.mockResolvedValue({
+      ...wardrobeItem,
+      attributes: {
+        ...wardrobeItem.attributes,
+        category: {
+          ...wardrobeItem.attributes.category!,
+          value: "dresses"
+        }
+      }
+    });
+    renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "米白色针织上衣 可搭配 上装 我的衣服"
+      })
+    );
+
+    const category = screen.getByRole("combobox", { name: "分类" });
+    expect(category).toHaveValue("tops");
+    expect(screen.getByRole("option", { name: "上装" })).toHaveValue("tops");
+
+    await user.selectOptions(category, "dresses");
+    await user.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() =>
+      expect(api.updateItem).toHaveBeenCalledWith(
+        wardrobeItem.id,
+        expect.objectContaining({
+          corrections: expect.objectContaining({ category: "dresses" })
+        })
+      )
+    );
+  });
+
+  it("uses the wardrobe display asset rather than the private source route", async () => {
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    renderApp();
+
+    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
+
+    await waitFor(() =>
+      expect(api.displayImage).toHaveBeenCalledWith(wardrobeItem.id)
+    );
+    expect(
+      await screen.findByRole("img", { name: "米白色针织上衣" })
+    ).toHaveAttribute("data-image-kind", "wardrobe-display");
   });
 });

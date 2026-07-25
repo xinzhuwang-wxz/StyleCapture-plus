@@ -234,6 +234,29 @@ describe("Feed runtime", () => {
     );
   });
 
+  it("recovers the Feed automatically when the local service comes back", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 503 }))
+      .mockResolvedValue(
+        new Response(JSON.stringify(manifest), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderFeed();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "穿搭 Feed 暂时没有加载出来"
+    );
+    expect(
+      await screen.findByTestId("feed", {}, { timeout: 2_500 })
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("captures the decoded video frame as a real PNG File", async () => {
     const { drawImage } = installMediaAndCanvasDoubles();
     const video = document.createElement("video");

@@ -8,7 +8,13 @@ export type Item = components["schemas"]["ItemResponse"];
 export type Job = components["schemas"]["JobResponse"];
 export type Look = components["schemas"]["LookSummaryResponse"];
 export type LookDetail = components["schemas"]["LookDetailResponse"];
+export type OutfitPlan = components["schemas"]["OutfitPlanResponse"];
+export type OutfitPlanSet = components["schemas"]["OutfitPlanSetResponse"];
+export type PurchaseDemand = components["schemas"]["PurchaseDemandResponse"];
+export type SavedOutfitLook = components["schemas"]["SavedOutfitLookResponse"];
 export type Ownership = components["schemas"]["OwnershipState"];
+export type RenderArtifact = components["schemas"]["RenderArtifactResponse"];
+export type RenderKind = components["schemas"]["RenderArtifactKind"];
 export type SourceKind = components["schemas"]["CaptureSourceKind"];
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -32,6 +38,17 @@ type ApiErrorPayload = {
     code?: string;
     message?: string;
   };
+};
+
+const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
+  render_idempotency_conflict: "穿搭内容已经更新，请稍后重新生成成片",
+  render_dispatch_unavailable: "成片任务已保存，后台服务恢复后会继续",
+  render_artifact_not_found: "这张穿搭成片暂时不可用",
+  job_not_retryable: "当前任务正在处理或已经完成，无需重试",
+  source_deleted_not_retryable: "原始图片已删除，无法再次识别",
+  item_update_invalid: "修改内容不符合衣橱要求",
+  outfit_wardrobe_empty: "衣橱里还没有可搭配的真实单品",
+  outfit_plan_invalid: "这套穿搭中的单品已变化，请重新生成"
 };
 
 export class ProductApiError extends Error {
@@ -94,19 +111,16 @@ async function sha256(file: File): Promise<string> {
 
 function throwApiError(error: unknown, fallback: string): never {
   const payload = error as ApiErrorPayload | undefined;
+  const code = payload?.error?.code ?? "request_failed";
   throw new ProductApiError(
-    payload?.error?.code ?? "request_failed",
-    payload?.error?.message ?? fallback
+    code,
+    PRODUCT_ERROR_MESSAGES[code] ?? fallback
   );
 }
 
-async function submitCapture(
-  file: File,
-  sourceKind: SourceKind,
-  ownership: Ownership,
-  idempotencyKey: string,
-  feedContext?: FeedFrameContext
-): Promise<CaptureAccepted> {
+async function uploadPrivateImageWithDigest(
+  file: File
+): Promise<{ objectKey: string; digest: string }> {
   const validationError = validateImage(file);
   if (validationError) {
     throw new ProductApiError("image_invalid", validationError);
@@ -136,6 +150,37 @@ async function submitCapture(
   if (!uploadResponse.ok) {
     throwApiError(await uploadResponse.json().catch(() => undefined), "图片上传失败");
   }
+  return { objectKey: prepared.data.object_key, digest };
+}
+
+async function uploadPrivateImage(file: File): Promise<string> {
+  return (await uploadPrivateImageWithDigest(file)).objectKey;
+}
+
+async function discardPrivateUpload(objectKey: string): Promise<void> {
+  await ensureSession();
+  const encodedKey = objectKey
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const response = await fetch(`/v1/uploads/${encodedKey}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error("临时全身照清理失败");
+  }
+}
+
+async function submitCapture(
+  file: File,
+  sourceKind: SourceKind,
+  ownership: Ownership,
+  idempotencyKey: string,
+  intent: "item" | "whole_outfit" = "item",
+  feedContext?: FeedFrameContext
+): Promise<CaptureAccepted> {
+  const { objectKey, digest } = await uploadPrivateImageWithDigest(file);
   const submitted = await client.POST("/v1/captures", {
     params: {
       header: {
@@ -143,10 +188,11 @@ async function submitCapture(
       }
     },
     body: {
-      object_key: prepared.data.object_key,
+      object_key: objectKey,
       sha256: digest,
       source_kind: sourceKind,
       ownership,
+      intent,
       feed_context: feedContext
     }
   });
@@ -160,9 +206,10 @@ async function ingest(
   file: File,
   sourceKind: SourceKind,
   ownership: Ownership,
-  idempotencyKey: string
+  idempotencyKey: string,
+  intent: "item" | "whole_outfit" = "item"
 ): Promise<CaptureAccepted> {
-  return submitCapture(file, sourceKind, ownership, idempotencyKey);
+  return submitCapture(file, sourceKind, ownership, idempotencyKey, intent);
 }
 
 async function ingestFeedFrame(
@@ -175,6 +222,7 @@ async function ingestFeedFrame(
     "feed",
     "inspiration",
     idempotencyKey,
+    "item",
     feedContext
   );
 }
@@ -235,6 +283,50 @@ async function retryLook(lookId: string): Promise<void> {
   });
   if (!response.data) {
     throwApiError(response.error, "这套穿搭暂时无法重试");
+  }
+}
+
+async function listRenders(lookId: string): Promise<RenderArtifact[]> {
+  await ensureSession();
+  const response = await client.GET("/v1/looks/{look_id}/renders", {
+    params: { path: { look_id: lookId } }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "穿搭成片暂时无法加载");
+  }
+  return response.data.renders;
+}
+
+async function createRender(
+  lookId: string,
+  kind: RenderKind,
+  idempotencyKey: string,
+  subjectObjectKey?: string
+): Promise<RenderArtifact> {
+  await ensureSession();
+  const response = await client.POST("/v1/looks/{look_id}/renders", {
+    params: {
+      path: { look_id: lookId },
+      header: { "Idempotency-Key": idempotencyKey }
+    },
+    body: { kind, subject_object_key: subjectObjectKey }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "成片任务没有启动");
+  }
+  return response.data;
+}
+
+async function deleteTryOnSubject(artifactId: string): Promise<void> {
+  await ensureSession();
+  const response = await client.DELETE(
+    "/v1/render-artifacts/{artifact_id}/subject",
+    {
+      params: { path: { artifact_id: artifactId } }
+    }
+  );
+  if (response.error) {
+    throwApiError(response.error, "试穿原照暂时无法删除");
   }
 }
 
@@ -311,15 +403,201 @@ async function deleteSource(itemId: string): Promise<void> {
   }
 }
 
-async function sourceImage(itemId: string): Promise<string> {
+async function displayImage(itemId: string): Promise<string> {
   await ensureSession();
   const response = await fetch(`/v1/items/${itemId}/image`, {
     cache: "no-store"
   });
   if (!response.ok) {
-    throwApiError(await response.json().catch(() => undefined), "原图暂时不可用");
+    throwApiError(await response.json().catch(() => undefined), "衣橱展示图暂时不可用");
   }
   return URL.createObjectURL(await response.blob());
+}
+
+async function planOutfits(input: {
+  scene: string;
+  style?: string;
+  weather?: string;
+  formality?: string;
+  comfort?: string;
+  anchorItemId?: string;
+  mustIncludeItemIds?: string[];
+  excludeItemIds?: string[];
+}): Promise<OutfitPlanSet> {
+  await ensureSession();
+  const response = await client.POST("/v1/outfit-plans", {
+    body: {
+      scene: input.scene,
+      style: input.style,
+      weather: input.weather,
+      formality: input.formality,
+      comfort: input.comfort,
+      anchor_item_id: input.anchorItemId,
+      must_include_item_ids: input.mustIncludeItemIds ?? [],
+      exclude_item_ids: input.excludeItemIds ?? []
+    }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "暂时无法生成穿搭，请稍后再试");
+  }
+  return response.data;
+}
+
+async function planOutfitsProgressively(
+  input: {
+    scene: string;
+    style?: string;
+    weather?: string;
+    formality?: string;
+    comfort?: string;
+    anchorItemId?: string;
+    mustIncludeItemIds?: string[];
+    excludeItemIds?: string[];
+  },
+  onProgress: (result: OutfitPlanSet, complete: boolean) => void
+): Promise<OutfitPlanSet> {
+  await ensureSession();
+  const response = await fetch("/v1/outfit-plans/stream", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      scene: input.scene,
+      style: input.style,
+      weather: input.weather,
+      formality: input.formality,
+      comfort: input.comfort,
+      anchor_item_id: input.anchorItemId,
+      must_include_item_ids: input.mustIncludeItemIds ?? [],
+      exclude_item_ids: input.excludeItemIds ?? []
+    })
+  });
+  if (!response.ok || !response.body) {
+    throwApiError(
+      await response.json().catch(() => undefined),
+      "暂时无法生成穿搭，请稍后再试"
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let progressive: OutfitPlanSet | null = null;
+  let completed: OutfitPlanSet | null = null;
+
+  function consume(line: string) {
+    if (!line.trim()) return;
+    const event = JSON.parse(line) as
+      | {
+          type: "plan";
+          request_id: string;
+          trace_id: string;
+          plan: OutfitPlan;
+          explanation_state: OutfitPlanSet["explanation_state"];
+        }
+      | { type: "complete"; result: OutfitPlanSet };
+    if (event.type === "complete") {
+      completed = event.result;
+      onProgress(event.result, true);
+      return;
+    }
+    const next: OutfitPlanSet = {
+      request_id: event.request_id,
+      trace_id: event.trace_id,
+      plans: [...(progressive?.plans ?? []), event.plan],
+      degraded: false,
+      degradation_reason: null,
+      explanation_state: event.explanation_state
+    };
+    progressive = next;
+    onProgress(next, false);
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    pending += decoder.decode(value, { stream: !done });
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+    lines.forEach(consume);
+    if (done) break;
+  }
+  consume(pending);
+  if (completed) return completed;
+  if (progressive) return progressive;
+  throw new ProductApiError("outfit_stream_empty", "AI 没有返回可用的穿搭方案");
+}
+
+async function saveOutfitPlan(
+  plan: OutfitPlan,
+  idempotencyKey: string
+): Promise<SavedOutfitLook> {
+  await ensureSession();
+  const response = await client.POST("/v1/outfit-plans/{plan_id}/save-look", {
+    params: {
+      path: { plan_id: plan.id },
+      header: { "Idempotency-Key": idempotencyKey }
+    },
+    body: {
+      save_token: plan.save_token
+    }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "这套穿搭暂时没有保存，请稍后再试");
+  }
+  return response.data;
+}
+
+async function replaceOutfitSlot(
+  plan: OutfitPlan,
+  role: OutfitPlan["slots"][number]["role"]
+): Promise<OutfitPlan> {
+  await ensureSession();
+  const response = await client.POST(
+    "/v1/outfit-plans/{plan_id}/replace-slot",
+    {
+      params: { path: { plan_id: plan.id } },
+      body: {
+        save_token: plan.save_token,
+        role
+      }
+    }
+  );
+  if (!response.data) {
+    throwApiError(response.error, "衣橱里暂时没有合适的替换单品");
+  }
+  return response.data;
+}
+
+async function listPurchaseDemands(lookId: string): Promise<PurchaseDemand[]> {
+  await ensureSession();
+  const response = await client.GET(
+    "/v1/outfit-plans/saved-looks/{look_id}/purchase-list",
+    {
+      params: { path: { look_id: lookId } }
+    }
+  );
+  if (!response.data) {
+    throwApiError(response.error, "补齐清单暂时无法加载");
+  }
+  return response.data.demands;
+}
+
+async function advancePurchaseDemand(
+  demandId: string,
+  status: PurchaseDemand["status"]
+): Promise<PurchaseDemand> {
+  await ensureSession();
+  const response = await client.PATCH(
+    "/v1/outfit-plans/purchase-demands/{demand_id}",
+    {
+      params: { path: { demand_id: demandId } },
+      body: { status }
+    }
+  );
+  if (!response.data) {
+    throwApiError(response.error, "购买状态没有更新");
+  }
+  return response.data;
 }
 
 export const wardrobeApi = {
@@ -330,10 +608,21 @@ export const wardrobeApi = {
   getLook,
   addLikingReason,
   retryLook,
+  listRenders,
+  createRender,
+  deleteTryOnSubject,
+  uploadPrivateImage,
+  discardPrivateUpload,
   getJob,
   retryJob,
   retryItem,
   updateItem,
   deleteSource,
-  sourceImage
+  displayImage,
+  planOutfits,
+  planOutfitsProgressively,
+  replaceOutfitSlot,
+  listPurchaseDemands,
+  advancePurchaseDemand,
+  saveOutfitPlan
 };

@@ -1,0 +1,193 @@
+from __future__ import annotations
+
+import base64
+import json
+from collections.abc import Callable
+from io import BytesIO
+from typing import Any
+
+import httpx
+import pytest
+from PIL import Image
+from stylecapture_backend.features.capture.domain import ImagePayload
+from stylecapture_backend.features.render.infrastructure import providers
+from stylecapture_backend.features.render.infrastructure.providers import (
+    FashnTryOnGenerator,
+    LiteLLMImageGenerator,
+    RenderProviderError,
+    RenderProviderUnavailable,
+)
+
+
+def image_payload(
+    *,
+    color: tuple[int, int, int] = (139, 92, 246),
+    content_type: str = "image/png",
+) -> ImagePayload:
+    buffer = BytesIO()
+    Image.new("RGB", (16, 16), color=color).save(buffer, format="PNG")
+    body = buffer.getvalue()
+    return ImagePayload(
+        object_key="derived/test/input.png",
+        content_type=content_type,
+        body=body,
+        sha256="a" * 64,
+    )
+
+
+def png_body(color: tuple[int, int, int] = (20, 30, 40)) -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (8, 8), color=color).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def b64_image(body: bytes) -> str:
+    return base64.b64encode(body).decode("ascii")
+
+
+def transport_for(
+    handler: Callable[[httpx.Request], httpx.Response],
+) -> httpx.MockTransport:
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.asyncio
+async def test_litellm_image_generator_uses_alias_and_returns_base64_image() -> None:
+    output = png_body()
+    requests: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(
+            {
+                "url": str(request.url),
+                "authorization": request.headers.get("authorization"),
+                "payload": request.read(),
+            }
+        )
+        return httpx.Response(
+            200,
+            json={"data": [{"b64_json": b64_image(output)}]},
+        )
+
+    generator = LiteLLMImageGenerator(
+        capability_alias="image_generation",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="gateway-secret",
+        transport=transport_for(handler),
+    )
+
+    generated = await generator.generate(
+        prompt="生成像素小人封面",
+        images=[image_payload()],
+        size="1024x1024",
+    )
+
+    assert generated.body == output
+    assert generated.content_type == "image/png"
+    assert generated.sha256
+    assert generated.provider_trace.provider == "litellm"
+    assert generated.provider_trace.model == "image_generation"
+    assert len(requests) == 1
+    assert requests[0]["url"] == "http://litellm:4000/v1/images/generations"
+    assert requests[0]["authorization"] == "Bearer gateway-secret"
+    payload = requests[0]["payload"]
+    assert b"image_generation" in payload
+    assert b"gateway-secret" not in payload
+    assert b"data:image/png;base64," in payload
+    assert b'"image":' in payload
+    assert b'"sequential_image_generation":"disabled"' in payload
+    assert b'"watermark":false' in payload
+
+
+@pytest.mark.asyncio
+async def test_litellm_image_generator_downloads_url_output_with_limits() -> None:
+    output = png_body()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/images/generations"):
+            return httpx.Response(200, json={"data": [{"url": "https://cdn.test/render.png"}]})
+        return httpx.Response(200, headers={"content-type": "image/png"}, content=output)
+
+    generator = LiteLLMImageGenerator(
+        capability_alias="image_generation",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="gateway-secret",
+        download_max_bytes=2,
+        transport=transport_for(handler),
+    )
+
+    with pytest.raises(RenderProviderError) as error:
+        await generator.generate(prompt="生成真人搭配图", images=[image_payload()])
+
+    assert error.value.code == "render_provider_output_too_large"
+    assert error.value.retryable is False
+
+
+@pytest.mark.asyncio
+async def test_fashn_try_on_reports_missing_key_as_unavailable() -> None:
+    generator = FashnTryOnGenerator(api_key=" ")
+
+    with pytest.raises(RenderProviderUnavailable):
+        await generator.try_on(model_image=image_payload(), garment_image=image_payload())
+
+
+@pytest.mark.asyncio
+async def test_fashn_try_on_posts_run_and_polls_base64_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = png_body((220, 120, 20))
+    calls: list[tuple[str, dict[str, Any] | None, str | None]] = []
+
+    async def no_sleep(seconds: float) -> None:
+        calls.append(("sleep", {"seconds": seconds}, None))
+
+    monkeypatch.setattr(providers, "_sleep", no_sleep)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read()
+        if request.url.path == "/v1/run":
+            calls.append(("run", json.loads(payload), request.headers.get("authorization")))
+            return httpx.Response(200, json={"id": "pred_123"})
+        if request.url.path == "/v1/status/pred_123":
+            calls.append(("status", None, request.headers.get("authorization")))
+            if len([call for call in calls if call[0] == "status"]) == 1:
+                return httpx.Response(200, json={"status": "processing"})
+            return httpx.Response(
+                200,
+                json={"status": "completed", "output": [b64_image(output)]},
+            )
+        return httpx.Response(404)
+
+    generator = FashnTryOnGenerator(
+        api_base_url="https://api.fashn.ai/v1",
+        api_key="fashn-secret",
+        poll_interval_seconds=0.01,
+        poll_timeout_seconds=1,
+        transport=transport_for(handler),
+    )
+
+    generated = await generator.try_on(
+        model_image=image_payload(color=(1, 2, 3)),
+        garment_image=image_payload(color=(4, 5, 6)),
+        mode="balanced",
+    )
+
+    assert generated.body == output
+    assert generated.content_type == "image/png"
+    assert generated.provider_trace.provider == "fashn"
+    assert generated.provider_trace.model == "tryon-v1.6"
+    run_payload = calls[0][1]
+    assert isinstance(run_payload, dict)
+    assert run_payload["model_name"] == "tryon-v1.6"
+    inputs = run_payload["inputs"]
+    assert isinstance(inputs, dict)
+    assert inputs["return_base64"] is True
+    assert inputs["category"] == "auto"
+    assert inputs["output_format"] == "png"
+    assert str(inputs["model_image"]).startswith("data:image/png;base64,")
+    assert "fashn-secret" not in str(run_payload)
+    assert all(
+        authorization == "Bearer fashn-secret"
+        for name, _payload, authorization in calls
+        if name in {"run", "status"}
+    )

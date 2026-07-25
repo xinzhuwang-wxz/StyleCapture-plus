@@ -20,18 +20,18 @@ def valid_response() -> dict[str, object]:
         "category": {"value": "tops", "confidence": 0.98},
         "subcategory": {"value": "shirt", "confidence": 0.95},
         "description": {"value": "一件蓝色宽松衬衫", "confidence": 0.91},
-        "colors": {"value": ["blue"], "confidence": 0.96},
-        "materials": {"value": ["cotton"], "confidence": 0.74},
-        "pattern": {"value": "solid", "confidence": 0.9},
-        "silhouette": {"value": "straight", "confidence": 0.83},
-        "fit": {"value": "relaxed", "confidence": 0.82},
-        "styles": {"value": ["casual", "minimal"], "confidence": 0.88},
-        "seasons": {"value": ["spring", "autumn"], "confidence": 0.79},
-        "occasions": {"value": ["daily", "work"], "confidence": 0.77},
-        "length": {"value": "regular", "confidence": 0.84},
-        "neckline": {"value": "collared", "confidence": 0.96},
-        "sleeve_type": {"value": "long_sleeve", "confidence": 0.97},
-        "details": {"value": ["button_front"], "confidence": 0.86},
+        "colors": {"value": ["蓝色"], "confidence": 0.96},
+        "materials": {"value": ["棉质"], "confidence": 0.74},
+        "pattern": {"value": "纯色", "confidence": 0.9},
+        "silhouette": {"value": "直筒", "confidence": 0.83},
+        "fit": {"value": "宽松", "confidence": 0.82},
+        "styles": {"value": ["休闲", "简约"], "confidence": 0.88},
+        "seasons": {"value": ["春季", "秋季"], "confidence": 0.79},
+        "occasions": {"value": ["日常", "通勤"], "confidence": 0.77},
+        "length": {"value": "常规长度", "confidence": 0.84},
+        "neckline": {"value": "翻领", "confidence": 0.96},
+        "sleeve_type": {"value": "长袖", "confidence": 0.97},
+        "details": {"value": ["前排纽扣"], "confidence": 0.86},
     }
 
 
@@ -80,7 +80,7 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
     result = await tagger.describe(image())
 
     assert result.fields["category"].value == "tops"
-    assert result.fields["colors"].value == ["blue"]
+    assert result.fields["colors"].value == ["蓝色"]
     assert {field.model_version for field in result.fields.values()} == {"vision_understanding"}
     assert result.metadata.capability_alias == "vision_understanding"
     assert result.metadata.provider_model == "provider-model-v1"
@@ -106,6 +106,9 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
             for name, field in result.fields.items()
         }
     )
+    system_prompt = call["messages"][0]["content"]
+    assert "简体中文" in system_prompt
+    assert "category 与 subcategory" in system_prompt
 
 
 @pytest.mark.asyncio
@@ -140,6 +143,28 @@ async def test_litellm_feed_prompt_preserves_selection_identity_and_boundary() -
 async def test_litellm_adapter_rejects_invalid_taxonomy_without_fixed_fallback() -> None:
     payload = valid_response()
     payload["category"] = {"value": "mystery-fashion", "confidence": 0.99}
+    completion = RecordingCompletion(payload)
+    tagger = LiteLLMVisionTagger(
+        capability_alias="vision_understanding",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="internal-gateway-key",
+        completion=completion,
+    )
+
+    with pytest.raises(ProviderError) as error:
+        await tagger.describe(image())
+
+    assert error.value.code == "vision_schema_invalid"
+    assert error.value.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_litellm_adapter_rejects_english_user_facing_tags() -> None:
+    payload = valid_response()
+    payload["description"] = {
+        "value": "casual black t-shirt with pink heart",
+        "confidence": 0.99,
+    }
     completion = RecordingCompletion(payload)
     tagger = LiteLLMVisionTagger(
         capability_alias="vision_understanding",

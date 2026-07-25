@@ -5,6 +5,7 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSource,
     CaptureSourceKind,
     FeedCaptureIntent,
@@ -48,6 +49,7 @@ class SubmitCaptureCommand:
     ownership: OwnershipState
     idempotency_key: str
     feed_context: FeedFrameContext | None = None
+    intent: CaptureIntent = CaptureIntent.ITEM
 
 
 class CaptureApplication:
@@ -123,6 +125,7 @@ class CaptureApplication:
             ),
             ownership=command.ownership,
             feed_context=command.feed_context,
+            intent=command.intent,
         )
         job = ProcessingJob.queued(capture_id=capture.id)
         submission = await self._captures.save_submission(
@@ -139,8 +142,12 @@ class CaptureApplication:
         submission: CaptureSubmission,
         idempotency_key: str,
     ) -> CaptureSubmission:
-        context = submission.capture.feed_context
-        if context is None or context.intent is not FeedCaptureIntent.WHOLE_OUTFIT:
+        capture = submission.capture
+        context = capture.feed_context
+        is_whole_outfit = capture.intent is CaptureIntent.WHOLE_OUTFIT or (
+            context is not None and context.intent is FeedCaptureIntent.WHOLE_OUTFIT
+        )
+        if not is_whole_outfit:
             return submission
         if self._whole_outfits is None:
             raise CaptureError(

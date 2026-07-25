@@ -7,7 +7,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from stylecapture_backend.features.capture.domain import NormalizedPoint
 from stylecapture_backend.features.look.domain import (
+    COMPOSITION_ITEM_EVIDENCE,
     Look,
+    LookAnalysis,
+    LookAnalysisField,
+    LookAnalysisMetadata,
     LookComponent,
     PreferenceSignal,
 )
@@ -19,8 +23,29 @@ from stylecapture_backend.platform.database import build_session_factory, run_mi
 
 TEST_DATABASE_URL = os.environ.get(
     "STYLECAPTURE_TEST_DATABASE_URL",
-    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture",
+    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture_test",
 )
+
+
+def composition_analysis() -> LookAnalysis:
+    field = LookAnalysisField(value="简洁通勤", confidence=0.9)
+    return LookAnalysis(
+        color=field,
+        silhouette=field,
+        material=field,
+        layering=field,
+        focal_point=field,
+        scene=field,
+        style=field,
+        metadata=LookAnalysisMetadata(
+            capability_alias="reasoning",
+            model_version="test",
+            prompt_version="v1",
+            schema_version="v1",
+            taxonomy_version="v1",
+            latency_ms=1,
+        ),
+    )
 
 
 async def insert_capture_and_item(
@@ -467,3 +492,73 @@ async def test_save_reloads_the_canonical_id_after_identity_conflict() -> None:
     assert conflicting_candidate.id != canonical.id
     assert saved.id == canonical.id
     assert saved.display_object_key == "derived/looks/canonical.webp"
+
+
+@pytest.mark.asyncio
+async def test_ai_composition_is_idempotent_without_a_fabricated_capture() -> None:
+    await run_migrations(TEST_DATABASE_URL)
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    async with sessions() as session:
+        await session.execute(
+            text(
+                "TRUNCATE TABLE preference_signals, look_components, looks, "
+                "items, processing_jobs, captures CASCADE"
+            )
+        )
+        await session.commit()
+
+    user_id = uuid4()
+    capture_id, item_id = await insert_capture_and_item(
+        sessions=sessions,
+        user_id=user_id,
+        suffix="composition",
+    )
+    repository = SqlAlchemyLookRepository(sessions)
+    proposed = Look.ai_generated(
+        user_id=user_id,
+        source_selection_key="aicomposition",
+        analysis=composition_analysis(),
+    )
+    component = LookComponent.pending(
+        look_id=proposed.id,
+        component_key="slot1",
+        evidence_region=(),
+        confidence=0,
+        grounding_metadata={
+            "evidence_type": COMPOSITION_ITEM_EVIDENCE,
+            "item_capture_id": str(capture_id),
+            "item_selection_key": "item-composition",
+            "item_version": "2026-07-26T00:00:00+00:00",
+        },
+    ).with_item(item_id)
+    first = await repository.save_bundle(
+        proposed,
+        (component,),
+        PreferenceSignal.look_saved(
+            user_id=user_id,
+            look_id=proposed.id,
+            idempotency_key="save-composition",
+        ),
+    )
+    duplicate = Look.ai_generated(
+        user_id=user_id,
+        source_selection_key="aicomposition",
+        analysis=composition_analysis(),
+    )
+    second = await repository.save_bundle(
+        duplicate,
+        (),
+        PreferenceSignal.look_saved(
+            user_id=user_id,
+            look_id=duplicate.id,
+            idempotency_key="save-composition",
+        ),
+    )
+
+    detail = await repository.get_detail_for_user(first.id, user_id)
+    assert second.id == first.id
+    assert first.capture_id is None
+    assert detail is not None
+    assert detail.components[0].item_id == item_id
+    assert detail.components[0].evidence_region == ()
+    assert detail.components[0].confidence == 0

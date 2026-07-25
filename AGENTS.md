@@ -7,12 +7,13 @@ This repository is developed as a continuous, evidence-driven product loop.
 Read these before implementation:
 
 1. The active Codex Goal.
-2. The current GitHub Issue and its acceptance criteria.
-3. `docs/product/PRD.md`.
-4. `docs/architecture/TECHNICAL-DECISIONS.md`.
-5. `CONTEXT.md` and applicable records under `docs/adr/`.
-6. `docs/engineering/AUTONOMOUS-DEVELOPMENT-LOOP.md`.
-7. `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md`.
+2. `plan.md`.
+3. The current GitHub Issue and its acceptance criteria.
+4. `docs/product/PRD.md`.
+5. `docs/architecture/TECHNICAL-DECISIONS.md`.
+6. `CONTEXT.md` and applicable records under `docs/adr/`.
+7. `docs/engineering/AUTONOMOUS-DEVELOPMENT-LOOP.md`.
+8. `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md`.
 
 When sources conflict, preserve the active Goal, then update the lower-level artifact so the conflict does not recur.
 
@@ -111,6 +112,16 @@ The development agent owns sourcing and downloading public Feed material for thi
 ## GitHub and completion
 
 The agent may manage branches, commits, pushes, PRs, labels, Issues, comments, and merges for this repository. Never rewrite unrelated user work or use destructive Git operations.
+
+为保证多人协作下的 GitHub 项目有序推进，请每位 Agent 持续监控本项目的 PR、Issue、提交记录与分支状态，并遵循以下规则：
+
+1. 发现新的 PR、Issue、审查意见或 CI 状态变化时，及时处理并同步相关进展。
+2. 对 PR 按 GitHub 协作规范进行审查：确认需求范围、代码质量、测试与 CI 结果、潜在冲突及对现有功能的影响。
+3. 审查无误且具备合并权限时，及时合并；发现问题时，优先在 PR 中提出明确意见或直接在授权范围内修复，完成复核后再决定是否合并。
+4. 开始开发、继续开发、提交或合并前，先检查远端最新 commit 与目标分支状态；本地落后时必须先同步并处理冲突，避免基于过期代码继续工作。
+5. 每次 PR 合并后，及时拉取远端最新变更并确认本地工作分支、目标分支与 GitHub 状态一致。
+6. 不覆盖、不回退他人的有效改动；对冲突、异常 CI、权限不足或存在合并风险的情况，及时记录并通知相关负责人。
+7. 监控的目标是保持本地代码、远端分支、PR 状态和 Issue 处理进度持续一致，确保所有开发都基于最新、可验证的项目状态推进。
 
 Do not mark the aggregate Goal complete until:
 

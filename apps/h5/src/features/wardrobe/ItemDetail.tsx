@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 import type { Item, Ownership } from "../../api/client";
-import { useSourceImage } from "./useSourceImage";
+import { GARMENT_CATEGORY_OPTIONS, garmentLabel } from "./localization";
+import { useDisplayImage } from "./useDisplayImage";
 
 type ItemDetailProps = {
   item: Item | null;
@@ -16,6 +17,7 @@ type ItemDetailProps = {
     }
   ) => void;
   onDeleteSource: (itemId: string) => void;
+  onBuildOutfit: (itemId: string) => void;
 };
 
 function DetailContent({
@@ -23,9 +25,10 @@ function DetailContent({
   saving,
   onClose,
   onSave,
-  onDeleteSource
+  onDeleteSource,
+  onBuildOutfit
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
-  const imageUrl = useSourceImage(item.id);
+  const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const [description, setDescription] = useState(
@@ -78,12 +81,24 @@ function DetailContent({
 
         <label className="form-field">
           <span>分类</span>
-          <input
+          <select
             value={category}
-            maxLength={80}
-            placeholder="例如：上装"
+            aria-label="分类"
             onChange={(event) => setCategory(event.target.value)}
-          />
+          >
+            <option value="">待分类</option>
+            {GARMENT_CATEGORY_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {garmentLabel(option)}
+              </option>
+            ))}
+          </select>
+          {category &&
+          !GARMENT_CATEGORY_OPTIONS.includes(
+            category as (typeof GARMENT_CATEGORY_OPTIONS)[number]
+          ) ? (
+            <small>当前分类：{garmentLabel(category)}</small>
+          ) : null}
         </label>
         <label className="form-field">
           <span>单品描述</span>
@@ -128,6 +143,13 @@ function DetailContent({
           }
         >
           {saving ? "保存中…" : "保存修改"}
+        </button>
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() => onBuildOutfit(item.id)}
+        >
+          用这件搭一套
         </button>
         {!item.source_available ? (
           <p className="privacy-note">原图已删除，保留的标签和描述仍可继续编辑。</p>

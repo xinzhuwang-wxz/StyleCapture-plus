@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stylecapture_backend.features.capture.domain import CaptureSourceKind, OwnershipState
 from stylecapture_backend.features.capture.infrastructure.models import CaptureRecord
+from stylecapture_backend.features.outfit.domain import (
+    OutfitCategory,
+    OutfitRecallRequirements,
+)
 from stylecapture_backend.features.wardrobe.domain import (
     WHOLE_CAPTURE_SELECTION_KEY,
     FieldEnvelope,
@@ -48,6 +53,61 @@ class SqlAlchemyWardrobeRepository:
                 .where(ItemRecord.user_id == user_id)
                 .order_by(ItemRecord.created_at.desc())
                 .limit(100)
+            )
+            rows = (await session.execute(statement)).all()
+            return [_item_from_record(row[0], row[1]) for row in rows]
+
+    async def recall_for_outfit(
+        self,
+        *,
+        user_id: UUID,
+        requirements: OutfitRecallRequirements,
+    ) -> list[WardrobeItem]:
+        """Recall real wardrobe assets before deterministic rule scoring.
+
+        SQL owns the stable owned-before-inspiration priority. When an anchored item
+        has a provider embedding, pgvector cosine distance provides the tie-breaker;
+        items without vectors remain eligible and are ranked by tags in the
+        application layer. Commerce is intentionally absent from this repository:
+        unfilled slots become explicit search demands rather than invented products.
+        """
+
+        async with self._sessions() as session:
+            anchor_embedding: list[float] | None = None
+            if requirements.anchor_item_id is not None:
+                anchor_embedding = (
+                    await session.execute(
+                        select(ItemRecord.embedding).where(
+                            ItemRecord.id == requirements.anchor_item_id,
+                            ItemRecord.user_id == user_id,
+                        )
+                    )
+                ).scalar_one_or_none()
+            ownership_order = case(
+                (ItemRecord.ownership == OwnershipState.OWNED.value, 0),
+                else_=1,
+            )
+            ordering: list[Any] = [ownership_order]
+            if anchor_embedding is not None:
+                ordering.append(ItemRecord.embedding.cosine_distance(anchor_embedding).nulls_last())
+            ordering.extend((ItemRecord.category, ItemRecord.created_at.desc(), ItemRecord.id))
+            categories = _recall_category_values(requirements.required_roles)
+            filters = [
+                ItemRecord.user_id == user_id,
+                ItemRecord.status.in_((ItemStatus.READY.value, ItemStatus.PARTIAL.value)),
+                ItemRecord.ownership.in_(
+                    (OwnershipState.OWNED.value, OwnershipState.INSPIRATION.value)
+                ),
+                ItemRecord.category.in_(categories),
+            ]
+            if requirements.exclude_item_ids:
+                filters.append(ItemRecord.id.not_in(requirements.exclude_item_ids))
+            statement = (
+                select(ItemRecord, CaptureRecord.source_kind)
+                .join(CaptureRecord, CaptureRecord.id == ItemRecord.capture_id)
+                .where(*filters)
+                .order_by(*ordering)
+                .limit(120)
             )
             rows = (await session.execute(statement)).all()
             return [_item_from_record(row[0], row[1]) for row in rows]
@@ -148,6 +208,33 @@ class SqlAlchemyWardrobeRepository:
             raise RuntimeError("saved wardrobe item could not be reloaded")
         return stored
 
+    async def set_ownership_in_transaction(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+        ownership: OwnershipState,
+        updated_at: datetime,
+    ) -> bool:
+        """Update ownership within an existing persistence transaction."""
+
+        record = (
+            await session.execute(
+                select(ItemRecord)
+                .where(
+                    ItemRecord.id == item_id,
+                    ItemRecord.user_id == user_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if record is None:
+            return False
+        record.ownership = ownership.value
+        record.updated_at = updated_at
+        return True
+
 
 def _item_record(item: WardrobeItem) -> ItemRecord:
     return ItemRecord(
@@ -228,6 +315,22 @@ def _attributes_from_json(payload: dict[str, object]) -> ItemAttributes:
 def _text_field(attributes: ItemAttributes, name: str) -> str | None:
     field = attributes.fields.get(name)
     return str(field.value) if field is not None else None
+
+
+def _recall_category_values(
+    roles: tuple[OutfitCategory, ...],
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for role in roles:
+        candidates = (
+            ("accessories", "bags", "headwear")
+            if role is OutfitCategory.ACCESSORY
+            else (role.value,)
+        )
+        for value in candidates:
+            if value not in values:
+                values.append(value)
+    return tuple(values)
 
 
 def _json_text_field(attributes: dict[str, object], name: str) -> str | None:

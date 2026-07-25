@@ -65,6 +65,23 @@ def test_parse_look_analysis_accepts_strict_expected_schema() -> None:
     assert analysis.metadata.schema_version == LOOK_ANALYSIS_SCHEMA_VERSION
 
 
+@pytest.mark.asyncio
+async def test_litellm_outfit_analyzer_requests_chinese_user_facing_values() -> None:
+    completion = RecordingCompletion(VALID_ANALYSIS)
+    analyzer = LiteLLMOutfitAnalyzer(
+        capability_alias="outfit_analysis",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="internal-gateway-key",
+        completion=completion,
+    )
+
+    await analyzer.analyze(image(), components=())
+
+    system_prompt = completion.calls[0]["messages"][0]["content"]
+    assert "Simplified Chinese" in system_prompt
+    assert "keep only the required JSON keys in English" in system_prompt
+
+
 @pytest.mark.parametrize(
     "content",
     [

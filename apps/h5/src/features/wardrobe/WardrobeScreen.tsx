@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { Item, Look } from "../../api/client";
+import type { Item, Look, RenderArtifact } from "../../api/client";
 import { PendingItemCard, type PendingItem, WardrobeItemCard } from "./ItemCard";
 import { LookCard } from "./LookCard";
 
@@ -9,6 +9,7 @@ type WardrobeView = "looks" | "items";
 
 export function WardrobeScreen({
   looks,
+  pixelCovers,
   items,
   pending,
   itemsLoading,
@@ -18,6 +19,7 @@ export function WardrobeScreen({
   onRetry
 }: {
   looks: Look[];
+  pixelCovers: Record<string, RenderArtifact>;
   items: Item[];
   pending: PendingItem[];
   itemsLoading: boolean;
@@ -115,7 +117,12 @@ export function WardrobeScreen({
         <div className="wardrobe-grid">
           {view === "looks"
             ? looks.map((look) => (
-                <LookCard key={look.id} look={look} onOpen={() => onOpenLook(look)} />
+                <LookCard
+                  key={look.id}
+                  look={look}
+                  pixelCover={pixelCovers[look.id] ?? null}
+                  onOpen={() => onOpenLook(look)}
+                />
               ))
             : <>
                 {pending.map((entry) => (

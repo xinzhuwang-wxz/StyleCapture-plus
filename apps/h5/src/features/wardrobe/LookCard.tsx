@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 
-import type { Look } from "../../api/client";
+import type { Look, RenderArtifact } from "../../api/client";
 
 const STATUS_LABELS: Record<Look["status"], string> = {
   processing: "正在拆解",
@@ -11,9 +11,11 @@ const STATUS_LABELS: Record<Look["status"], string> = {
 
 export function LookCard({
   look,
+  pixelCover = null,
   onOpen
 }: {
   look: Look;
+  pixelCover?: RenderArtifact | null;
   onOpen: () => void;
 }) {
   return (
@@ -25,7 +27,9 @@ export function LookCard({
     >
       <button className="item-card__open" type="button" onClick={onOpen}>
         <div className="item-card__image look-card__image">
-          {look.display_image_url ? (
+          {pixelCover?.output_image_url ? (
+            <img src={pixelCover.output_image_url} alt="已生成的像素穿搭封面" />
+          ) : look.display_image_url ? (
             <img src={look.display_image_url} alt="收藏的整套穿搭" />
           ) : (
             <div className="item-image-placeholder">
@@ -38,6 +42,9 @@ export function LookCard({
           </span>
           {look.status === "processing" ? (
             <div className="processing-sheen" aria-hidden="true" />
+          ) : null}
+          {pixelCover?.output_image_url ? (
+            <span className="look-card__cover-label">像素封面</span>
           ) : null}
         </div>
         <div className="item-card__body">

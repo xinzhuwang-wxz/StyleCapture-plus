@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import SecretStr, ValidationError
@@ -39,6 +40,7 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
     assert settings.segmentation_model == "facebook/sam2.1-hiera-tiny"
     assert settings.segmentation_device == "cpu"
     assert settings.segmentation_score_threshold == 0.7
+    assert settings.outfit_reasoning_timeout_seconds == 60
 
 
 @pytest.mark.parametrize(
@@ -96,3 +98,35 @@ def test_segmentation_settings_can_select_sam2_from_environment(
     assert settings.segmentation_mode == "sam2"
     assert settings.segmentation_device == "mps"
     assert settings.segmentation_score_threshold == 0.83
+
+
+def test_demo_seed_defaults_on_locally_but_off_in_production(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    common: dict[str, Any] = {
+        "database_url": SecretStr("postgresql+asyncpg://user:pass@postgres/stylecapture"),
+        "redis_url": SecretStr("redis://redis:6379/0"),
+        "upload_root": tmp_path,
+        "upload_signing_secret": SecretStr("production-upload-signing-secret-with-entropy"),
+        "session_signing_secret": SecretStr("production-session-signing-secret-with-entropy"),
+        "litellm_api_key": SecretStr("production-gateway-signing-secret-with-entropy"),
+    }
+
+    development = BackendSettings(**common)
+    production = BackendSettings(
+        **common,
+        environment="production",
+        session_cookie_secure=True,
+    )
+    explicitly_seeded_production = BackendSettings(
+        **common,
+        environment="production",
+        session_cookie_secure=True,
+        demo_seed_enabled=True,
+    )
+
+    assert development.demo_seed_enabled is True
+    assert production.demo_seed_enabled is False
+    assert explicitly_seeded_production.demo_seed_enabled is True

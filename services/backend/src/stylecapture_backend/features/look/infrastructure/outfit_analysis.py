@@ -21,7 +21,7 @@ from stylecapture_backend.features.look.domain import (
 )
 from stylecapture_backend.features.wardrobe.taxonomy import TAXONOMY_VERSION
 
-LOOK_ANALYSIS_PROMPT_VERSION = "outfit-analysis-v1"
+LOOK_ANALYSIS_PROMPT_VERSION = "outfit-analysis-zh-v2"
 LOOK_ANALYSIS_MODEL_VERSION = "outfit-analysis-model-v1"
 LOOK_ANALYSIS_SCHEMA_VERSION = "look-analysis-v1"
 
@@ -171,7 +171,9 @@ def _messages(
                 "evidence and the listed reliable components. Return strict JSON only, with "
                 "exactly these top-level keys: color, silhouette, material, layering, "
                 "focal_point, scene, style. Each value must be an object with string value "
-                "and numeric confidence between 0 and 1. Do not include provider names, "
+                "written in concise, natural Simplified Chinese and numeric confidence "
+                "between 0 and 1. All user-facing values must be Chinese; keep only the "
+                "required JSON keys in English. Do not include provider names, "
                 "secrets, hidden chain of thought, markdown, or extra keys."
             ),
         },

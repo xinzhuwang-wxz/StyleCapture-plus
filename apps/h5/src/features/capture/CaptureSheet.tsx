@@ -14,7 +14,10 @@ type CaptureSheetProps = {
   busy: boolean;
   error: string | null;
   onCancel: () => void;
-  onConfirm: (ownership: Ownership) => void;
+  onConfirm: (
+    ownership: Ownership,
+    intent: "item" | "whole_outfit"
+  ) => void;
 };
 
 export function CaptureSheet({
@@ -25,19 +28,23 @@ export function CaptureSheet({
   onConfirm
 }: CaptureSheetProps) {
   const [ownership, setOwnership] = useState<Ownership | null>(null);
+  const [intent, setIntent] = useState<"item" | "whole_outfit" | null>(null);
 
   return (
     <AnimatePresence>
       {selection ? (
         <motion.div
-          className="sheet-backdrop"
+          className="pixel-sheet"
           role="presentation"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onCancel();
+          }}
         >
           <motion.section
-            className="capture-sheet"
+            className="pixel-sheet__content"
             role="dialog"
             aria-modal="true"
             aria-labelledby="capture-sheet-title"
@@ -46,15 +53,40 @@ export function CaptureSheet({
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 330, damping: 34 }}
           >
-            <div className="sheet-handle" aria-hidden="true" />
-            <div className="sheet-heading">
+            {/* Handle */}
+            <div
+              style={{
+                width: "3rem",
+                height: "4px",
+                margin: "0 auto var(--px-4)",
+                background: "var(--pixel-border)"
+              }}
+              aria-hidden="true"
+            />
+
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "var(--px-4)"
+              }}
+            >
               <div>
-                <p className="section-kicker">最后一步</p>
-                <h2 id="capture-sheet-title">确认加入衣橱</h2>
+                <p className="pixel-label">最后一步</p>
+                <h2
+                  id="capture-sheet-title"
+                  className="pixel-subtitle"
+                  style={{ color: "var(--pixel-text)" }}
+                >
+                  确认加入衣橱
+                </h2>
               </div>
               <button
-                className="icon-button"
                 type="button"
+                className="pixel-button pixel-button--ghost"
+                style={{ width: "2.5rem", height: "2.5rem", padding: 0 }}
                 aria-label="取消入库"
                 disabled={busy}
                 onClick={onCancel}
@@ -63,56 +95,210 @@ export function CaptureSheet({
               </button>
             </div>
 
-            <div className="capture-preview">
-              <img src={selection.previewUrl} alt="待加入衣橱的衣服" />
-              <span>{selection.sourceKind === "camera" ? "刚刚拍摄" : "来自相册"}</span>
+            {/* Preview */}
+            <div
+              style={{
+                position: "relative",
+                height: "12rem",
+                border: "3px solid var(--pixel-border)",
+                boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
+                overflow: "hidden",
+                marginBottom: "var(--px-4)",
+                background: "var(--pixel-surface-raised)"
+              }}
+            >
+              <img
+                src={selection.previewUrl}
+                alt="待加入衣橱的衣服"
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              />
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "var(--px-2)",
+                  right: "var(--px-2)",
+                  padding: "var(--px-1) var(--px-3)",
+                  fontFamily: "var(--font-pixel)",
+                  fontSize: "0.65rem",
+                  background: "var(--pixel-surface)",
+                  border: "2px solid var(--pixel-border)",
+                  color: "var(--pixel-text-muted)"
+                }}
+              >
+                {selection.sourceKind === "camera" ? "📷 刚刚拍摄" : "🖼️ 来自相册"}
+              </span>
             </div>
 
-            <fieldset className="ownership-fieldset" disabled={busy}>
-              <legend>这件衣服属于哪里？</legend>
-              <div className="ownership-options">
+            <fieldset
+              disabled={busy}
+              style={{ border: "none", padding: 0, margin: "0 0 var(--px-4)" }}
+            >
+              <legend
+                style={{
+                  fontFamily: "var(--font-pixel)",
+                  fontSize: "0.75rem",
+                  color: "var(--pixel-text-muted)",
+                  marginBottom: "var(--px-3)"
+                }}
+              >
+                这张图要保存成什么？
+              </legend>
+              <div className="capture-kind-options">
                 <button
-                  className={ownership === "owned" ? "ownership-option is-selected" : "ownership-option"}
                   type="button"
+                  className={intent === "item" ? "is-selected" : ""}
+                  aria-pressed={intent === "item"}
+                  onClick={() => setIntent("item")}
+                >
+                  <strong>单件衣服</strong>
+                  <small>抠出一件实物，归入单品分类</small>
+                </button>
+                <button
+                  type="button"
+                  className={intent === "whole_outfit" ? "is-selected" : ""}
+                  aria-pressed={intent === "whole_outfit"}
+                  onClick={() => setIntent("whole_outfit")}
+                >
+                  <strong>整套穿搭</strong>
+                  <small>拆成多件单品，并生成像素小人</small>
+                </button>
+              </div>
+            </fieldset>
+
+            {/* Ownership Selection */}
+            <fieldset
+              disabled={busy}
+              style={{ border: "none", padding: 0, margin: 0 }}
+            >
+              <legend
+                style={{
+                  fontFamily: "var(--font-pixel)",
+                  fontSize: "0.75rem",
+                  color: "var(--pixel-text-muted)",
+                  marginBottom: "var(--px-3)",
+                  display: "block"
+                }}
+              >
+                这件衣服属于哪里？
+              </legend>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "var(--px-3)",
+                  marginBottom: "var(--px-4)"
+                }}
+              >
+                <button
+                  type="button"
+                  className="pixel-button"
+                  style={{
+                    flexDirection: "column",
+                    minHeight: "6rem",
+                    alignItems: "flex-start",
+                    background:
+                      ownership === "owned"
+                        ? "var(--pixel-accent)"
+                        : "var(--pixel-surface-raised)",
+                    borderColor:
+                      ownership === "owned"
+                        ? "var(--pixel-accent-glow)"
+                        : "var(--pixel-border)",
+                    color:
+                      ownership === "owned"
+                        ? "var(--pixel-surface)"
+                        : "var(--pixel-text)"
+                  }}
                   aria-pressed={ownership === "owned"}
                   onClick={() => setOwnership("owned")}
                 >
-                  <span aria-hidden="true">衣</span>
-                  <strong>我的衣服</strong>
-                  <small>已经拥有，可以直接参与搭配</small>
+                  <span style={{ fontSize: "1.5rem" }}>⭐</span>
+                  <strong style={{ fontSize: "0.8rem" }}>我的衣服</strong>
+                  <small
+                    style={{
+                      fontSize: "0.6rem",
+                      opacity: 0.7,
+                      fontFamily: "var(--font-body)"
+                    }}
+                  >
+                    已拥有，可参与搭配
+                  </small>
                 </button>
                 <button
-                  className={
-                    ownership === "inspiration"
-                      ? "ownership-option is-selected"
-                      : "ownership-option"
-                  }
                   type="button"
+                  className="pixel-button"
+                  style={{
+                    flexDirection: "column",
+                    minHeight: "6rem",
+                    alignItems: "flex-start",
+                    background:
+                      ownership === "inspiration"
+                        ? "var(--pixel-primary)"
+                        : "var(--pixel-surface-raised)",
+                    borderColor:
+                      ownership === "inspiration"
+                        ? "var(--pixel-primary-dark)"
+                        : "var(--pixel-border)",
+                    color:
+                      ownership === "inspiration" ? "#fff" : "var(--pixel-text)"
+                  }}
                   aria-pressed={ownership === "inspiration"}
                   onClick={() => setOwnership("inspiration")}
                 >
-                  <span aria-hidden="true">✦</span>
-                  <strong>穿搭灵感</strong>
-                  <small>还没拥有，先收藏以后搭配</small>
+                  <span style={{ fontSize: "1.5rem" }}>💖</span>
+                  <strong style={{ fontSize: "0.8rem" }}>穿搭灵感</strong>
+                  <small
+                    style={{
+                      fontSize: "0.6rem",
+                      opacity: 0.7,
+                      fontFamily: "var(--font-body)"
+                    }}
+                  >
+                    先收藏，以后搭配
+                  </small>
                 </button>
               </div>
             </fieldset>
 
             {error ? (
-              <p className="inline-error" role="alert">
-                {error}
+              <p
+                style={{
+                  color: "var(--pixel-error)",
+                  fontFamily: "var(--font-pixel)",
+                  fontSize: "0.75rem",
+                  marginBottom: "var(--px-3)"
+                }}
+                role="alert"
+              >
+                ⚠️ {error}
               </p>
             ) : null}
 
             <button
-              className="primary-action"
               type="button"
-              disabled={!ownership || busy}
-              onClick={() => ownership && onConfirm(ownership)}
+              className="pixel-button pixel-button--primary w-full"
+              disabled={!ownership || !intent || busy}
+              onClick={() => ownership && intent && onConfirm(ownership, intent)}
+              style={{ marginBottom: "var(--px-3)" }}
             >
-              {busy ? "正在安全入库…" : "加入衣橱"}
+              {busy
+                ? "🔄 正在入库…"
+                : intent === "whole_outfit"
+                  ? "✦ 保存整套并生成像素小人"
+                  : intent === "item"
+                    ? "⭐ 加入单品衣橱"
+                    : "请选择保存类型"}
             </button>
-            <p className="privacy-note">原图仅用于你的数字衣橱，可随时删除。</p>
+            <p
+              style={{
+                textAlign: "center",
+                fontSize: "0.6rem",
+                color: "var(--pixel-text-dim)",
+                fontFamily: "var(--font-pixel)"
+              }}
+            >
+              原图仅用于你的数字衣橱，可随时删除
+            </p>
           </motion.section>
         </motion.div>
       ) : null}

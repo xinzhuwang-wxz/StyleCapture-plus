@@ -26,6 +26,19 @@ from stylecapture_backend.features.look.infrastructure.outfit_analysis import (
 from stylecapture_backend.features.look.infrastructure.repository import (
     SqlAlchemyLookRepository,
 )
+from stylecapture_backend.features.render.application import RenderApplication
+from stylecapture_backend.features.render.infrastructure.collage import (
+    PillowLookCollageRenderer,
+)
+from stylecapture_backend.features.render.infrastructure.providers import (
+    FashnTryOnGenerator,
+    LiteLLMImageGenerator,
+)
+from stylecapture_backend.features.render.infrastructure.repository import (
+    SqlAlchemyRenderArtifactRepository,
+)
+from stylecapture_backend.features.render.interfaces.worker import register_render_task
+from stylecapture_backend.features.render.processing import RenderProcessor
 from stylecapture_backend.features.wardrobe.infrastructure.repository import (
     SqlAlchemyWardrobeRepository,
 )
@@ -42,6 +55,7 @@ sessions = build_session_factory(
 capture_repository = SqlAlchemyCaptureRepository(sessions)
 wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
 look_repository = SqlAlchemyLookRepository(sessions)
+render_repository = SqlAlchemyRenderArtifactRepository(sessions)
 object_store = LocalObjectStore(
     root=settings.upload_root,
     signing_secret=settings.upload_signing_secret.get_secret_value(),
@@ -93,5 +107,33 @@ celery = build_celery(settings.redis_url.get_secret_value())
 capture_task = register_capture_task(
     celery,
     processor,
+    max_retries=settings.worker_max_retries,
+)
+render_processor = RenderProcessor(
+    artifacts=render_repository,
+    renders=RenderApplication(artifacts=render_repository),
+    looks=look_repository,
+    wardrobe=wardrobe_repository,
+    objects=object_store,
+    collages=PillowLookCollageRenderer(),
+    pixel_generator=LiteLLMImageGenerator(
+        capability_alias=settings.image_generation_model_alias,
+        gateway_base_url=settings.litellm_base_url,
+        gateway_api_key=settings.litellm_api_key.get_secret_value(),
+        timeout_seconds=settings.render_request_timeout_seconds,
+        download_max_bytes=settings.render_download_max_bytes,
+    ),
+    try_on_generator=FashnTryOnGenerator(
+        api_base_url=settings.fashn_api_base,
+        api_key=settings.fashn_api_key.get_secret_value(),
+        timeout_seconds=settings.render_request_timeout_seconds,
+        poll_interval_seconds=settings.render_poll_interval_seconds,
+        poll_timeout_seconds=settings.render_poll_timeout_seconds,
+    ),
+    fixed_model_object_key=settings.fixed_model_object_key,
+)
+render_task = register_render_task(
+    celery,
+    render_processor,
     max_retries=settings.worker_max_retries,
 )
