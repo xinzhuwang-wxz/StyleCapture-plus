@@ -23,7 +23,7 @@ vi.mock("../src/api/client", async (importOriginal) => {
       retryItem: vi.fn(),
       updateItem: vi.fn(),
       deleteSource: vi.fn(),
-      sourceImage: vi.fn()
+      displayImage: vi.fn()
     }
   };
 });
@@ -96,7 +96,7 @@ describe("StyleCapture garment ingest", () => {
       status_url: "/v1/jobs/33333333-3333-4333-8333-333333333333",
       events_url: "/v1/jobs/33333333-3333-4333-8333-333333333333/events"
     });
-    api.sourceImage.mockResolvedValue("blob:item");
+    api.displayImage.mockResolvedValue("blob:item");
   });
 
   afterEach(() => {
@@ -224,5 +224,19 @@ describe("StyleCapture garment ingest", () => {
         })
       )
     );
+  });
+
+  it("uses the wardrobe display asset rather than the private source route", async () => {
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    renderApp();
+
+    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
+
+    await waitFor(() =>
+      expect(api.displayImage).toHaveBeenCalledWith(wardrobeItem.id)
+    );
+    expect(
+      await screen.findByRole("img", { name: "米白色针织上衣" })
+    ).toHaveAttribute("data-image-kind", "wardrobe-display");
   });
 });

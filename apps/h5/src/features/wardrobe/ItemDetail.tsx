@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import type { Item, Ownership } from "../../api/client";
 import { GARMENT_CATEGORY_OPTIONS, garmentLabel } from "./localization";
-import { useSourceImage } from "./useSourceImage";
+import { useDisplayImage } from "./useDisplayImage";
 
 type ItemDetailProps = {
   item: Item | null;
@@ -26,7 +26,7 @@ function DetailContent({
   onSave,
   onDeleteSource
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
-  const imageUrl = useSourceImage(item.id);
+  const imageUrl = useDisplayImage(item.id);
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const [description, setDescription] = useState(

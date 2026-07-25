@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 
 import type { Item, Job, Ownership } from "../../api/client";
 import { garmentLabel } from "./localization";
-import { useSourceImage } from "./useSourceImage";
+import { useDisplayImage } from "./useDisplayImage";
 
 export type PendingItem = {
   captureId: string;
@@ -20,9 +20,13 @@ const STATUS_LABELS: Record<Item["status"], string> = {
 };
 
 function ItemImage({ item }: { item: Item }) {
-  const imageUrl = useSourceImage(item.id);
+  const imageUrl = useDisplayImage(item.id);
   return imageUrl ? (
-    <img src={imageUrl} alt={String(item.attributes.description?.value ?? "衣橱单品")} />
+    <img
+      src={imageUrl}
+      alt={String(item.attributes.description?.value ?? "衣橱单品")}
+      data-image-kind="wardrobe-display"
+    />
   ) : (
     <div className="item-image-placeholder" aria-label="原图不可用">
       <span>衣</span>

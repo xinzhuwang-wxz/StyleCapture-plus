@@ -106,7 +106,7 @@ export function CaptureSheet({
               <img
                 src={selection.previewUrl}
                 alt="待加入衣橱的衣服"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
               <span
                 style={{
