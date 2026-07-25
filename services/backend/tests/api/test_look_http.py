@@ -36,6 +36,7 @@ from stylecapture_backend.features.look.domain import (
     PreferenceSignal,
 )
 from stylecapture_backend.features.look.interfaces.http import LookHttpServices
+from stylecapture_backend.features.look.ports import LookRepository
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
 from stylecapture_backend.platform.session import SESSION_COOKIE_NAME, SessionSigner
@@ -240,7 +241,7 @@ def build_client(
             retries=cast(JobRetryApplication, no_op),
             wardrobe=cast(WardrobeApplication, no_op),
             looks=LookHttpServices(
-                looks=LookApplication(looks=cast(object, repository)),
+                looks=LookApplication(looks=cast(LookRepository, repository)),
                 captures=media,
                 jobs=cast(JobRepository, jobs),
                 objects=cast(ObjectStore, media),
