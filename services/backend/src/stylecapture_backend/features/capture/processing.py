@@ -504,6 +504,7 @@ class CaptureProcessor:
                 )
             )
             return ProcessingOutcome.partial(error)
+        look = await self._looks.save(look.with_status(LookStatus.PROCESSING))
 
         try:
             frame = self._objects.read_image(capture.source.object_key)
@@ -532,6 +533,7 @@ class CaptureProcessor:
             )
             grounding = await self._grounder.ground(frame, scope=outfit_selection)
         except ProviderError as error:
+            await self._looks.save(look.with_status(LookStatus.PARTIAL))
             await self._jobs.update(
                 job.transition(
                     JobState.PARTIAL,
@@ -551,6 +553,7 @@ class CaptureProcessor:
                 "Visual grounding returned an invalid component identity",
                 retryable=True,
             )
+            await self._looks.save(look.with_status(LookStatus.PARTIAL))
             await self._jobs.update(
                 job.transition(
                     JobState.PARTIAL,
@@ -622,12 +625,12 @@ class CaptureProcessor:
                 failures.append(error)
                 await self._looks.save_component(component.with_status(LookComponentStatus.ERROR))
 
-        unresolved = tuple(
+        stale_unresolved = tuple(
             component
             for key, component in existing_components.items()
             if key not in accepted_keys and component.status is not LookComponentStatus.READY
         )
-        if unresolved:
+        if stale_unresolved and not ready_components:
             failures.append(
                 ProviderError(
                     "component_unresolved",
@@ -636,7 +639,7 @@ class CaptureProcessor:
                 )
             )
 
-        if not ready_components and not accepted and not unresolved:
+        if not ready_components and not accepted and not stale_unresolved:
             no_components_error = ProviderError(
                 "no_reliable_components",
                 "No reliable outfit components were found",
@@ -773,7 +776,9 @@ class CaptureProcessor:
         item = await self._wardrobe.get_by_capture(capture.id, selection_key)
         if item is None:
             return WardrobeItem.processing(capture, selection_key=selection_key)
-        return item.with_model_metadata({"processing_error": None}).with_status(ItemStatus.PROCESSING)
+        return item.with_model_metadata({"processing_error": None}).with_status(
+            ItemStatus.PROCESSING
+        )
 
     def _prepare_feed_selection(
         self,
@@ -810,7 +815,6 @@ def _segmentation_metadata(result: SegmentationResult) -> dict[str, object]:
         "schema_version": result.metadata.schema_version,
         "latency_ms": result.metadata.latency_ms,
         "fallback_reason": result.metadata.fallback_reason,
-        "provider": result.metadata.provider,
         "coarse_polygon": [{"x": point.x, "y": point.y} for point in result.coarse_polygon],
     }
     if result.metadata.model_alias is not None:
@@ -853,7 +857,11 @@ def _box_point(x: int, y: int) -> NormalizedPoint:
 
 
 def _box_inside_polygon(box: NormalizedBox, polygon: tuple[NormalizedPoint, ...]) -> bool:
-    return all(_point_in_polygon(point, polygon) for point in _box_polygon(box))
+    center = _box_point(
+        round((box.x_min + box.x_max) / 2),
+        round((box.y_min + box.y_max) / 2),
+    )
+    return _point_in_polygon(center, polygon)
 
 
 def _point_in_polygon(point: NormalizedPoint, polygon: tuple[NormalizedPoint, ...]) -> bool:
@@ -882,9 +890,7 @@ def _point_on_segment(
     start: NormalizedPoint,
     end: NormalizedPoint,
 ) -> bool:
-    cross = (point.y - start.y) * (end.x - start.x) - (point.x - start.x) * (
-        end.y - start.y
-    )
+    cross = (point.y - start.y) * (end.x - start.x) - (point.x - start.x) * (end.y - start.y)
     if abs(cross) > 1e-9:
         return False
     return (

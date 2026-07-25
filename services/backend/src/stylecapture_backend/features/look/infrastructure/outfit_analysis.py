@@ -22,8 +22,8 @@ from stylecapture_backend.features.look.domain import (
 from stylecapture_backend.features.wardrobe.taxonomy import TAXONOMY_VERSION
 
 LOOK_ANALYSIS_PROMPT_VERSION = "outfit-analysis-v1"
+LOOK_ANALYSIS_MODEL_VERSION = "outfit-analysis-model-v1"
 LOOK_ANALYSIS_SCHEMA_VERSION = "look-analysis-v1"
-SERVER_PRIVATE_PROVIDER_MODEL = "server_private"
 
 _FIELD_NAMES = frozenset(
     {
@@ -90,10 +90,8 @@ class LiteLLMOutfitAnalyzer:
             content = raw.choices[0].message.content
             if not isinstance(content, str):
                 raise TypeError("outfit analysis response content is not text")
-            provider_model = str(raw.model)
             return parse_look_analysis(
                 content,
-                provider_model=provider_model,
                 capability_alias=self._alias,
                 latency_ms=latency_ms,
             )
@@ -108,11 +106,9 @@ class LiteLLMOutfitAnalyzer:
 def parse_look_analysis(
     content: str,
     *,
-    provider_model: str,
     capability_alias: str,
     latency_ms: int,
 ) -> LookAnalysis:
-    del provider_model
     payload = json.loads(content)
     if not isinstance(payload, dict):
         raise ValueError("look analysis must be an object")
@@ -125,7 +121,7 @@ def parse_look_analysis(
     }
     metadata = LookAnalysisMetadata(
         capability_alias=capability_alias,
-        provider_model=SERVER_PRIVATE_PROVIDER_MODEL,
+        model_version=LOOK_ANALYSIS_MODEL_VERSION,
         prompt_version=LOOK_ANALYSIS_PROMPT_VERSION,
         schema_version=LOOK_ANALYSIS_SCHEMA_VERSION,
         taxonomy_version=TAXONOMY_VERSION,
@@ -185,8 +181,7 @@ def _messages(
                 {
                     "type": "text",
                     "text": (
-                        "Reliable components:\n"
-                        f"{component_lines if component_lines else '- none'}"
+                        f"Reliable components:\n{component_lines if component_lines else '- none'}"
                     ),
                 },
                 {"type": "image_url", "image_url": {"url": data_url}},

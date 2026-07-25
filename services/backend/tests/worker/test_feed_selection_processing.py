@@ -115,7 +115,7 @@ class RecordingSegmenter:
             coarse_polygon=prompt.selection.polygon,
             mask=None,
             metadata=SegmentationMetadata(
-                provider="deterministic_lasso_fallback",
+                capability_alias="deterministic_lasso_fallback",
                 representation=SegmentationRepresentation.COARSE_POLYGON,
                 refined=False,
                 schema_version="feed-segmentation-v1",

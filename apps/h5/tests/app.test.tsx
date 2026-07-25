@@ -12,6 +12,10 @@ vi.mock("../src/api/client", async (importOriginal) => {
     ...actual,
     wardrobeApi: {
       listItems: vi.fn(),
+      listLooks: vi.fn(),
+      getLook: vi.fn(),
+      addLikingReason: vi.fn(),
+      retryLook: vi.fn(),
       ingest: vi.fn(),
       ingestFeedFrame: vi.fn(),
       getJob: vi.fn(),
@@ -84,6 +88,7 @@ describe("StyleCapture garment ingest", () => {
       )
     );
     api.listItems.mockResolvedValue([]);
+    api.listLooks.mockResolvedValue([]);
     api.ingest.mockResolvedValue({
       capture_id: "22222222-2222-4222-8222-222222222222",
       job_id: "33333333-3333-4333-8333-333333333333",

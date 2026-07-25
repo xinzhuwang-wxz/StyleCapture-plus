@@ -115,7 +115,7 @@ class LookAnalysisField:
 @dataclass(frozen=True, slots=True)
 class LookAnalysisMetadata:
     capability_alias: str
-    provider_model: str
+    model_version: str
     prompt_version: str
     schema_version: str
     taxonomy_version: str
@@ -124,7 +124,7 @@ class LookAnalysisMetadata:
     def __post_init__(self) -> None:
         versioned_values = (
             self.capability_alias,
-            self.provider_model,
+            self.model_version,
             self.prompt_version,
             self.schema_version,
             self.taxonomy_version,

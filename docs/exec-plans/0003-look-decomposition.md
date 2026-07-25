@@ -73,11 +73,25 @@ SAM 2.1 Hiera Tiny refinement, Playwright, Vitest, pytest, Docker Compose.
   segmentation/tagging orchestration, stable partial retry behavior,
   capability-alias metadata, and the optional SAM 2.1 Tiny worker adapter. The
   production adapter was re-run against the same real frame and produced a 0.974
-  refined mask; 175 backend tests, Ruff, and mypy pass. Coarse mode remains the
-  zero-model default.
-- [ ] Generate API contracts and implement Feed intent plus Look list/detail/feedback.
-- [ ] Run full automated verification and real 390×844 user flow with screenshots and
-  trace, then review, merge, and synchronize Issue/Goal state.
+  refined mask; 175 backend tests, Ruff, and mypy pass. The `ai-light` demo profile
+  uses it by default, while coarse mode remains the explicit model-free fallback.
+- [x] 2026-07-25: Generated the OpenAPI contract and implemented user-scoped Look
+  list/detail/source/feedback APIs, explicit Feed intent, immediate whole-outfit
+  save, “穿搭 / 单品” wardrobe views, analysis and optional liking reason.
+- [x] 2026-07-25: Replaced the Linux CUDA-resolving PyTorch dependency with the
+  official explicit CPU wheel index. The `ai-light` image now carries SAM 2.1 Tiny
+  without CUDA/NVIDIA packages and runs under a 2 GiB container limit.
+- [x] 2026-07-25: Completed a real 390×844 Docker user journey: paused a real Feed
+  video, drew the lasso, observed the lifted subject, chose “存整套”, swiped the
+  subject right, opened the processing Look, waited for real hosted analysis and
+  SAM 2.1 decomposition, inspected the resulting Item, saved an optional liking
+  reason, and returned to the exact source video at 2.3 seconds.
+- [x] 2026-07-25: Captured nine visual evidence frames under
+  `docs/evidence/issue-3/`. The live whole-outfit job completed `ready` in 56.036 s;
+  the bounded worker used 666 MiB at idle after inference and the full local stack
+  remained healthy without a GPU.
+- [ ] Complete the final review, push the Issue #3 PR, pass CI, merge, and synchronize
+  Issue/Goal state.
 
 ## Current Product Truth
 
@@ -105,12 +119,13 @@ field confidence, model/prompt/schema/taxonomy metadata, and hosted multimodal
 embedding. These facts are model-derived through LiteLLM/Doubao, not copied from the
 Feed corpus labels. User corrections are locked against later worker overwrites.
 
-What is not yet present is the Look aggregate and its “穿搭” wardrobe view. This Issue
-adds that missing half without replacing or weakening the existing Item wardrobe.
-The current Feed worker already renders a transparent, tightly cropped PNG for VLM and
-embedding, but only keeps it in memory; the Item image endpoint still returns the
-original frame. This Issue persists that existing real output as a derived display
-asset so the wardrobe no longer looks like a collection of screenshots.
+The Look aggregate and its “穿搭” wardrobe view now sit beside the existing Item
+wardrobe. A whole-outfit save immediately creates a durable processing Look, then the
+worker persists a transparent Look cutout, grounded components, real Item display
+assets and relationship analysis. The list never falls back to the full source frame
+as a cover: before the cutout exists it shows an explicit processing placeholder.
+Detail keeps the original frame as separate evidence, exposes deletion state, and can
+return to the exact Feed video and timestamp.
 
 The local review Feed currently contains 30 verified vertical videos (480×854,
 179.2 seconds total, 5.2 MiB), including 8 fixed regression assets. Coverage is:
@@ -118,16 +133,29 @@ runway 8, street style 8, layering 4, accessory 4, shop/negative 4, and
 low-light/historical 2. This is sufficient for the review experience and regression
 matrix; adding more videos is not a prerequisite for the product slice.
 
-The existing Feed manifest is source-level provenance, not garment annotation. Add a
-separate versioned curated annotation manifest for the known corpus. Each annotated
-moment records the video/time/frame identity, one Look grouping, component regions,
-taxonomy-valid Item facts, annotation provenance, and a reason. Curated annotations
-are allowed only as `curated_seed`: they support coverage, deterministic regression,
-and prepared demo assets, and may never be presented as live model output. Uploads,
-camera images, and selections outside a curated moment continue through the real
-LiteLLM/Doubao path.
+The existing Feed manifest remains source-level provenance, not live garment analysis.
+A later release seed may add a separate versioned `curated_seed` annotation manifest
+for deterministic corpus coverage and prepared cold-start assets. It is not consulted
+by the Issue #3 runtime path and may never be presented as live model output. Uploads,
+camera images and Feed selections continue through the real LiteLLM/Doubao path.
 
-## Decisions
+## Surprises & Discoveries
+
+- The default PyPI PyTorch resolution pulled multi-gigabyte CUDA/NVIDIA packages even
+  though the worker runs on CPU. The official explicit PyTorch CPU index removed that
+  deployment regression; `ai-light` now downloads a roughly 148 MiB CPU wheel.
+- The real whole-outfit path was dominated by hosted provider latency, not SAM 2.1
+  inference. The observed end-to-end task completed in 56.036 seconds while the
+  browser save gesture and pending Look remained immediate.
+- Falling back from `/v1/looks/{id}/image` to the source frame made a processing card
+  look like a screenshot and obscured source deletion. The public contract now
+  separates `display_ready` from `source_available`; pending cards use an honest
+  placeholder and detail alone presents source evidence.
+- Retry originally preserved the job but left grounding failures visually stuck in
+  processing. Provider/schema failures now set the Look to partial, expose a single
+  retry action, and return to processing with stable Look/component/Item identities.
+
+## Decision Log
 
 - Use explicit intent controls integrated into the paused Feed. Rationale: the product
   must distinguish one/multiple Items from a whole outfit before asynchronous AI.
@@ -223,16 +251,15 @@ Database invariants:
      relationships;
    - aggregate processing/partial/ready/error state without changing identifiers on
      retry.
-5. Add and validate the curated Feed annotation manifest, then generate one
-   deterministic normalized component image per annotated best view. Runtime cache
-   misses still use the same real renderer/provider path and never fabricate results.
-6. Build the versioned cold-start wardrobe seed from a small annotated subset, keeping
-   its provenance and ownership semantics distinct from real user assets.
-7. Generate OpenAPI client types.
-8. Add Feed intent controls and a dual “穿搭 / 单品” wardrobe. Whole-outfit right-swipe
+5. Generate OpenAPI client types.
+6. Add Feed intent controls and a dual “穿搭 / 单品” wardrobe. Whole-outfit right-swipe
    resumes playback immediately; the optional like reason is a quiet follow-up.
-9. Add Look detail with real source frame, source video/time return, confirmed Items,
+7. Add Look detail with real source frame, source video/time return, confirmed Items,
    pending components, analysis provenance, and source-unavailable state.
+
+The curated annotation manifest and cold-start wardrobe remain release-seeding inputs,
+not runtime dependencies or hidden model results, and are intentionally outside this
+Issue's Look-decomposition acceptance boundary.
 
 ## Verification
 

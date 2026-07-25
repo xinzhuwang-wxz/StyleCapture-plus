@@ -195,6 +195,7 @@ describe("FeedSelectionOverlay", () => {
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onConfirm).toHaveBeenCalledWith({
       frame,
+      intent: "item_selections",
       selections: [
         expect.objectContaining({
           id: "selection-1",
@@ -203,6 +204,26 @@ describe("FeedSelectionOverlay", () => {
       ]
     });
     expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("saves one loop as a whole outfit when the user chooses the outfit intent", () => {
+    const { onConfirm, overlay } = renderOverlay();
+    drawLoop(overlay, 1, [
+      { x: 40, y: 80 },
+      { x: 360, y: 80 },
+      { x: 360, y: 700 },
+      { x: 40, y: 80 }
+    ]);
+    act(() => vi.advanceTimersByTime(700));
+
+    fireEvent.click(screen.getByRole("button", { name: "存整套" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "保存整套到数字衣橱" })
+    );
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: "whole_outfit" })
+    );
   });
 
   it("dismisses without a write when the lifted subject is swiped left", () => {

@@ -42,14 +42,17 @@ Current upstream evidence also supports a smaller topology:
    lasso rendering, approximate lifted-subject compositing, and swipe confirmation.
    The API persists the save intent before any AI work begins.
 3. `promptable_segmentation` is a provider contract:
-   - default runtime mode: the durable coarse lasso, with no local model loaded;
-   - validated opt-in quality adapter: SAM 2.1 Hiera Tiny, one still frame at a time
+   - default `ai-light` demo adapter: SAM 2.1 Hiera Tiny, one still frame at a time
      in the isolated media worker under the `ai-light` profile; it runs on a
      two-thread CPU and needs a 2 GiB worker memory limit;
-   - coarse lasso is always retained as the durable fallback;
+   - the durable coarse lasso is always retained as the failure fallback and is the
+     explicit model-free `core` development mode;
    - MobileSAM/ONNX remains a smaller candidate if later deployment measurements show
-     that SAM 2.1 Tiny's roughly 1.25 GiB process peak is unacceptable; larger
-     checkpoints and video propagation are not default runtime dependencies.
+   that SAM 2.1 Tiny's roughly 1.25 GiB process peak is unacceptable; larger
+   checkpoints and video propagation are not default runtime dependencies.
+   Linux installs resolve `torch` and `torchvision` exclusively from PyTorch's
+   official CPU wheel index. Pulling CUDA/NVIDIA runtime packages into `ai-light` is
+   a deployment regression and a merge blocker.
 4. Whole-Look component discovery does not self-host Grounding DINO by default.
    `visual_grounding` routes to Doubao/Ark through the model boundary and returns
    structured garment regions; the promptable segmenter refines those regions.

@@ -17,6 +17,10 @@ interface FeedVideoProps {
   active: boolean;
   asset: FeedAsset;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
+  restoreRequest: {
+    requestId: string;
+    timestampMs: number;
+  } | null;
 }
 
 type FrameState = CapturedVideoFrame & {
@@ -38,7 +42,7 @@ function feedContext(
     timestamp_ms: frame.timestampMs,
     frame_width: frame.width,
     frame_height: frame.height,
-    intent: "item_selections",
+    intent: decision.intent,
     selections: decision.selections.map((selection) => ({
       selection_key: selection.id,
       polygon: selection.path.map((point) => ({ x: point.x, y: point.y }))
@@ -46,11 +50,17 @@ function feedContext(
   };
 }
 
-export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
+export function FeedVideo({
+  active,
+  asset,
+  onAccepted,
+  restoreRequest
+}: FeedVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<FrameState | null>(null);
   const mountedRef = useRef(true);
   const savedTimerRef = useRef<number | null>(null);
+  const restoredRequestRef = useRef<string | null>(null);
   const reduceMotion = useReducedMotion();
   const [frame, setFrame] = useState<FrameState | null>(null);
   const [attempt, setAttempt] = useState<SaveAttempt | null>(null);
@@ -61,12 +71,14 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [sourceRestored, setSourceRestored] = useState(false);
 
   const resume = () => {
     const video = videoRef.current;
     if (!video || !active || reduceMotion) {
       return;
     }
+    setSourceRestored(false);
     void video.play().catch(() => {
       // Autoplay can be blocked; the visible button remains a user-gesture path.
     });
@@ -86,7 +98,14 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (!active || frame || capturing || submitting || reduceMotion) {
+    if (
+      !active ||
+      frame ||
+      capturing ||
+      submitting ||
+      reduceMotion ||
+      sourceRestored
+    ) {
       video.pause();
       return;
     }
@@ -95,7 +114,32 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
         // The explicit pause/circle button remains available if autoplay is denied.
       });
     }
-  }, [active, capturing, frame, mediaReady, reduceMotion, submitting]);
+  }, [
+    active,
+    capturing,
+    frame,
+    mediaReady,
+    reduceMotion,
+    sourceRestored,
+    submitting
+  ]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (
+      !video ||
+      !active ||
+      !mediaReady ||
+      !restoreRequest ||
+      restoredRequestRef.current === restoreRequest.requestId
+    ) {
+      return;
+    }
+    restoredRequestRef.current = restoreRequest.requestId;
+    video.currentTime = Math.max(0, restoreRequest.timestampMs / 1_000);
+    video.pause();
+    setSourceRestored(true);
+  }, [active, mediaReady, restoreRequest]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -309,6 +353,12 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
         <div className="feed-saved-toast" role="status">
           <span aria-hidden="true">✓</span>
           已存入数字衣橱
+        </div>
+      ) : null}
+
+      {sourceRestored ? (
+        <div className="feed-source-restored" role="status">
+          已回到收藏时刻 · {Math.round((restoreRequest?.timestampMs ?? 0) / 100) / 10}s
         </div>
       ) : null}
 

@@ -53,7 +53,6 @@ def image() -> ImagePayload:
 def test_parse_look_analysis_accepts_strict_expected_schema() -> None:
     analysis = parse_look_analysis(
         VALID_ANALYSIS,
-        provider_model="provider-outfit-v1",
         capability_alias="outfit_analysis",
         latency_ms=13,
     )
@@ -61,7 +60,7 @@ def test_parse_look_analysis_accepts_strict_expected_schema() -> None:
     assert analysis.color.value == "cream and navy"
     assert analysis.style.confidence == 0.92
     assert analysis.metadata.capability_alias == "outfit_analysis"
-    assert analysis.metadata.provider_model == "server_private"
+    assert analysis.metadata.model_version == "outfit-analysis-model-v1"
     assert analysis.metadata.prompt_version == LOOK_ANALYSIS_PROMPT_VERSION
     assert analysis.metadata.schema_version == LOOK_ANALYSIS_SCHEMA_VERSION
 
@@ -80,7 +79,6 @@ def test_parse_look_analysis_rejects_malformed_extra_or_invalid_content(content:
     with pytest.raises(ValueError):
         parse_look_analysis(
             content,
-            provider_model="provider-outfit-v1",
             capability_alias="outfit_analysis",
             latency_ms=13,
         )
@@ -104,7 +102,7 @@ async def test_litellm_outfit_analyzer_uses_alias_and_stores_provenance() -> Non
     assert call["api_key"] == "internal-gateway-key"
     assert call["temperature"] == 0
     assert call["num_retries"] == 0
-    assert analysis.metadata.provider_model == "server_private"
+    assert analysis.metadata.model_version == "outfit-analysis-model-v1"
     assert analysis.metadata.capability_alias == "outfit_analysis"
 
 

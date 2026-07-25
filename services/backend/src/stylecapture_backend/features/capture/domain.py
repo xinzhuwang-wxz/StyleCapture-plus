@@ -67,10 +67,7 @@ class FeedFrameContext:
     def __post_init__(self) -> None:
         if not 1 <= len(self.selections) <= 8:
             raise ValueError("a feed frame must contain between 1 and 8 selections")
-        if (
-            self.intent is FeedCaptureIntent.WHOLE_OUTFIT
-            and len(self.selections) != 1
-        ):
+        if self.intent is FeedCaptureIntent.WHOLE_OUTFIT and len(self.selections) != 1:
             raise ValueError("a whole-outfit Feed capture must contain exactly one selection")
         selection_keys = [selection.selection_key for selection in self.selections]
         if len(selection_keys) != len(set(selection_keys)):

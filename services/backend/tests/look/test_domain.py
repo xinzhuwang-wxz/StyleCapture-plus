@@ -123,7 +123,7 @@ def test_look_analysis_keeps_relationships_and_versioned_model_evidence() -> Non
         style=relation,
         metadata=LookAnalysisMetadata(
             capability_alias="vision_understanding",
-            provider_model="provider-model-v1",
+            model_version="look-model-v1",
             prompt_version="look-analysis-v1",
             schema_version="look-analysis-v1",
             taxonomy_version="stylecapture-v1",

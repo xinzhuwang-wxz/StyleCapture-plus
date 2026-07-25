@@ -32,7 +32,7 @@ class BackendSettings(BaseSettings):
     vision_model_alias: str = "vision_understanding"
     grounding_model_alias: str = "visual_grounding"
     outfit_analysis_model_alias: str = "outfit_analysis"
-    segmentation_mode: Literal["coarse", "sam2"] = "coarse"
+    segmentation_mode: Literal["coarse", "sam2"] = "sam2"
     segmentation_model_alias: str = "segmentation_refinement"
     segmentation_model: str = "facebook/sam2.1-hiera-tiny"
     segmentation_device: str = "cpu"

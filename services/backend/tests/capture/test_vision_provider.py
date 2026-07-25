@@ -81,9 +81,7 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
 
     assert result.fields["category"].value == "tops"
     assert result.fields["colors"].value == ["blue"]
-    assert {field.model_version for field in result.fields.values()} == {
-        "vision_understanding"
-    }
+    assert {field.model_version for field in result.fields.values()} == {"vision_understanding"}
     assert result.metadata.capability_alias == "vision_understanding"
     assert result.metadata.provider_model == "provider-model-v1"
     assert result.metadata.prompt_version == GARMENT_PROMPT_VERSION

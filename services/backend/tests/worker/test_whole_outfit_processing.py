@@ -245,7 +245,7 @@ class RecordingSegmenter:
             coarse_polygon=prompt.selection.polygon,
             mask=None,
             metadata=SegmentationMetadata(
-                provider="deterministic_lasso_fallback",
+                capability_alias="deterministic_lasso_fallback",
                 representation=SegmentationRepresentation.COARSE_POLYGON,
                 refined=False,
                 schema_version="feed-segmentation-v1",
@@ -350,7 +350,7 @@ class FixedOutfitAnalyzer:
             style=LookAnalysisField("minimal casual", 0.92),
             metadata=LookAnalysisMetadata(
                 capability_alias="outfit_analysis",
-                provider_model="server_private",
+                model_version="outfit-analysis-model-v1",
                 prompt_version="outfit-analysis-v1",
                 schema_version="look-analysis-v1",
                 taxonomy_version="stylecapture-v1",
@@ -497,16 +497,18 @@ async def test_whole_outfit_creates_components_items_display_assets_and_analysis
         "linen_shirt",
         "wide_trousers",
     ]
-    assert all(component.status is LookComponentStatus.READY for component in looks.components.values())
-    assert {
-        component.item_id for component in looks.components.values()
-    } == {item.id for item in wardrobe.items.values()}
+    assert all(
+        component.status is LookComponentStatus.READY for component in looks.components.values()
+    )
+    assert {component.item_id for component in looks.components.values()} == {
+        item.id for item in wardrobe.items.values()
+    }
     assert all(item.status is ItemStatus.READY for item in wardrobe.items.values())
     assert looks.look.analysis is not None
     assert looks.look.analysis.metadata.capability_alias == "outfit_analysis"
-    assert looks.look.analysis.metadata.provider_model == "server_private"
+    assert looks.look.analysis.metadata.model_version == "outfit-analysis-model-v1"
     assert looks.look.analysis.style.value == "minimal casual"
-    assert_no_provider_identity(looks.look.analysis.metadata.provider_model)
+    assert_no_provider_identity(looks.look.analysis.metadata.model_version)
     for item in wardrobe.items.values():
         assert_no_provider_identity(item.model_metadata)
         assert item.model_metadata["embedding_model"] == "fashion_embedding"
@@ -548,6 +550,22 @@ async def test_whole_outfit_filters_outside_lasso_and_low_confidence_candidates(
 
 
 @pytest.mark.asyncio
+async def test_whole_outfit_accepts_component_centered_in_lasso_when_edges_cross_it() -> None:
+    capture, job = whole_outfit_capture_job()
+    grounder = RecordingGrounder(
+        (box_candidate("edge_crossing_dress", NormalizedBox(50, 150, 600, 950)),)
+    )
+    processor, work, wardrobe, looks, _ = build_processor(capture, job, grounder=grounder)
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome == ProcessingOutcome.ready()
+    assert work.job.state is JobState.READY
+    assert set(wardrobe.items) == {(capture.id, "edge_crossing_dress")}
+    assert set(looks.components) == {"edge_crossing_dress"}
+
+
+@pytest.mark.asyncio
 async def test_component_failure_preserves_successful_components_and_marks_look_partial() -> None:
     capture, job = whole_outfit_capture_job()
     grounder = RecordingGrounder(
@@ -579,9 +597,7 @@ async def test_component_failure_preserves_successful_components_and_marks_look_
 @pytest.mark.asyncio
 async def test_vision_failure_creates_no_item_for_component() -> None:
     capture, job = whole_outfit_capture_job()
-    grounder = RecordingGrounder(
-        (box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),)
-    )
+    grounder = RecordingGrounder((box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),))
     processor, work, wardrobe, looks, _ = build_processor(
         capture,
         job,
@@ -602,9 +618,7 @@ async def test_vision_failure_creates_no_item_for_component() -> None:
 @pytest.mark.asyncio
 async def test_embedding_failure_creates_no_item_for_component() -> None:
     capture, job = whole_outfit_capture_job()
-    grounder = RecordingGrounder(
-        (box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),)
-    )
+    grounder = RecordingGrounder((box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),))
     processor, work, wardrobe, looks, _ = build_processor(
         capture,
         job,
@@ -626,9 +640,7 @@ async def test_embedding_failure_creates_no_item_for_component() -> None:
 async def test_invalid_long_grounding_label_is_retryable_without_stranding_processing() -> None:
     capture, job = whole_outfit_capture_job()
     long_label = "a" * 65
-    grounder = RecordingGrounder(
-        (box_candidate(long_label, NormalizedBox(150, 160, 620, 520)),)
-    )
+    grounder = RecordingGrounder((box_candidate(long_label, NormalizedBox(150, 160, 620, 520)),))
     processor, work, wardrobe, looks, _ = build_processor(capture, job, grounder=grounder)
 
     outcome = await processor.process(capture.id, job.id)
@@ -639,7 +651,7 @@ async def test_invalid_long_grounding_label_is_retryable_without_stranding_proce
     assert work.job.state is JobState.PARTIAL
     assert not wardrobe.items
     assert not looks.components
-    assert looks.look.status is LookStatus.PROCESSING
+    assert looks.look.status is LookStatus.PARTIAL
 
 
 @pytest.mark.asyncio
@@ -660,9 +672,7 @@ async def test_whole_outfit_retry_reuses_look_component_item_and_asset_identitie
     )
 
     first_outcome = await processor.process(capture.id, job.id)
-    first_component_ids = {
-        key: component.id for key, component in looks.components.items()
-    }
+    first_component_ids = {key: component.id for key, component in looks.components.items()}
     first_item_ids = {key: item.id for (_, key), item in wardrobe.items.items()}
     first_asset_keys = set(objects.derived or {})
 
@@ -683,7 +693,7 @@ async def test_whole_outfit_retry_reuses_look_component_item_and_asset_identitie
 
 
 @pytest.mark.asyncio
-async def test_retry_keeps_look_partial_when_existing_error_component_disappears_from_grounding() -> None:
+async def test_retry_completes_when_stale_error_component_disappears_from_grounding() -> None:
     capture, job = whole_outfit_capture_job()
     grounder = RecordingGrounder(
         (
@@ -701,19 +711,15 @@ async def test_retry_keeps_look_partial_when_existing_error_component_disappears
 
     first_outcome = await processor.process(capture.id, job.id)
     segmenter.failing_keys.clear()
-    grounder.candidates = (
-        box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),
-    )
+    grounder.candidates = (box_candidate("linen_shirt", NormalizedBox(150, 160, 620, 520)),)
     second_outcome = await processor.process(capture.id, job.id)
 
     assert first_outcome.state is JobState.PARTIAL
-    assert second_outcome.state is JobState.PARTIAL
-    assert second_outcome.retryable is True
-    assert second_outcome.error_code == "component_unresolved"
-    assert work.job.state is JobState.PARTIAL
+    assert second_outcome == ProcessingOutcome.ready()
+    assert work.job.state is JobState.READY
     assert set(wardrobe.items) == {(capture.id, "linen_shirt")}
     assert looks.components["wide_trousers"].status is LookComponentStatus.ERROR
-    assert looks.look.status is LookStatus.PARTIAL
+    assert looks.look.status is LookStatus.READY
 
 
 @pytest.mark.asyncio
@@ -737,5 +743,5 @@ async def test_grounding_failure_is_sanitized_and_keeps_placeholder_retryable() 
     assert work.job.error_message == "Visual grounding is temporarily unavailable"
     assert not wardrobe.items
     assert not looks.components
-    assert looks.look.status is LookStatus.PROCESSING
+    assert looks.look.status is LookStatus.PARTIAL
     assert looks.look.display_object_key == "derived/looks/" + "3" * 64 + ".png"

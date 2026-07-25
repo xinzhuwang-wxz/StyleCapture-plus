@@ -198,7 +198,7 @@ def test_sam2_provider_selects_highest_quality_non_empty_mask_and_metadata() -> 
 
     assert result.metadata.refined is True
     assert result.metadata.representation == "refined_mask"
-    assert result.metadata.provider == "local_promptable_segmentation"
+    assert result.metadata.capability_alias == "local_promptable_segmentation"
     assert result.metadata.model_alias == "segmentation_refinement"
     assert result.metadata.score == pytest.approx(0.94)
     assert result.metadata.fallback_reason is None
@@ -239,7 +239,10 @@ def test_sam2_provider_loads_runtime_once_per_process() -> None:
     ("candidates", "reason"),
     [
         ((), "refinement_model_unavailable"),
-        ((Sam2MaskCandidate(mask=Image.new("L", (10, 8), 0), score=0.99),), "refinement_empty_mask"),
+        (
+            (Sam2MaskCandidate(mask=Image.new("L", (10, 8), 0), score=0.99),),
+            "refinement_empty_mask",
+        ),
         (
             (
                 Sam2MaskCandidate(
@@ -275,7 +278,7 @@ def test_sam2_provider_falls_back_truthfully_without_changing_selection_identity
     assert result.mask is None
     assert result.metadata.refined is False
     assert result.metadata.representation == "coarse_polygon"
-    assert result.metadata.provider == "deterministic_lasso_fallback"
+    assert result.metadata.capability_alias == "deterministic_lasso_fallback"
     assert result.metadata.fallback_reason == reason
 
 
@@ -523,5 +526,5 @@ def test_coarse_fallback_preserves_the_user_polygon_without_claiming_a_mask() ->
     assert result.mask is None
     assert result.metadata.refined is False
     assert result.metadata.representation == "coarse_polygon"
-    assert result.metadata.provider == "deterministic_lasso_fallback"
+    assert result.metadata.capability_alias == "deterministic_lasso_fallback"
     assert result.metadata.fallback_reason == "refinement_provider_unavailable"

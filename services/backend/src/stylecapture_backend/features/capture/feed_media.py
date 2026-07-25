@@ -45,7 +45,7 @@ class SegmentationPrompt:
 
 @dataclass(frozen=True, slots=True)
 class SegmentationMetadata:
-    provider: str
+    capability_alias: str
     representation: SegmentationRepresentation
     refined: bool
     schema_version: str
@@ -55,8 +55,8 @@ class SegmentationMetadata:
     score: float | None = None
 
     def __post_init__(self) -> None:
-        if not self.provider.strip():
-            raise ValueError("segmentation provider must not be empty")
+        if not self.capability_alias.strip():
+            raise ValueError("segmentation capability alias must not be empty")
         if not self.schema_version.strip():
             raise ValueError("segmentation schema version must not be empty")
         if self.latency_ms < 0:

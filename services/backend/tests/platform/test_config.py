@@ -34,7 +34,7 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
     assert settings.grounding_model_alias == "visual_grounding"
     assert settings.embedding_mode == "hosted"
     assert settings.embedding_model == "doubao-embedding-vision-250615"
-    assert settings.segmentation_mode == "coarse"
+    assert settings.segmentation_mode == "sam2"
     assert settings.segmentation_model_alias == "segmentation_refinement"
     assert settings.segmentation_model == "facebook/sam2.1-hiera-tiny"
     assert settings.segmentation_device == "cpu"

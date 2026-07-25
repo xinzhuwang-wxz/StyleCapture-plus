@@ -100,13 +100,20 @@ function firePointer(
   );
 }
 
-function renderFeed(onAccepted = vi.fn()) {
+function renderFeed(
+  onAccepted = vi.fn(),
+  restoreTarget?: {
+    videoRef: string;
+    timestampMs: number;
+    requestId: string;
+  }
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } }
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <FeedScreen onAccepted={onAccepted} />
+      <FeedScreen onAccepted={onAccepted} restoreTarget={restoreTarget} />
     </QueryClientProvider>
   );
 }
@@ -274,6 +281,37 @@ describe("Feed runtime", () => {
       expect(pause.mock.instances).toContain(videos[0]);
       expect(play.mock.instances).toContain(videos[1]);
     });
+  });
+
+  it("returns to the saved Feed video and pauses at its source timestamp", async () => {
+    const { pause } = installMediaAndCanvasDoubles();
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: scrollTo
+    });
+    renderFeed(vi.fn(), {
+      videoRef: "look-02",
+      timestampMs: 3150,
+      requestId: "return-1"
+    });
+
+    const videos = (await screen.findAllByLabelText(
+      /的穿搭视频$/
+    )) as HTMLVideoElement[];
+    videos.forEach((video) => prepareVideo(video));
+    videos.forEach((video) => fireEvent.canPlay(video));
+
+    await waitFor(() => {
+      expect(videos[1]!.currentTime).toBe(3.15);
+      expect(pause.mock.instances).toContain(videos[1]);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已回到收藏时刻 · 3.2s"
+      );
+    });
+    expect(scrollTo).toHaveBeenCalled();
+
+    delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
   });
 
   it("submits normalized selections from the captured frame and resumes", async () => {

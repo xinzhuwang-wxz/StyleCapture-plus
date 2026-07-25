@@ -23,6 +23,12 @@ from stylecapture_backend.features.capture.interfaces.http import (
     build_capture_router,
 )
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.look.application import LookNotFoundError
+from stylecapture_backend.features.look.interfaces.http import (
+    LookHttpServices,
+    LookImageNotFoundError,
+    build_look_router,
+)
 from stylecapture_backend.features.wardrobe.application import (
     SourceDeletedNotRetryableError,
     WardrobeApplication,
@@ -48,6 +54,7 @@ class BackendServices:
     objects: ObjectStore
     retries: JobRetryApplication
     wardrobe: WardrobeApplication
+    looks: LookHttpServices | None = None
 
 
 CAPTURE_ERROR_STATUS = {
@@ -111,7 +118,7 @@ def create_app(
             CORSMiddleware,
             allow_origins=list(cors_origins),
             allow_credentials=False,
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "Idempotency-Key", "X-Request-ID"],
             expose_headers=["X-Request-ID"],
         )
@@ -200,6 +207,30 @@ def create_app(
             message="The original item image is no longer available",
         )
 
+    @app.exception_handler(LookNotFoundError)
+    async def look_not_found_handler(
+        request: Request,
+        error: LookupError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="look_not_found",
+            message="The saved Look does not exist",
+        )
+
+    @app.exception_handler(LookImageNotFoundError)
+    async def look_image_not_found_handler(
+        request: Request,
+        error: FileNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="look_image_not_found",
+            message="The saved Look image is no longer available",
+        )
+
     @app.exception_handler(WardrobeValidationError)
     async def wardrobe_validation_handler(
         request: Request,
@@ -285,4 +316,11 @@ def create_app(
             current_user=current_user,
         )
     )
+    if services.looks is not None:
+        app.include_router(
+            build_look_router(
+                services.looks,
+                current_user=current_user,
+            )
+        )
     return app

@@ -230,7 +230,7 @@ class CoarsePolygonSegmentationProvider:
             coarse_polygon=prompt.selection.polygon,
             mask=None,
             metadata=SegmentationMetadata(
-                provider="deterministic_lasso_fallback",
+                capability_alias="deterministic_lasso_fallback",
                 representation=SegmentationRepresentation.COARSE_POLYGON,
                 refined=False,
                 schema_version=SEGMENTATION_SCHEMA_VERSION,
@@ -331,7 +331,7 @@ class Sam2PromptableSegmentationProvider:
                 sha256=sha256(body).hexdigest(),
             ),
             metadata=SegmentationMetadata(
-                provider=PROMPTABLE_SEGMENTATION_PROVIDER,
+                capability_alias=PROMPTABLE_SEGMENTATION_PROVIDER,
                 representation=SegmentationRepresentation.REFINED_MASK,
                 refined=True,
                 schema_version=SEGMENTATION_SCHEMA_VERSION,
