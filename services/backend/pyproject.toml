@@ -28,7 +28,7 @@ ai-light = [
     "safetensors>=0.5,<1",
     "torch>=2.6,<3",
     "torchvision>=0.28,<0.29",
-    "transformers>=4.48,<5",
+    "transformers>=5.5,<6",
 ]
 
 [build-system]

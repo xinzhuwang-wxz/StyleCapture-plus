@@ -20,12 +20,29 @@ from stylecapture_backend.features.capture.infrastructure.repository import (
 )
 from stylecapture_backend.features.capture.interfaces.worker import register_capture_task
 from stylecapture_backend.features.capture.processing import CaptureProcessor, ImageEmbedder
-from stylecapture_backend.features.look.infrastructure.outfit_analysis import (
-    LiteLLMOutfitAnalyzer,
+from stylecapture_backend.features.item_presentation.application import (
+    ItemPresentationApplication,
+)
+from stylecapture_backend.features.item_presentation.infrastructure.repository import (
+    SqlAlchemyItemPresentationRepository,
+)
+from stylecapture_backend.features.item_presentation.interfaces.worker import (
+    register_item_presentation_task,
+)
+from stylecapture_backend.features.item_presentation.processing import (
+    ItemPresentationProcessor,
 )
 from stylecapture_backend.features.look.infrastructure.repository import (
     SqlAlchemyLookRepository,
 )
+from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
+from stylecapture_backend.features.pixel_trial.infrastructure.repository import (
+    SqlAlchemyPixelTrialRepository,
+)
+from stylecapture_backend.features.pixel_trial.interfaces.worker import (
+    register_pixel_trial_task,
+)
+from stylecapture_backend.features.pixel_trial.processing import PixelTrialProcessor
 from stylecapture_backend.features.render.application import RenderApplication
 from stylecapture_backend.features.render.infrastructure.collage import (
     PillowLookCollageRenderer,
@@ -39,13 +56,17 @@ from stylecapture_backend.features.render.infrastructure.repository import (
 )
 from stylecapture_backend.features.render.interfaces.worker import register_render_task
 from stylecapture_backend.features.render.processing import RenderProcessor
+from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.infrastructure.repository import (
     SqlAlchemyWardrobeRepository,
 )
 from stylecapture_backend.platform.celery import build_celery
 from stylecapture_backend.platform.config import BackendSettings
 from stylecapture_backend.platform.database import build_session_factory
-from stylecapture_backend.platform.worker_dependencies import build_promptable_segmenter
+from stylecapture_backend.platform.worker_dependencies import (
+    build_outfit_analyzer,
+    build_promptable_segmenter,
+)
 
 settings = BackendSettings()  # type: ignore[call-arg]
 sessions = build_session_factory(
@@ -56,6 +77,8 @@ capture_repository = SqlAlchemyCaptureRepository(sessions)
 wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
 look_repository = SqlAlchemyLookRepository(sessions)
 render_repository = SqlAlchemyRenderArtifactRepository(sessions)
+pixel_trial_repository = SqlAlchemyPixelTrialRepository(sessions)
+item_presentation_repository = SqlAlchemyItemPresentationRepository(sessions)
 object_store = LocalObjectStore(
     root=settings.upload_root,
     signing_secret=settings.upload_signing_secret.get_secret_value(),
@@ -73,11 +96,7 @@ grounder = LiteLLMVisualGrounder(
     gateway_base_url=settings.litellm_base_url,
     gateway_api_key=settings.litellm_api_key.get_secret_value(),
 )
-outfit_analyzer = LiteLLMOutfitAnalyzer(
-    capability_alias=settings.outfit_analysis_model_alias,
-    gateway_base_url=settings.litellm_base_url,
-    gateway_api_key=settings.litellm_api_key.get_secret_value(),
-)
+outfit_analyzer = build_outfit_analyzer(settings)
 embedder: ImageEmbedder
 if settings.embedding_mode == "hosted":
     embedder = LiteLLMMultimodalEmbedder(
@@ -135,5 +154,41 @@ render_processor = RenderProcessor(
 render_task = register_render_task(
     celery,
     render_processor,
+    max_retries=settings.worker_max_retries,
+)
+pixel_trial_processor = PixelTrialProcessor(
+    trials=PixelTrialApplication(trials=pixel_trial_repository),
+    objects=object_store,
+    generator=LiteLLMImageGenerator(
+        capability_alias=settings.image_generation_model_alias,
+        gateway_base_url=settings.litellm_base_url,
+        gateway_api_key=settings.litellm_api_key.get_secret_value(),
+        timeout_seconds=settings.render_request_timeout_seconds,
+        download_max_bytes=settings.render_download_max_bytes,
+    ),
+)
+pixel_trial_task = register_pixel_trial_task(
+    celery,
+    pixel_trial_processor,
+    max_retries=settings.worker_max_retries,
+)
+item_presentation_processor = ItemPresentationProcessor(
+    presentations=ItemPresentationApplication(
+        assets=item_presentation_repository,
+        wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
+    ),
+    wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
+    objects=object_store,
+    generator=LiteLLMImageGenerator(
+        capability_alias=settings.image_generation_model_alias,
+        gateway_base_url=settings.litellm_base_url,
+        gateway_api_key=settings.litellm_api_key.get_secret_value(),
+        timeout_seconds=settings.render_request_timeout_seconds,
+        download_max_bytes=settings.render_download_max_bytes,
+    ),
+)
+item_presentation_task = register_item_presentation_task(
+    celery,
+    item_presentation_processor,
     max_retries=settings.worker_max_retries,
 )

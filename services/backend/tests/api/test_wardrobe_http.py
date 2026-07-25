@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from io import BytesIO
 from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from PIL import Image
+from pillow_heif import from_pillow
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     JobRetryApplication,
@@ -25,6 +28,7 @@ from stylecapture_backend.features.capture.ports import (
 from stylecapture_backend.features.capture.processing import ImagePayload
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeItem
+from stylecapture_backend.features.wardrobe.interfaces.http import ItemResponse
 from stylecapture_backend.main import BackendServices, create_app
 from stylecapture_backend.platform.session import SESSION_COOKIE_NAME, SessionSigner
 
@@ -154,6 +158,8 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert listed.json()["items"][0]["source_kind"] == "upload"
     assert listed.json()["items"][0]["source_available"] is True
     assert listed.json()["items"][0]["display_image_url"].endswith(f"/{item.id}/image")
+    assert listed.json()["items"][0]["display_image_kind"] == "derived_garment"
+    assert listed.json()["items"][0]["display_image_issue"] is None
     assert listed.json()["items"][0]["source_image_url"].endswith(f"/{item.id}/source")
     assert listed.json()["items"][0]["model_metadata"]["capability_alias"] == (
         "vision_understanding"
@@ -180,6 +186,26 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert rejected_retry.json()["error"]["code"] == "source_deleted_not_retryable"
 
 
+def test_item_response_explains_why_an_ambiguous_upload_keeps_its_source_image() -> None:
+    _, _, item = build_client()
+    ambiguous = replace(
+        item,
+        display_object_key=None,
+        model_metadata={
+            "normalization": {
+                "status": "not_applied",
+                "reason": "multiple_garments",
+                "candidate_count": 2,
+            }
+        },
+    )
+
+    response = ItemResponse.from_domain(ambiguous)
+
+    assert response.display_image_kind == "source_capture"
+    assert response.display_image_issue == "multiple_garments"
+
+
 @pytest.mark.asyncio
 async def test_item_routes_do_not_reveal_another_users_asset() -> None:
     client, _, item = build_client()
@@ -191,3 +217,45 @@ async def test_item_routes_do_not_reveal_another_users_asset() -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "item_not_found"
+
+
+@pytest.mark.asyncio
+async def test_heic_source_is_preserved_while_display_is_browser_safe() -> None:
+    client, user_id, item = build_client()
+    del client
+    heic_buffer = BytesIO()
+    from_pillow(Image.new("RGB", (20, 30), (120, 180, 140))).save(
+        heic_buffer,
+        format="HEIF",
+    )
+    heic_body = heic_buffer.getvalue()
+    source_only = replace(
+        item,
+        display_object_key=None,
+        source_object_key="originals/upload/phone-photo.heic",
+    )
+
+    class HeicSources:
+        def read_image(self, object_key: str) -> ImagePayload:
+            return ImagePayload(
+                object_key=object_key,
+                content_type="image/heic",
+                body=heic_body,
+                sha256="a" * 64,
+            )
+
+        def delete(self, object_key: str) -> None:
+            raise AssertionError(f"unexpected delete: {object_key}")
+
+    application = WardrobeApplication(
+        wardrobe=MemoryWardrobe(source_only),
+        sources=HeicSources(),
+    )
+
+    display = await application.read_display(user_id, source_only.id)
+    source = await application.read_source(user_id, source_only.id)
+
+    assert display.content_type == "image/jpeg"
+    assert display.body.startswith(b"\xff\xd8\xff")
+    assert source.content_type == "image/heic"
+    assert source.body == heic_body

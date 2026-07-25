@@ -127,6 +127,11 @@ class MemoryLookMedia:
             return b"source-frame"
         raise KeyError(object_key)
 
+    def delete(self, object_key: str) -> None:
+        if object_key != self.capture.source.object_key:
+            raise KeyError(object_key)
+        self.source_available = False
+
 
 class MemoryJobs:
     def __init__(self, capture: Capture) -> None:
@@ -320,6 +325,25 @@ async def test_look_detail_exposes_deleted_source_state_without_a_broken_link() 
     assert detail.json()["look"]["source_available"] is False
     assert detail.json()["look"]["source_image_url"] is None
     assert source.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_look_source_delete_is_not_exposed_as_physical_object_delete() -> None:
+    client, look = build_client()
+
+    async with client:
+        deleted = await client.delete(f"/v1/looks/{look.id}/source")
+        detail = await client.get(f"/v1/looks/{look.id}")
+        image = await client.get(f"/v1/looks/{look.id}/image")
+        source = await client.get(f"/v1/looks/{look.id}/source")
+
+    assert deleted.status_code == 405
+    assert detail.status_code == 200
+    assert detail.json()["look"]["source_available"] is True
+    assert detail.json()["look"]["source_image_url"].endswith(f"/{look.id}/source")
+    assert detail.json()["look"]["display_ready"] is True
+    assert image.content == b"transparent-look"
+    assert source.content == b"source-frame"
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,104 @@
   user-select: none;
 }
 
+.feed-selection-guide {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  z-index: 3;
+  display: grid;
+  width: 190px;
+  height: 270px;
+  place-items: center;
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 18px rgb(0 0 0 / 55%));
+  transform: translate(-50%, -50%);
+}
+
+.feed-selection-guide svg {
+  position: absolute;
+  inset: 0 5px 40px;
+  width: 180px;
+  height: 230px;
+  overflow: visible;
+}
+
+.feed-selection-guide path {
+  fill: rgb(167 115 255 / 8%);
+  stroke: #f5d8ff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 12 10;
+  filter:
+    drop-shadow(0 0 5px rgb(102 245 255 / 90%))
+    drop-shadow(0 0 11px rgb(255 94 196 / 76%));
+  animation: feed-guide-loop 1.45s linear both;
+}
+
+.feed-selection-guide__hand {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 2.4rem;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+}
+
+.feed-selection-guide strong,
+.feed-selection-guide small {
+  position: absolute;
+  right: 0;
+  left: 0;
+}
+
+.feed-selection-guide strong {
+  bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.feed-selection-guide small {
+  bottom: 0;
+  color: rgb(255 255 255 / 72%);
+  font-size: 0.68rem;
+}
+
+.feed-swipe-guide {
+  position: absolute;
+  right: 18px;
+  bottom: 154px;
+  left: 18px;
+  z-index: 7;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+  background: rgb(25 17 38 / 78%);
+  border: 1px solid rgb(228 204 255 / 55%);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 32%);
+  backdrop-filter: blur(12px);
+}
+
+.feed-swipe-guide span:first-child {
+  text-align: left;
+}
+
+.feed-swipe-guide span:last-child {
+  text-align: right;
+}
+
+.feed-swipe-guide b {
+  font-size: 1.25rem;
+}
+
 .feed-lasso-layer {
   position: absolute;
   inset: 0;
@@ -67,6 +165,23 @@
   pointer-events: auto;
 }
 
+.feed-whole-outfit-shortcut {
+  position: absolute;
+  top: max(76px, calc(env(safe-area-inset-top) + 54px));
+  right: 18px;
+  z-index: 4;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgb(255 255 255 / 34%);
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(12 9 18 / 76%);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 28%);
+  backdrop-filter: blur(18px);
+  font-weight: 800;
+  pointer-events: auto;
+}
+
 .feed-intent-toggle {
   grid-column: 1 / -1;
   display: grid;
@@ -100,8 +215,18 @@
   opacity: 0.38;
 }
 
+.feed-selection-continue {
+  grid-column: 1 / -1;
+  min-height: 38px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(12 9 18 / 72%);
+  font-weight: 750;
+}
+
 .feed-screen {
-  height: 100dvh;
+  height: 100%;
   overflow-y: auto;
   color: #fff;
   background: #050507;
@@ -117,7 +242,7 @@
 
 .feed-video {
   position: relative;
-  height: 100dvh;
+  height: 100%;
   min-height: 34rem;
   overflow: hidden;
   background:
@@ -155,6 +280,10 @@
   display: grid;
   gap: 0.05rem;
   text-shadow: 0 2px 12px rgb(0 0 0 / 70%);
+}
+
+.feed-standalone .feed-video__brand {
+  display: none;
 }
 
 .feed-video__brand span {
@@ -200,7 +329,7 @@
   position: absolute;
   right: 0.85rem;
   bottom: max(7.25rem, calc(env(safe-area-inset-bottom) + 6.4rem));
-  z-index: 4;
+  z-index: 15;
 }
 
 .feed-video__circle-button {
@@ -237,8 +366,8 @@
 
 .feed-state {
   display: grid;
-  width: min(100%, 32rem);
-  min-height: 100dvh;
+  width: 100%;
+  min-height: 100%;
   margin: 0 auto;
   padding: 2rem;
   place-content: center;
@@ -425,6 +554,18 @@
   }
 }
 
+@keyframes feed-guide-loop {
+  from {
+    stroke-dashoffset: 150;
+    opacity: 0.35;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .feed-screen {
     scroll-behavior: auto;
@@ -438,6 +579,10 @@
     animation: none;
   }
 
+  .feed-selection-guide path {
+    animation: none;
+  }
+
   .feed-lifted-selection {
     transform: none;
   }
@@ -447,12 +592,12 @@
 
 .feed-standalone {
   position: relative;
-  height: 100dvh;
+  height: 100%;
   background: #050507;
 }
 
 .feed-topbar {
-  position: fixed;
+  position: absolute;
   top: max(0.75rem, env(safe-area-inset-top));
   left: 1rem;
   right: 1rem;

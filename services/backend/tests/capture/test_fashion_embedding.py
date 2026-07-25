@@ -3,6 +3,7 @@ from stylecapture_backend.features.capture.infrastructure.fashion_embedding impo
     FASHION_SIGLIP_MODEL_ID,
     FASHION_SIGLIP_REVISION,
     FashionSiglipEmbedder,
+    TransformersFashionSiglipBackend,
 )
 from stylecapture_backend.features.capture.processing import ImagePayload, ProviderError
 
@@ -83,3 +84,10 @@ async def test_fashion_siglip_sanitizes_backend_failure() -> None:
     assert error.value.code == "embedding_unavailable"
     assert "private" not in error.value.message
     assert error.value.retryable is True
+
+
+def test_transformers_fashion_siglip_local_backend_is_disabled_without_remote_code() -> None:
+    # Catches: loading a Hugging Face repo with executable remote code in ai-light.
+    # The product default is hosted embedding via LiteLLM.
+    with pytest.raises(RuntimeError, match="disabled"):
+        TransformersFashionSiglipBackend(device="cpu")

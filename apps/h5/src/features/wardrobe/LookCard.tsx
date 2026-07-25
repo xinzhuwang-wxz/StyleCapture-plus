@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 
 import type { Look, RenderArtifact } from "../../api/client";
+import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 
 const STATUS_LABELS: Record<Look["status"], string> = {
   processing: "正在拆解",
@@ -18,24 +19,35 @@ export function LookCard({
   pixelCover?: RenderArtifact | null;
   onOpen: () => void;
 }) {
+  const coverReady =
+    pixelCover?.status === "succeeded" && Boolean(pixelCover.output_image_url);
+  const coverFailed =
+    pixelCover?.status === "failed" || pixelCover?.status === "degraded";
+  const coverAlt = coverFailed
+    ? "像素穿搭封面生成失败，当前显示临时像素形象"
+    : "像素穿搭封面生成中";
   return (
     <motion.article
-      className="item-card look-card"
+      className="item-card look-card pixel-card wardrobe-card"
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
     >
       <button className="item-card__open" type="button" onClick={onOpen}>
-        <div className="item-card__image look-card__image">
-          {pixelCover?.output_image_url ? (
-            <img src={pixelCover.output_image_url} alt="已生成的像素穿搭封面" />
-          ) : look.display_image_url ? (
-            <img src={look.display_image_url} alt="收藏的整套穿搭" />
+        <div className="item-card__image look-card__image wardrobe-card__cover wardrobe-card__cover--outfit">
+          {coverReady ? (
+            <img
+              src={pixelCover.output_image_url!}
+              alt="已生成的像素穿搭封面"
+              data-image-kind="look-pixel-cover"
+            />
           ) : (
-            <div className="item-image-placeholder">
-              <span>✦</span>
-              <small>整套已保存，封面生成中</small>
-            </div>
+            <img
+              src={pixelAvatarDataUrl(look.id, { size: 300 })}
+              alt={coverAlt}
+              data-image-kind="look-pixel-pending"
+              data-pixel="true"
+            />
           )}
           <span className={`status-badge status-badge--${look.status}`}>
             {STATUS_LABELS[look.status]}
@@ -43,16 +55,22 @@ export function LookCard({
           {look.status === "processing" ? (
             <div className="processing-sheen" aria-hidden="true" />
           ) : null}
-          {pixelCover?.output_image_url ? (
+          {coverReady ? (
             <span className="look-card__cover-label">像素封面</span>
-          ) : null}
+          ) : (
+            <span className="look-card__cover-label">
+              {coverFailed ? "生成失败 · 点开重试" : "生成中"}
+            </span>
+          )}
         </div>
-        <div className="item-card__body">
+        <div className="item-card__body wardrobe-card__meta">
           <strong>{look.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}</strong>
           <span>
-            {look.status === "ready"
-              ? "查看真实单品与搭配关系"
-              : "原始穿搭已保存，AI 在后台理解"}
+            {coverFailed
+              ? "真实单品仍可查看，点开可重新生成封面"
+              : look.status === "ready"
+                ? "查看真实单品与搭配关系"
+                : "原始穿搭已保存，AI 在后台理解"}
           </span>
         </div>
       </button>

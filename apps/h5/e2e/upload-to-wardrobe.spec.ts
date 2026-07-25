@@ -12,10 +12,11 @@ test("uploads a real garment, normalizes its display image, and preserves the as
   page
 }) => {
   test.setTimeout(180_000);
+  page.setDefaultTimeout(15_000);
   await page.goto("/");
   await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
   await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible();
-  await page.getByRole("button", { name: "单品", exact: true }).click();
+  await page.getByRole("tab", { name: "按单品", exact: true }).click();
   await expect(page.locator(".item-card")).toHaveCount(10);
   const existingCount = await page.locator(".item-card").count();
 
@@ -41,7 +42,17 @@ test("uploads a real garment, normalizes its display image, and preserves the as
   await expect(uploadedItem.getByText("可搭配")).toBeVisible({
     timeout: 150_000
   });
-  const displayImage = uploadedItem.locator('img[data-image-kind="wardrobe-display"]');
+  await expect(
+    uploadedItem.locator('img[data-image-kind="wardrobe-pixel"]')
+  ).toBeVisible({ timeout: 150_000 });
+
+  await uploadedItem.locator(".item-card__open").click();
+  const detail = page.getByRole("dialog", { name: "单品详情" });
+  await expect(detail).toContainText("已完成理解");
+  await expect(detail).toContainText(
+    "当前展示已抠出的单品实物图；像素图只用于衣橱封面。"
+  );
+  const displayImage = detail.locator('img[data-image-kind="wardrobe-display"]');
   await expect(displayImage).toBeVisible();
   await expect
     .poll(
@@ -71,20 +82,24 @@ test("uploads a real garment, normalizes its display image, and preserves the as
     )
     .toBe(true);
 
-  await uploadedItem.locator(".item-card__open").click();
-  const detail = page.getByRole("dialog", { name: "单品详情" });
-  await expect(detail).toContainText("已完成理解");
   await detail.getByRole("button", { name: "删除原图" }).click();
-  await expect(detail.getByRole("alert")).toContainText("删除后原图无法恢复");
+  await expect(detail.getByRole("alert")).toContainText("删除后原始上传图无法恢复");
   await detail.getByRole("button", { name: "确认删除原图" }).click();
 
   await expect(detail).toHaveCount(0);
   await expect(page.getByText("原图已删除，文字资产仍保留在衣橱中")).toBeVisible();
-  await expect(uploadedItem.locator('img[data-image-kind="wardrobe-display"]')).toBeVisible();
+  await expect(uploadedItem.locator('img[data-image-kind="wardrobe-pixel"]')).toBeVisible();
   await uploadedItem.locator(".item-card__open").click();
-  await expect(page.getByRole("dialog", { name: "单品详情" })).toContainText(
+  const reopenedDetail = page.getByRole("dialog", { name: "单品详情" });
+  await expect(reopenedDetail).toContainText(
     "原图已删除，保留的标签和描述仍可继续编辑。"
   );
+  await expect(
+    reopenedDetail.locator('img[data-image-kind="wardrobe-display"]')
+  ).toBeVisible();
+  await expect
+    .poll(async () => Math.round((await reopenedDetail.boundingBox())?.x ?? -1))
+    .toBe(0);
 
   await page.screenshot({
     path: path.resolve(

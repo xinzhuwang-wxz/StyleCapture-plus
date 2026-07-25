@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import base64
+import fcntl
 import hmac
 import json
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
@@ -13,7 +15,7 @@ from typing import Any
 from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
-from pillow_heif import register_heif_opener  # type: ignore[import-untyped]
+from pillow_heif import register_heif_opener
 
 from stylecapture_backend.features.capture.application import CaptureError
 from stylecapture_backend.features.capture.domain import ImagePayload
@@ -71,6 +73,10 @@ class LocalObjectStore:
         public_upload_prefix: str = "/v1/uploads",
         max_upload_bytes: int = 20 * 1024 * 1024,
         max_image_pixels: int = 36_000_000,
+        daily_upload_bytes_per_owner: int = 200 * 1024 * 1024,
+        max_unattached_uploads_per_owner: int = 10,
+        max_total_user_upload_bytes: int = 2 * 1024 * 1024 * 1024,
+        unattached_upload_ttl: timedelta = timedelta(hours=24),
         now: Callable[[], datetime] | None = None,
     ) -> None:
         if len(signing_secret) < 24:
@@ -80,6 +86,10 @@ class LocalObjectStore:
         self._public_upload_prefix = public_upload_prefix.rstrip("/")
         self._max_upload_bytes = max_upload_bytes
         self._max_image_pixels = max_image_pixels
+        self._daily_upload_bytes_per_owner = daily_upload_bytes_per_owner
+        self._max_unattached_uploads_per_owner = max_unattached_uploads_per_owner
+        self._max_total_user_upload_bytes = max_total_user_upload_bytes
+        self._unattached_upload_ttl = unattached_upload_ttl
         self._now = now or (lambda: datetime.now(UTC))
 
     def prepare_upload(
@@ -162,6 +172,7 @@ class LocalObjectStore:
                 "Uploaded bytes do not match the prepared SHA-256",
             )
         width, height = self._validate_image(body, expected_type)
+        token_claim_path = self._claim_upload_token(token)
         stored = StoredObject(
             owner_id=UUID(str(payload["owner_id"])),
             object_key=str(payload["object_key"]),
@@ -171,8 +182,52 @@ class LocalObjectStore:
             width=width,
             height=height,
         )
-        self._persist(stored, body)
+        try:
+            assert stored.owner_id is not None
+            with self._upload_quota_lock():
+                self._collect_expired_unattached_locked()
+                self._enforce_upload_quota(stored.owner_id, stored.byte_size)
+                self._persist(
+                    stored,
+                    body,
+                    metadata={
+                        "attached_at": None,
+                        "created_at": self._aware_now().isoformat(),
+                        "origin": "user_upload",
+                    },
+                )
+        except Exception:
+            token_claim_path.unlink(missing_ok=True)
+            raise
         return stored
+
+    def mark_attached(self, object_key: str, owner_id: UUID) -> None:
+        metadata_path = self._metadata_path(object_key)
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise KeyError(object_key) from error
+        if payload.get("owner_id") != str(owner_id):
+            raise CaptureError("upload_not_found", "The private upload is unavailable")
+        if payload.get("origin") != "user_upload" or payload.get("attached_at") is not None:
+            return
+        payload["attached_at"] = self._aware_now().isoformat()
+        self._write_metadata(metadata_path, payload)
+
+    def discard_unattached_upload(self, object_key: str, owner_id: UUID) -> None:
+        metadata_path = self._metadata_path(object_key)
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise CaptureError("upload_not_found", "The private upload is unavailable") from error
+        if payload.get("owner_id") != str(owner_id) or payload.get("origin") != "user_upload":
+            raise CaptureError("upload_not_found", "The private upload is unavailable")
+        if payload.get("attached_at") is not None:
+            raise CaptureError(
+                "upload_already_attached",
+                "上传已进入处理。不能再从临时上传入口删除",
+            )
+        self.delete(object_key)
 
     def describe(self, object_key: str) -> StoredObject:
         metadata_path = self._metadata_path(object_key)
@@ -242,6 +297,44 @@ class LocalObjectStore:
             sha256=actual_hash,
         )
 
+    def write_private_source_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        if image.content_type not in ALLOWED_MIME_EXTENSIONS:
+            raise CaptureError(
+                "source_image_type_invalid",
+                "Source assets must be JPEG, PNG, WebP, HEIC, or HEIF",
+            )
+        actual_hash = sha256(image.body).hexdigest()
+        if not hmac.compare_digest(actual_hash, image.sha256):
+            raise CaptureError(
+                "source_image_hash_mismatch",
+                "Source asset hash does not match its bytes",
+            )
+        width, height = self._validate_image(image.body, image.content_type)
+        extension = ALLOWED_MIME_EXTENSIONS[image.content_type]
+        object_key = f"{self._validate_originals_prefix(prefix)}/{actual_hash}{extension}"
+        stored = StoredObject(
+            owner_id=owner_id,
+            object_key=object_key,
+            content_type=image.content_type,
+            byte_size=len(image.body),
+            sha256=actual_hash,
+            width=width,
+            height=height,
+        )
+        self._persist(stored, image.body)
+        return ImagePayload(
+            object_key=object_key,
+            content_type=image.content_type,
+            body=image.body,
+            sha256=actual_hash,
+        )
+
     def delete(self, object_key: str) -> None:
         object_path = self._object_path(object_key)
         metadata_path = self._metadata_path(object_key)
@@ -277,6 +370,28 @@ class LocalObjectStore:
         self._validate_sha256(str(payload["sha256"]))
         return payload
 
+    def _claim_upload_token(self, token: str) -> Path:
+        claim_path = (
+            self._root / ".upload-tokens" / f"{sha256(token.encode('utf-8')).hexdigest()}.json"
+        )
+        claim_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with claim_path.open("x", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "claimed_at": int(self._aware_now().timestamp()),
+                    },
+                    handle,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+        except FileExistsError as error:
+            raise CaptureError(
+                "upload_token_consumed",
+                "Upload token has already been used",
+            ) from error
+        return claim_path
+
     def _validate_image(self, body: bytes, content_type: str) -> tuple[int, int]:
         if not _matches_image_signature(body, content_type):
             raise CaptureError(
@@ -288,7 +403,7 @@ class LocalObjectStore:
                 image_format = image.format
                 width, height = image.size
                 image.verify()
-        except (UnidentifiedImageError, OSError, ValueError) as error:
+        except (Image.DecompressionBombError, UnidentifiedImageError, OSError, ValueError) as error:
             raise CaptureError(
                 "image_decode_failed", "Uploaded bytes are not a valid image"
             ) from error
@@ -308,7 +423,13 @@ class LocalObjectStore:
             )
         return width, height
 
-    def _persist(self, stored: StoredObject, body: bytes) -> None:
+    def _persist(
+        self,
+        stored: StoredObject,
+        body: bytes,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> None:
         object_path = self._object_path(stored.object_key)
         metadata_path = self._metadata_path(stored.object_key)
         object_path.parent.mkdir(parents=True, exist_ok=True)
@@ -326,25 +447,103 @@ class LocalObjectStore:
         try:
             temporary_path.write_bytes(body)
             temporary_path.replace(object_path)
+            payload: dict[str, object] = {
+                "byte_size": stored.byte_size,
+                "content_type": stored.content_type,
+                "height": stored.height,
+                "object_key": stored.object_key,
+                "owner_id": str(stored.owner_id),
+                "sha256": stored.sha256,
+                "width": stored.width,
+            }
+            payload.update(metadata or {})
             temporary_metadata_path.write_text(
-                json.dumps(
-                    {
-                        "byte_size": stored.byte_size,
-                        "content_type": stored.content_type,
-                        "height": stored.height,
-                        "owner_id": str(stored.owner_id),
-                        "sha256": stored.sha256,
-                        "width": stored.width,
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
+                json.dumps(payload, separators=(",", ":"), sort_keys=True),
                 encoding="utf-8",
             )
             temporary_metadata_path.replace(metadata_path)
         finally:
             temporary_path.unlink(missing_ok=True)
             temporary_metadata_path.unlink(missing_ok=True)
+
+    @contextmanager
+    def _upload_quota_lock(self) -> Iterator[None]:
+        lock_path = self._root / ".upload-quota.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def _user_upload_metadata(self) -> list[tuple[Path, dict[str, Any]]]:
+        metadata_root = self._root / ".metadata"
+        if not metadata_root.exists():
+            return []
+        records: list[tuple[Path, dict[str, Any]]] = []
+        for path in metadata_root.glob("*.json"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if payload.get("origin") == "user_upload":
+                records.append((path, payload))
+        return records
+
+    def _collect_expired_unattached_locked(self) -> None:
+        cutoff = self._aware_now() - self._unattached_upload_ttl
+        for metadata_path, payload in self._user_upload_metadata():
+            if payload.get("attached_at") is not None:
+                continue
+            try:
+                created_at = datetime.fromisoformat(str(payload["created_at"])).astimezone(UTC)
+                object_key = str(payload["object_key"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if created_at <= cutoff:
+                self._object_path(object_key).unlink(missing_ok=True)
+                metadata_path.unlink(missing_ok=True)
+
+    def _enforce_upload_quota(self, owner_id: UUID, incoming_bytes: int) -> None:
+        now = self._aware_now()
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        owner_bytes_today = 0
+        owner_unattached = 0
+        total_bytes = 0
+        for _, payload in self._user_upload_metadata():
+            byte_size = int(payload.get("byte_size", 0))
+            total_bytes += byte_size
+            if payload.get("owner_id") != str(owner_id):
+                continue
+            if payload.get("attached_at") is None:
+                owner_unattached += 1
+            try:
+                created_at = datetime.fromisoformat(str(payload["created_at"])).astimezone(UTC)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if created_at >= day_start:
+                owner_bytes_today += byte_size
+        if owner_unattached >= self._max_unattached_uploads_per_owner:
+            raise CaptureError(
+                "upload_unattached_quota_exceeded",
+                "请先完成或删除已有上传后再继续",
+            )
+        if owner_bytes_today + incoming_bytes > self._daily_upload_bytes_per_owner:
+            raise CaptureError("upload_daily_quota_exceeded", "今日上传额度已用完。请明天再试")
+        if total_bytes + incoming_bytes > self._max_total_user_upload_bytes:
+            raise CaptureError("upload_capacity_exceeded", "上传空间暂时已满。请稍后再试")
+
+    def _write_metadata(self, path: Path, payload: dict[str, Any]) -> None:
+        temporary = path.with_suffix(f".json.updating-{secrets.token_hex(8)}")
+        try:
+            temporary.write_text(
+                json.dumps(payload, separators=(",", ":"), sort_keys=True),
+                encoding="utf-8",
+            )
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def _object_path(self, object_key: str) -> Path:
         self._validate_object_key(object_key)
@@ -379,6 +578,19 @@ class LocalObjectStore:
             or "\\" in normalized
         ):
             raise CaptureError("object_key_invalid", "Derived object prefix is invalid")
+        return normalized
+
+    @staticmethod
+    def _validate_originals_prefix(prefix: str) -> str:
+        normalized = prefix.strip().strip("/")
+        path = PurePosixPath(normalized)
+        if (
+            not normalized.startswith("originals/")
+            or path.is_absolute()
+            or ".." in path.parts
+            or "\\" in normalized
+        ):
+            raise CaptureError("object_key_invalid", "Source object prefix is invalid")
         return normalized
 
     @staticmethod

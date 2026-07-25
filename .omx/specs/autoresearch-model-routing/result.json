@@ -1,0 +1,7 @@
+{
+  "status": "passed",
+  "passed": true,
+  "summary": "Live serial A/B artifact is complete and mechanically valid",
+  "output_artifact_path": "evals/model-routing/results/doubao-mini-vs-lite-2026-07-26.json",
+  "mini_meets_gate": false
+}

@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from PIL import Image
+from pillow_heif import from_pillow
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
@@ -130,6 +131,7 @@ class MemoryObjectStore:
 class SuccessfulPixelGenerator:
     def __init__(self) -> None:
         self.images: tuple[ImagePayload, ...] = ()
+        self.prompt = ""
 
     async def generate(
         self,
@@ -138,6 +140,7 @@ class SuccessfulPixelGenerator:
         images: tuple[ImagePayload, ...],
         size: str = "1024x1024",
     ) -> GeneratedImage:
+        self.prompt = prompt
         self.images = images
         body = png((180, 90, 255))
         return GeneratedImage(
@@ -210,6 +213,18 @@ def payload(key: str, color: tuple[int, int, int]) -> ImagePayload:
     return ImagePayload(
         object_key=key,
         content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
+
+
+def heic_payload(key: str, color: tuple[int, int, int]) -> ImagePayload:
+    buffer = BytesIO()
+    from_pillow(Image.new("RGB", (64, 96), color=color)).save(buffer, format="HEIF")
+    body = buffer.getvalue()
+    return ImagePayload(
+        object_key=key,
+        content_type="image/heic",
         body=body,
         sha256=sha256(body).hexdigest(),
     )
@@ -374,8 +389,58 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.share_eligible is True
     assert stored_pixel.provider_trace is not None
     assert stored_pixel.provider_trace.provider == "test-private"
+    assert stored_pixel.provider_trace.parameters["capability_id"] == "look.pixel_cover"
+    assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
+    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v3"
+    assert "6-10px" in pixel_generator.prompt
+    assert "不要复刻完整房间" in pixel_generator.prompt
+    assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert len(pixel_generator.images) == 2
     assert pixel_generator.images[0].object_key == look_source.object_key
+
+
+@pytest.mark.asyncio
+async def test_pixel_cover_converts_heic_look_source_before_render_provider() -> None:
+    user_id, detail, item, objects = fixture()
+    look_source = heic_payload("originals/upload/look.heic", (220, 220, 240))
+    objects.images[look_source.object_key] = look_source
+    detail = replace(
+        detail,
+        look=detail.look.with_display_object(look_source.object_key),
+    )
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage",
+    )
+    pixel = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        request_key="pixel",
+        source_artifact_id=collage.id,
+    )
+    repository = MemoryRenderRepository([collage, pixel])
+    pixel_generator = SuccessfulPixelGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=pixel_generator,
+        try_on_generator=None,
+        fixed_model_object_key=None,
+    )
+
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    await processor.process(user_id=user_id, artifact_id=pixel.id)
+
+    assert repository.artifacts[pixel.id].status is RenderArtifactStatus.SUCCEEDED
+    assert pixel_generator.images[0].content_type == "image/jpeg"
+    assert pixel_generator.images[0].object_key.endswith(".render-input.jpg")
 
 
 @pytest.mark.asyncio
@@ -461,6 +526,9 @@ async def test_fixed_model_try_on_uses_supported_garment_roles() -> None:
     assert try_on.categories == ["tops"]
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["personalization"] == "fixed_model"
+    assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
+    assert stored.provider_trace.parameters["capability_alias"] == "specialized_try_on"
+    assert stored.provider_trace.parameters["prompt_version"] == "not_applicable"
 
 
 @pytest.mark.parametrize("second_role", ["bottoms", "shoes", "accessories"])
@@ -516,6 +584,10 @@ async def test_fixed_model_complete_look_uses_multimodal_image_edit(
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["personalization"] == "fixed_model"
     assert stored.provider_trace.parameters["strategy"] == "multimodal_image_edit"
+    assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
+    assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
+    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v2"
+    assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert stored.provider_trace.parameters["image_count"] == 3
     assert stored.provider_trace.parameters["garment_count"] == 2
     assert dedicated_try_on.categories == []
@@ -618,6 +690,8 @@ async def test_personal_try_on_uses_uploaded_subject_and_real_image_provider_fal
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["personalization"] == "user_photo"
     assert stored.provider_trace.parameters["strategy"] == "multimodal_image_edit"
+    assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
+    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v2"
     assert stored.provider_trace.parameters["image_count"] == 2
     assert dedicated_try_on.categories == []
 

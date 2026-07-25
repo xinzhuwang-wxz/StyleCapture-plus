@@ -9,10 +9,14 @@ from stylecapture_backend.features.capture.application import (
     JobRetryApplication,
 )
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.item_presentation.interfaces.http import (
+    ItemPresentationHttpServices,
+)
 from stylecapture_backend.features.look.interfaces.http import LookHttpServices
 from stylecapture_backend.features.outfit.application import OutfitApplication
 from stylecapture_backend.features.outfit.interfaces.http import OutfitHttpServices
 from stylecapture_backend.features.outfit.ports import OutfitPlanTickets
+from stylecapture_backend.features.pixel_trial.interfaces.http import PixelTrialHttpServices
 from stylecapture_backend.features.render.interfaces.http import RenderHttpServices
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
@@ -29,6 +33,8 @@ def export() -> Path:
         wardrobe=cast(WardrobeApplication, None),
         looks=cast(LookHttpServices, object()),
         renders=cast(RenderHttpServices, object()),
+        pixel_trials=cast(PixelTrialHttpServices, object()),
+        item_presentations=cast(ItemPresentationHttpServices, object()),
         outfits=OutfitHttpServices(
             outfits=cast(OutfitApplication, None),
             tickets=cast(OutfitPlanTickets, None),

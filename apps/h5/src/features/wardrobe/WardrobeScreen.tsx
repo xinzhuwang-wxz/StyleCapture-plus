@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Item, Look, RenderArtifact } from "../../api/client";
 import { PendingItemCard, type PendingItem, WardrobeItemCard } from "./ItemCard";
 import { LookCard } from "./LookCard";
+import "./wardrobe.css";
 
 type Filter = "all" | "owned" | "inspiration";
 type WardrobeView = "looks" | "items";
@@ -14,9 +15,16 @@ export function WardrobeScreen({
   pending,
   itemsLoading,
   looksLoading,
+  itemsError,
+  looksError,
+  onRetryItems,
+  onRetryLooks,
   onOpen,
   onOpenLook,
-  onRetry
+  onRetry,
+  onRetryPixel,
+  onRetryPending,
+  onDismissPending
 }: {
   looks: Look[];
   pixelCovers: Record<string, RenderArtifact>;
@@ -24,9 +32,16 @@ export function WardrobeScreen({
   pending: PendingItem[];
   itemsLoading: boolean;
   looksLoading: boolean;
+  itemsError: boolean;
+  looksError: boolean;
+  onRetryItems: () => void;
+  onRetryLooks: () => void;
   onOpen: (item: Item) => void;
   onOpenLook: (look: Look) => void;
   onRetry: (item: Item) => void;
+  onRetryPixel: (item: Item) => void;
+  onRetryPending: (pending: PendingItem) => void;
+  onDismissPending: (pending: PendingItem) => void;
 }) {
   const [view, setView] = useState<WardrobeView>("looks");
   const [filter, setFilter] = useState<Filter>("all");
@@ -40,8 +55,10 @@ export function WardrobeScreen({
     [filter, items]
   );
   const loading = view === "looks" ? looksLoading : itemsLoading;
+  const hasError = view === "looks" ? looksError : itemsError;
   const empty =
     !loading &&
+    !hasError &&
     (view === "looks"
       ? looks.length === 0
       : visible.length === 0 && pending.length === 0);
@@ -51,27 +68,31 @@ export function WardrobeScreen({
       <div className="section-heading">
         <div>
           <p className="section-kicker">数字资产</p>
-          <h2 id="wardrobe-title">我的收藏</h2>
+          <h2 id="wardrobe-title">我的数字衣橱</h2>
         </div>
         <span className="item-count">
           {view === "looks" ? `${looks.length} 套` : `${items.length + pending.length} 件`}
         </span>
       </div>
 
-      <div className="wardrobe-view-tabs" aria-label="选择衣橱视图">
+      <div className="wardrobe-view-tabs" aria-label="选择衣橱视图" role="tablist">
         <button
           type="button"
           className={view === "looks" ? "is-selected" : ""}
+          aria-selected={view === "looks"}
+          role="tab"
           onClick={() => setView("looks")}
         >
-          穿搭
+          按穿搭
         </button>
         <button
           type="button"
           className={view === "items" ? "is-selected" : ""}
+          aria-selected={view === "items"}
+          role="tab"
           onClick={() => setView("items")}
         >
-          单品
+          按单品
         </button>
       </div>
 
@@ -87,6 +108,7 @@ export function WardrobeScreen({
             key={value}
             type="button"
             className={filter === value ? "is-selected" : ""}
+            aria-pressed={filter === value}
             onClick={() => setFilter(value)}
           >
             {label}
@@ -98,6 +120,27 @@ export function WardrobeScreen({
         <div className="wardrobe-loading" aria-label="正在加载衣橱">
           <span />
           <span />
+        </div>
+      ) : null}
+
+      {hasError && !loading ? (
+        <div className="wardrobe-empty wardrobe-empty--error" role="alert">
+          <div className="empty-avatar">
+            <img src="/assets/char-default.png" alt="" />
+          </div>
+          <h3>衣橱暂时未加载，已有数据没有丢失</h3>
+          <p>
+            {view === "looks"
+              ? "穿搭列表读取失败。请重试加载，不会把已有套装显示成空衣橱。"
+              : "单品列表读取失败。请重试加载，不会把已有单品显示成空衣橱。"}
+          </p>
+          <button
+            type="button"
+            className="wardrobe-error-retry"
+            onClick={view === "looks" ? onRetryLooks : onRetryItems}
+          >
+            重新加载
+          </button>
         </div>
       ) : null}
 
@@ -113,7 +156,7 @@ export function WardrobeScreen({
               : "从相册选一张，或直接拍下衣柜里的衣服。"}
           </p>
         </div>
-      ) : (
+      ) : !hasError ? (
         <div className="wardrobe-grid">
           {view === "looks"
             ? looks.map((look) => (
@@ -126,7 +169,12 @@ export function WardrobeScreen({
               ))
             : <>
                 {pending.map((entry) => (
-                  <PendingItemCard key={entry.jobId} pending={entry} />
+                  <PendingItemCard
+                    key={entry.jobId}
+                    pending={entry}
+                    onRetry={() => onRetryPending(entry)}
+                    onDismiss={() => onDismissPending(entry)}
+                  />
                 ))}
                 {visible.map((item) => (
                   <WardrobeItemCard
@@ -134,11 +182,12 @@ export function WardrobeScreen({
                     item={item}
                     onOpen={() => onOpen(item)}
                     onRetry={() => onRetry(item)}
+                    onRetryPixel={() => onRetryPixel(item)}
                   />
                 ))}
               </>}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -32,6 +32,7 @@ class BackendSettings(BaseSettings):
     vision_model_alias: str = "vision_understanding"
     grounding_model_alias: str = "visual_grounding"
     outfit_analysis_model_alias: str = "outfit_analysis"
+    outfit_analysis_fallback_model_alias: str = "outfit_analysis_fallback"
     reasoning_model_alias: str = "reasoning"
     outfit_reasoning_timeout_seconds: float = 60
     image_generation_model_alias: str = "image_generation"
@@ -56,6 +57,7 @@ class BackendSettings(BaseSettings):
     fashn_api_key: SecretStr = SecretStr("")
     fixed_model_object_key: str | None = None
     demo_seed_enabled: bool = True
+    demo_seed_new_session_quota: int = 512
 
     @field_validator("upload_signing_secret", "session_signing_secret")
     @classmethod
@@ -64,7 +66,12 @@ class BackendSettings(BaseSettings):
             raise ValueError("signing secrets must be at least 24 characters")
         return value
 
-    @field_validator("max_upload_bytes", "max_image_pixels", "render_download_max_bytes")
+    @field_validator(
+        "max_upload_bytes",
+        "max_image_pixels",
+        "render_download_max_bytes",
+        "demo_seed_new_session_quota",
+    )
     @classmethod
     def validate_positive_limits(cls, value: int) -> int:
         if value <= 0:

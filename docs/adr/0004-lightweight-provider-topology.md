@@ -62,10 +62,18 @@ Current upstream evidence also supports a smaller topology:
    color, pHash, ownership, and source features. FashionSigLIP remains an optional
    fashion-specific quality comparator or batch provider, not a required resident
    model.
-6. Garment tagging and Look analysis use the hosted
-   `vision_understanding` alias (`doubao-seed-2-0-lite-260428`). Outfit explanation
-   and aesthetic reranking use the hosted `reasoning` alias. Hard constraints,
-   state transitions, and purchase logic remain deterministic application code.
+6. Garment tagging uses the hosted `vision_understanding` alias backed by
+   `doubao-seed-2-0-lite-260428`. Look analysis calls only the stable
+   `outfit_analysis` capability alias, backed by `doubao-seed-2-0-lite-260428`.
+   Although Mini was faster in the bounded routing A/B, the product owner chose Lite
+   for the final demo to preserve visual-relationship quality consistently. If that
+   call fails at the provider boundary, violates the structured response schema, or
+   fails the Simplified-Chinese output contract, the same adapter makes one sequential
+   retry through the server-only `outfit_analysis_fallback` Lite alias. It never calls both models in
+   parallel, and product metadata exposes only `outfit_analysis`, not provider/model
+   identities. Outfit explanation and aesthetic reranking continue to use the hosted
+   `reasoning` alias backed by Lite. Hard constraints, state transitions, and purchase
+   logic remain deterministic application code.
 7. The default try-on provider is hosted FASHN `tryon-v1.6` in performance or balanced
    mode. `tryon-max` is an opt-in quality tier. Local FASHN VTON and FastFit are
    optional `ai-heavy` adapters only.

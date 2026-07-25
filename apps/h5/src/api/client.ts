@@ -5,11 +5,13 @@ import type { components, paths } from "./schema";
 export type CaptureAccepted = components["schemas"]["CaptureAcceptedResponse"];
 export type FeedFrameContext = components["schemas"]["FeedFrameContextBody"];
 export type Item = components["schemas"]["ItemResponse"];
+export type ItemPresentation = components["schemas"]["ItemPresentationResponse"];
 export type Job = components["schemas"]["JobResponse"];
 export type Look = components["schemas"]["LookSummaryResponse"];
 export type LookDetail = components["schemas"]["LookDetailResponse"];
 export type OutfitPlan = components["schemas"]["OutfitPlanResponse"];
 export type OutfitPlanSet = components["schemas"]["OutfitPlanSetResponse"];
+export type PixelTrial = components["schemas"]["PixelTrialResponse"];
 export type PurchaseDemand = components["schemas"]["PurchaseDemandResponse"];
 export type SavedOutfitLook = components["schemas"]["SavedOutfitLookResponse"];
 export type Ownership = components["schemas"]["OwnershipState"];
@@ -44,6 +46,11 @@ const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
   render_idempotency_conflict: "穿搭内容已经更新，请稍后重新生成成片",
   render_dispatch_unavailable: "成片任务已保存，后台服务恢复后会继续",
   render_artifact_not_found: "这张穿搭成片暂时不可用",
+  pixel_trial_idempotency_conflict: "这张全身照已经重新提交，请刷新后再试",
+  pixel_trial_dispatch_unavailable: "像素形象任务已保存，后台服务恢复后会继续",
+  pixel_trial_not_found: "这次像素形象生成暂时不可用",
+  item_presentation_dispatch_unavailable: "像素展示图任务已保存，后台服务恢复后会继续",
+  item_presentation_not_found: "这张像素展示图暂时不可用",
   job_not_retryable: "当前任务正在处理或已经完成，无需重试",
   source_deleted_not_retryable: "原始图片已删除，无法再次识别",
   item_update_invalid: "修改内容不符合衣橱要求",
@@ -172,6 +179,70 @@ async function discardPrivateUpload(objectKey: string): Promise<void> {
   }
 }
 
+async function createPixelTrial(
+  file: File,
+  idempotencyKey: string
+): Promise<PixelTrial> {
+  const subjectObjectKey = await uploadPrivateImage(file);
+  const response = await client.POST("/v1/pixel-trials", {
+    params: {
+      header: { "Idempotency-Key": idempotencyKey }
+    },
+    body: { subject_object_key: subjectObjectKey }
+  });
+  if (!response.data) {
+    await discardPrivateUpload(subjectObjectKey).catch(() => undefined);
+    throwApiError(response.error, "像素形象任务没有启动");
+  }
+  return response.data;
+}
+
+async function getPixelTrial(trialId: string): Promise<PixelTrial> {
+  await ensureSession();
+  const response = await client.GET("/v1/pixel-trials/{trial_id}", {
+    params: { path: { trial_id: trialId } }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "像素形象状态暂时无法更新");
+  }
+  return response.data;
+}
+
+async function deletePixelTrial(trialId: string): Promise<void> {
+  await ensureSession();
+  const response = await client.DELETE("/v1/pixel-trials/{trial_id}", {
+    params: { path: { trial_id: trialId } }
+  });
+  if (response.error) {
+    throwApiError(response.error, "像素形象暂时无法删除");
+  }
+}
+
+async function ensureItemPixelPresentation(itemId: string): Promise<ItemPresentation> {
+  await ensureSession();
+  const response = await client.POST("/v1/items/{item_id}/presentations/pixel", {
+    params: {
+      path: { item_id: itemId },
+      header: { "Idempotency-Key": `item-pixel:${itemId}` }
+    }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "像素展示图任务没有启动");
+  }
+  return response.data;
+}
+
+async function getItemPresentation(assetId: string): Promise<ItemPresentation> {
+  await ensureSession();
+  const response = await client.GET("/v1/item-presentations/{asset_id}", {
+    params: { path: { asset_id: assetId } }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "像素展示图状态暂时无法更新");
+  }
+  return response.data;
+}
+
 async function submitCapture(
   file: File,
   sourceKind: SourceKind,
@@ -215,14 +286,15 @@ async function ingest(
 async function ingestFeedFrame(
   file: File,
   feedContext: FeedFrameContext,
-  idempotencyKey: string
+  idempotencyKey: string,
+  intent: "item" | "whole_outfit" = "item"
 ): Promise<CaptureAccepted> {
   return submitCapture(
     file,
     "feed",
     "inspiration",
     idempotencyKey,
-    "item",
+    intent,
     feedContext
   );
 }
@@ -366,6 +438,20 @@ async function retryItem(itemId: string): Promise<void> {
   if (!response.data) {
     throwApiError(response.error, "暂时无法重新识别");
   }
+}
+
+async function retryItemPixel(itemId: string): Promise<ItemPresentation> {
+  await ensureSession();
+  const response = await client.POST(
+    "/v1/items/{item_id}/presentations/pixel/retry",
+    {
+      params: { path: { item_id: itemId } }
+    }
+  );
+  if (!response.data) {
+    throwApiError(response.error, "像素展示图暂时无法重试");
+  }
+  return response.data;
 }
 
 async function updateItem(
@@ -611,11 +697,17 @@ export const wardrobeApi = {
   listRenders,
   createRender,
   deleteTryOnSubject,
+  createPixelTrial,
+  getPixelTrial,
+  deletePixelTrial,
+  ensureItemPixelPresentation,
+  getItemPresentation,
   uploadPrivateImage,
   discardPrivateUpload,
   getJob,
   retryJob,
   retryItem,
+  retryItemPixel,
   updateItem,
   deleteSource,
   displayImage,

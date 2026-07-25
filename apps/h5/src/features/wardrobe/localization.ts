@@ -77,6 +77,12 @@ export const LOOK_ANALYSIS_LABELS: Record<string, string> = {
   style: "整体风格"
 };
 
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  camera: "拍照录入",
+  upload: "相册录入",
+  feed: "Feed 收藏"
+};
+
 export function garmentLabel(value: unknown, fallback = "待分类"): string {
   const key = String(value ?? "").trim();
   return GARMENT_LABELS[key] ?? (key.replaceAll("_", " ") || fallback);
@@ -84,4 +90,8 @@ export function garmentLabel(value: unknown, fallback = "待分类"): string {
 
 export function garmentImageAlt(value: unknown, fallback = "穿搭单品"): string {
   return garmentLabel(value, fallback);
+}
+
+export function sourceKindLabel(value: unknown): string {
+  return SOURCE_KIND_LABELS[String(value ?? "").trim()] ?? "真实来源";
 }

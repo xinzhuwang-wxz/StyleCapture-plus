@@ -23,7 +23,18 @@ from stylecapture_backend.features.render.ports import (
     RenderArtifactRepository,
     RenderProviderError,
 )
+from stylecapture_backend.features.render.prompt_contracts import (
+    PIXEL_COVER_CAPABILITY_ID,
+    PIXEL_COVER_PROMPT,
+    PIXEL_COVER_PROMPT_VERSION,
+    PIXEL_COVER_SCHEMA_VERSION,
+    TRY_ON_CAPABILITY_ID,
+    TRY_ON_PROMPT,
+    TRY_ON_PROMPT_VERSION,
+    TRY_ON_SCHEMA_VERSION,
+)
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
+from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
 
 class RetryableRenderError(RuntimeError):
@@ -164,8 +175,10 @@ class RenderProcessor:
         if self._pixel_generator is None:
             await self._degrade(artifact, fallback, "像素生成服务未配置。展示真实单品拼贴")
             return
-        collage_source = self._objects.read_image(
-            fallback.output.object_key  # type: ignore[union-attr]
+        collage_source = normalize_provider_image(
+            self._objects.read_image(
+                fallback.output.object_key  # type: ignore[union-attr]
+            )
         )
         source_images: tuple[ImagePayload, ...] = (collage_source,)
         detail = await self._looks.get_detail_for_user(
@@ -174,7 +187,9 @@ class RenderProcessor:
         )
         if detail is not None and detail.look.display_object_key is not None:
             try:
-                look_source = self._objects.read_image(detail.look.display_object_key)
+                look_source = normalize_provider_image(
+                    self._objects.read_image(detail.look.display_object_key)
+                )
             except (FileNotFoundError, KeyError):
                 pass
             else:
@@ -185,19 +200,17 @@ class RenderProcessor:
         )
         try:
             generated = await self._pixel_generator.generate(
-                prompt=(
-                    "第一张参考图如果是完整穿搭,以它的整体轮廓、配色和搭配关系为主;"
-                    "最后一张参考图是这套穿搭真实单品的拼贴,用于补足材质和细节。"
-                    "把参考图里的上衣、下装、外套、鞋履和配饰组合到同一个且仅一个"
-                    "StyleCapture 可爱像素小人身上。画面中必须只有1个人物,全身正面"
-                    "站立并居中,完整展示从头到脚。保持真实单品的颜色、轮廓、材质、"
-                    "层次和搭配关系。浅色纯净单色背景。禁止多人、分镜、九宫格、"
-                    "备选造型、换装前后对比、文字、品牌、水印或额外服饰。"
-                ),
+                prompt=PIXEL_COVER_PROMPT,
                 images=source_images,
                 size="2K",
             )
-            await self._record_provider_and_store(artifact, generated)
+            await self._record_provider_and_store(
+                artifact,
+                generated,
+                capability_id=PIXEL_COVER_CAPABILITY_ID,
+                prompt_version=PIXEL_COVER_PROMPT_VERSION,
+                schema_version=PIXEL_COVER_SCHEMA_VERSION,
+            )
         except (RenderProviderError, ValueError):
             await self._degrade(artifact, fallback, "像素生成暂不可用。展示真实单品拼贴")
             return
@@ -212,7 +225,7 @@ class RenderProcessor:
             await self._degrade(artifact, fallback, "请上传全身照后生成真人试穿。展示真实单品拼贴")
             return
         try:
-            model_image = self._objects.read_image(model_object_key)
+            model_image = normalize_provider_image(self._objects.read_image(model_object_key))
             _, item_assets = await self._look_item_assets(artifact)
         except (FileNotFoundError, KeyError):
             await self._degrade(artifact, fallback, "试穿输入不可用。展示真实单品拼贴")
@@ -240,24 +253,18 @@ class RenderProcessor:
         if requires_complete_image_edit and self._pixel_generator is not None:
             try:
                 generated = await self._pixel_generator.generate(
-                    prompt=(
-                        "以第一张全身人物照片为主体,保持人物身份、脸部、发型、体型、"
-                        "姿势和背景不变。把后续参考图中的整套真实服装准确换到人物身上,"
-                        "保持每件衣服的颜色、材质、版型、层次和搭配关系,不添加额外服饰、"
-                        "文字、品牌或水印。输出自然、完整、写实的全身试穿照。"
-                    ),
+                    prompt=TRY_ON_PROMPT,
                     images=(model_image, *all_references),
                     size="2K",
                 )
-                trace = RenderProviderTrace(
-                    provider=generated.provider_trace.provider,
-                    model=generated.provider_trace.model,
-                    parameters={
-                        **dict(generated.provider_trace.parameters),
-                        "garment_count": len(all_references),
-                        "personalization": personalization,
-                        "strategy": "multimodal_image_edit",
-                    },
+                trace = generated.provider_trace.with_parameters(
+                    capability_id=TRY_ON_CAPABILITY_ID,
+                    capability_alias="image_generation",
+                    prompt_version=TRY_ON_PROMPT_VERSION,
+                    schema_version=TRY_ON_SCHEMA_VERSION,
+                    garment_count=len(all_references),
+                    personalization=personalization,
+                    strategy="multimodal_image_edit",
                 )
                 await self._renders.mark_running(
                     user_id=artifact.user_id,
@@ -322,17 +329,16 @@ class RenderProcessor:
             return None
         if last_generated is None:
             return None
-        trace = RenderProviderTrace(
-            provider=last_generated.provider_trace.provider,
-            model=last_generated.provider_trace.model,
-            parameters={
-                **dict(last_generated.provider_trace.parameters),
-                "garment_count": len(garments),
-                "personalization": (
-                    "user_photo" if artifact.subject_object_key is not None else "fixed_model"
-                ),
-                "strategy": "virtual_try_on",
-            },
+        trace = last_generated.provider_trace.with_parameters(
+            capability_id=TRY_ON_CAPABILITY_ID,
+            capability_alias="specialized_try_on",
+            prompt_version="not_applicable",
+            schema_version=TRY_ON_SCHEMA_VERSION,
+            garment_count=len(garments),
+            personalization=(
+                "user_photo" if artifact.subject_object_key is not None else "fixed_model"
+            ),
+            strategy="virtual_try_on",
         )
         await self._renders.mark_running(
             user_id=artifact.user_id,
@@ -380,7 +386,9 @@ class RenderProcessor:
             )
             if object_key is None:
                 raise CollageRenderError("render Item has no available display image")
-            assets.append((component.role, self._objects.read_image(object_key)))
+            assets.append(
+                (component.role, normalize_provider_image(self._objects.read_image(object_key)))
+            )
         return detail, tuple(assets)
 
     async def _fallback_artifact(
@@ -405,11 +413,20 @@ class RenderProcessor:
         self,
         artifact: RenderArtifact,
         generated: GeneratedImage,
+        *,
+        capability_id: str,
+        prompt_version: str,
+        schema_version: str,
     ) -> None:
         await self._renders.mark_running(
             user_id=artifact.user_id,
             artifact_id=artifact.id,
-            provider_trace=generated.provider_trace,
+            provider_trace=generated.provider_trace.with_parameters(
+                capability_id=capability_id,
+                capability_alias="image_generation",
+                prompt_version=prompt_version,
+                schema_version=schema_version,
+            ),
         )
         await self._store_success(artifact, _generated_payload(generated))
 

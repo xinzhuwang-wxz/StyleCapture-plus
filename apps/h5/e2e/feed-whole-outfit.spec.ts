@@ -5,6 +5,7 @@ test("saves one Feed selection as a visible recoverable Look", async ({
   page
 }) => {
   test.setTimeout(210_000);
+  page.setDefaultTimeout(15_000);
   const initialLooksLoaded = page.waitForResponse(
     (response) =>
       response.request().method() === "GET" &&
@@ -14,11 +15,49 @@ test("saves one Feed selection as a visible recoverable Look", async ({
   await initialLooksLoaded;
 
   await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
+  await expect(page.getByRole("region", { name: "我的数字衣橱" })).toBeVisible();
   const existingLooks = await page.locator(".look-card").count();
-  await page.getByRole("button", { name: "逛灵感", exact: true }).click();
+  const feedEntry = page.getByRole("button", { name: "刷灵感 Feed" });
+  const feedEntryBox = await feedEntry.boundingBox();
+  expect(feedEntryBox).not.toBeNull();
+  if (!feedEntryBox) return;
+  await page.mouse.click(
+    feedEntryBox.x + feedEntryBox.width / 2,
+    feedEntryBox.y + feedEntryBox.height / 2
+  );
+  await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible();
 
-  await page.getByRole("button", { name: "暂停并圈选" }).first().click();
+  const firstVideo = page.getByLabel(/的穿搭视频/).first();
+  const circleButton = page.getByRole("button", { name: "暂停并圈选" }).first();
+  await expect(firstVideo).toBeVisible();
+  await expect(circleButton).toBeEnabled();
+
+  await firstVideo.click();
   const overlay = page.getByRole("application", { name: "圈选穿搭" });
+  await expect(overlay).toBeVisible();
+  await expect(page.getByRole("status", { name: "沿着衣服边缘画一圈" })).toBeVisible();
+  await expect(circleButton).toBeEnabled();
+
+  await page.screenshot({
+    path: path.resolve(
+      process.cwd(),
+      "../../docs/evidence/pr12-integration/12-feed-pause-circle-guide.png"
+    ),
+    animations: "disabled"
+  });
+
+  await overlay.click({ position: { x: 12, y: 12 } });
+  await expect(overlay).toHaveCount(0);
+  await expect
+    .poll(() => firstVideo.evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(false);
+
+  await circleButton.click();
+  await expect(overlay).toBeVisible();
+  await expect(circleButton).toBeEnabled();
+  await circleButton.click();
+  await expect(page.getByRole("status", { name: "沿着衣服边缘画一圈" })).toBeVisible();
+
   const box = await overlay.boundingBox();
   expect(box).not.toBeNull();
   if (!box) return;

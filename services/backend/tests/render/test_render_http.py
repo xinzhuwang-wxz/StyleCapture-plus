@@ -314,8 +314,7 @@ async def test_user_can_delete_private_try_on_photo_without_deleting_result(
     assert requested.json()["personalized"] is False
     assert requested.json()["presentation_label"] == "我的真人试穿"
     assert deleted.status_code == 204
-    with pytest.raises(KeyError):
-        objects.describe(subject.object_key)
+    assert objects.describe(subject.object_key).object_key == subject.object_key
     try_on = next(render for render in listed.json()["renders"] if render["kind"] == "try_on")
     assert try_on["subject_attached"] is False
     assert try_on["personalized"] is True

@@ -20,6 +20,7 @@ import {
   wardrobeApi
 } from "../api/client";
 import { CaptureSheet } from "../features/capture/CaptureSheet";
+import { PhoneFrame } from "../components/PhoneFrame";
 import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
 import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
@@ -28,12 +29,16 @@ import { ItemDetail } from "../features/wardrobe/ItemDetail";
 import { LookDetail } from "../features/wardrobe/LookDetail";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
+import {
+  createBrowserImagePreview,
+  releaseBrowserImagePreview
+} from "../media/browserImagePreview";
 import "./styles.css";
 import "./pixel-theme.css";
 
 type Selection = {
   file: File;
-  previewUrl: string;
+  previewUrl: string | null;
   sourceKind: SourceKind;
 };
 
@@ -43,6 +48,61 @@ type FeedRestoreTarget = {
   timestampMs: number;
   requestId: string;
 };
+
+const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
+const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
+
+function restoreSelectedLookId(): string | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.sessionStorage.getItem(SELECTED_LOOK_STORAGE_KEY);
+  return stored && stored.trim() ? stored : null;
+}
+
+function restorePendingItems(): PendingItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(
+      window.sessionStorage.getItem(PENDING_ITEMS_STORAGE_KEY) ?? "[]"
+    ) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((entry) => {
+      if (
+        typeof entry !== "object" ||
+        entry === null ||
+        !("captureId" in entry) ||
+        !("jobId" in entry) ||
+        typeof entry.captureId !== "string" ||
+        typeof entry.jobId !== "string"
+      ) {
+        return [];
+      }
+      const ownership = entry.ownership === "inspiration" ? "inspiration" : "owned";
+      const state =
+        entry.state === "processing" ||
+        entry.state === "partial" ||
+        entry.state === "ready" ||
+        entry.state === "error"
+          ? entry.state
+          : "queued";
+      return [
+        {
+          captureId: entry.captureId,
+          jobId: entry.jobId,
+          previewUrl: null,
+          ownership,
+          state,
+          errorCode:
+            "errorCode" in entry && typeof entry.errorCode === "string"
+              ? entry.errorCode
+              : null,
+          errorMessage: null
+        } satisfies PendingItem
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError || error instanceof Error) {
@@ -55,26 +115,89 @@ export function App() {
   const queryClient = useQueryClient();
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
-  const [destination, setDestination] = useState<Destination>("feed");
+  const addMenuTrigger = useRef<HTMLButtonElement>(null);
+  const addMenuClose = useRef<HTMLButtonElement>(null);
+  const wardrobeView = useRef<HTMLDivElement>(null);
+  const restoredLookId = useRef(restoreSelectedLookId());
+  const [destination, setDestination] = useState<Destination>(() =>
+    restoredLookId.current ? "wardrobe" : "feed"
+  );
   const [feedRestoreTarget, setFeedRestoreTarget] =
     useState<FeedRestoreTarget | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [pending, setPending] = useState<PendingItem[]>([]);
+  const [pending, setPending] = useState<PendingItem[]>(restorePendingItems);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-  const [selectedLookId, setSelectedLookId] = useState<string | null>(null);
+  const [selectedLookId, setSelectedLookId] = useState<string | null>(
+    restoredLookId.current
+  );
   const [aiAnchorItemId, setAiAnchorItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedLikingLookId, setFeedLikingLookId] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [pendingPixelLookId, setPendingPixelLookId] = useState<string | null>(
-    null
-  );
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(null), 6_000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    if (selectedLookId) {
+      window.sessionStorage.setItem(SELECTED_LOOK_STORAGE_KEY, selectedLookId);
+      return;
+    }
+    window.sessionStorage.removeItem(SELECTED_LOOK_STORAGE_KEY);
+  }, [selectedLookId]);
+
+  useEffect(() => {
+    if (!feedLikingLookId) return;
+    const timeout = window.setTimeout(() => setFeedLikingLookId(null), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [feedLikingLookId]);
+
+  useEffect(() => {
+    const durablePending = pending.map(({ previewUrl: _previewUrl, ...entry }) => ({
+      ...entry,
+      previewUrl: null,
+      errorMessage: null
+    }));
+    if (durablePending.length === 0) {
+      window.sessionStorage.removeItem(PENDING_ITEMS_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(
+      PENDING_ITEMS_STORAGE_KEY,
+      JSON.stringify(durablePending)
+    );
+  }, [pending]);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    addMenuClose.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setAddMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      window.setTimeout(() => addMenuTrigger.current?.focus(), 0);
+    };
+  }, [addMenuOpen]);
+
+  useEffect(() => {
+    if (destination === "feed") return;
+    const container = wardrobeView.current;
+    if (!container) return;
+    if (typeof container.scrollTo === "function") {
+      container.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+    container.scrollTop = 0;
+  }, [destination]);
 
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
@@ -106,11 +229,7 @@ export function App() {
   const pixelCovers = Object.fromEntries(
     looks.flatMap((look, index) => {
       const cover = lookRenderQueries[index]?.data?.find(
-        (render) =>
-          render.kind === "pixel_cover" &&
-          render.status === "succeeded" &&
-          render.share_eligible &&
-          render.output_image_url !== null
+        (render) => render.kind === "pixel_cover"
       );
       return cover ? [[look.id, cover] as const] : [];
     })
@@ -125,6 +244,11 @@ export function App() {
         ? 2_000
         : false
   });
+  useEffect(() => {
+    if (!selectedLookId || !lookQuery.isError) return;
+    setNotice(errorMessage(lookQuery.error));
+    setSelectedLookId(null);
+  }, [lookQuery.error, lookQuery.isError, selectedLookId]);
   const rendersQuery = useQuery({
     queryKey: ["look-renders", selectedLookId],
     queryFn: () => wardrobeApi.listRenders(selectedLookId!),
@@ -148,7 +272,7 @@ export function App() {
     setPending((current) =>
       current.filter((entry) => {
         if (!captures.has(entry.captureId)) return true;
-        URL.revokeObjectURL(entry.previewUrl);
+        releaseBrowserImagePreview(entry.previewUrl);
         return false;
       })
     );
@@ -164,12 +288,24 @@ export function App() {
             setPending((current) =>
               current.map((candidate) =>
                 candidate.jobId === entry.jobId
-                  ? { ...candidate, state: job.state }
+                  ? {
+                      ...candidate,
+                      state: job.state,
+                      errorCode: job.error_code,
+                      errorMessage: job.error_message
+                    }
                   : candidate
               )
             );
-          } catch {
-            // The wardrobe query remains the source of truth if a status refresh is interrupted.
+          } catch (error) {
+            if (error instanceof ProductApiError && error.code === "job_not_found") {
+              releaseBrowserImagePreview(entry.previewUrl);
+              setPending((current) =>
+                current.filter((candidate) => candidate.jobId !== entry.jobId)
+              );
+            }
+            // Transient failures keep the local placeholder while the wardrobe query
+            // remains the source of truth. A missing job is terminal and is removed.
           }
         })
       );
@@ -205,16 +341,58 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
 
+  const retryPixelMutation = useMutation({
+    mutationFn: (item: Item) => wardrobeApi.retryItemPixel(item.id),
+    onSuccess: () => {
+      setNotice("像素展示图已重新排队，真实单品不受影响");
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
+  const retryPendingMutation = useMutation({
+    mutationFn: (jobId: string) => wardrobeApi.retryJob(jobId),
+    onSuccess: (job) => {
+      setPending((current) =>
+        current.map((entry) =>
+          entry.jobId === job.job_id
+            ? {
+                ...entry,
+                state: job.state,
+                errorCode: null,
+                errorMessage: null
+              }
+            : entry
+        )
+      );
+      setNotice("已经重新开始识别，完成后会自动出现");
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
+  function dismissPending(entry: PendingItem) {
+    releaseBrowserImagePreview(entry.previewUrl);
+    setPending((current) =>
+      current.filter((candidate) => candidate.jobId !== entry.jobId)
+    );
+    setNotice("已从当前列表移除，衣橱里的其他内容不受影响");
+  }
+
   const deleteMutation = useMutation({
     mutationFn: (itemId: string) => wardrobeApi.deleteSource(itemId),
     onSuccess: (_, itemId) => {
+      const deletedItem = items.find((item) => item.id === itemId);
       queryClient.setQueryData<Item[]>(["wardrobe-items"], (current) =>
         current?.map((item) =>
           item.id === itemId ? { ...item, source_available: false } : item
         )
       );
       setSelectedItem(null);
-      setNotice("原图已删除，文字资产仍保留在衣橱中");
+      setNotice(
+        deletedItem?.display_image_kind === "derived_garment"
+          ? "原始上传图已删除，抠出的单品图和文字资产仍保留"
+          : "原始上传图已删除，文字资产仍保留在衣橱中"
+      );
     },
     onError: (error) => setNotice(errorMessage(error))
   });
@@ -223,6 +401,7 @@ export function App() {
     mutationFn: ({ lookId, reason }: { lookId: string; reason: string }) =>
       wardrobeApi.addLikingReason(lookId, reason, crypto.randomUUID()),
     onSuccess: () => {
+      setFeedLikingLookId(null);
       setNotice("喜欢原因已记住，会用于之后的搭配");
       void queryClient.invalidateQueries({
         queryKey: ["wardrobe-look", selectedLookId]
@@ -362,23 +541,24 @@ export function App() {
     });
   }, [lookQuery.data]);
 
+  const ensuredPixelLookIds = useRef(new Set<string>());
+
   useEffect(() => {
-    if (!pendingPixelLookId || renderMutation.isPending) return;
-    const readyLook = looks.find(
-      (look) =>
-        look.id === pendingPixelLookId &&
-        (look.status === "ready" || look.status === "partial")
-    );
-    if (!readyLook) return;
-    const key = `auto-upload-pixel:${readyLook.id}:${readyLook.updated_at}`;
-    setPendingPixelLookId(null);
-    setNotice("穿搭已经拆成单品，像素小人正在生成");
-    renderMutation.mutate({
-      lookId: readyLook.id,
-      kind: "pixel_cover",
-      idempotencyKey: key
+    if (renderMutation.isPending) return;
+    const candidate = looks.find((look, index) => {
+      if (look.status !== "ready" && look.status !== "partial") return false;
+      const query = lookRenderQueries[index];
+      if (!query?.isSuccess || ensuredPixelLookIds.current.has(look.id)) return false;
+      return !query.data.some((render) => render.kind === "pixel_cover");
     });
-  }, [looks, pendingPixelLookId, renderMutation.isPending]);
+    if (!candidate) return;
+    ensuredPixelLookIds.current.add(candidate.id);
+    renderMutation.mutate({
+      lookId: candidate.id,
+      kind: "pixel_cover",
+      idempotencyKey: `auto-pixel:${candidate.id}:${candidate.updated_at}`
+    });
+  }, [lookRenderQueries, looks, renderMutation.isPending]);
 
   function chooseFile(file: File | undefined, sourceKind: SourceKind) {
     if (!file) return;
@@ -392,12 +572,12 @@ export function App() {
     setSelection({
       file,
       sourceKind,
-      previewUrl: URL.createObjectURL(file)
+      previewUrl: createBrowserImagePreview(file)
     });
   }
 
   function cancelSelection() {
-    if (selection) URL.revokeObjectURL(selection.previewUrl);
+    if (selection) releaseBrowserImagePreview(selection.previewUrl);
     setSelection(null);
     setSheetError(null);
   }
@@ -418,9 +598,8 @@ export function App() {
         intent
       );
       if (accepted.look_id) {
-        URL.revokeObjectURL(selection.previewUrl);
+        releaseBrowserImagePreview(selection.previewUrl);
         setSelection(null);
-        setPendingPixelLookId(accepted.look_id);
         setNotice("整套已保存，AI 正在拆解单品并准备像素小人");
         void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
         void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
@@ -449,7 +628,7 @@ export function App() {
   function acceptFeedCapture(accepted: CaptureAccepted, file: File) {
     if (accepted.look_id) {
       setNotice("整套已收藏，AI 正在后台拆成真实单品");
-      setPendingPixelLookId(accepted.look_id);
+      setFeedLikingLookId(accepted.look_id);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
       return;
@@ -458,7 +637,7 @@ export function App() {
       {
         captureId: accepted.capture_id,
         jobId: accepted.job_id,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl: createBrowserImagePreview(file),
         ownership: "inspiration",
         state: accepted.state
       },
@@ -468,24 +647,61 @@ export function App() {
   }
 
   return (
-    <main
-      className={`product-shell pixel-shell ${
-        destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
-      }`}
-    >
+    <PhoneFrame>
+      <main
+        className={`product-shell pixel-shell ${
+          destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
+        }`}
+      >
       <section
         aria-label="穿搭灵感"
-        className="product-view product-view--feed"
+        className="product-view product-view--feed feed-standalone"
         hidden={destination !== "feed"}
       >
+        <div className="feed-topbar">
+          <div className="feed-topbar__brand">
+            <span>STYLECAPTURE</span>
+            <strong>穿搭灵感</strong>
+          </div>
+          <button
+            type="button"
+            className="feed-topbar__mini"
+            aria-label="数字衣橱"
+            onClick={() => setDestination("wardrobe")}
+          >
+            进入数字衣橱
+          </button>
+        </div>
         <FeedScreen
           active={destination === "feed"}
           onAccepted={acceptFeedCapture}
           restoreTarget={feedRestoreTarget}
         />
+        {feedLikingLookId ? (
+          <aside className="feed-liking-prompt" aria-label="可选补充喜欢原因">
+            <strong>顺手记一下喜欢它哪里？</strong>
+            <span>可选，不会打断继续刷 Feed</span>
+            <div>
+              {["配色舒服", "层次感", "氛围感", "显瘦利落"].map((reason) => (
+                <button
+                  type="button"
+                  key={reason}
+                  disabled={lookReasonMutation.isPending}
+                  onClick={() => lookReasonMutation.mutate({ lookId: feedLikingLookId, reason })}
+                >
+                  {reason}
+                </button>
+              ))}
+              <button type="button" onClick={() => setFeedLikingLookId(null)}>
+                跳过
+              </button>
+            </div>
+          </aside>
+        ) : null}
       </section>
 
       <div
+        ref={wardrobeView}
         className="product-view product-view--wardrobe pixel-app"
         hidden={destination === "feed"}
       >
@@ -508,6 +724,13 @@ export function App() {
               <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
               <span aria-hidden="true">✦</span>
             </div>
+            <button
+              type="button"
+              className="wardrobe-header__feed"
+              onClick={() => setDestination("feed")}
+            >
+              刷灵感 Feed
+            </button>
           </header>
         ) : null}
 
@@ -566,29 +789,6 @@ export function App() {
                   </span>
                 </button>
               </div>
-              <input
-                ref={cameraInput}
-                className="visually-hidden"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                capture="environment"
-                aria-label="拍摄衣物照片"
-                onChange={(event) => {
-                  chooseFile(event.target.files?.[0], "camera");
-                  event.target.value = "";
-                }}
-              />
-              <input
-                ref={galleryInput}
-                className="visually-hidden"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                aria-label="选择衣物照片"
-                onChange={(event) => {
-                  chooseFile(event.target.files?.[0], "upload");
-                  event.target.value = "";
-                }}
-              />
             </section>
 
             <WardrobeScreen
@@ -598,9 +798,16 @@ export function App() {
               pending={pending}
               itemsLoading={itemsQuery.isLoading}
               looksLoading={looksQuery.isLoading}
+              itemsError={itemsQuery.isError}
+              looksError={looksQuery.isError}
+              onRetryItems={() => void itemsQuery.refetch()}
+              onRetryLooks={() => void looksQuery.refetch()}
               onOpen={setSelectedItem}
               onOpenLook={(look: Look) => setSelectedLookId(look.id)}
               onRetry={(item) => retryMutation.mutate(item)}
+              onRetryPixel={(item) => retryPixelMutation.mutate(item)}
+              onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
+              onDismissPending={dismissPending}
             />
           </div>
         ) : null}
@@ -609,6 +816,7 @@ export function App() {
           <AnalysisScreen
             items={items}
             looks={looks}
+            pixelCovers={pixelCovers}
             onGoAI={() => setDestination("ai")}
             onGoWardrobe={() => setDestination("wardrobe")}
             onOpenLook={(lookId) => setSelectedLookId(lookId)}
@@ -618,8 +826,15 @@ export function App() {
         {destination === "ai" ? (
           <AIRecommendScreen
             onGoWardrobe={() => setDestination("wardrobe")}
-            onSavedLook={(lookId) => {
-              setNotice("穿搭已保存；真实拼贴和像素封面正在后台生成");
+            onSavedLook={(result) => {
+              const lookId = result.look_id;
+              setNotice(
+                result.presentation_state === "queued"
+                  ? "穿搭已保存；真实拼贴和像素封面正在后台生成"
+                  : result.presentation_state === "pending_retry"
+                    ? "穿搭已保存；展示生成排队失败，可进入详情重试"
+                    : "穿搭已保存；当前未配置展示生成，可先查看真实单品"
+              );
               void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
               void queryClient.invalidateQueries({ queryKey: ["look-renders", lookId] });
               if (selectedLookId === lookId) {
@@ -638,12 +853,40 @@ export function App() {
           />
         ) : null}
 
-        {destination === "profile" ? (
-          <ProfileScreen itemCount={items.length + pending.length} outfitCount={looks.length} />
-        ) : null}
+        <div hidden={destination !== "profile"}>
+          <ProfileScreen
+            itemCount={items.length + pending.length}
+            outfitCount={looks.length}
+            onNotice={setNotice}
+          />
+        </div>
+
+        <input
+          ref={cameraInput}
+          className="visually-hidden"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+          capture="environment"
+          aria-label="拍摄衣物照片"
+          onChange={(event) => {
+            chooseFile(event.target.files?.[0], "camera");
+            event.target.value = "";
+          }}
+        />
+        <input
+          ref={galleryInput}
+          className="visually-hidden"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+          aria-label="选择衣物照片"
+          onChange={(event) => {
+            chooseFile(event.target.files?.[0], "upload");
+            event.target.value = "";
+          }}
+        />
 
         <CaptureSheet
-          key={selection?.previewUrl ?? "closed"}
+          key={selection ? `${selection.file.name}:${selection.file.size}` : "closed"}
           selection={selection}
           busy={uploading}
           error={sheetError}
@@ -664,6 +907,15 @@ export function App() {
             setAiAnchorItemId(itemId);
             setSelectedItem(null);
             setDestination("ai");
+          }}
+          onReturnToFeed={(videoRef, timestampMs) => {
+            setSelectedItem(null);
+            setFeedRestoreTarget({
+              videoRef,
+              timestampMs,
+              requestId: crypto.randomUUID()
+            });
+            setDestination("feed");
           }}
         />
         <LookDetail
@@ -687,6 +939,7 @@ export function App() {
           }
           tryOnUploading={tryOnMutation.isPending}
           deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
+          deletingSource={false}
           retrying={lookRetryMutation.isPending}
           saving={lookReasonMutation.isPending}
           onClose={() => setSelectedLookId(null)}
@@ -722,16 +975,8 @@ export function App() {
         />
       </div>
 
+      {destination !== "feed" ? (
       <nav aria-label="主要功能" className="pixel-nav">
-        <button
-          aria-current={destination === "feed" ? "page" : undefined}
-          className={destination === "feed" ? "is-active" : ""}
-          type="button"
-          onClick={() => setDestination("feed")}
-        >
-          <span className="nav-icon" aria-hidden="true">⌁</span>
-          <small>逛灵感</small>
-        </button>
         <button
           aria-current={destination === "wardrobe" ? "page" : undefined}
           className={destination === "wardrobe" ? "is-active" : ""}
@@ -756,6 +1001,16 @@ export function App() {
           <small>分析</small>
         </button>
         <button
+          ref={addMenuTrigger}
+          className="pixel-nav__add"
+          type="button"
+          aria-label="添加衣服或试试像素形象"
+          onClick={() => setAddMenuOpen(true)}
+        >
+          <span className="nav-icon" aria-hidden="true">＋</span>
+          <small>添加</small>
+        </button>
+        <button
           aria-current={destination === "ai" ? "page" : undefined}
           className={destination === "ai" ? "is-active" : ""}
           type="button"
@@ -774,6 +1029,74 @@ export function App() {
           <small>我的</small>
         </button>
       </nav>
-    </main>
+      ) : null}
+
+      {addMenuOpen ? (
+        <div
+          className="pixel-add-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="添加到 StyleCapture"
+        >
+          <button
+            type="button"
+            className="pixel-add-sheet__backdrop"
+            aria-label="关闭添加菜单"
+            onClick={() => setAddMenuOpen(false)}
+          />
+          <section className="pixel-add-sheet__panel">
+            <header>
+              <div>
+                <p className="pixel-label">快速入口</p>
+                <h2 className="pixel-title">今天想怎么玩？</h2>
+              </div>
+              <button
+                ref={addMenuClose}
+                type="button"
+                aria-label="关闭"
+                onClick={() => setAddMenuOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMenuOpen(false);
+                cameraInput.current?.click();
+              }}
+            >
+              <span aria-hidden="true">◉</span>
+              <strong>拍下真实衣服</strong>
+              <small>识别单品或整套，确认后入库</small>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMenuOpen(false);
+                galleryInput.current?.click();
+              }}
+            >
+              <span aria-hidden="true">✦</span>
+              <strong>从相册导入</strong>
+              <small>支持实物图、穿搭照和收藏图片</small>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMenuOpen(false);
+                setDestination("profile");
+                setNotice("在“我的”里上传全身照，生成不入库的像素形象");
+              }}
+            >
+              <span aria-hidden="true">👾</span>
+              <strong>试试像素形象</strong>
+              <small>只生成展示，不加入数字衣橱</small>
+            </button>
+          </section>
+        </div>
+      ) : null}
+      </main>
+    </PhoneFrame>
   );
 }

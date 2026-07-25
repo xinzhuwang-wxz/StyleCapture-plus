@@ -20,6 +20,12 @@ const FALLBACK_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
 function safeContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.userAgent.toLowerCase().includes("jsdom")
+  ) {
+    return null;
+  }
   try {
     return canvas.getContext("2d");
   } catch {

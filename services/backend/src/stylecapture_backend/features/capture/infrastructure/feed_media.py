@@ -26,6 +26,7 @@ from stylecapture_backend.features.capture.processing import ProviderError
 
 SEGMENTATION_SCHEMA_VERSION = "feed-segmentation-v1"
 SAM2_TINY_MODEL_ID = "facebook/sam2.1-hiera-tiny"
+SAM2_TINY_REVISION = "de431c4043854a71d8101e17995dfe596bf101a5"
 PROMPTABLE_SEGMENTATION_PROVIDER = "local_promptable_segmentation"
 SEGMENTATION_MODEL_ALIAS = "segmentation_refinement"
 
@@ -360,7 +361,13 @@ class Sam2PromptableSegmentationProvider:
 
 
 class TransformersSam2Backend:
-    def __init__(self, *, model: str = SAM2_TINY_MODEL_ID, device: str = "cpu") -> None:
+    def __init__(
+        self,
+        *,
+        model: str = SAM2_TINY_MODEL_ID,
+        revision: str = SAM2_TINY_REVISION,
+        device: str = "cpu",
+    ) -> None:
         import torch  # type: ignore[import-not-found,unused-ignore]
         from transformers import (  # type: ignore[import-not-found,unused-ignore]
             Sam2Model,
@@ -368,11 +375,18 @@ class TransformersSam2Backend:
         )
 
         self._torch = torch
-        self._processor = Sam2Processor.from_pretrained(model)
-        self._model = Sam2Model.from_pretrained(
+        self._processor = Sam2Processor.from_pretrained(
             model,
+            revision=revision,
+            trust_remote_code=False,
+        )
+        loaded_model: Any = Sam2Model.from_pretrained(
+            model,
+            revision=revision,
+            trust_remote_code=False,
             use_safetensors=True,
-        ).to(device)
+        )
+        self._model = loaded_model.to(device)
         self._model.eval()
         self._device = device
 

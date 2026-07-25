@@ -1,0 +1,216 @@
+/* ═══ AI 闺蜜：会话 + 提词模板 + 输入框 ═══ */
+
+.ai-screen__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-2);
+  margin-bottom: var(--px-4);
+}
+
+/* 标题不换行，右侧按钮自己收缩 */
+.ai-screen__title {
+  flex: none;
+  margin: 0;
+  font-size: 1.3rem;
+  white-space: nowrap;
+}
+
+.ai-screen__thread {
+  display: flex;
+  flex-direction: column;
+  /* 像正常聊天一样贴着输入框往上排，消息少时不留一大片空白 */
+  justify-content: flex-end;
+  min-height: calc(100% - 3rem);
+  gap: 10px;
+  /* 给下方的提词模板 + 输入框留位置 */
+  padding-bottom: 10.5rem;
+}
+
+.ai-screen__turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-screen__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--px-3);
+}
+
+.ai-screen__card-cover {
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(160deg, #faf5ff, #fdeef5);
+}
+
+.ai-screen__card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ai-screen__card-name {
+  padding: 7px 8px 9px;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+/* ─── 底部输入区 ─── */
+.ai-composer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 80px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--px-2);
+  padding: 10px var(--px-4) 12px;
+  background: linear-gradient(180deg, rgba(247, 243, 252, 0) 0%, var(--pixel-bg) 26%);
+}
+
+.ai-composer__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ai-composer__row::-webkit-scrollbar { display: none; }
+
+.ai-composer__row-label {
+  flex: 0 0 auto;
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--pixel-text-dim);
+}
+
+.ai-composer__chip {
+  flex: 0 0 auto;
+  padding: 5px 11px;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 999px;
+  color: var(--pixel-text-muted);
+}
+
+.ai-composer__chip[data-tone="style"] { border-color: #f5d9ea; color: #d1608f; }
+.ai-composer__chip[data-tone="weather"] { border-color: #dbe7f7; color: #5b82b8; }
+
+.ai-composer__input {
+  display: flex;
+  align-items: center;
+  gap: var(--px-2);
+  padding: 6px 6px 6px var(--px-4);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 999px;
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.ai-composer__input input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-pixel);
+  font-size: 0.82rem;
+  color: var(--pixel-text);
+}
+
+.ai-composer__input button {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--pixel-primary), var(--pixel-pink));
+  border: none;
+  border-radius: 50%;
+}
+
+.ai-composer__input button:disabled { opacity: 0.45; }
+
+/* ─── 对话记录二级页 ─── */
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--px-3);
+}
+
+.chat-history__row {
+  display: flex;
+  gap: var(--px-3);
+  align-items: center;
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.chat-history__row > img {
+  flex: none;
+  width: 64px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border: 1px solid var(--pixel-border);
+  border-radius: 10px;
+}
+
+.chat-history__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--px-2);
+}
+
+.chat-history__title strong {
+  font-family: var(--font-pixel);
+  font-size: 0.88rem;
+}
+
+.chat-history__title span {
+  font-family: var(--font-pixel);
+  font-size: 0.66rem;
+  color: var(--pixel-secondary);
+  white-space: nowrap;
+}
+
+.chat-history__row p {
+  margin: 4px 0 6px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--pixel-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-history__row em {
+  display: inline-block;
+  padding: 2px 9px;
+  font-family: var(--font-pixel);
+  font-size: 0.66rem;
+  font-style: normal;
+  color: var(--pixel-primary-dark);
+  background: #f3edfd;
+  border-radius: 999px;
+}
+
+.chat-history__chevron { color: var(--pixel-secondary); font-size: 1rem; }

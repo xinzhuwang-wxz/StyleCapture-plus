@@ -1,12 +1,17 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
-import type {
-  LookDetail as LookDetailData,
-  PurchaseDemand,
-  RenderArtifact,
-  RenderKind
+import {
+  validateImage,
+  type LookDetail as LookDetailData,
+  type PurchaseDemand,
+  type RenderArtifact,
+  type RenderKind
 } from "../../api/client";
+import {
+  createBrowserImagePreview,
+  releaseBrowserImagePreview
+} from "../../media/browserImagePreview";
 import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
 
 type LookDetailProps = {
@@ -20,6 +25,7 @@ type LookDetailProps = {
   generatingKind?: RenderKind | null;
   tryOnUploading?: boolean;
   deletingTryOnPhoto?: boolean;
+  deletingSource?: boolean;
   retrying: boolean;
   saving: boolean;
   onClose: () => void;
@@ -29,6 +35,7 @@ type LookDetailProps = {
   onGenerate?: (lookId: string, kind: RenderKind) => void;
   onTryOn?: (lookId: string, file: File) => void;
   onDeleteTryOnPhoto?: (artifactId: string) => void;
+  onDeleteSource?: (lookId: string) => void;
   onAdvancePurchaseDemand?: (
     demandId: string,
     status: PurchaseDemand["status"]
@@ -45,6 +52,7 @@ function DetailContent({
   generatingKind = null,
   tryOnUploading = false,
   deletingTryOnPhoto = false,
+  deletingSource = false,
   retrying,
   saving,
   onClose,
@@ -54,6 +62,7 @@ function DetailContent({
   onGenerate,
   onTryOn,
   onDeleteTryOnPhoto,
+  onDeleteSource,
   onAdvancePurchaseDemand
 }: Omit<LookDetailProps, "detail" | "loading"> & {
   detail: LookDetailData;
@@ -67,7 +76,11 @@ function DetailContent({
   const [pendingTryOnPreview, setPendingTryOnPreview] = useState<string | null>(
     null
   );
+  const [tryOnValidationError, setTryOnValidationError] = useState<string | null>(null);
+  const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
   const tryOnInputRef = useRef<HTMLInputElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
   const values = detail.analysis?.values ?? {};
   const analysisSourceLabel =
     detail.analysis?.capability_alias === "curated_seed" ||
@@ -82,6 +95,29 @@ function DetailContent({
     setActiveRenderKind("collage");
     setShareMessage(null);
     setPendingTryOnFile(null);
+    setTryOnValidationError(null);
+    setConfirmingSourceDelete(false);
+  }, [detail.look.id]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    closeButtonRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+        previouslyFocused.focus();
+      }
+    };
   }, [detail.look.id]);
 
   useEffect(() => {
@@ -89,9 +125,9 @@ function DetailContent({
       setPendingTryOnPreview(null);
       return;
     }
-    const preview = URL.createObjectURL(pendingTryOnFile);
+    const preview = createBrowserImagePreview(pendingTryOnFile);
     setPendingTryOnPreview(preview);
-    return () => URL.revokeObjectURL(preview);
+    return () => releaseBrowserImagePreview(preview);
   }, [pendingTryOnFile]);
 
   useEffect(() => {
@@ -134,6 +170,14 @@ function DetailContent({
           ? "真实 Feed 来源"
           : "Feed 来源画面已删除"
         : "用户创建";
+  const lookStatusLabel =
+    detail.look.status === "ready"
+      ? "搭配分析完成"
+      : detail.look.status === "error"
+        ? "解析失败，结果已保留"
+        : detail.look.status === "partial"
+          ? "部分拆解完成"
+          : "后台处理中";
 
   async function sharePixelCover() {
     if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
@@ -188,7 +232,13 @@ function DetailContent({
       transition={{ type: "spring", stiffness: 340, damping: 36 }}
     >
       <div className="detail-topbar">
-        <button className="icon-button" type="button" aria-label="返回衣橱" onClick={onClose}>
+        <button
+          ref={closeButtonRef}
+          className="icon-button"
+          type="button"
+          aria-label="返回衣橱"
+          onClick={onClose}
+        >
           ‹
         </button>
         <strong id="look-detail-title">穿搭详情</strong>
@@ -208,7 +258,11 @@ function DetailContent({
         ) : (
           <div className="item-image-placeholder">
             <span>✦</span>
-            <small>原始画面已删除</small>
+            <small>
+              {detail.look.source === "ai_generated"
+                ? "由衣橱真实单品组成"
+                : "原始画面已删除"}
+            </small>
           </div>
         )}
         {detail.look.status === "processing" ? (
@@ -222,9 +276,7 @@ function DetailContent({
       <div className="detail-content">
         <div className="detail-meta">
           <span>{sourceLabel}</span>
-          <span>
-            {detail.look.status === "ready" ? "搭配分析完成" : "后台处理中"}
-          </span>
+          <span>{lookStatusLabel}</span>
         </div>
 
         {detail.look.source_available && detail.source_video_ref ? (
@@ -244,6 +296,45 @@ function DetailContent({
           <p className="source-unavailable" role="status">
             原始画面已删除，穿搭关系和已拆出的单品仍保留。
           </p>
+        ) : null}
+
+        {detail.look.source !== "ai_generated" &&
+        detail.look.source_available &&
+        onDeleteSource ? (
+          confirmingSourceDelete ? (
+            <div className="look-recovery" role="alertdialog" aria-label="确认删除整套原图">
+              <strong>删除整套原图？</strong>
+              <span>
+                已拆出的单品、搭配关系和生成结果都会保留；删除后不能重新解析原图。
+              </span>
+              <div className="look-detail__source-actions">
+                <button
+                  className="secondary-action"
+                  type="button"
+                  disabled={deletingSource}
+                  onClick={() => setConfirmingSourceDelete(false)}
+                >
+                  取消
+                </button>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  disabled={deletingSource}
+                  onClick={() => onDeleteSource(detail.look.id)}
+                >
+                  {deletingSource ? "正在删除…" : "确认删除原图"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="source-link"
+              type="button"
+              onClick={() => setConfirmingSourceDelete(true)}
+            >
+              删除整套原图
+            </button>
+          )
         ) : null}
 
         {detail.components.length > 0 ? (
@@ -402,7 +493,11 @@ function DetailContent({
                   <span>
                     {activeRender.status === "queued" || activeRender.status === "running"
                       ? "后台生成中…"
-                      : activeRender.failure_message ?? "已保留真实拼贴结果"}
+                      : activeRender.kind === "try_on"
+                        ? "真人试穿暂时不可用，已保留真实单品拼贴；可换张全身照重试。"
+                        : activeRender.kind === "pixel_cover"
+                          ? "像素封面暂时不可用，真实单品和穿搭关系不受影响。"
+                          : "真实单品拼贴暂时不可用，请稍后重试。"}
                   </span>
                 </div>
               ) : null}
@@ -426,20 +521,41 @@ function DetailContent({
                   ref={tryOnInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  capture="environment"
+                  capture="user"
                   hidden
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) setPendingTryOnFile(file);
+                    if (file) {
+                      const validationError = validateImage(file);
+                      if (validationError) {
+                        setPendingTryOnFile(null);
+                        setTryOnValidationError(validationError);
+                      } else {
+                        setTryOnValidationError(null);
+                        setPendingTryOnFile(file);
+                      }
+                    }
                     event.currentTarget.value = "";
                   }}
                 />
-                {pendingTryOnFile && pendingTryOnPreview ? (
+                {tryOnValidationError ? (
+                  <div className="profile__error" role="alert">
+                    {tryOnValidationError}
+                  </div>
+                ) : null}
+                {pendingTryOnFile ? (
                   <div className="render-studio__photo-confirm">
-                    <img
-                      src={pendingTryOnPreview}
-                      alt="待确认的试穿全身照"
-                    />
+                    {pendingTryOnPreview ? (
+                      <img
+                        src={pendingTryOnPreview}
+                        alt="待确认的试穿全身照"
+                      />
+                    ) : (
+                      <div className="pending-heic-preview" role="status">
+                        <strong>iPhone 全身照已选中</strong>
+                        <span>确认后会自动转换并用于私人试穿</span>
+                      </div>
+                    )}
                     <p>
                       确认使用这张全身照生成本套试穿。原照仅用于本次私人生成，
                       结果完成后可随时删除原照。
@@ -612,6 +728,7 @@ export function LookDetail(props: LookDetailProps) {
             generatingKind={props.generatingKind}
             tryOnUploading={props.tryOnUploading}
             deletingTryOnPhoto={props.deletingTryOnPhoto}
+            deletingSource={props.deletingSource}
             retrying={props.retrying}
             saving={props.saving}
             onClose={props.onClose}
@@ -621,6 +738,7 @@ export function LookDetail(props: LookDetailProps) {
             onGenerate={props.onGenerate}
             onTryOn={props.onTryOn}
             onDeleteTryOnPhoto={props.onDeleteTryOnPhoto}
+            onDeleteSource={props.onDeleteSource}
             onAdvancePurchaseDemand={props.onAdvancePurchaseDemand}
           />
         </div>

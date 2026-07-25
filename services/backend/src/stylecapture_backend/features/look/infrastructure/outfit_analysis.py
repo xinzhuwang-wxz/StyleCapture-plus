@@ -45,14 +45,22 @@ class LiteLLMOutfitAnalyzer:
         self,
         *,
         capability_alias: str,
+        fallback_alias: str | None = None,
         gateway_base_url: str,
         gateway_api_key: str,
         completion: CompletionCall = acompletion,
         timeout_seconds: float = 45,
     ) -> None:
-        if not capability_alias.strip():
+        capability_alias = capability_alias.strip()
+        fallback_alias = fallback_alias.strip() if fallback_alias is not None else None
+        if not capability_alias:
             raise ValueError("outfit analysis capability alias must not be empty")
+        if fallback_alias == "":
+            raise ValueError("outfit analysis fallback alias must not be empty")
+        if fallback_alias == capability_alias:
+            raise ValueError("outfit analysis fallback alias must differ from primary alias")
         self._alias = capability_alias
+        self._fallback_alias = fallback_alias
         self._base_url = gateway_base_url.rstrip("/")
         self._api_key = gateway_api_key
         self._completion = completion
@@ -66,41 +74,62 @@ class LiteLLMOutfitAnalyzer:
     ) -> LookAnalysis:
         data_url = _analysis_data_url(image)
         started = perf_counter()
-        try:
-            async with asyncio.timeout(self._timeout_seconds):
-                response = await self._completion(
-                    model=f"openai/{self._alias}",
-                    api_base=self._base_url,
-                    api_key=self._api_key,
-                    messages=_messages(data_url, components=components),
-                    temperature=0,
-                    max_tokens=900,
-                    num_retries=0,
-                )
-        except Exception as error:
-            raise ProviderError(
-                "outfit_analysis_unavailable",
-                "Outfit analysis is temporarily unavailable",
-                retryable=True,
-            ) from error
+        messages = _messages(data_url, components=components)
+        aliases = (self._alias,) + (
+            (self._fallback_alias,) if self._fallback_alias is not None else ()
+        )
+        last_failure: ProviderError | None = None
+        last_cause: Exception | None = None
 
-        latency_ms = max(0, round((perf_counter() - started) * 1000))
-        try:
-            raw = cast(Any, response)
-            content = raw.choices[0].message.content
-            if not isinstance(content, str):
-                raise TypeError("outfit analysis response content is not text")
-            return parse_look_analysis(
-                content,
-                capability_alias=self._alias,
-                latency_ms=latency_ms,
-            )
-        except (AttributeError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
-            raise ProviderError(
-                "outfit_analysis_schema_invalid",
-                "Outfit analysis returned invalid structured content",
-                retryable=True,
-            ) from error
+        for alias in aliases:
+            try:
+                async with asyncio.timeout(self._timeout_seconds):
+                    response = await self._completion(
+                        model=f"openai/{alias}",
+                        api_base=self._base_url,
+                        api_key=self._api_key,
+                        messages=messages,
+                        temperature=0,
+                        max_tokens=900,
+                        num_retries=0,
+                    )
+            except Exception as error:
+                last_failure = ProviderError(
+                    "outfit_analysis_unavailable",
+                    "Outfit analysis is temporarily unavailable",
+                    retryable=True,
+                )
+                last_cause = error
+                continue
+
+            latency_ms = max(0, round((perf_counter() - started) * 1000))
+            try:
+                raw = cast(Any, response)
+                content = raw.choices[0].message.content
+                if not isinstance(content, str):
+                    raise TypeError("outfit analysis response content is not text")
+                return parse_look_analysis(
+                    content,
+                    capability_alias=self._alias,
+                    latency_ms=latency_ms,
+                )
+            except (
+                AttributeError,
+                IndexError,
+                TypeError,
+                ValueError,
+                json.JSONDecodeError,
+            ) as error:
+                last_failure = ProviderError(
+                    "outfit_analysis_schema_invalid",
+                    "Outfit analysis returned invalid structured content",
+                    retryable=True,
+                )
+                last_cause = error
+
+        if last_failure is None:
+            raise RuntimeError("outfit analysis requires at least one capability alias")
+        raise last_failure from last_cause
 
 
 def parse_look_analysis(
@@ -146,6 +175,8 @@ def _field_from_payload(payload: Mapping[str, object]) -> LookAnalysisField:
     confidence = payload["confidence"]
     if not isinstance(value, str):
         raise ValueError("look analysis field value must be text")
+    if not any("\u3400" <= character <= "\u9fff" for character in value):
+        raise ValueError("look analysis field value must contain Chinese text")
     if not isinstance(confidence, int | float):
         raise ValueError("look analysis field confidence must be numeric")
     return LookAnalysisField(value=value, confidence=float(confidence))

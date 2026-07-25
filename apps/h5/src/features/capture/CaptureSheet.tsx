@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Ownership, SourceKind } from "../../api/client";
 
 type SelectedImage = {
   file: File;
-  previewUrl: string;
+  previewUrl: string | null;
   sourceKind: SourceKind;
 };
 
@@ -29,6 +29,54 @@ export function CaptureSheet({
 }: CaptureSheetProps) {
   const [ownership, setOwnership] = useState<Ownership | null>(null);
   const [intent, setIntent] = useState<"item" | "whole_outfit" | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const busyRef = useRef(busy);
+  const onCancelRef = useRef(onCancel);
+  const browserCanPreviewSelection = selection
+    ? canBrowserPreview(selection.file)
+    : false;
+
+  useEffect(() => {
+    busyRef.current = busy;
+    onCancelRef.current = onCancel;
+  }, [busy, onCancel]);
+
+  useEffect(() => {
+    if (!selection) return;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    cancelButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busyRef.current) {
+        event.preventDefault();
+        onCancelRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.setTimeout(() => previousFocusRef.current?.focus(), 0);
+    };
+  }, [selection]);
 
   return (
     <AnimatePresence>
@@ -44,6 +92,7 @@ export function CaptureSheet({
           }}
         >
           <motion.section
+            ref={dialogRef}
             className="pixel-sheet__content"
             role="dialog"
             aria-modal="true"
@@ -84,6 +133,7 @@ export function CaptureSheet({
                 </h2>
               </div>
               <button
+                ref={cancelButtonRef}
                 type="button"
                 className="pixel-button pixel-button--ghost"
                 style={{ width: "2.5rem", height: "2.5rem", padding: 0 }}
@@ -107,11 +157,19 @@ export function CaptureSheet({
                 background: "var(--pixel-surface-raised)"
               }}
             >
-              <img
-                src={selection.previewUrl}
-                alt="待加入衣橱的衣服"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              />
+              {browserCanPreviewSelection && selection.previewUrl ? (
+                <img
+                  src={selection.previewUrl}
+                  alt="待加入衣橱的衣服"
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                />
+              ) : (
+                <div className="capture-heic-preview" role="status">
+                  <span aria-hidden="true">✦</span>
+                  <strong>iPhone 照片已选中</strong>
+                  <small>上传后会先转成可展示的真实图片，再进入识别和像素化</small>
+                </div>
+              )}
               <span
                 style={{
                   position: "absolute",
@@ -304,4 +362,20 @@ export function CaptureSheet({
       ) : null}
     </AnimatePresence>
   );
+}
+
+function canBrowserPreview(file: File): boolean {
+  const type = contentTypeFor(file);
+  return type === "image/jpeg" || type === "image/png" || type === "image/webp";
+}
+
+function contentTypeFor(file: File): string {
+  if (file.type) return file.type.toLowerCase();
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "heic") return "image/heic";
+  if (extension === "heif") return "image/heif";
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return "";
 }

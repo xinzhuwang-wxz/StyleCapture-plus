@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
@@ -11,6 +12,15 @@ from stylecapture_backend.features.capture.domain import (
     JobState,
     OwnershipState,
 )
+from stylecapture_backend.features.item_presentation.domain import (
+    ItemPresentationStatus,
+)
+from stylecapture_backend.features.item_presentation.interfaces.http import (
+    ItemPresentationHttpServices,
+)
+from stylecapture_backend.features.item_presentation.ports import (
+    ItemPresentationDispatchError,
+)
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.domain import (
     FieldEnvelope,
@@ -19,6 +29,13 @@ from stylecapture_backend.features.wardrobe.domain import (
     WardrobeItem,
 )
 from stylecapture_backend.platform.errors import STABLE_ERROR_RESPONSES
+
+DisplayImageKind = Literal["derived_garment", "source_capture"]
+DisplayImageIssue = Literal[
+    "multiple_garments",
+    "no_reliable_garment",
+    "normalization_unavailable",
+]
 
 
 class FieldResponse(BaseModel):
@@ -45,7 +62,13 @@ class ItemResponse(BaseModel):
     status: ItemStatus
     ownership: OwnershipState
     source_kind: CaptureSourceKind
+    source_video_ref: str | None = None
+    source_timestamp_ms: int | None = None
     display_image_url: str
+    display_image_kind: DisplayImageKind = "source_capture"
+    display_image_issue: DisplayImageIssue | None = None
+    pixel_image_url: str | None = None
+    pixel_image_status: ItemPresentationStatus | None = None
     source_image_url: str
     source_available: bool
     attributes: dict[str, FieldResponse]
@@ -54,14 +77,48 @@ class ItemResponse(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_domain(cls, item: WardrobeItem) -> ItemResponse:
+    def from_domain(
+        cls,
+        item: WardrobeItem,
+        *,
+        pixel_image_url: str | None = None,
+        pixel_image_status: ItemPresentationStatus | None = None,
+    ) -> ItemResponse:
+        normalization = item.model_metadata.get("normalization")
+        display_image_issue: DisplayImageIssue | None = None
+        if item.display_object_key is None and isinstance(normalization, Mapping):
+            reason = normalization.get("reason")
+            if reason == "multiple_garments":
+                display_image_issue = "multiple_garments"
+            elif reason == "no_reliable_garment":
+                display_image_issue = "no_reliable_garment"
+            elif normalization.get("status") == "fallback":
+                display_image_issue = "normalization_unavailable"
+        feed_source = item.model_metadata.get("feed_source")
+        source_video_ref = None
+        source_timestamp_ms = None
+        if isinstance(feed_source, Mapping):
+            raw_video_ref = feed_source.get("video_ref")
+            raw_timestamp_ms = feed_source.get("timestamp_ms")
+            if isinstance(raw_video_ref, str) and raw_video_ref:
+                source_video_ref = raw_video_ref
+            if isinstance(raw_timestamp_ms, int) and raw_timestamp_ms >= 0:
+                source_timestamp_ms = raw_timestamp_ms
         return cls(
             id=item.id,
             capture_id=item.capture_id,
             status=item.status,
             ownership=item.ownership,
             source_kind=item.source_kind,
+            source_video_ref=source_video_ref,
+            source_timestamp_ms=source_timestamp_ms,
             display_image_url=f"/v1/items/{item.id}/image",
+            display_image_kind=(
+                "derived_garment" if item.display_object_key is not None else "source_capture"
+            ),
+            display_image_issue=display_image_issue,
+            pixel_image_url=pixel_image_url,
+            pixel_image_status=pixel_image_status,
             source_image_url=f"/v1/items/{item.id}/source",
             source_available=item.source_available,
             attributes={
@@ -122,9 +179,44 @@ def build_wardrobe_router(
     application: WardrobeApplication,
     *,
     current_user: Callable[..., UUID],
+    presentations: ItemPresentationHttpServices | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/items")
     principal = Depends(current_user)
+
+    async def response_for(item: WardrobeItem, user_id: UUID) -> ItemResponse:
+        if presentations is None or item.status not in {ItemStatus.READY, ItemStatus.PARTIAL}:
+            return ItemResponse.from_domain(item)
+        presentation = await presentations.presentations.ensure_pixel_item(
+            user_id=user_id,
+            item_id=item.id,
+        )
+        if (
+            presentations.dispatcher is not None
+            and presentation.dispatch_required
+            and presentation.status is ItemPresentationStatus.QUEUED
+        ):
+            try:
+                presentations.dispatcher.enqueue_item_presentation(
+                    user_id=presentation.user_id,
+                    asset_id=presentation.id,
+                )
+            except ItemPresentationDispatchError:
+                presentation = await presentations.presentations.mark_failed(
+                    user_id=presentation.user_id,
+                    asset_id=presentation.id,
+                    code="dispatch_unavailable",
+                    message="像素展示图会稍后再生成, 真实单品已经可以正常使用",
+                )
+        return ItemResponse.from_domain(
+            item,
+            pixel_image_url=(
+                f"/v1/item-presentations/{presentation.id}/image"
+                if presentation.object_key is not None
+                else None
+            ),
+            pixel_image_status=presentation.status,
+        )
 
     @router.get(
         "",
@@ -135,7 +227,7 @@ def build_wardrobe_router(
         user_id: UUID = principal,
     ) -> ItemListResponse:
         items = await application.list_items(user_id)
-        return ItemListResponse(items=[ItemResponse.from_domain(item) for item in items])
+        return ItemListResponse(items=[await response_for(item, user_id) for item in items])
 
     @router.get(
         "/{item_id}",
@@ -146,7 +238,10 @@ def build_wardrobe_router(
         item_id: UUID,
         user_id: UUID = principal,
     ) -> ItemResponse:
-        return ItemResponse.from_domain(await application.get_item(user_id, item_id))
+        return await response_for(
+            await application.get_item(user_id, item_id),
+            user_id,
+        )
 
     @router.patch(
         "/{item_id}",
@@ -164,7 +259,7 @@ def build_wardrobe_router(
             corrections=body.corrections,
             ownership=body.ownership,
         )
-        return ItemResponse.from_domain(item)
+        return await response_for(item, user_id)
 
     @router.get(
         "/{item_id}/image",

@@ -91,6 +91,7 @@ function renderArtifact(
     output_image_url:
       "/v1/render-artifacts/55555555-5555-4555-8555-555555555555/image",
     fallback_artifact_id: null,
+    failure_code: null,
     failure_message: null,
     retryable: false,
     share_eligible: false,
@@ -106,7 +107,9 @@ describe("Look wardrobe states", () => {
     render(<LookCard look={pendingLook} onOpen={vi.fn()} />);
 
     expect(screen.queryByRole("img", { name: "收藏的整套穿搭" })).not.toBeInTheDocument();
-    expect(screen.getByText("整套已保存，封面生成中")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "像素穿搭封面生成中" })
+    ).toHaveAttribute("data-image-kind", "look-pixel-pending");
     expect(screen.getByText("正在拆解")).toBeInTheDocument();
   });
 
@@ -174,6 +177,60 @@ describe("Look wardrobe states", () => {
       screen.getByText("原始画面已删除，穿搭关系和已拆出的单品仍保留。")
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重新解析" })).toBeDisabled();
+  });
+
+  it("describes an AI-created Look as composed from wardrobe items instead of a deleted source", () => {
+    const detail = readyDetail();
+    detail.look = {
+      ...detail.look,
+      capture_id: null,
+      source: "ai_generated",
+      display_image_url: null,
+      source_image_url: null,
+      source_available: false
+    };
+
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("AI 搭配保存")).toBeInTheDocument();
+    expect(screen.getByText("由衣橱真实单品组成")).toBeInTheDocument();
+    expect(screen.queryByText("原始画面已删除")).not.toBeInTheDocument();
+  });
+
+  it("labels an errored Look as failed instead of still processing", () => {
+    const detail = partialDetail();
+    detail.look = {
+      ...detail.look,
+      status: "error"
+    };
+
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("解析失败，结果已保留")).toBeInTheDocument();
+    expect(screen.getByText("这次还没解析成功")).toBeInTheDocument();
+    expect(screen.queryByText("后台处理中")).not.toBeInTheDocument();
   });
 
   it("keeps generated states honest and lets the user retry without hiding the real collage", () => {
@@ -302,6 +359,7 @@ describe("Look wardrobe states", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
+    expect(document.querySelector('input[capture="user"]')).not.toBeNull();
     expect(
       screen.queryByRole("img", { name: "真实单品拼贴" })
     ).not.toBeInTheDocument();
@@ -325,6 +383,86 @@ describe("Look wardrobe states", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "生成像素封面" }));
     expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
+  });
+
+  it("rejects invalid try-on files before creating a pending generation", () => {
+    const onTryOn = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[renderArtifact()]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onTryOn={onTryOn}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
+    const input = document.querySelector('input[capture="user"]');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
+      target: {
+        files: [new File(["not an image"], "notes.txt", { type: "text/plain" })]
+      }
+    });
+
+    expect(
+      screen.getByText("请选择 JPG、PNG、WebP 或 HEIC 图片")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByAltText("待确认的试穿全身照")
+    ).not.toBeInTheDocument();
+    expect(onTryOn).not.toHaveBeenCalled();
+  });
+
+  it("deletes only the original Look photo after an explicit confirmation", () => {
+    const onDeleteSource = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onDeleteSource={onDeleteSource}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "删除整套原图" }));
+    expect(
+      screen.getByText("已拆出的单品、搭配关系和生成结果都会保留；删除后不能重新解析原图。")
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认删除原图" }));
+    expect(onDeleteSource).toHaveBeenCalledWith(pendingLook.id);
+  });
+
+  it("closes the Look detail with Escape", () => {
+    const onClose = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        retrying={false}
+        saving={false}
+        onClose={onClose}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("localizes wardrobe taxonomy and outfit relationship labels for users", () => {

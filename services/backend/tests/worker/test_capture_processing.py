@@ -277,13 +277,15 @@ def garment_candidate(
     *,
     category: GarmentCategory = GarmentCategory.TOPS,
     box: NormalizedBox | None = None,
+    confidence: float = 0.96,
+    visible_fraction: float = 0.92,
 ) -> GroundingCandidate:
     return GroundingCandidate(
         label=label,
         category=category,
         box=box or NormalizedBox(120, 90, 880, 930),
-        confidence=0.96,
-        visible_fraction=0.92,
+        confidence=confidence,
+        visible_fraction=visible_fraction,
     )
 
 
@@ -357,7 +359,7 @@ async def test_upload_cache_miss_generates_transparent_display_before_tagging() 
 
 
 @pytest.mark.asyncio
-async def test_upload_with_multiple_garments_keeps_original_without_guessing() -> None:
+async def test_upload_with_multiple_garments_is_rejected_without_tagging_or_embedding() -> None:
     capture, job = make_capture_job()
     original = image_for(capture)
     work = MemoryWorkRepository(capture, job)
@@ -390,16 +392,100 @@ async def test_upload_with_multiple_garments_keeps_original_without_guessing() -
 
     outcome = await processor.process(capture.id, job.id)
 
-    assert outcome == ProcessingOutcome.ready()
-    assert wardrobe.item is not None
-    assert wardrobe.item.display_object_key is None
-    assert vision.images == [original]
-    assert embedder.images == [original]
+    assert outcome.state is JobState.ERROR
+    assert outcome.error_code == "multiple_garments"
+    assert work.job.state is JobState.ERROR
+    assert work.job.error_code == "multiple_garments"
+    assert wardrobe.item is None
+    assert vision.images == []
+    assert embedder.images == []
     assert segmenter.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_upload_without_reliable_garment_is_rejected_without_tagging_or_embedding() -> None:
+    capture, job = make_capture_job()
+    original = image_for(capture)
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository()
+    vision = FixedVision(result=analysis())
+    embedder = FixedEmbedder(result=embedding())
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=MemoryObjects(original),
+        vision=vision,
+        embedder=embedder,
+        grounder=RecordingGrounder(
+            (
+                garment_candidate(
+                    "unreliable_hint",
+                    box=NormalizedBox(120, 90, 880, 930),
+                    confidence=0.32,
+                ),
+            )
+        ),
+        segmenter=RecordingSegmenter(),
+        selection_images=SelectionImages(),
+        display_assets=MemoryDerivedImages(),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome.state is JobState.ERROR
+    assert outcome.error_code == "no_reliable_garment"
+    assert work.job.state is JobState.ERROR
+    assert wardrobe.item is None
+    assert vision.images == []
+    assert embedder.images == []
+
+
+@pytest.mark.asyncio
+async def test_upload_rejection_marks_existing_retry_item_error_without_creating_tags() -> None:
+    capture, job = make_capture_job()
+    original = image_for(capture)
+    existing = WardrobeItem.processing(capture)
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository(existing)
+    vision = FixedVision(result=analysis())
+    embedder = FixedEmbedder(result=embedding())
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=MemoryObjects(original),
+        vision=vision,
+        embedder=embedder,
+        grounder=RecordingGrounder(
+            (
+                garment_candidate(
+                    "unreliable_hint",
+                    box=NormalizedBox(120, 90, 880, 930),
+                    confidence=0.28,
+                ),
+            )
+        ),
+        segmenter=RecordingSegmenter(),
+        selection_images=SelectionImages(),
+        display_assets=MemoryDerivedImages(),
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome.state is JobState.ERROR
+    assert outcome.error_code == "no_reliable_garment"
+    assert wardrobe.item is not None
+    assert wardrobe.item.id == existing.id
+    assert wardrobe.item.status is ItemStatus.ERROR
+    assert wardrobe.item.attributes.fields == {}
+    assert wardrobe.item.display_object_key is None
+    assert vision.images == []
+    assert embedder.images == []
     assert wardrobe.item.model_metadata["normalization"] == {
         "status": "not_applied",
-        "reason": "multiple_garments",
-        "candidate_count": 2,
+        "reason": "no_reliable_garment",
+        "candidate_count": 0,
     }
 
 
@@ -529,8 +615,7 @@ async def test_deleted_source_reaches_stable_non_retryable_error() -> None:
     assert outcome.error_code == "source_unavailable"
     assert work.job.state is JobState.ERROR
     assert work.job.error_code == "source_unavailable"
-    assert wardrobe.item is not None
-    assert wardrobe.item.status is ItemStatus.ERROR
+    assert wardrobe.item is None
 
 
 @pytest.mark.asyncio
