@@ -20,7 +20,10 @@ from stylecapture_backend.features.capture.application import (
 )
 from stylecapture_backend.features.capture.domain import (
     CaptureSourceKind,
+    FeedFrameContext,
+    FeedSelection,
     JobState,
+    NormalizedPoint,
     OwnershipState,
     ProcessingJob,
 )
@@ -57,11 +60,54 @@ class StoredObjectResponse(BaseModel):
     height: int
 
 
+class NormalizedPointBody(BaseModel):
+    x: float = Field(ge=0, le=1, allow_inf_nan=False)
+    y: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+
+class FeedSelectionBody(BaseModel):
+    selection_key: str = Field(min_length=1, max_length=64)
+    polygon: list[NormalizedPointBody] = Field(min_length=3, max_length=256)
+
+
+class FeedFrameContextBody(BaseModel):
+    video_ref: str = Field(min_length=1, max_length=512)
+    timestamp_ms: int = Field(ge=0)
+    frame_width: int = Field(gt=0)
+    frame_height: int = Field(gt=0)
+    selections: list[FeedSelectionBody] = Field(min_length=1, max_length=8)
+
+    def to_domain(self) -> FeedFrameContext:
+        try:
+            return FeedFrameContext(
+                video_ref=self.video_ref,
+                timestamp_ms=self.timestamp_ms,
+                frame_width=self.frame_width,
+                frame_height=self.frame_height,
+                selections=tuple(
+                    FeedSelection(
+                        selection_key=selection.selection_key,
+                        polygon=tuple(
+                            NormalizedPoint(x=point.x, y=point.y) for point in selection.polygon
+                        ),
+                    )
+                    for selection in self.selections
+                ),
+            )
+        except ValueError as error:
+            raise CaptureError(
+                "feed_context_invalid",
+                "The Feed frame selection context is invalid",
+                details={"reason": str(error)},
+            ) from error
+
+
 class SubmitCaptureBody(BaseModel):
     object_key: str = Field(min_length=1, max_length=512)
     sha256: str = Field(min_length=64, max_length=64)
     source_kind: CaptureSourceKind
     ownership: OwnershipState
+    feed_context: FeedFrameContextBody | None = None
 
 
 class CaptureAcceptedResponse(BaseModel):
@@ -203,6 +249,9 @@ def build_capture_router(
                 source_kind=body.source_kind,
                 ownership=body.ownership,
                 idempotency_key=idempotency_key,
+                feed_context=(
+                    body.feed_context.to_domain() if body.feed_context is not None else None
+                ),
             )
         )
         return CaptureAcceptedResponse(

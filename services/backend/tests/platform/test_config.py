@@ -31,7 +31,8 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
     assert "local-litellm-gateway-key" not in serialized
     assert settings.upload_signing_secret.get_secret_value().startswith("a-real")
     assert settings.vision_model_alias == "vision_understanding"
-    assert settings.embedding_mode == "disabled"
+    assert settings.embedding_mode == "hosted"
+    assert settings.embedding_model == "doubao-embedding-vision-250615"
 
 
 @pytest.mark.parametrize(

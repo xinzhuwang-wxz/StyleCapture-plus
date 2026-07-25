@@ -1,7 +1,19 @@
 model_list:
+  - model_name: reasoning
+    litellm_params:
+      model: openai/doubao-seed-2-0-lite-260428
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
   - model_name: vision_understanding
     litellm_params:
       model: openai/doubao-seed-2-0-lite-260428
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
+  - model_name: image_generation
+    litellm_params:
+      model: openai/doubao-seedream-5-0-260128
       api_base: os.environ/ARK_BASE_URL
       api_key: os.environ/ARK_API_KEY
 
@@ -13,3 +25,13 @@ litellm_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+  pass_through_endpoints:
+    - path: /v1/embeddings/multimodal
+      target: https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal
+      headers:
+        Authorization: Bearer os.environ/ARK_API_KEY
+        Content-Type: application/json
+      auth: true
+      methods:
+        - POST
+      timeout: 45

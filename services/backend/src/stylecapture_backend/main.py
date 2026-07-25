@@ -58,6 +58,7 @@ CAPTURE_ERROR_STATUS = {
     "upload_object_conflict": status.HTTP_409_CONFLICT,
     "source_hash_mismatch": status.HTTP_409_CONFLICT,
     "invalid_idempotency_key": status.HTTP_422_UNPROCESSABLE_CONTENT,
+    "feed_context_invalid": status.HTTP_422_UNPROCESSABLE_CONTENT,
     "processing_dispatch_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
     "job_not_found": status.HTTP_404_NOT_FOUND,
     "job_not_retryable": status.HTTP_409_CONFLICT,

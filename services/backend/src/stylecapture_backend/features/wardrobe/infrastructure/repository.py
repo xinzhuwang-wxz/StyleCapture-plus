@@ -3,12 +3,13 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stylecapture_backend.features.capture.domain import CaptureSourceKind, OwnershipState
 from stylecapture_backend.features.capture.infrastructure.models import CaptureRecord
 from stylecapture_backend.features.wardrobe.domain import (
+    WHOLE_CAPTURE_SELECTION_KEY,
     FieldEnvelope,
     FieldProvenance,
     ItemAttributes,
@@ -22,12 +23,19 @@ class SqlAlchemyWardrobeRepository:
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
 
-    async def get_by_capture(self, capture_id: UUID) -> WardrobeItem | None:
+    async def get_by_capture(
+        self,
+        capture_id: UUID,
+        selection_key: str = WHOLE_CAPTURE_SELECTION_KEY,
+    ) -> WardrobeItem | None:
         async with self._sessions() as session:
             statement = (
                 select(ItemRecord, CaptureRecord.source_kind)
                 .join(CaptureRecord, CaptureRecord.id == ItemRecord.capture_id)
-                .where(ItemRecord.capture_id == capture_id)
+                .where(
+                    ItemRecord.capture_id == capture_id,
+                    ItemRecord.selection_key == selection_key,
+                )
             )
             row = (await session.execute(statement)).one_or_none()
             return _item_from_record(row[0], row[1]) if row is not None else None
@@ -58,7 +66,17 @@ class SqlAlchemyWardrobeRepository:
         async with self._sessions() as session:
             existing = (
                 await session.execute(
-                    select(ItemRecord).where(ItemRecord.id == item.id).with_for_update()
+                    select(ItemRecord)
+                    .where(
+                        or_(
+                            ItemRecord.id == item.id,
+                            (
+                                (ItemRecord.capture_id == item.capture_id)
+                                & (ItemRecord.selection_key == item.selection_key)
+                            ),
+                        )
+                    )
+                    .with_for_update()
                 )
             ).scalar_one_or_none()
             incoming = _item_record(item)
@@ -80,7 +98,7 @@ class SqlAlchemyWardrobeRepository:
                     existing.embedding = incoming.embedding
                 existing.updated_at = incoming.updated_at
             await session.commit()
-        stored = await self.get_by_capture(item.capture_id)
+        stored = await self.get_by_capture(item.capture_id, item.selection_key)
         if stored is None:
             raise RuntimeError("saved wardrobe item could not be reloaded")
         return stored
@@ -112,9 +130,18 @@ class SqlAlchemyWardrobeRepository:
             existing.description = _json_text_field(attributes, "description")
             existing.attributes = attributes
             existing.updated_at = item.updated_at
+            if not item.source_available:
+                await session.execute(
+                    update(ItemRecord)
+                    .where(ItemRecord.capture_id == item.capture_id)
+                    .values(
+                        source_available=False,
+                        updated_at=item.updated_at,
+                    )
+                )
             await session.commit()
 
-        stored = await self.get_by_capture(item.capture_id)
+        stored = await self.get_by_capture(item.capture_id, item.selection_key)
         if stored is None:
             raise RuntimeError("saved wardrobe item could not be reloaded")
         return stored
@@ -125,6 +152,7 @@ def _item_record(item: WardrobeItem) -> ItemRecord:
         id=item.id,
         user_id=item.user_id,
         capture_id=item.capture_id,
+        selection_key=item.selection_key,
         source_object_key=item.source_object_key,
         source_available=item.source_available,
         ownership=item.ownership.value,
@@ -148,6 +176,7 @@ def _item_from_record(record: ItemRecord, source_kind: str) -> WardrobeItem:
         id=record.id,
         user_id=record.user_id,
         capture_id=record.capture_id,
+        selection_key=record.selection_key,
         source_object_key=record.source_object_key,
         source_available=record.source_available,
         source_kind=CaptureSourceKind(source_kind),

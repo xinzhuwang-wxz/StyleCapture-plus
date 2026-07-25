@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 from collections.abc import Awaitable, Callable
-from io import BytesIO
 from time import perf_counter
 from typing import Any, cast
 
 from litellm import acompletion
-from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from stylecapture_backend.features.capture.domain import FeedSelection
+from stylecapture_backend.features.capture.infrastructure.image_data import (
+    image_to_jpeg_data_url,
+)
 from stylecapture_backend.features.capture.processing import (
     ImagePayload,
     ModelMetadata,
@@ -100,7 +101,12 @@ class LiteLLMVisionTagger:
         self._completion = completion
         self._timeout_seconds = timeout_seconds
 
-    async def describe(self, image: ImagePayload) -> VisionAnalysis:
+    async def describe(
+        self,
+        image: ImagePayload,
+        *,
+        selection: FeedSelection | None = None,
+    ) -> VisionAnalysis:
         data_url = _vision_data_url(image)
         started = perf_counter()
         try:
@@ -109,7 +115,7 @@ class LiteLLMVisionTagger:
                     model=f"openai/{self._alias}",
                     api_base=self._base_url,
                     api_key=self._api_key,
-                    messages=_messages(data_url),
+                    messages=_messages(data_url, selection=selection),
                     response_format={
                         "type": "json_schema",
                         "json_schema": {
@@ -164,7 +170,19 @@ class LiteLLMVisionTagger:
         )
 
 
-def _messages(data_url: str) -> list[dict[str, object]]:
+def _messages(
+    data_url: str,
+    *,
+    selection: FeedSelection | None = None,
+) -> list[dict[str, object]]:
+    selection_instruction = ""
+    if selection is not None:
+        points = ", ".join(f"({point.x:.6f},{point.y:.6f})" for point in selection.polygon)
+        selection_instruction = (
+            f" Analyze only selection_key={selection.selection_key!r}. "
+            f"Its normalized closed polygon is [{points}]. "
+            "The supplied image is the corresponding isolated pixel region."
+        )
     return [
         {
             "role": "system",
@@ -183,6 +201,7 @@ def _messages(data_url: str) -> list[dict[str, object]]:
                     "text": (
                         "Analyze the primary garment or accessory in this image for a digital "
                         "wardrobe. Confidence is field-specific from 0 to 1."
+                        f"{selection_instruction}"
                     ),
                 },
                 {"type": "image_url", "image_url": {"url": data_url}},
@@ -193,19 +212,13 @@ def _messages(data_url: str) -> list[dict[str, object]]:
 
 def _vision_data_url(image: ImagePayload) -> str:
     try:
-        with Image.open(BytesIO(image.body)) as source:
-            rendered = source.convert("RGB")
-            rendered.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
-            buffer = BytesIO()
-            rendered.save(buffer, format="JPEG", quality=90, optimize=True)
+        return image_to_jpeg_data_url(image)
     except (OSError, ValueError) as error:
         raise ProviderError(
             "vision_image_invalid",
             "The uploaded image could not be prepared for vision understanding",
             retryable=False,
         ) from error
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/jpeg;base64,{encoded}"
 
 
 def _model_fields(

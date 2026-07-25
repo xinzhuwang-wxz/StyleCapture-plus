@@ -13,6 +13,7 @@ vi.mock("../src/api/client", async (importOriginal) => {
     wardrobeApi: {
       listItems: vi.fn(),
       ingest: vi.fn(),
+      ingestFeedFrame: vi.fn(),
       getJob: vi.fn(),
       retryJob: vi.fn(),
       retryItem: vi.fn(),
@@ -69,6 +70,18 @@ function renderApp() {
 
 describe("StyleCapture garment ingest", () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ schema_version: 1, assets: [] }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        )
+      )
+    );
     api.listItems.mockResolvedValue([]);
     api.ingest.mockResolvedValue({
       capture_id: "22222222-2222-4222-8222-222222222222",
@@ -82,10 +95,13 @@ describe("StyleCapture garment ingest", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("keeps camera and gallery inputs distinct", async () => {
+    const user = userEvent.setup();
     renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     const camera = screen.getByLabelText("拍摄衣物照片");
     const gallery = screen.getByLabelText("选择衣物照片");
@@ -98,6 +114,7 @@ describe("StyleCapture garment ingest", () => {
   it("requires ownership before a real upload can enter the wardrobe", async () => {
     const user = userEvent.setup();
     renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const file = new File(["real-image"], "jacket.jpg", { type: "image/jpeg" });
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
@@ -123,7 +140,9 @@ describe("StyleCapture garment ingest", () => {
   });
 
   it("rejects a non-image locally without opening the confirmation surface", async () => {
+    const user = userEvent.setup();
     renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const file = new File(["not-an-image"], "notes.pdf", { type: "application/pdf" });
 
     fireEvent.change(screen.getByLabelText("选择衣物照片"), {
@@ -139,6 +158,7 @@ describe("StyleCapture garment ingest", () => {
     const user = userEvent.setup();
     api.listItems.mockResolvedValue([wardrobeItem]);
     renderApp();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     await user.click(
       await screen.findByRole("button", {

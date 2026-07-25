@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from stylecapture_backend.platform.database import Base
@@ -21,6 +22,13 @@ class CaptureRecord(Base):
     source_kind: Mapped[str] = mapped_column(String(24), nullable=False)
     object_key: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    origin_ref: Mapped[str | None] = mapped_column(String(512))
+    source_metadata: Mapped[dict[str, object]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
     ownership: Mapped[str] = mapped_column(String(24), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from math import isfinite
 from uuid import UUID, uuid4
 
 
@@ -11,6 +12,58 @@ class CaptureSourceKind(StrEnum):
     UPLOAD = "upload"
     CAMERA = "camera"
     FEED = "feed"
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedPoint:
+    x: float
+    y: float
+
+    def __post_init__(self) -> None:
+        if (
+            not isfinite(self.x)
+            or not isfinite(self.y)
+            or not 0 <= self.x <= 1
+            or not 0 <= self.y <= 1
+        ):
+            raise ValueError("normalized point coordinates must be finite and between 0 and 1")
+
+
+def is_valid_selection_key(value: str) -> bool:
+    return (
+        1 <= len(value) <= 64
+        and value.isascii()
+        and value[0].isalnum()
+        and all(character.isalnum() or character in {"_", "-"} for character in value)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FeedSelection:
+    selection_key: str
+    polygon: tuple[NormalizedPoint, ...]
+
+    def __post_init__(self) -> None:
+        if not is_valid_selection_key(self.selection_key):
+            raise ValueError("selection key must be a 1-64 character ASCII alphanumeric identifier")
+        if len(set(self.polygon)) < 3:
+            raise ValueError("selection polygon must contain at least 3 unique points")
+
+
+@dataclass(frozen=True, slots=True)
+class FeedFrameContext:
+    video_ref: str
+    timestamp_ms: int
+    frame_width: int
+    frame_height: int
+    selections: tuple[FeedSelection, ...]
+
+    def __post_init__(self) -> None:
+        if not 1 <= len(self.selections) <= 8:
+            raise ValueError("a feed frame must contain between 1 and 8 selections")
+        selection_keys = [selection.selection_key for selection in self.selections]
+        if len(selection_keys) != len(set(selection_keys)):
+            raise ValueError("selection keys must be unique within a feed frame")
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +116,7 @@ class Capture:
     source: CaptureSource
     ownership: OwnershipState
     created_at: datetime
+    feed_context: FeedFrameContext | None = None
 
     @classmethod
     def create(
@@ -71,6 +125,7 @@ class Capture:
         user_id: UUID,
         source: CaptureSource,
         ownership: OwnershipState,
+        feed_context: FeedFrameContext | None = None,
     ) -> Capture:
         return cls(
             id=uuid4(),
@@ -78,6 +133,7 @@ class Capture:
             source=source,
             ownership=ownership,
             created_at=datetime.now(UTC),
+            feed_context=feed_context,
         )
 
 

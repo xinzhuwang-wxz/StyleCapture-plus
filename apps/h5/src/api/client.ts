@@ -3,6 +3,7 @@ import createClient from "openapi-fetch";
 import type { components, paths } from "./schema";
 
 export type CaptureAccepted = components["schemas"]["CaptureAcceptedResponse"];
+export type FeedFrameContext = components["schemas"]["FeedFrameContextBody"];
 export type Item = components["schemas"]["ItemResponse"];
 export type Job = components["schemas"]["JobResponse"];
 export type Ownership = components["schemas"]["OwnershipState"];
@@ -17,7 +18,11 @@ const SUPPORTED_TYPES = new Set([
   "image/heif"
 ]);
 
-const client = createClient<paths>({ baseUrl: "" });
+const client = createClient<paths>({
+  baseUrl:
+    typeof window === "undefined" ? "http://localhost" : window.location.origin,
+  fetch: (request) => fetch(request)
+});
 let sessionPromise: Promise<void> | null = null;
 
 type ApiErrorPayload = {
@@ -93,11 +98,12 @@ function throwApiError(error: unknown, fallback: string): never {
   );
 }
 
-async function ingest(
+async function submitCapture(
   file: File,
   sourceKind: SourceKind,
   ownership: Ownership,
-  idempotencyKey: string
+  idempotencyKey: string,
+  feedContext?: FeedFrameContext
 ): Promise<CaptureAccepted> {
   const validationError = validateImage(file);
   if (validationError) {
@@ -138,13 +144,37 @@ async function ingest(
       object_key: prepared.data.object_key,
       sha256: digest,
       source_kind: sourceKind,
-      ownership
+      ownership,
+      feed_context: feedContext
     }
   });
   if (!submitted.data) {
     throwApiError(submitted.error, "衣服已安全上传，但入库任务未能启动");
   }
   return submitted.data;
+}
+
+async function ingest(
+  file: File,
+  sourceKind: SourceKind,
+  ownership: Ownership,
+  idempotencyKey: string
+): Promise<CaptureAccepted> {
+  return submitCapture(file, sourceKind, ownership, idempotencyKey);
+}
+
+async function ingestFeedFrame(
+  file: File,
+  feedContext: FeedFrameContext,
+  idempotencyKey: string
+): Promise<CaptureAccepted> {
+  return submitCapture(
+    file,
+    "feed",
+    "inspiration",
+    idempotencyKey,
+    feedContext
+  );
 }
 
 async function listItems(): Promise<Item[]> {
@@ -244,6 +274,7 @@ async function sourceImage(itemId: string): Promise<string> {
 
 export const wardrobeApi = {
   ingest,
+  ingestFeedFrame,
   listItems,
   getJob,
   retryJob,

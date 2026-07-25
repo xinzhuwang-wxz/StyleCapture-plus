@@ -270,6 +270,26 @@ export interface components {
         ErrorEnvelope: {
             error: components["schemas"]["ErrorBody"];
         };
+        /** FeedFrameContextBody */
+        FeedFrameContextBody: {
+            /** Frame Height */
+            frame_height: number;
+            /** Frame Width */
+            frame_width: number;
+            /** Selections */
+            selections: components["schemas"]["FeedSelectionBody"][];
+            /** Timestamp Ms */
+            timestamp_ms: number;
+            /** Video Ref */
+            video_ref: string;
+        };
+        /** FeedSelectionBody */
+        FeedSelectionBody: {
+            /** Polygon */
+            polygon: components["schemas"]["NormalizedPointBody"][];
+            /** Selection Key */
+            selection_key: string;
+        };
         /**
          * FieldProvenance
          * @enum {string}
@@ -386,6 +406,13 @@ export interface components {
          * @enum {string}
          */
         JobState: "queued" | "processing" | "partial" | "ready" | "error";
+        /** NormalizedPointBody */
+        NormalizedPointBody: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /**
          * OwnershipState
          * @enum {string}
@@ -433,6 +460,7 @@ export interface components {
         };
         /** SubmitCaptureBody */
         SubmitCaptureBody: {
+            feed_context?: components["schemas"]["FeedFrameContextBody"] | null;
             /** Object Key */
             object_key: string;
             ownership: components["schemas"]["OwnershipState"];

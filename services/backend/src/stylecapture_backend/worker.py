@@ -4,6 +4,13 @@ from stylecapture_backend.features.capture.infrastructure.fashion_embedding impo
     DisabledImageEmbedder,
     FashionSiglipEmbedder,
 )
+from stylecapture_backend.features.capture.infrastructure.feed_media import (
+    CoarsePolygonSegmentationProvider,
+    PillowSelectionImageRenderer,
+)
+from stylecapture_backend.features.capture.infrastructure.hosted_embedding import (
+    LiteLLMMultimodalEmbedder,
+)
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
 from stylecapture_backend.features.capture.infrastructure.providers import LiteLLMVisionTagger
 from stylecapture_backend.features.capture.infrastructure.repository import (
@@ -38,7 +45,13 @@ vision = LiteLLMVisionTagger(
     gateway_api_key=settings.litellm_api_key.get_secret_value(),
 )
 embedder: ImageEmbedder
-if settings.embedding_mode == "fashion_siglip":
+if settings.embedding_mode == "hosted":
+    embedder = LiteLLMMultimodalEmbedder(
+        model=settings.embedding_model,
+        gateway_base_url=settings.litellm_base_url,
+        gateway_api_key=settings.litellm_api_key.get_secret_value(),
+    )
+elif settings.embedding_mode == "fashion_siglip":
     embedder = FashionSiglipEmbedder(device=settings.embedding_device)
 else:
     embedder = DisabledImageEmbedder()
@@ -49,6 +62,8 @@ processor = CaptureProcessor(
     objects=object_store,
     vision=vision,
     embedder=embedder,
+    segmenter=CoarsePolygonSegmentationProvider(),
+    selection_images=PillowSelectionImageRenderer(),
 )
 celery = build_celery(settings.redis_url.get_secret_value())
 capture_task = register_capture_task(

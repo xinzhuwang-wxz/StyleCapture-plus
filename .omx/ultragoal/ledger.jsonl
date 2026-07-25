@@ -1,2 +1,5 @@
 {"ts":"2026-07-24T18:54:03.586Z","event":"plan_created","message":"6 goal(s) created"}
 {"ts":"2026-07-24T21:35:27.816Z","event":"goal_started","goalId":"G001-issue-1","status":"in_progress","message":"Attempt 1"}
+{"ts":"2026-07-24T22:37:00.000Z","event":"goal_external_gate","goalId":"G001-issue-1","status":"in_progress","message":"Implementation merged in PR #7; credentialed Doubao/FashionSigLIP success smoke remains unavailable and is not allowed to block later slices"}
+{"ts":"2026-07-24T22:37:00.000Z","event":"goal_started","goalId":"G002-issue-2-feed","status":"in_progress","message":"Attempt 1"}
+{"ts":"2026-07-24T23:21:54.531Z","event":"goal_failed","goalId":"G001-issue-1","status":"failed","evidence":"PR #7 merged and local acceptance evidence passed; live Doubao/FashionSigLIP smoke remains credential-gated. This failed story is intentionally deferred and must be retried before aggregate completion; Issue #2 does not depend on it."}

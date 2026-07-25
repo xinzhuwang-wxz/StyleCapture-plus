@@ -7,6 +7,7 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    FeedFrameContext,
     JobState,
     OwnershipState,
     ProcessingJob,
@@ -43,6 +44,7 @@ class SubmitCaptureCommand:
     source_kind: CaptureSourceKind
     ownership: OwnershipState
     idempotency_key: str
+    feed_context: FeedFrameContext | None = None
 
 
 class CaptureApplication:
@@ -89,14 +91,32 @@ class CaptureApplication:
                 "source_hash_mismatch",
                 "The submitted source hash does not match the uploaded object",
             )
+        if command.source_kind is CaptureSourceKind.FEED:
+            if command.feed_context is None:
+                raise CaptureError(
+                    "feed_context_required",
+                    "Feed captures require frame and selection context",
+                )
+            if (
+                stored.width != command.feed_context.frame_width
+                or stored.height != command.feed_context.frame_height
+            ):
+                raise CaptureError(
+                    "feed_frame_dimensions_mismatch",
+                    "Feed frame dimensions do not match the uploaded frame",
+                )
         capture = Capture.create(
             user_id=command.user_id,
             source=CaptureSource(
                 kind=command.source_kind,
                 object_key=stored.object_key,
                 sha256=stored.sha256,
+                origin_ref=(
+                    command.feed_context.video_ref if command.feed_context is not None else None
+                ),
             ),
             ownership=command.ownership,
+            feed_context=command.feed_context,
         )
         job = ProcessingJob.queued(capture_id=capture.id)
         submission = await self._captures.save_submission(
