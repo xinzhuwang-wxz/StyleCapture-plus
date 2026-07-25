@@ -102,6 +102,7 @@ class WardrobeItem:
     capture_id: UUID
     selection_key: str
     source_object_key: str
+    display_object_key: str | None
     source_available: bool
     source_kind: CaptureSourceKind
     ownership: OwnershipState
@@ -137,6 +138,7 @@ class WardrobeItem:
             capture_id=capture.id,
             selection_key=selection_key,
             source_object_key=capture.source.object_key,
+            display_object_key=None,
             source_available=True,
             source_kind=capture.source.kind,
             ownership=capture.ownership,
@@ -195,6 +197,17 @@ class WardrobeItem:
 
     def with_source_deleted(self) -> WardrobeItem:
         return replace(self, source_available=False, updated_at=datetime.now(UTC))
+
+    def with_display_object(self, object_key: str) -> WardrobeItem:
+        if not object_key.strip():
+            raise ValueError("display object key must not be empty")
+        if object_key == self.source_object_key:
+            raise ValueError("display object key must be derived from source evidence")
+        return replace(
+            self,
+            display_object_key=object_key,
+            updated_at=datetime.now(UTC),
+        )
 
     def with_ownership(self, ownership: OwnershipState) -> WardrobeItem:
         return replace(self, ownership=ownership, updated_at=datetime.now(UTC))

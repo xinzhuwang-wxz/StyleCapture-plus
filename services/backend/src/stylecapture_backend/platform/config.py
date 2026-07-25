@@ -30,6 +30,7 @@ class BackendSettings(BaseSettings):
     max_upload_bytes: int = 20 * 1024 * 1024
     max_image_pixels: int = 36_000_000
     vision_model_alias: str = "vision_understanding"
+    grounding_model_alias: str = "visual_grounding"
     litellm_base_url: str = "http://litellm:4000/v1"
     litellm_api_key: SecretStr = SecretStr(PLACEHOLDER_GATEWAY_SECRET)
     embedding_mode: Literal["hosted", "fashion_siglip", "disabled"] = "hosted"

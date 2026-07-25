@@ -139,6 +139,16 @@ class ImageReader(Protocol):
     def read_image(self, object_key: str) -> ImagePayload: ...
 
 
+class DerivedImageWriter(Protocol):
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload: ...
+
+
 class VisionTagger(Protocol):
     async def describe(
         self,
@@ -164,6 +174,7 @@ class CaptureProcessor:
         embedder: ImageEmbedder,
         segmenter: PromptableSegmentationPort | None = None,
         selection_images: SelectionImageRenderer | None = None,
+        display_assets: DerivedImageWriter | None = None,
     ) -> None:
         self._captures = captures
         self._jobs = jobs
@@ -173,6 +184,7 @@ class CaptureProcessor:
         self._embedder = embedder
         self._segmenter = segmenter
         self._selection_images = selection_images
+        self._display_assets = display_assets
 
     async def process(self, capture_id: UUID, job_id: UUID) -> ProcessingOutcome:
         capture = await self._captures.get_capture(capture_id)
@@ -311,8 +323,19 @@ class CaptureProcessor:
                     frame,
                     selection,
                 )
+                if self._display_assets is None:
+                    raise ProviderError(
+                        "display_asset_storage_unavailable",
+                        "Wardrobe display asset storage is temporarily unavailable",
+                        retryable=True,
+                    )
+                display_image = self._display_assets.write_derived_image(
+                    selected_image,
+                    owner_id=capture.user_id,
+                    prefix="derived/items",
+                )
                 item = await self._wardrobe.save(
-                    item.with_model_metadata(
+                    item.with_display_object(display_image.object_key).with_model_metadata(
                         {
                             "segmentation": _segmentation_metadata(segmentation),
                         }

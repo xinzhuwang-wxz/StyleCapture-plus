@@ -1,0 +1,172 @@
+from dataclasses import FrozenInstanceError
+from datetime import UTC, datetime
+from uuid import uuid4
+
+import pytest
+from stylecapture_backend.features.capture.domain import NormalizedPoint
+from stylecapture_backend.features.look.domain import (
+    Look,
+    LookAnalysis,
+    LookAnalysisField,
+    LookAnalysisMetadata,
+    LookComponent,
+    LookComponentStatus,
+    LookSource,
+    LookStatus,
+    PreferenceSignal,
+    PreferenceSignalKind,
+)
+
+
+def test_feed_saved_look_starts_as_a_processing_relationship_placeholder() -> None:
+    user_id = uuid4()
+    capture_id = uuid4()
+
+    look = Look.feed_saved(
+        user_id=user_id,
+        capture_id=capture_id,
+        source_selection_key="whole-look",
+    )
+
+    assert look.user_id == user_id
+    assert look.capture_id == capture_id
+    assert look.source_selection_key == "whole-look"
+    assert look.source is LookSource.FEED_SAVED
+    assert look.status is LookStatus.PROCESSING
+    assert look.analysis is None
+    assert look.display_object_key is None
+
+
+def test_look_display_image_is_a_derived_asset_not_source_truth() -> None:
+    look = Look.feed_saved(
+        user_id=uuid4(),
+        capture_id=uuid4(),
+        source_selection_key="whole-look",
+    )
+
+    displayed = look.with_display_object("derived/looks/transparent-look.webp")
+
+    assert displayed.display_object_key == "derived/looks/transparent-look.webp"
+    assert displayed.capture_id == look.capture_id
+    with pytest.raises(ValueError, match="display object key must not be empty"):
+        look.with_display_object(" ")
+
+
+def test_only_a_ready_component_may_reference_a_real_item() -> None:
+    component = LookComponent.pending(
+        look_id=uuid4(),
+        component_key="outerwear-1",
+        evidence_region=(
+            NormalizedPoint(0.1, 0.1),
+            NormalizedPoint(0.8, 0.1),
+            NormalizedPoint(0.8, 0.9),
+        ),
+        confidence=0.72,
+        grounding_metadata={"schema_version": "grounding-v1"},
+    )
+
+    assert component.status is LookComponentStatus.PENDING
+    assert component.item_id is None
+
+    item_id = uuid4()
+    ready = component.with_item(item_id)
+
+    assert ready.status is LookComponentStatus.READY
+    assert ready.item_id == item_id
+
+    with pytest.raises(ValueError, match="ready component must reference an Item"):
+        LookComponent(
+            id=uuid4(),
+            look_id=uuid4(),
+            component_key="missing-item",
+            status=LookComponentStatus.READY,
+            item_id=None,
+            evidence_region=component.evidence_region,
+            role=None,
+            layer=None,
+            display_order=0,
+            confidence=0.5,
+            grounding_metadata={},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+    with pytest.raises(ValueError, match="non-ready component cannot reference an Item"):
+        LookComponent(
+            id=uuid4(),
+            look_id=uuid4(),
+            component_key="fake-pending",
+            status=LookComponentStatus.PENDING,
+            item_id=uuid4(),
+            evidence_region=component.evidence_region,
+            role=None,
+            layer=None,
+            display_order=0,
+            confidence=0.5,
+            grounding_metadata={},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+
+def test_look_analysis_keeps_relationships_and_versioned_model_evidence() -> None:
+    relation = LookAnalysisField(
+        value="soft neutral layering",
+        confidence=0.88,
+    )
+    analysis = LookAnalysis(
+        color=relation,
+        silhouette=relation,
+        material=relation,
+        layering=relation,
+        focal_point=relation,
+        scene=relation,
+        style=relation,
+        metadata=LookAnalysisMetadata(
+            capability_alias="vision_understanding",
+            provider_model="provider-model-v1",
+            prompt_version="look-analysis-v1",
+            schema_version="look-analysis-v1",
+            taxonomy_version="stylecapture-v1",
+            latency_ms=42,
+        ),
+    )
+    look = Look.feed_saved(
+        user_id=uuid4(),
+        capture_id=uuid4(),
+        source_selection_key="outfit",
+    ).with_analysis(analysis)
+
+    assert look.analysis == analysis
+    assert look.analysis.layering.value == "soft neutral layering"
+    assert look.analysis.metadata.prompt_version == "look-analysis-v1"
+    assert look.analysis.metadata.schema_version == "look-analysis-v1"
+
+
+def test_preference_signals_are_append_only_events_with_valid_payloads() -> None:
+    user_id = uuid4()
+    look_id = uuid4()
+    saved = PreferenceSignal.look_saved(
+        user_id=user_id,
+        look_id=look_id,
+        idempotency_key="capture-save:request-1",
+    )
+    reason = PreferenceSignal.liking_reason(
+        user_id=user_id,
+        look_id=look_id,
+        reason="喜欢低饱和色彩和清晰的层次",
+        idempotency_key="look-reason:request-2",
+    )
+
+    assert saved.kind is PreferenceSignalKind.LOOK_SAVED
+    assert saved.payload == {}
+    assert reason.kind is PreferenceSignalKind.LIKING_REASON_ADDED
+    assert reason.payload == {"reason": "喜欢低饱和色彩和清晰的层次"}
+    with pytest.raises(FrozenInstanceError):
+        reason.payload = {"reason": "mutated"}  # type: ignore[misc]
+    with pytest.raises(ValueError, match="liking reason must not be empty"):
+        PreferenceSignal.liking_reason(
+            user_id=user_id,
+            look_id=look_id,
+            reason=" ",
+            idempotency_key="look-reason:request-3",
+        )

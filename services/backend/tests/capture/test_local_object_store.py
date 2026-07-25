@@ -10,6 +10,7 @@ from uuid import UUID
 import pytest
 from PIL import Image
 from stylecapture_backend.features.capture.application import CaptureError
+from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
 from stylecapture_backend.features.capture.ports import UploadRequest
 
@@ -58,6 +59,29 @@ def test_signed_upload_persists_validated_image_and_metadata(tmp_path: Path) -> 
     assert stored.width == 32
     assert stored.height == 24
     assert store.read(stored.object_key) == body
+
+
+def test_derived_display_asset_is_content_addressed_and_readable(tmp_path: Path) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    body = png_bytes()
+
+    stored = store.write_derived_image(
+        ImagePayload(
+            object_key="originals/feed/frame.png#selection=hat",
+            content_type="image/png",
+            body=body,
+            sha256=sha256(body).hexdigest(),
+        ),
+        owner_id=OWNER_ID,
+        prefix="derived/items",
+    )
+
+    assert stored.object_key == f"derived/items/{sha256(body).hexdigest()}.png"
+    assert store.describe(stored.object_key).owner_id == OWNER_ID
+    assert store.read_image(stored.object_key) == stored
 
 
 def test_concurrent_upload_replay_is_idempotent(

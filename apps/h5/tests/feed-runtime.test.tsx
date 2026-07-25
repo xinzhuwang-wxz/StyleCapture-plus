@@ -311,6 +311,7 @@ describe("Feed runtime", () => {
           timestamp_ms: 2400,
           frame_width: 1080,
           frame_height: 2160,
+          intent: "item_selections",
           selections: [
             {
               selection_key: "selection-1",

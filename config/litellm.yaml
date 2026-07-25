@@ -11,6 +11,12 @@ model_list:
       api_base: os.environ/ARK_BASE_URL
       api_key: os.environ/ARK_API_KEY
 
+  - model_name: visual_grounding
+    litellm_params:
+      model: openai/doubao-seed-2-0-lite-260428
+      api_base: os.environ/ARK_BASE_URL
+      api_key: os.environ/ARK_API_KEY
+
   - model_name: image_generation
     litellm_params:
       model: openai/doubao-seedream-5-0-260128

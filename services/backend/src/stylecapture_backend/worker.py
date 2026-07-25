@@ -64,6 +64,7 @@ processor = CaptureProcessor(
     embedder=embedder,
     segmenter=CoarsePolygonSegmentationProvider(),
     selection_images=PillowSelectionImageRenderer(),
+    display_assets=object_store,
 )
 celery = build_celery(settings.redis_url.get_secret_value())
 capture_task = register_capture_task(

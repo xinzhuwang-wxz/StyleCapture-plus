@@ -37,6 +37,7 @@ class ItemRecord(Base):
         server_default=WHOLE_CAPTURE_SELECTION_KEY,
     )
     source_object_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    display_object_key: Mapped[str | None] = mapped_column(String(512))
     source_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     ownership: Mapped[str] = mapped_column(String(24), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)

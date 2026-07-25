@@ -31,7 +31,8 @@ const wardrobeItem: Item = {
   status: "ready",
   ownership: "owned",
   source_kind: "upload",
-  source_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/image",
+  display_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/image",
+  source_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/source",
   source_available: true,
   attributes: {
     category: {
@@ -177,6 +178,6 @@ describe("StyleCapture garment ingest", () => {
         "44444444-4444-4444-8444-444444444444"
       )
     );
-    expect(screen.getByLabelText("原图不可用")).toBeInTheDocument();
+    expect(screen.queryByLabelText("原图不可用")).not.toBeInTheDocument();
   });
 });

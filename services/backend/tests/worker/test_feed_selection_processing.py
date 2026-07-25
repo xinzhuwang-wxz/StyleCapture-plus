@@ -74,11 +74,34 @@ class MemoryWardrobeRepository:
 @dataclass(frozen=True)
 class MemoryObjects:
     payload: ImagePayload
+    derived: dict[str, ImagePayload] | None = None
 
     def read_image(self, object_key: str) -> ImagePayload:
         if object_key != self.payload.object_key:
             raise KeyError(object_key)
         return self.payload
+
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        del owner_id
+        if self.derived is None:
+            object.__setattr__(self, "derived", {})
+        derived = self.derived
+        assert derived is not None
+        extension = ".png" if image.content_type == "image/png" else ".bin"
+        stored = ImagePayload(
+            object_key=f"{prefix.rstrip('/')}/{image.sha256}{extension}",
+            content_type=image.content_type,
+            body=image.body,
+            sha256=image.sha256,
+        )
+        derived[stored.object_key] = stored
+        return stored
 
 
 class RecordingSegmenter:
@@ -211,16 +234,18 @@ def build_processor(
     work = MemoryWorkRepository(capture, job)
     wardrobe = MemoryWardrobeRepository()
     segmenter = RecordingSegmenter()
+    objects = MemoryObjects(image_for(capture))
     return (
         CaptureProcessor(
             captures=work,
             jobs=work,
             wardrobe=wardrobe,
-            objects=MemoryObjects(image_for(capture)),
+            objects=objects,
             vision=vision,
             embedder=FixedEmbedder(),
             segmenter=segmenter,
             selection_images=SelectionImages(),
+            display_assets=objects,
         ),
         work,
         wardrobe,
@@ -269,6 +294,41 @@ async def test_feed_batch_creates_one_item_per_selection_with_prompt_boundaries(
         assert segmentation["coarse_polygon"] == [
             {"x": point.x, "y": point.y} for point in selection.polygon
         ]
+
+
+@pytest.mark.asyncio
+async def test_feed_selection_persists_display_asset_separately_from_source_evidence() -> None:
+    capture, job = feed_capture_job()
+    vision = RecordingVision()
+    work = MemoryWorkRepository(capture, job)
+    wardrobe = MemoryWardrobeRepository()
+    segmenter = RecordingSegmenter()
+    objects = MemoryObjects(image_for(capture))
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=wardrobe,
+        objects=objects,
+        vision=vision,
+        embedder=FixedEmbedder(),
+        segmenter=segmenter,
+        selection_images=SelectionImages(),
+        display_assets=objects,
+    )
+
+    outcome = await processor.process(capture.id, job.id)
+
+    assert outcome == ProcessingOutcome.ready()
+    assert objects.derived is not None
+    assert set(objects.derived) == {
+        "derived/items/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.png"
+    }
+    for selection in capture.feed_context.selections if capture.feed_context else ():
+        item = wardrobe.items[(capture.id, selection.selection_key)]
+        assert item.source_object_key == capture.source.object_key
+        assert item.display_object_key == (
+            "derived/items/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.png"
+        )
 
 
 @pytest.mark.asyncio

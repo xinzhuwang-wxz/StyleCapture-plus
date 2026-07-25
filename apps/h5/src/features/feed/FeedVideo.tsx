@@ -38,6 +38,7 @@ function feedContext(
     timestamp_ms: frame.timestampMs,
     frame_width: frame.width,
     frame_height: frame.height,
+    intent: "item_selections",
     selections: decision.selections.map((selection) => ({
       selection_key: selection.id,
       polygon: selection.path.map((point) => ({ x: point.x, y: point.y }))
