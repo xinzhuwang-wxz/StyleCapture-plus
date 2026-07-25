@@ -12,12 +12,16 @@ import {
   wardrobeApi
 } from "../api/client";
 import { CaptureSheet } from "../features/capture/CaptureSheet";
+import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
+import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
+import { ProfileScreen } from "../features/profile/ProfileScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
 import { LookDetail } from "../features/wardrobe/LookDetail";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
 import "./styles.css";
+import "./pixel-theme.css";
 
 type Selection = {
   file: File;
@@ -25,7 +29,7 @@ type Selection = {
   sourceKind: SourceKind;
 };
 
-type Destination = "feed" | "wardrobe";
+type Destination = "feed" | "wardrobe" | "analysis" | "ai" | "profile";
 type FeedRestoreTarget = {
   videoRef: string;
   timestampMs: number;
@@ -251,7 +255,11 @@ export function App() {
   }
 
   return (
-    <main className={`product-shell product-shell--${destination}`}>
+    <main
+      className={`product-shell pixel-shell ${
+        destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
+      }`}
+    >
       <section
         aria-label="穿搭灵感"
         className="product-view product-view--feed"
@@ -265,20 +273,30 @@ export function App() {
       </section>
 
       <div
-        className="product-view product-view--wardrobe app-shell"
-        hidden={destination !== "wardrobe"}
+        className="product-view product-view--wardrobe pixel-app"
+        hidden={destination === "feed"}
       >
-        <header className="wardrobe-header">
-          <div>
-            <p className="eyebrow">STYLECAPTURE</p>
-            <h1>我的衣橱</h1>
-            <p className="subtitle">把拥有和喜欢的，都变成可搭配的数字资产。</p>
-          </div>
-          <div className="avatar-orbit">
-            <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
-            <span aria-hidden="true">✦</span>
-          </div>
-        </header>
+        {destination !== "feed" ? (
+          <header className="wardrobe-header">
+            <div>
+              <p className="pixel-label">STYLECAPTURE</p>
+              <h1 className="pixel-title">
+                {destination === "wardrobe"
+                  ? "我的衣橱"
+                  : destination === "analysis"
+                    ? "穿搭分析"
+                    : destination === "ai"
+                      ? "AI 推荐"
+                      : "我的"}
+              </h1>
+              <p className="subtitle">把拥有和喜欢的，都变成可搭配的数字资产。</p>
+            </div>
+            <div className="avatar-orbit">
+              <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
+              <span aria-hidden="true">✦</span>
+            </div>
+          </header>
+        ) : null}
 
         {notice ? (
           <div className="notice" role="alert">
@@ -293,81 +311,106 @@ export function App() {
           </div>
         ) : null}
 
-        <section className="capture-panel" aria-labelledby="capture-title">
-          <div className="capture-panel__heading">
-            <div>
-              <p className="section-kicker">新增单品</p>
-              <h2 id="capture-title">今天想存哪一件？</h2>
-            </div>
-            <span className="capture-panel__sparkle" aria-hidden="true">
-              ✦
-            </span>
-          </div>
-          <div className="capture-actions">
-            <button
-              className="capture-button capture-button--primary"
-              type="button"
-              aria-label="拍一件"
-              onClick={() => cameraInput.current?.click()}
-            >
-              <span className="capture-button__icon" aria-hidden="true">
-                ◉
-              </span>
-              <span>
-                <strong>拍一件</strong>
-                <small>记录衣柜里的真实衣服</small>
-              </span>
-            </button>
-            <button
-              className="capture-button capture-button--secondary"
-              type="button"
-              aria-label="从相册选"
-              onClick={() => galleryInput.current?.click()}
-            >
-              <span className="capture-button__icon" aria-hidden="true">
-                ✦
-              </span>
-              <span>
-                <strong>从相册选</strong>
-                <small>导入单品或穿搭灵感</small>
-              </span>
-            </button>
-          </div>
-          <input
-            ref={cameraInput}
-            className="visually-hidden"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            capture="environment"
-            aria-label="拍摄衣物照片"
-            onChange={(event) => {
-              chooseFile(event.target.files?.[0], "camera");
-              event.target.value = "";
-            }}
-          />
-          <input
-            ref={galleryInput}
-            className="visually-hidden"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            aria-label="选择衣物照片"
-            onChange={(event) => {
-              chooseFile(event.target.files?.[0], "upload");
-              event.target.value = "";
-            }}
-          />
-        </section>
+        {destination === "wardrobe" ? (
+          <div>
+            <section className="capture-panel" aria-labelledby="capture-title">
+              <div className="capture-panel__heading">
+                <div>
+                  <p className="section-kicker">新增单品</p>
+                  <h2 id="capture-title">今天想存哪一件？</h2>
+                </div>
+                <span className="capture-panel__sparkle" aria-hidden="true">
+                  ✦
+                </span>
+              </div>
+              <div className="capture-actions">
+                <button
+                  className="capture-button capture-button--primary"
+                  type="button"
+                  aria-label="拍一件"
+                  onClick={() => cameraInput.current?.click()}
+                >
+                  <span className="capture-button__icon" aria-hidden="true">
+                    ◉
+                  </span>
+                  <span>
+                    <strong>拍一件</strong>
+                    <small>记录衣柜里的真实衣服</small>
+                  </span>
+                </button>
+                <button
+                  className="capture-button capture-button--secondary"
+                  type="button"
+                  aria-label="从相册选"
+                  onClick={() => galleryInput.current?.click()}
+                >
+                  <span className="capture-button__icon" aria-hidden="true">
+                    ✦
+                  </span>
+                  <span>
+                    <strong>从相册选</strong>
+                    <small>导入单品或穿搭灵感</small>
+                  </span>
+                </button>
+              </div>
+              <input
+                ref={cameraInput}
+                className="visually-hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                capture="environment"
+                aria-label="拍摄衣物照片"
+                onChange={(event) => {
+                  chooseFile(event.target.files?.[0], "camera");
+                  event.target.value = "";
+                }}
+              />
+              <input
+                ref={galleryInput}
+                className="visually-hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                aria-label="选择衣物照片"
+                onChange={(event) => {
+                  chooseFile(event.target.files?.[0], "upload");
+                  event.target.value = "";
+                }}
+              />
+            </section>
 
-        <WardrobeScreen
-          looks={looks}
-          items={items}
-          pending={pending}
-          itemsLoading={itemsQuery.isLoading}
-          looksLoading={looksQuery.isLoading}
-          onOpen={setSelectedItem}
-          onOpenLook={(look: Look) => setSelectedLookId(look.id)}
-          onRetry={(item) => retryMutation.mutate(item)}
-        />
+            <WardrobeScreen
+              looks={looks}
+              items={items}
+              pending={pending}
+              itemsLoading={itemsQuery.isLoading}
+              looksLoading={looksQuery.isLoading}
+              onOpen={setSelectedItem}
+              onOpenLook={(look: Look) => setSelectedLookId(look.id)}
+              onRetry={(item) => retryMutation.mutate(item)}
+            />
+          </div>
+        ) : null}
+
+        {destination === "analysis" ? (
+          <AnalysisScreen
+            items={items}
+            looks={looks}
+            onGoAI={() => setDestination("ai")}
+            onGoWardrobe={() => setDestination("wardrobe")}
+            onOpenLook={(lookId) => setSelectedLookId(lookId)}
+          />
+        ) : null}
+
+        {destination === "ai" ? (
+          <AIRecommendScreen
+            onGoWardrobe={() => setDestination("wardrobe")}
+            presetPrompt={null}
+          />
+        ) : null}
+
+        {destination === "profile" ? (
+          <ProfileScreen itemCount={items.length + pending.length} outfitCount={looks.length} />
+        ) : null}
 
         <CaptureSheet
           key={selection?.previewUrl ?? "closed"}
@@ -408,14 +451,14 @@ export function App() {
         />
       </div>
 
-      <nav aria-label="主要功能" className="product-nav">
+      <nav aria-label="主要功能" className="pixel-nav">
         <button
           aria-current={destination === "feed" ? "page" : undefined}
           className={destination === "feed" ? "is-active" : ""}
           type="button"
           onClick={() => setDestination("feed")}
         >
-          <span aria-hidden="true">⌁</span>
+          <span className="nav-icon" aria-hidden="true">⌁</span>
           <small>逛灵感</small>
         </button>
         <button
@@ -424,13 +467,40 @@ export function App() {
           type="button"
           onClick={() => setDestination("wardrobe")}
         >
-          <span aria-hidden="true">✦</span>
+          <span className="nav-icon" aria-hidden="true">✦</span>
           <small>数字衣橱</small>
           {pending.length > 0 ? (
             <b aria-label={`${pending.length} 个处理中`}>
               {Math.min(pending.length, 9)}
             </b>
           ) : null}
+        </button>
+        <button
+          aria-current={destination === "analysis" ? "page" : undefined}
+          className={destination === "analysis" ? "is-active" : ""}
+          type="button"
+          onClick={() => setDestination("analysis")}
+        >
+          <span className="nav-icon" aria-hidden="true">◈</span>
+          <small>分析</small>
+        </button>
+        <button
+          aria-current={destination === "ai" ? "page" : undefined}
+          className={destination === "ai" ? "is-active" : ""}
+          type="button"
+          onClick={() => setDestination("ai")}
+        >
+          <span className="nav-icon" aria-hidden="true">◇</span>
+          <small>AI</small>
+        </button>
+        <button
+          aria-current={destination === "profile" ? "page" : undefined}
+          className={destination === "profile" ? "is-active" : ""}
+          type="button"
+          onClick={() => setDestination("profile")}
+        >
+          <span className="nav-icon" aria-hidden="true">☻</span>
+          <small>我的</small>
         </button>
       </nav>
     </main>

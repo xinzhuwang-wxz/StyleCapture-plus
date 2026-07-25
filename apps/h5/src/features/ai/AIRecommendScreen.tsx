@@ -1,24 +1,32 @@
 import { useEffect, useRef, useState } from "react";
+
 import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
-import { mockApi, type AIMessage, type MockOutfit } from "../../mock/mockApi";
-import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
+
+type ChatMessage = {
+  id: string;
+  role: "ai" | "user";
+  content: string;
+};
 
 interface AIRecommendScreenProps {
-  onOutfitClick: (outfitId: string) => void;
-  /** 从 Feed「查看 AI 搭配」跳入时的预填内容 */
+  onGoWardrobe: () => void;
   presetPrompt?: string | null;
 }
 
-export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendScreenProps) {
-  const [messages, setMessages] = useState<AIMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const scrollRef = useRef<HTMLDivElement>(null);
+const unavailableMessage: ChatMessage = {
+  id: "ai-unavailable",
+  role: "ai",
+  content:
+    "真实 AI 搭配推荐接口还没有接入当前 H5。这里不会生成固定或模拟穿搭；可以先继续收藏真实单品和整套穿搭，等后端推荐端点接入后再从衣橱数据生成结果。"
+};
 
-  useEffect(() => {
-    void mockApi.getAIMessages().then(setMessages);
-  }, []);
+export function AIRecommendScreen({
+  onGoWardrobe,
+  presetPrompt
+}: AIRecommendScreenProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([unavailableMessage]);
+  const [input, setInput] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (presetPrompt) setInput(presetPrompt);
@@ -28,32 +36,32 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, loading]);
+  }, [messages]);
 
-  const sendMessage = async (content: string, theme?: string) => {
-    if (!content.trim() || loading) return;
-    setLoading(true);
+  function sendMessage(content: string) {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "user", content: trimmed },
+      {
+        id: crypto.randomUUID(),
+        role: "ai",
+        content:
+          "已收到你的穿搭意图，但当前版本没有真实推荐 API，不能返回模拟搭配。请先到数字衣橱查看已保存的真实单品/穿搭。"
+      }
+    ]);
     setInput("");
-    await mockApi.sendAIMessage(content, theme);
-    const newMessages = await mockApi.getAIMessages();
-    setMessages(newMessages);
-    setLoading(false);
-  };
-
-  const saveOutfit = async (outfit: MockOutfit) => {
-    await mockApi.saveOutfit(outfit.id);
-    setSavedIds((prev) => new Set(prev).add(outfit.id));
-  };
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 9.5rem)" }}>
       <PixelSectionHeader
         kicker="AI 穿搭闺蜜"
-        title="今天想穿什么？"
-        action={<span style={{ fontSize: "1.4rem" }} aria-hidden="true">💜</span>}
+        title="真实推荐待接入"
+        action={<span style={{ fontSize: "1.4rem" }} aria-hidden="true">◇</span>}
       />
 
-      {/* 聊天区 */}
       <div
         ref={scrollRef}
         style={{
@@ -69,105 +77,30 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
         {messages.map((msg) => (
           <div
             key={msg.id}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--px-3)",
-              alignItems: msg.role === "user" ? "flex-end" : "flex-start"
-            }}
+            className={`pixel-chat-bubble pixel-chat-bubble--${msg.role}`}
           >
-            <div className={`pixel-chat-bubble pixel-chat-bubble--${msg.role}`}>
-              {msg.role === "ai" ? "👾 " : ""}
-              {msg.content}
-            </div>
-
-            {/* 场景 / 风格选项 */}
-            {msg.options ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--px-2)" }}>
-                {msg.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className="pixel-tag"
-                    onClick={() => void sendMessage(opt, opt.replace(/[今天帮我来一套怎么穿好呢？]/g, ""))}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {/* 三套拼贴穿搭 */}
-            {msg.outfits ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "var(--px-2)",
-                  width: "100%"
-                }}
-              >
-                {msg.outfits.map((outfit) => (
-                  <div
-                    key={outfit.id}
-                    style={{
-                      background: "var(--pixel-surface)",
-                      border: "2px solid var(--pixel-border)",
-                      borderRadius: "var(--pixel-radius-sm)",
-                      boxShadow: "var(--pixel-shadow)",
-                      overflow: "hidden"
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onOutfitClick(outfit.id)}
-                      style={{ padding: 0, border: "none", background: "none", width: "100%" }}
-                      aria-label={`查看 ${outfit.name} 详情`}
-                    >
-                      <img
-                        src={pixelAvatarDataUrl(outfit.seed, { size: 180 })}
-                        alt={outfit.name}
-                        data-pixel="true"
-                        style={{ width: "100%" }}
-                      />
-                    </button>
-                    <div style={{ padding: "var(--px-2)", textAlign: "center" }}>
-                      <strong
-                        style={{
-                          fontFamily: "var(--font-pixel)",
-                          fontSize: "0.62rem",
-                          color: "var(--pixel-text)",
-                          display: "block",
-                          lineHeight: 1.4
-                        }}
-                      >
-                        {outfit.name}
-                      </strong>
-                      <button
-                        type="button"
-                        className="pixel-tag"
-                        style={{ marginTop: "4px", fontSize: "0.6rem" }}
-                        disabled={savedIds.has(outfit.id)}
-                        onClick={() => void saveOutfit(outfit)}
-                      >
-                        {savedIds.has(outfit.id) ? "✓ 已存衣橱" : "💜 存衣橱"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
+            {msg.role === "ai" ? "◇ " : ""}
+            {msg.content}
           </div>
         ))}
 
-        {loading ? (
-          <div className="pixel-chat-bubble pixel-chat-bubble--ai" style={{ opacity: 0.75 }}>
-            <span className="pixel-pulse">👾 正在翻你的衣橱…</span>
-          </div>
-        ) : null}
+        <section
+          style={{
+            padding: "var(--px-3)",
+            background: "var(--pixel-surface)",
+            border: "2px dashed var(--pixel-secondary)",
+            borderRadius: "var(--pixel-border-radius)",
+            color: "var(--pixel-text-muted)",
+            fontSize: "0.75rem",
+            lineHeight: 1.7
+          }}
+          role="status"
+        >
+          当前可用数据源：真实衣橱单品、真实 Feed 收藏穿搭、穿搭详情与来源回看。
+          推荐生成端点接入前，本页只展示不可用状态。
+        </section>
       </div>
 
-      {/* 输入区 */}
       <div
         style={{
           padding: "var(--px-3)",
@@ -177,17 +110,18 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
           boxShadow: "var(--pixel-shadow)"
         }}
       >
-        <div style={{ display: "flex", gap: "var(--px-2)" }}>
+        <div style={{ display: "flex", gap: "var(--px-2)", marginBottom: "var(--px-2)" }}>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void sendMessage(input);
+              if (e.key === "Enter") sendMessage(input);
             }}
-            placeholder="和闺蜜聊聊穿搭吧～"
+            placeholder="记录想法；真实推荐接口接入后会使用"
             style={{
               flex: 1,
+              minWidth: 0,
               padding: "var(--px-2) var(--px-3)",
               fontFamily: "var(--font-body)",
               fontSize: "0.85rem",
@@ -200,13 +134,16 @@ export function AIRecommendScreen({ onOutfitClick, presetPrompt }: AIRecommendSc
           />
           <PixelButton
             variant="primary"
-            onClick={() => void sendMessage(input)}
-            disabled={!input.trim() || loading}
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim()}
             ariaLabel="发送"
           >
             ➤
           </PixelButton>
         </div>
+        <PixelButton variant="ghost" onClick={onGoWardrobe}>
+          打开真实衣橱
+        </PixelButton>
       </div>
     </div>
   );

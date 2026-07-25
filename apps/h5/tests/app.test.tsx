@@ -127,10 +127,10 @@ describe("StyleCapture garment ingest", () => {
 
     const confirmation = screen.getByRole("dialog", { name: "确认加入衣橱" });
     expect(within(confirmation).getByRole("heading", { name: "确认加入衣橱" })).toBeInTheDocument();
-    const submit = within(confirmation).getByRole("button", { name: "加入衣橱" });
+    const submit = within(confirmation).getByRole("button", { name: /加入衣橱/ });
     expect(submit).toBeDisabled();
 
-    await user.click(within(confirmation).getByRole("button", { name: /^穿搭灵感/ }));
+    await user.click(within(confirmation).getByRole("button", { name: /穿搭灵感/ }));
     await user.click(submit);
 
     await waitFor(() =>

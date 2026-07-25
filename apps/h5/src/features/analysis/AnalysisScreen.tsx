@@ -1,95 +1,54 @@
 import { useMemo } from "react";
+
+import type { Item, Look } from "../../api/client";
 import { PixelButton } from "../../components/PixelUI";
-import type { Item } from "../../api/client";
-import type { MockOutfit } from "../../mock/mockApi";
-import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 
 interface AnalysisScreenProps {
   items: Item[];
-  outfits: MockOutfit[];
+  looks: Look[];
   onGoAI: () => void;
   onGoWardrobe: () => void;
-  onOpenOutfit: (outfitId: string) => void;
+  onOpenLook: (lookId: string) => void;
 }
 
-const STYLE_COLORS = ["#f9a8d4", "#a78bfa", "#93c5fd", "#fcd34d", "#86efac"];
+const STATUS_LABELS: Record<Look["status"], string> = {
+  processing: "拆解中",
+  partial: "待补全",
+  ready: "已解析",
+  error: "需重试"
+};
 
-/**
- * 穿搭分析（驾驶舱 · 一屏看完）：
- * 统计数字 + 风格占比饼图 + 最近收藏 + 探索引导。
- */
+const STATUS_COLORS: Record<Look["status"], string> = {
+  processing: "var(--pixel-primary-dark)",
+  partial: "var(--pixel-accent-glow)",
+  ready: "var(--pixel-success)",
+  error: "var(--pixel-error)"
+};
+
 export function AnalysisScreen({
   items,
-  outfits,
+  looks,
   onGoAI,
   onGoWardrobe,
-  onOpenOutfit
+  onOpenLook
 }: AnalysisScreenProps) {
   const stats = useMemo(() => {
-    const owned = items.filter((i) => i.ownership === "owned").length;
-    const favorited = outfits.filter((o) => o.favorited).length;
-
-    const styleCount = new Map<string, number>();
-    outfits.forEach((o) => styleCount.set(o.style, (styleCount.get(o.style) ?? 0) + 1));
-    const total = outfits.length || 1;
-    const styles = [...styleCount.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, count], i) => ({
-        name,
-        ratio: count / total,
-        color: STYLE_COLORS[i % STYLE_COLORS.length]
-      }));
-
-    return { owned, favorited, styles };
-  }, [items, outfits]);
-
-  const latest = outfits[0];
-
-  // 饼图扇形
-  const pieSegments = useMemo(() => {
-    let acc = 0;
-    return stats.styles.map((s) => {
-      const start = acc;
-      acc += s.ratio;
-      return { ...s, start, end: acc };
-    });
-  }, [stats.styles]);
-
-  const donut = (size: number) => {
-    const r = size / 2;
-    const ir = r * 0.58;
-    if (pieSegments.length === 0) return null;
-    const arc = (from: number, to: number, radius: number) => {
-      const a0 = from * Math.PI * 2 - Math.PI / 2;
-      const a1 = to * Math.PI * 2 - Math.PI / 2;
-      return [
-        `${radius * Math.cos(a0) + r} ${radius * Math.sin(a0) + r}`,
-        `${radius * Math.cos(a1) + r} ${radius * Math.sin(a1) + r}`
-      ];
-    };
-    return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="风格占比饼图">
-        {pieSegments.map((seg) => {
-          const [x0, y0] = arc(seg.start, seg.end, r - 1);
-          const [x1, y1] = arc(seg.end, seg.start, ir);
-          const large = seg.end - seg.start > 0.5 ? 1 : 0;
-          return (
-            <path
-              key={seg.name}
-              d={`M ${x0} A ${r - 1} ${r - 1} 0 ${large} 1 ${y0} L ${y1} A ${ir} ${ir} 0 ${large} 0 ${x1} Z`}
-              fill={seg.color}
-              stroke="#fff"
-              strokeWidth="1.5"
-            />
-          );
-        })}
-      </svg>
+    const owned = items.filter((item) => item.ownership === "owned").length;
+    const inspiration = items.filter((item) => item.ownership === "inspiration").length;
+    const byStatus = looks.reduce(
+      (acc, look) => {
+        acc[look.status] += 1;
+        return acc;
+      },
+      { processing: 0, partial: 0, ready: 0, error: 0 } satisfies Record<Look["status"], number>
     );
-  };
+    return { owned, inspiration, byStatus };
+  }, [items, looks]);
+
+  const latestLook = looks[0];
 
   return (
     <div>
-      {/* 标题 + 数字（一行压缩） */}
       <div
         style={{
           display: "flex",
@@ -102,7 +61,7 @@ export function AnalysisScreen({
           穿搭分析
         </h1>
         <span className="pixel-label" style={{ fontSize: "0.6rem" }}>
-          穿搭数字资产
+          真实衣橱数据
         </span>
       </div>
 
@@ -115,9 +74,9 @@ export function AnalysisScreen({
         }}
       >
         {[
-          { n: stats.owned, label: "已有单品", color: "var(--pixel-accent-glow)" },
-          { n: stats.favorited, label: "心动收藏", color: "var(--pixel-pink-dark)" },
-          { n: outfits.length, label: "穿搭图鉴", color: "var(--pixel-primary-dark)" }
+          { n: stats.owned, label: "我的单品", color: "var(--pixel-accent-glow)" },
+          { n: stats.inspiration, label: "灵感单品", color: "var(--pixel-pink-dark)" },
+          { n: looks.length, label: "整套穿搭", color: "var(--pixel-primary-dark)" }
         ].map((s) => (
           <div
             key={s.label}
@@ -140,12 +99,8 @@ export function AnalysisScreen({
         ))}
       </div>
 
-      {/* 风格占比（压扁卡片：饼图 + 图例一行） */}
       <section
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--px-3)",
           padding: "var(--px-3)",
           background: "var(--pixel-surface)",
           border: "2px solid var(--pixel-border)",
@@ -154,54 +109,59 @@ export function AnalysisScreen({
           marginBottom: "var(--px-3)"
         }}
       >
-        {donut(72)}
-        <div style={{ flex: 1 }}>
-          <h3
-            className="pixel-subtitle"
-            style={{ fontSize: "0.72rem", margin: "0 0 var(--px-1)" }}
-          >
-            👕 衣橱风格占比
-          </h3>
-          {pieSegments.length === 0 ? (
-            <p style={{ fontSize: "0.65rem", color: "var(--pixel-text-dim)", margin: 0 }}>
-              衣橱还是空的，先去存几件吧。
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px var(--px-2)" }}>
-              {pieSegments.map((seg) => (
-                <span
-                  key={seg.name}
+        <h3
+          className="pixel-subtitle"
+          style={{ fontSize: "0.72rem", margin: "0 0 var(--px-2)" }}
+        >
+          👕 整套穿搭状态
+        </h3>
+        <div style={{ display: "grid", gap: "var(--px-2)" }}>
+          {(Object.keys(stats.byStatus) as Look["status"][]).map((status) => {
+            const count = stats.byStatus[status];
+            const ratio = looks.length > 0 ? count / looks.length : 0;
+            return (
+              <div key={status}>
+                <div
                   style={{
-                    fontFamily: "var(--font-pixel)",
-                    fontSize: "0.6rem",
+                    display: "flex",
+                    justifyContent: "space-between",
                     color: "var(--pixel-text-muted)",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "3px"
+                    fontFamily: "var(--font-pixel)",
+                    fontSize: "0.62rem",
+                    marginBottom: "3px"
                   }}
                 >
-                  <i
+                  <span>{STATUS_LABELS[status]}</span>
+                  <span>{count}</span>
+                </div>
+                <div
+                  aria-label={`${STATUS_LABELS[status]} ${count} 套`}
+                  style={{
+                    height: "8px",
+                    borderRadius: "999px",
+                    background: "var(--pixel-border-light)",
+                    overflow: "hidden"
+                  }}
+                >
+                  <span
                     style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "2px",
-                      background: seg.color,
-                      display: "inline-block"
+                      display: "block",
+                      width: `${Math.round(ratio * 100)}%`,
+                      height: "100%",
+                      background: STATUS_COLORS[status]
                     }}
                   />
-                  {seg.name} {Math.round(seg.ratio * 100)}%
-                </span>
-              ))}
-            </div>
-          )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
-      {/* 最近收藏（压缩小行） */}
-      {latest ? (
+      {latestLook ? (
         <button
           type="button"
-          onClick={() => onOpenOutfit(latest.id)}
+          onClick={() => onOpenLook(latestLook.id)}
           style={{
             display: "grid",
             gridTemplateColumns: "3.2rem 1fr auto",
@@ -217,38 +177,46 @@ export function AnalysisScreen({
             textAlign: "left"
           }}
         >
-          <img
-            src={pixelAvatarDataUrl(latest.seed, { size: 120 })}
-            alt={latest.name}
-            data-pixel="true"
-            style={{ width: "100%", borderRadius: "8px", border: "1px solid var(--pixel-border)" }}
-          />
-          <div style={{ minWidth: 0 }}>
+          {latestLook.display_image_url ? (
+            <img
+              src={latestLook.display_image_url}
+              alt="最近收藏的真实穿搭"
+              style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "8px" }}
+            />
+          ) : (
             <span
-              className="pixel-label"
-              style={{ fontSize: "0.52rem", display: "block" }}
+              style={{
+                display: "grid",
+                placeItems: "center",
+                width: "100%",
+                aspectRatio: "1",
+                background: "var(--pixel-bg-light)",
+                borderRadius: "8px"
+              }}
+              aria-hidden="true"
             >
-              最近收藏的穿搭
+              ✦
+            </span>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <span className="pixel-label" style={{ fontSize: "0.52rem", display: "block" }}>
+              最近收藏的真实穿搭
             </span>
             <strong
               style={{
                 fontFamily: "var(--font-pixel)",
                 fontSize: "0.72rem",
                 color: "var(--pixel-text)",
-                display: "block",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis"
+                display: "block"
               }}
             >
-              {latest.name}
+              {latestLook.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}
             </strong>
           </div>
           <span style={{ color: "var(--pixel-text-dim)", fontSize: "0.9rem" }}>›</span>
         </button>
       ) : null}
 
-      {/* 引导（压缩） */}
       <section
         style={{
           padding: "var(--px-3)",
@@ -267,11 +235,11 @@ export function AnalysisScreen({
             margin: "0 0 var(--px-2)"
           }}
         >
-          继续探索穿搭，这里的分析会随你的收藏生长 🌱
+          分析只来自真实衣橱和真实 Feed 收藏，不展示模拟搭配。
         </p>
         <div style={{ display: "flex", gap: "var(--px-2)", justifyContent: "center" }}>
           <PixelButton variant="primary" onClick={onGoAI}>
-            🤖 去 AI 推荐
+            ◇ AI 状态
           </PixelButton>
           <PixelButton variant="ghost" onClick={onGoWardrobe}>
             👕 打开衣橱
