@@ -13,6 +13,18 @@ from stylecapture_backend.features.capture.infrastructure.repository import (
     SqlAlchemyCaptureRepository,
 )
 from stylecapture_backend.features.capture.infrastructure.tasks import CeleryJobDispatcher
+from stylecapture_backend.features.item_presentation.application import (
+    ItemPresentationApplication,
+)
+from stylecapture_backend.features.item_presentation.infrastructure.repository import (
+    SqlAlchemyItemPresentationRepository,
+)
+from stylecapture_backend.features.item_presentation.infrastructure.tasks import (
+    CeleryItemPresentationDispatcher,
+)
+from stylecapture_backend.features.item_presentation.interfaces.http import (
+    ItemPresentationHttpServices,
+)
 from stylecapture_backend.features.look.application import LookApplication
 from stylecapture_backend.features.look.infrastructure.repository import (
     SqlAlchemyLookRepository,
@@ -33,6 +45,14 @@ from stylecapture_backend.features.outfit.infrastructure.tickets import (
     OutfitPlanTicketSigner,
 )
 from stylecapture_backend.features.outfit.interfaces.http import OutfitHttpServices
+from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
+from stylecapture_backend.features.pixel_trial.infrastructure.repository import (
+    SqlAlchemyPixelTrialRepository,
+)
+from stylecapture_backend.features.pixel_trial.infrastructure.tasks import (
+    CeleryPixelTrialDispatcher,
+)
+from stylecapture_backend.features.pixel_trial.interfaces.http import PixelTrialHttpServices
 from stylecapture_backend.features.render.application import RenderApplication
 from stylecapture_backend.features.render.infrastructure.repository import (
     SqlAlchemyRenderArtifactRepository,
@@ -61,6 +81,8 @@ def build_app() -> FastAPI:
     wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
     look_repository = SqlAlchemyLookRepository(sessions)
     render_repository = SqlAlchemyRenderArtifactRepository(sessions)
+    pixel_trial_repository = SqlAlchemyPixelTrialRepository(sessions)
+    item_presentation_repository = SqlAlchemyItemPresentationRepository(sessions)
     purchase_repository = SqlAlchemyPurchaseDemandRepository(
         sessions,
         wardrobe=wardrobe_repository,
@@ -68,6 +90,7 @@ def build_app() -> FastAPI:
     outfit_trace_repository = SqlAlchemyOutfitWorkflowTraceRepository(sessions)
     looks = LookApplication(looks=look_repository)
     renders = RenderApplication(artifacts=render_repository)
+    pixel_trials = PixelTrialApplication(trials=pixel_trial_repository)
     objects = LocalObjectStore(
         root=settings.upload_root,
         signing_secret=settings.upload_signing_secret.get_secret_value(),
@@ -82,6 +105,8 @@ def build_app() -> FastAPI:
             looks=look_repository,
             objects=objects,
             assets_root=Path(__file__).resolve().parent / "demo_assets",
+            item_presentations=item_presentation_repository,
+            renders=render_repository,
         )
         if settings.demo_seed_enabled
         else None
@@ -91,6 +116,14 @@ def build_app() -> FastAPI:
         queue=settings.capture_queue,
     )
     render_dispatcher = CeleryRenderDispatcher(
+        build_celery(redis_url),
+        queue=settings.render_queue,
+    )
+    pixel_trial_dispatcher = CeleryPixelTrialDispatcher(
+        build_celery(redis_url),
+        queue=settings.render_queue,
+    )
+    item_presentation_dispatcher = CeleryItemPresentationDispatcher(
         build_celery(redis_url),
         queue=settings.render_queue,
     )
@@ -128,6 +161,24 @@ def build_app() -> FastAPI:
                 captures=repository,
                 objects=objects,
                 dispatcher=render_dispatcher,
+            ),
+            pixel_trials=PixelTrialHttpServices(
+                trials=pixel_trials,
+                objects=objects,
+                dispatcher=pixel_trial_dispatcher,
+            ),
+            item_presentations=ItemPresentationHttpServices(
+                presentations=ItemPresentationApplication(
+                    assets=item_presentation_repository,
+                    wardrobe=WardrobeApplication(
+                        wardrobe=wardrobe_repository,
+                        sources=objects,
+                        jobs=repository,
+                        retries=retries,
+                    ),
+                ),
+                objects=objects,
+                dispatcher=item_presentation_dispatcher,
             ),
             outfits=OutfitHttpServices(
                 outfits=OutfitApplication(

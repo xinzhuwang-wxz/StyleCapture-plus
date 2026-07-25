@@ -1,0 +1,158 @@
+{
+  "schema_version": "stylecapture-demo-seed-v1",
+  "provenance": "curated_seed",
+  "items": [
+    {
+      "seed_key": "white_cable_sweater",
+      "product_image": "white-cable-sweater.jpg",
+      "pixel_asset": "pixel-items/white-cable-sweater.png",
+      "name": "象牙白绞花针织衫",
+      "category": "tops",
+      "subcategory": "针织衫",
+      "ownership": "owned",
+      "colors": ["象牙白"],
+      "styles": ["温柔", "松弛", "秋冬"],
+      "source_ref": "https://www.pexels.com/video/7576121/"
+    },
+    {
+      "seed_key": "white_tank_top",
+      "product_image": "white-tank-top.jpg",
+      "pixel_asset": "pixel-items/white-tank-top.png",
+      "name": "白色短款背心",
+      "category": "tops",
+      "subcategory": "背心",
+      "ownership": "owned",
+      "colors": ["白色"],
+      "styles": ["简洁", "休闲", "夏日"],
+      "source_ref": "https://www.pexels.com/video/7760056/"
+    },
+    {
+      "seed_key": "light_blue_jeans",
+      "product_image": "light-blue-jeans.jpg",
+      "pixel_asset": "pixel-items/light-blue-jeans.png",
+      "name": "浅蓝高腰直筒牛仔裤",
+      "category": "bottoms",
+      "subcategory": "牛仔裤",
+      "ownership": "owned",
+      "colors": ["浅蓝"],
+      "styles": ["休闲", "复古", "日常"],
+      "source_ref": "https://www.pexels.com/video/7760056/"
+    },
+    {
+      "seed_key": "beige_blazer",
+      "product_image": "beige-blazer.jpg",
+      "pixel_asset": "pixel-items/beige-blazer.png",
+      "name": "燕麦色垂感西装",
+      "category": "outerwear",
+      "subcategory": "西装",
+      "ownership": "inspiration",
+      "colors": ["燕麦色"],
+      "styles": ["通勤", "利落", "极简"],
+      "source_ref": "https://www.pexels.com/video/7681932/"
+    },
+    {
+      "seed_key": "beige_trousers",
+      "product_image": "beige-trousers.jpg",
+      "pixel_asset": "pixel-items/beige-trousers.png",
+      "name": "燕麦色高腰西裤",
+      "category": "bottoms",
+      "subcategory": "西裤",
+      "ownership": "inspiration",
+      "colors": ["燕麦色"],
+      "styles": ["通勤", "利落", "极简"],
+      "source_ref": "https://www.pexels.com/video/7681932/"
+    },
+    {
+      "seed_key": "black_city_coat",
+      "product_image": "black-city-coat.jpg",
+      "pixel_asset": "pixel-items/black-city-coat.png",
+      "name": "黑色廓形城市大衣",
+      "category": "outerwear",
+      "subcategory": "大衣",
+      "ownership": "owned",
+      "colors": ["黑色"],
+      "styles": ["城市", "通勤", "冷静"],
+      "source_ref": "https://www.pexels.com/video/5901084/"
+    },
+    {
+      "seed_key": "plaid_scarf_blazer",
+      "product_image": "plaid-scarf-blazer.jpg",
+      "pixel_asset": "pixel-items/plaid-scarf-blazer.png",
+      "name": "格纹围巾与黑色短西装",
+      "category": "accessories",
+      "subcategory": "围巾",
+      "ownership": "inspiration",
+      "colors": ["黑色", "灰色"],
+      "styles": ["知性", "层次", "通勤"],
+      "source_ref": "https://www.pexels.com/video/30789824/"
+    },
+    {
+      "seed_key": "blue_evening_dress",
+      "product_image": "blue-evening-dress.jpg",
+      "pixel_asset": "pixel-items/blue-evening-dress.png",
+      "name": "宝蓝亮片晚装裙",
+      "category": "dresses",
+      "subcategory": "晚装裙",
+      "ownership": "inspiration",
+      "colors": ["宝蓝"],
+      "styles": ["华丽", "聚会", "吸睛"],
+      "source_ref": "https://www.pexels.com/video/15396483/"
+    },
+    {
+      "seed_key": "leather_shoes",
+      "product_image": "leather-shoes.jpg",
+      "pixel_asset": "pixel-items/leather-shoes.png",
+      "name": "黑色通勤皮鞋",
+      "category": "shoes",
+      "subcategory": "皮鞋",
+      "ownership": "owned",
+      "colors": ["黑色"],
+      "styles": ["通勤", "耐穿", "中性"],
+      "source_ref": "https://www.pexels.com/video/8322396/"
+    },
+    {
+      "seed_key": "summer_accessories",
+      "product_image": "summer-accessories.jpg",
+      "pixel_asset": "pixel-items/summer-accessories.png",
+      "name": "度假编织草帽",
+      "category": "accessories",
+      "subcategory": "帽子",
+      "ownership": "inspiration",
+      "colors": ["草编色"],
+      "styles": ["度假", "自然", "夏日"],
+      "source_ref": "https://www.pexels.com/video/5405659/"
+    }
+  ],
+  "looks": [
+    {
+      "seed_key": "weekend_denim",
+      "product_image": "look-weekend-denim.jpg",
+      "pixel_asset": "pixel-looks/look-weekend-denim.png",
+      "title": "周末蓝调",
+      "item_keys": ["white_tank_top", "light_blue_jeans", "beige_blazer", "leather_shoes"],
+      "scene": "周末逛展与轻松约会",
+      "style": "简洁复古休闲",
+      "layering": "短上衣提高腰线, 垂感外套平衡牛仔裤的休闲感"
+    },
+    {
+      "seed_key": "city_commute",
+      "product_image": "look-city-commute.jpg",
+      "pixel_asset": "pixel-looks/look-city-commute.png",
+      "title": "城市燕麦拿铁",
+      "item_keys": ["white_cable_sweater", "beige_trousers", "black_city_coat", "leather_shoes"],
+      "scene": "通勤、面试与城市行走",
+      "style": "克制利落通勤",
+      "layering": "同色系内搭拉长纵向比例, 黑色外套建立清晰轮廓"
+    },
+    {
+      "seed_key": "evening_blue",
+      "product_image": "look-evening-blue.jpg",
+      "pixel_asset": "pixel-looks/look-evening-blue.png",
+      "title": "蓝色高光时刻",
+      "item_keys": ["blue_evening_dress", "leather_shoes"],
+      "scene": "晚宴、派对与重要合影",
+      "style": "华丽聚会风",
+      "layering": "单一高饱和焦点承担当晚主角, 其余配饰降低存在感"
+    }
+  ]
+}

@@ -24,6 +24,15 @@ from stylecapture_backend.features.capture.interfaces.http import (
     build_capture_router,
 )
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.item_presentation.interfaces.http import (
+    ItemPresentationHttpServices,
+    build_item_presentation_router,
+)
+from stylecapture_backend.features.item_presentation.ports import (
+    ItemPresentationDispatchError,
+    ItemPresentationIdempotencyConflict,
+    ItemPresentationNotFound,
+)
 from stylecapture_backend.features.look.application import LookNotFoundError
 from stylecapture_backend.features.look.interfaces.http import (
     LookHttpServices,
@@ -41,6 +50,15 @@ from stylecapture_backend.features.outfit.infrastructure.tickets import (
 from stylecapture_backend.features.outfit.interfaces.http import (
     OutfitHttpServices,
     build_outfit_router,
+)
+from stylecapture_backend.features.pixel_trial.infrastructure.tasks import PixelTrialDispatchError
+from stylecapture_backend.features.pixel_trial.interfaces.http import (
+    PixelTrialHttpServices,
+    build_pixel_trial_router,
+)
+from stylecapture_backend.features.pixel_trial.ports import (
+    PixelTrialIdempotencyConflict,
+    PixelTrialNotFound,
 )
 from stylecapture_backend.features.render.infrastructure.tasks import RenderDispatchError
 from stylecapture_backend.features.render.interfaces.http import (
@@ -80,6 +98,8 @@ class BackendServices:
     looks: LookHttpServices | None = None
     renders: RenderHttpServices | None = None
     outfits: OutfitHttpServices | None = None
+    pixel_trials: PixelTrialHttpServices | None = None
+    item_presentations: ItemPresentationHttpServices | None = None
     demo_wardrobe: DemoWardrobeBootstrapper | None = None
 
 
@@ -308,6 +328,78 @@ def create_app(
             message="Render request was saved but the worker queue is temporarily unavailable",
         )
 
+    @app.exception_handler(PixelTrialNotFound)
+    async def pixel_trial_not_found_handler(
+        request: Request,
+        error: LookupError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="pixel_trial_not_found",
+            message="The pixel trial does not exist",
+        )
+
+    @app.exception_handler(PixelTrialIdempotencyConflict)
+    async def pixel_trial_idempotency_conflict_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="pixel_trial_idempotency_conflict",
+            message=str(error),
+        )
+
+    @app.exception_handler(PixelTrialDispatchError)
+    async def pixel_trial_dispatch_error_handler(
+        request: Request,
+        error: RuntimeError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="pixel_trial_dispatch_unavailable",
+            message="Pixel trial request was saved but the worker queue is temporarily unavailable",
+        )
+
+    @app.exception_handler(ItemPresentationNotFound)
+    async def item_presentation_not_found_handler(
+        request: Request,
+        error: LookupError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="item_presentation_not_found",
+            message="The item presentation asset does not exist",
+        )
+
+    @app.exception_handler(ItemPresentationIdempotencyConflict)
+    async def item_presentation_idempotency_conflict_handler(
+        request: Request,
+        error: ValueError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="item_presentation_idempotency_conflict",
+            message=str(error),
+        )
+
+    @app.exception_handler(ItemPresentationDispatchError)
+    async def item_presentation_dispatch_error_handler(
+        request: Request,
+        error: RuntimeError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="item_presentation_dispatch_unavailable",
+            message="Item presentation request was saved but the worker queue is temporarily unavailable",
+        )
+
     @app.exception_handler(OutfitWardrobeEmptyError)
     async def outfit_wardrobe_empty_handler(
         request: Request,
@@ -447,6 +539,7 @@ def create_app(
         build_wardrobe_router(
             services.wardrobe,
             current_user=current_user,
+            presentations=services.item_presentations,
         )
     )
     if services.looks is not None:
@@ -460,6 +553,20 @@ def create_app(
         app.include_router(
             build_render_router(
                 services.renders,
+                current_user=current_user,
+            )
+        )
+    if services.pixel_trials is not None:
+        app.include_router(
+            build_pixel_trial_router(
+                services.pixel_trials,
+                current_user=current_user,
+            )
+        )
+    if services.item_presentations is not None:
+        app.include_router(
+            build_item_presentation_router(
+                services.item_presentations,
                 current_user=current_user,
             )
         )

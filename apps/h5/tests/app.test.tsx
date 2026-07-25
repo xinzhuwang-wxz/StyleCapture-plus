@@ -273,12 +273,26 @@ describe("StyleCapture garment ingest", () => {
     );
   });
 
-  it("uses the wardrobe display asset rather than the private source route", async () => {
+  it("uses a pixel first-level card and keeps the real display asset in item detail", async () => {
     api.listItems.mockResolvedValue([wardrobeItem]);
     renderApp();
 
     await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
 
+    const pixelCard = await screen.findByRole("img", {
+      name: "上装的像素图标"
+    });
+    expect(pixelCard).toHaveAttribute(
+      "data-image-kind",
+      "wardrobe-pixel-fallback"
+    );
+    expect(api.displayImage).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "米白色针织上衣 可搭配 上装 我的衣服"
+      })
+    );
     await waitFor(() =>
       expect(api.displayImage).toHaveBeenCalledWith(wardrobeItem.id)
     );

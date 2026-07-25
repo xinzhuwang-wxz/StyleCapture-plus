@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Item, Look, RenderArtifact } from "../../api/client";
 import { PendingItemCard, type PendingItem, WardrobeItemCard } from "./ItemCard";
 import { LookCard } from "./LookCard";
+import "./wardrobe.css";
 
 type Filter = "all" | "owned" | "inspiration";
 type WardrobeView = "looks" | "items";
@@ -51,7 +52,7 @@ export function WardrobeScreen({
       <div className="section-heading">
         <div>
           <p className="section-kicker">数字资产</p>
-          <h2 id="wardrobe-title">我的收藏</h2>
+          <h2 id="wardrobe-title">我的数字衣橱</h2>
         </div>
         <span className="item-count">
           {view === "looks" ? `${looks.length} 套` : `${items.length + pending.length} 件`}
@@ -64,14 +65,14 @@ export function WardrobeScreen({
           className={view === "looks" ? "is-selected" : ""}
           onClick={() => setView("looks")}
         >
-          穿搭
+          按穿搭
         </button>
         <button
           type="button"
           className={view === "items" ? "is-selected" : ""}
           onClick={() => setView("items")}
         >
-          单品
+          按单品
         </button>
       </div>
 

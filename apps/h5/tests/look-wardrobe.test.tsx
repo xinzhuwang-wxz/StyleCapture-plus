@@ -106,7 +106,9 @@ describe("Look wardrobe states", () => {
     render(<LookCard look={pendingLook} onOpen={vi.fn()} />);
 
     expect(screen.queryByRole("img", { name: "收藏的整套穿搭" })).not.toBeInTheDocument();
-    expect(screen.getByText("整套已保存，封面生成中")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "像素穿搭封面生成中" })
+    ).toHaveAttribute("data-image-kind", "look-pixel-pending");
     expect(screen.getByText("正在拆解")).toBeInTheDocument();
   });
 

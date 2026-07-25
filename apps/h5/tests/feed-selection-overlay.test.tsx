@@ -69,21 +69,26 @@ function drawLoop(
   });
 }
 
-function renderOverlay() {
+function renderOverlay(options?: {
+  gestureGuideToken?: number;
+}) {
   const onConfirm = vi.fn();
   const onDismiss = vi.fn();
-  render(
+  const onEmptyTap = vi.fn();
+  const view = render(
     <FeedSelectionOverlay
       frame={frame}
       frameImageUrl="blob:current-feed-frame"
+      gestureGuideToken={options?.gestureGuideToken}
       videoSize={{ width: 1080, height: 2160 }}
       onConfirm={onConfirm}
       onDismiss={onDismiss}
+      onEmptyTap={onEmptyTap}
     />
   );
   const overlay = screen.getByRole("application", { name: "圈选穿搭" });
   vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue(stageRect);
-  return { onConfirm, onDismiss, overlay };
+  return { onConfirm, onDismiss, onEmptyTap, overlay, view };
 }
 
 describe("FeedSelectionOverlay", () => {
@@ -408,8 +413,8 @@ describe("FeedSelectionOverlay", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not lift or submit a tap that cannot form a garment loop", () => {
-    const { onConfirm, onDismiss, overlay } = renderOverlay();
+  it("treats an empty tap as resume while no garment loop exists", () => {
+    const { onConfirm, onDismiss, onEmptyTap, overlay } = renderOverlay();
     firePointer(overlay, "pointerdown", {
       pointerId: 1,
       clientX: 120,
@@ -427,5 +432,30 @@ describe("FeedSelectionOverlay", () => {
     ).not.toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
     expect(onDismiss).not.toHaveBeenCalled();
+    expect(onEmptyTap).toHaveBeenCalledOnce();
+  });
+
+  it("shows a non-blocking drawing guide and can replay it", () => {
+    const { view } = renderOverlay({ gestureGuideToken: 1 });
+
+    expect(
+      screen.getByRole("status", { name: "沿着衣服边缘画一圈" })
+    ).toBeInTheDocument();
+
+    view.rerender(
+      <FeedSelectionOverlay
+        frame={frame}
+        frameImageUrl="blob:current-feed-frame"
+        gestureGuideToken={2}
+        videoSize={{ width: 1080, height: 2160 }}
+        onConfirm={vi.fn()}
+        onDismiss={vi.fn()}
+        onEmptyTap={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("status", { name: "沿着衣服边缘画一圈" })
+    ).toHaveAttribute("data-guide-token", "2");
   });
 });

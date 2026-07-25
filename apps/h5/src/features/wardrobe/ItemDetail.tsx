@@ -64,7 +64,11 @@ function DetailContent({
 
       <div className="detail-image">
         {imageUrl ? (
-          <img src={imageUrl} alt={description || "衣橱单品原图"} />
+          <img
+            src={imageUrl}
+            alt={description || "衣橱单品原图"}
+            data-image-kind="wardrobe-display"
+          />
         ) : (
           <div className="item-image-placeholder">
             <span>衣</span>

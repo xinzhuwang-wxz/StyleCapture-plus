@@ -1,0 +1,186 @@
+/* ═══ 穿搭分析：压到一屏，不用上下滑 ═══ */
+
+.analysis__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--px-3);
+}
+
+/* 「缺口提示」这类小卡的标签也要跟着收紧 */
+.analysis__mini-card .pixel-label { margin-bottom: var(--px-2) !important; }
+
+/* ─── 风格占比饼图 ─── */
+.analysis__pie-card {
+  display: flex;
+  align-items: center;
+  gap: var(--px-4);
+  padding: var(--px-3) var(--px-4);
+  margin-bottom: var(--px-3);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 14px;
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.analysis__pie {
+  position: relative;
+  flex: none;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+}
+
+.analysis__pie-hole {
+  position: absolute;
+  inset: 19px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border-radius: 50%;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  color: var(--pixel-text-muted);
+  text-align: center;
+}
+
+.analysis__pie-title {
+  margin: 0 0 var(--px-2);
+  font-family: var(--font-pixel);
+  font-size: 0.84rem;
+  letter-spacing: 0.06em;
+  color: var(--pixel-text-muted);
+}
+
+.analysis__legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+}
+
+.analysis__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-pixel);
+  font-size: 0.72rem;
+  color: var(--pixel-text-muted);
+}
+
+.analysis__legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* ─── 最近收藏 ─── */
+.analysis__section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--px-2);
+}
+
+.analysis__strip {
+  display: flex;
+  gap: 11px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: var(--px-3);
+  scrollbar-width: none;
+}
+
+.analysis__strip::-webkit-scrollbar { display: none; }
+
+.analysis__strip-card {
+  flex: 0 0 96px;
+  border-radius: 12px;
+}
+
+.analysis__strip-cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  font-size: 1.6rem;
+  background: linear-gradient(160deg, #faf5ff, #fdeef5);
+}
+
+.analysis__strip-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.analysis__strip-name {
+  padding: 5px 7px 6px;
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── 色系 / 缺口 ─── */
+.analysis__duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--px-3);
+  margin-bottom: var(--px-3);
+}
+
+.analysis__mini-card {
+  padding: var(--px-3);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 12px;
+}
+
+.analysis__swatches { display: flex; gap: 7px; }
+
+.analysis__swatches i {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.analysis__mini-note {
+  margin: var(--px-2) 0 0;
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  color: var(--pixel-text-muted);
+}
+
+.analysis__gap {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--pixel-text);
+}
+
+/* ─── 引导卡 ─── */
+.analysis__cta {
+  padding: var(--px-3) var(--px-4);
+  text-align: center;
+  background: linear-gradient(135deg, #f3edfd, #fdeef5);
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 14px;
+}
+
+.analysis__cta p {
+  margin: 0 0 var(--px-3);
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.analysis__cta div {
+  display: flex;
+  gap: var(--px-3);
+  justify-content: center;
+}
+
+.analysis__cta button { white-space: nowrap; }

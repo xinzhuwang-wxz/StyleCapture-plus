@@ -1,0 +1,47 @@
+prompts:
+  - "scene outfit smoke"
+
+providers:
+  - file://providers/stylecapture-product-api.mjs
+
+# Lightweight baseline for capability regressions.
+# 2026-07-26: smoke set uses 3-5 success/failure examples and product-API-only path.
+tests:
+  - description: 通勤会议穿搭
+    vars:
+      scene: "明天要去北京出差，天气晴朗，风格正式干净"
+      style: "通勤正式"
+      formality: "商务"
+      weather: "晴天"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).scenario_passed === true"
+  - description: 周末轻户外
+    vars:
+      scene: "周末去植物园散步"
+      style: "轻松休闲"
+      comfort: "舒适透气"
+      weather: "多云"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).scenario_passed === true"
+  - description: 运动会议混合场景
+    vars:
+      scene: "下午茶后到公司报到"
+      comfort: "可移动"
+      weather: "阴天"
+      formality: "半正式"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).scenario_passed === true"
+  - description: 无效输入不应通过场景校验
+    vars:
+      scene: ""
+      expect_error_code: "request_invalid"
+    options:
+      expectFailure: true
+    assert:
+      - type: javascript
+        value: |
+          const result = JSON.parse(output);
+          return result.scenario_passed === false && result.actual_code === "request_invalid";

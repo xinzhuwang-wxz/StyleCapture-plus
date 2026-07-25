@@ -395,6 +395,61 @@ describe("Feed runtime", () => {
     expect(play).toHaveBeenCalled();
   });
 
+  it("keeps circle selection active while paused and resumes on an empty screen tap", async () => {
+    const { play } = installMediaAndCanvasDoubles();
+    stubCapturedFrame();
+    renderFeed();
+
+    const video = (await screen.findByLabelText(
+      "Demo creator 的穿搭视频"
+    )) as HTMLVideoElement;
+    prepareVideo(video);
+    fireEvent.canPlay(video);
+    const selectButton = screen.getAllByRole("button", {
+      name: "暂停并圈选"
+    })[0]!;
+    await waitFor(() => expect(selectButton).toBeEnabled());
+
+    fireEvent.click(video);
+
+    const overlay = await screen.findByRole("application", {
+      name: "圈选穿搭"
+    });
+    expect(selectButton).toBeEnabled();
+    expect(
+      screen.getByRole("status", { name: "沿着衣服边缘画一圈" })
+    ).toBeInTheDocument();
+    vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 400,
+      bottom: 800,
+      width: 400,
+      height: 800,
+      toJSON: () => ({})
+    });
+
+    firePointer(overlay, "pointerdown", {
+      pointerId: 7,
+      clientX: 200,
+      clientY: 360
+    });
+    firePointer(overlay, "pointerup", {
+      pointerId: 7,
+      clientX: 200,
+      clientY: 360
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("application", { name: "圈选穿搭" })
+      ).not.toBeInTheDocument()
+    );
+    expect(play).toHaveBeenCalled();
+  });
+
   it("keeps a failed decision for an idempotent retry", async () => {
     installMediaAndCanvasDoubles();
     stubCapturedFrame();

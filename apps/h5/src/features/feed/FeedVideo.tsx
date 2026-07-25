@@ -16,6 +16,7 @@ import { type FeedAsset, feedMediaUrl } from "./manifest";
 interface FeedVideoProps {
   active: boolean;
   asset: FeedAsset;
+  gestureGuideEnabled: boolean;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
   restoreRequest: {
     requestId: string;
@@ -53,6 +54,7 @@ function feedContext(
 export function FeedVideo({
   active,
   asset,
+  gestureGuideEnabled,
   onAccepted,
   restoreRequest
 }: FeedVideoProps) {
@@ -72,6 +74,7 @@ export function FeedVideo({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [sourceRestored, setSourceRestored] = useState(false);
+  const [gestureGuideToken, setGestureGuideToken] = useState(0);
 
   const resume = () => {
     const video = videoRef.current;
@@ -93,6 +96,13 @@ export function FeedVideo({
     setAttempt(null);
     setCaptureError(null);
     setSubmitError(null);
+    setGestureGuideToken(0);
+  };
+
+  const replayGestureGuide = () => {
+    if (gestureGuideEnabled) {
+      setGestureGuideToken((current) => current + 1);
+    }
   };
 
   useEffect(() => {
@@ -157,7 +167,11 @@ export function FeedVideo({
 
   const pauseAndCapture = async () => {
     const video = videoRef.current;
-    if (!video || !mediaReady || capturing || submitting || frame) return;
+    if (!video || !mediaReady || capturing || submitting) return;
+    if (frameRef.current) {
+      replayGestureGuide();
+      return;
+    }
     video.pause();
     setCapturing(true);
     setCaptureError(null);
@@ -173,6 +187,7 @@ export function FeedVideo({
       }
       frameRef.current = nextFrame;
       setFrame(nextFrame);
+      replayGestureGuide();
     } catch (error) {
       if (!mountedRef.current) return;
       setCaptureError(
@@ -274,7 +289,7 @@ export function FeedVideo({
         <button
           aria-label="暂停并圈选"
           className="feed-video__circle-button"
-          disabled={!mediaReady || capturing || submitting || Boolean(frame)}
+          disabled={!mediaReady || capturing || submitting}
           type="button"
           onClick={() => void pauseAndCapture()}
         >
@@ -287,9 +302,13 @@ export function FeedVideo({
         <FeedSelectionOverlay
           frame={{ videoId: asset.assetId, timestampMs: frame.timestampMs }}
           frameImageUrl={frame.previewUrl}
+          gestureGuideToken={
+            gestureGuideEnabled ? gestureGuideToken : undefined
+          }
           videoSize={{ width: frame.width, height: frame.height }}
           onConfirm={confirm}
           onDismiss={dismiss}
+          onEmptyTap={dismiss}
         />
       ) : null}
 

@@ -85,6 +85,14 @@ class RenderProviderTrace:
         object.__setattr__(self, "model", model)
         object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
 
+    def with_parameters(self, **entries: object) -> RenderProviderTrace:
+        """Attach product-level capability metadata without exposing it in public DTOs."""
+
+        return replace(
+            self,
+            parameters={**dict(self.parameters), **entries},
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class RenderArtifact:

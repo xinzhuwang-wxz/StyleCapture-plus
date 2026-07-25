@@ -97,6 +97,7 @@ export function FeedScreen({
         <FeedVideo
           active={active && index === activeIndex}
           asset={asset}
+          gestureGuideEnabled={index < 2}
           key={asset.assetId}
           onAccepted={onAccepted}
           restoreRequest={

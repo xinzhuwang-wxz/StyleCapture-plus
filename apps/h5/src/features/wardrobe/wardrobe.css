@@ -1,0 +1,335 @@
+/* ═══ 数字衣橱：卡片、悬浮像素衣柜、拖影 ═══ */
+
+/* ─── 卡片（像素乐高积木的模块感：白底 + 2px 描边 + 实心投影）─── */
+.wardrobe-card {
+  box-shadow:
+    0 4px 0 #ece5f8,
+    0 7px 16px rgba(139, 92, 246, 0.09);
+}
+
+.wardrobe-card[data-selected="true"] {
+  border-color: var(--pixel-primary);
+}
+
+.wardrobe-card__cover {
+  position: relative;
+  background: linear-gradient(150deg, #f5edfb, #ede4fa);
+}
+
+.wardrobe-card__cover--outfit {
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(160deg, #faf5ff, #fdeef5);
+}
+
+.wardrobe-card__cover--item { aspect-ratio: 1; }
+
+.wardrobe-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 原生图片拖拽会打断长按入柜的手势 */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.wardrobe-card__cover--item img[data-image-kind^="wardrobe-pixel"] {
+  padding: 0.7rem;
+  object-fit: contain;
+  background:
+    radial-gradient(circle at 50% 38%, rgb(255 255 255 / 88%) 0 34%, transparent 35%),
+    linear-gradient(180deg, #fbf7ff, #fff);
+}
+
+.wardrobe-card__cover--item img[data-pixel="true"] {
+  image-rendering: pixelated;
+}
+
+.item-card__pixel-status {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  padding: 0.16rem 0.42rem;
+  font-size: 0.58rem;
+  color: var(--pixel-primary-dark);
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid var(--pixel-secondary);
+  border-radius: 999px;
+}
+
+.wardrobe-card__placeholder {
+  display: grid;
+  place-items: center;
+  gap: var(--px-1);
+  width: 100%;
+  height: 100%;
+  font-size: 1.6rem;
+  color: var(--pixel-text-muted);
+}
+
+.wardrobe-card__placeholder span {
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+}
+
+.wardrobe-card__ratio,
+.wardrobe-card__own {
+  position: absolute;
+  left: 6px;
+  padding: 1px 7px;
+  font-family: var(--font-pixel);
+  font-size: 0.59rem;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+}
+
+.wardrobe-card__ratio { top: 6px; color: var(--pixel-primary-dark); }
+.wardrobe-card__own { bottom: 6px; color: var(--pixel-text-muted); }
+
+.wardrobe-card__star {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 1rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.wardrobe-card__meta {
+  padding: var(--px-2) 9px 9px;
+  background: #fcfaff;
+  border-top: 2px solid #f2ecfb;
+}
+
+.wardrobe-card__meta strong {
+  display: block;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wardrobe-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.wardrobe-card__chip {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 8px;
+  font-family: var(--font-pixel);
+  font-size: 0.59rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.wardrobe-card__row .wardrobe-card__chip { margin-top: 0; flex: none; }
+
+.wardrobe-card__source {
+  min-width: 0;
+  font-family: var(--font-pixel);
+  font-size: 0.56rem;
+  color: var(--pixel-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── 悬浮像素衣柜 ─── */
+.combo-wardrobe {
+  position: absolute;
+  right: 14px;
+  bottom: 92px;
+  z-index: 35;
+  width: 74px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.combo-wardrobe__body {
+  position: relative;
+  width: 74px;
+  height: 82px;
+  overflow: hidden;
+  border: 3px solid var(--pixel-primary-dark);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #c9a27a, #a97f56);
+  box-shadow:
+    0 6px 0 #6d4a2c,
+    0 12px 22px rgba(61, 44, 94, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.combo-wardrobe[data-highlighted="true"] .combo-wardrobe__body {
+  transform: scale(1.08);
+  box-shadow:
+    0 6px 0 #6d4a2c,
+    0 0 0 4px rgba(167, 139, 250, 0.5),
+    0 12px 22px rgba(61, 44, 94, 0.3);
+}
+
+.combo-wardrobe__interior {
+  position: absolute;
+  inset: 2px;
+  display: grid;
+  place-items: center;
+  background: #4c3a2a;
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: #f3e6d5;
+  text-align: center;
+}
+
+.combo-wardrobe__door {
+  position: absolute;
+  top: 2px;
+  width: 33px;
+  height: 74px;
+  background: linear-gradient(180deg, #e0bd97, #c39a70);
+  transition: transform 0.3s ease;
+}
+
+.combo-wardrobe__door--left {
+  left: 2px;
+  border-right: 2px solid var(--pixel-primary-dark);
+  transform-origin: left center;
+}
+
+.combo-wardrobe__door--right {
+  right: 2px;
+  transform-origin: right center;
+}
+
+.combo-wardrobe__door i {
+  position: absolute;
+  top: 34px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6d4a2c;
+}
+
+.combo-wardrobe__door--left i { right: 4px; }
+.combo-wardrobe__door--right i { left: 4px; }
+
+.combo-wardrobe__count {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  z-index: 5;
+  min-width: 26px;
+  padding: 1px 7px;
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  color: #fff;
+  background: var(--pixel-pink);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transform: translateX(-50%);
+}
+
+.combo-wardrobe__hint {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  color: var(--pixel-primary-dark);
+  text-shadow: 0 1px 0 #fff;
+}
+
+/* ─── 拖影：跟手，不吃事件 ─── */
+.combo-drag-ghost {
+  position: fixed;
+  z-index: 70;
+  width: 68px;
+  height: 68px;
+  object-fit: cover;
+  border: 3px solid var(--pixel-primary);
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(61, 44, 94, 0.4);
+  pointer-events: none;
+  transform: rotate(-6deg);
+}
+
+/* ─── 组合抽屉里的单品小卡 ─── */
+.combo-basket__card {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 14px;
+  box-shadow: 0 3px 0 #ece5f8;
+}
+
+.combo-basket__card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.combo-basket__meta {
+  padding: 5px 6px 6px;
+  background: #fcfaff;
+  border-top: 2px solid #f2ecfb;
+}
+
+.combo-basket__meta strong {
+  display: block;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combo-basket__meta span {
+  font-family: var(--font-pixel);
+  font-size: 0.56rem;
+  color: var(--pixel-secondary);
+}
+
+.combo-basket__remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  color: var(--pixel-pink-dark);
+  background: rgba(255, 255, 255, 0.94);
+  border: 2px solid #fbcfe8;
+  border-radius: 50%;
+}
+
+/* 入库失败时的重试按钮 */
+.wardrobe-card__retry {
+  width: calc(100% - var(--px-4));
+  margin: 0 var(--px-2) var(--px-2);
+  padding: 3px;
+  font-family: var(--font-pixel);
+  font-size: 0.65rem;
+  color: var(--pixel-text-muted);
+  background: var(--pixel-bg);
+  border: 1px solid var(--pixel-border);
+  border-radius: 999px;
+}
+
+/* 衣橱页顶栏 */
+.wardrobe__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-3);
+  margin-bottom: var(--px-4);
+}
+
+.wardrobe__header .pixel-tag { flex: none; white-space: nowrap; }

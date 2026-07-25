@@ -374,6 +374,10 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.share_eligible is True
     assert stored_pixel.provider_trace is not None
     assert stored_pixel.provider_trace.provider == "test-private"
+    assert stored_pixel.provider_trace.parameters["capability_id"] == "look.pixel_cover"
+    assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
+    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v2"
+    assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert len(pixel_generator.images) == 2
     assert pixel_generator.images[0].object_key == look_source.object_key
 
@@ -461,6 +465,9 @@ async def test_fixed_model_try_on_uses_supported_garment_roles() -> None:
     assert try_on.categories == ["tops"]
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["personalization"] == "fixed_model"
+    assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
+    assert stored.provider_trace.parameters["capability_alias"] == "specialized_try_on"
+    assert stored.provider_trace.parameters["prompt_version"] == "not_applicable"
 
 
 @pytest.mark.parametrize("second_role", ["bottoms", "shoes", "accessories"])
@@ -516,6 +523,10 @@ async def test_fixed_model_complete_look_uses_multimodal_image_edit(
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["personalization"] == "fixed_model"
     assert stored.provider_trace.parameters["strategy"] == "multimodal_image_edit"
+    assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
+    assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
+    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v2"
+    assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert stored.provider_trace.parameters["image_count"] == 3
     assert stored.provider_trace.parameters["garment_count"] == 2
     assert dedicated_try_on.categories == []
@@ -618,6 +629,8 @@ async def test_personal_try_on_uses_uploaded_subject_and_real_image_provider_fal
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["personalization"] == "user_photo"
     assert stored.provider_trace.parameters["strategy"] == "multimodal_image_edit"
+    assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
+    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v2"
     assert stored.provider_trace.parameters["image_count"] == 2
     assert dedicated_try_on.categories == []
 

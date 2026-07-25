@@ -20,6 +20,7 @@ import {
   wardrobeApi
 } from "../api/client";
 import { CaptureSheet } from "../features/capture/CaptureSheet";
+import { PhoneFrame } from "../components/PhoneFrame";
 import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
 import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
@@ -66,6 +67,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [pendingPixelLookId, setPendingPixelLookId] = useState<string | null>(
     null
   );
@@ -468,16 +470,31 @@ export function App() {
   }
 
   return (
-    <main
-      className={`product-shell pixel-shell ${
-        destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
-      }`}
-    >
+    <PhoneFrame>
+      <main
+        className={`product-shell pixel-shell ${
+          destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
+        }`}
+      >
       <section
         aria-label="穿搭灵感"
-        className="product-view product-view--feed"
+        className="product-view product-view--feed feed-standalone"
         hidden={destination !== "feed"}
       >
+        <div className="feed-topbar">
+          <div className="feed-topbar__brand">
+            <span>STYLECAPTURE</span>
+            <strong>穿搭灵感</strong>
+          </div>
+          <button
+            type="button"
+            className="feed-topbar__mini"
+            aria-label="数字衣橱"
+            onClick={() => setDestination("wardrobe")}
+          >
+            进入数字衣橱
+          </button>
+        </div>
         <FeedScreen
           active={destination === "feed"}
           onAccepted={acceptFeedCapture}
@@ -508,6 +525,13 @@ export function App() {
               <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
               <span aria-hidden="true">✦</span>
             </div>
+            <button
+              type="button"
+              className="wardrobe-header__feed"
+              onClick={() => setDestination("feed")}
+            >
+              刷灵感 Feed
+            </button>
           </header>
         ) : null}
 
@@ -609,6 +633,7 @@ export function App() {
           <AnalysisScreen
             items={items}
             looks={looks}
+            pixelCovers={pixelCovers}
             onGoAI={() => setDestination("ai")}
             onGoWardrobe={() => setDestination("wardrobe")}
             onOpenLook={(lookId) => setSelectedLookId(lookId)}
@@ -639,7 +664,11 @@ export function App() {
         ) : null}
 
         {destination === "profile" ? (
-          <ProfileScreen itemCount={items.length + pending.length} outfitCount={looks.length} />
+          <ProfileScreen
+            itemCount={items.length + pending.length}
+            outfitCount={looks.length}
+            onNotice={setNotice}
+          />
         ) : null}
 
         <CaptureSheet
@@ -722,16 +751,8 @@ export function App() {
         />
       </div>
 
+      {destination !== "feed" ? (
       <nav aria-label="主要功能" className="pixel-nav">
-        <button
-          aria-current={destination === "feed" ? "page" : undefined}
-          className={destination === "feed" ? "is-active" : ""}
-          type="button"
-          onClick={() => setDestination("feed")}
-        >
-          <span className="nav-icon" aria-hidden="true">⌁</span>
-          <small>逛灵感</small>
-        </button>
         <button
           aria-current={destination === "wardrobe" ? "page" : undefined}
           className={destination === "wardrobe" ? "is-active" : ""}
@@ -756,6 +777,15 @@ export function App() {
           <small>分析</small>
         </button>
         <button
+          className="pixel-nav__add"
+          type="button"
+          aria-label="添加衣服或试试像素形象"
+          onClick={() => setAddMenuOpen(true)}
+        >
+          <span className="nav-icon" aria-hidden="true">＋</span>
+          <small>添加</small>
+        </button>
+        <button
           aria-current={destination === "ai" ? "page" : undefined}
           className={destination === "ai" ? "is-active" : ""}
           type="button"
@@ -774,6 +804,73 @@ export function App() {
           <small>我的</small>
         </button>
       </nav>
-    </main>
+      ) : null}
+
+      {addMenuOpen ? (
+        <div
+          className="pixel-add-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="添加到 StyleCapture"
+        >
+          <button
+            type="button"
+            className="pixel-add-sheet__backdrop"
+            aria-label="关闭添加菜单"
+            onClick={() => setAddMenuOpen(false)}
+          />
+          <section className="pixel-add-sheet__panel">
+            <header>
+              <div>
+                <p className="pixel-label">快速入口</p>
+                <h2 className="pixel-title">今天想怎么玩？</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setAddMenuOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMenuOpen(false);
+                cameraInput.current?.click();
+              }}
+            >
+              <span aria-hidden="true">◉</span>
+              <strong>拍下真实衣服</strong>
+              <small>识别单品或整套，确认后入库</small>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMenuOpen(false);
+                galleryInput.current?.click();
+              }}
+            >
+              <span aria-hidden="true">✦</span>
+              <strong>从相册导入</strong>
+              <small>支持实物图、穿搭照和收藏图片</small>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMenuOpen(false);
+                setDestination("profile");
+                setNotice("在“我的”里上传全身照，生成不入库的像素形象");
+              }}
+            >
+              <span aria-hidden="true">👾</span>
+              <strong>Try 像素形象</strong>
+              <small>只生成展示，不加入数字衣橱</small>
+            </button>
+          </section>
+        </div>
+      ) : null}
+      </main>
+    </PhoneFrame>
   );
 }

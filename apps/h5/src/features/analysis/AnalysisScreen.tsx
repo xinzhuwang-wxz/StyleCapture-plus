@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 
-import type { Item, Look } from "../../api/client";
+import type { Item, Look, RenderArtifact } from "../../api/client";
 import { PixelButton } from "../../components/PixelUI";
 
 interface AnalysisScreenProps {
   items: Item[];
   looks: Look[];
+  pixelCovers: Record<string, RenderArtifact>;
   onGoAI: () => void;
   onGoWardrobe: () => void;
   onOpenLook: (lookId: string) => void;
@@ -28,6 +29,7 @@ const STATUS_COLORS: Record<Look["status"], string> = {
 export function AnalysisScreen({
   items,
   looks,
+  pixelCovers,
   onGoAI,
   onGoWardrobe,
   onOpenLook
@@ -177,10 +179,22 @@ export function AnalysisScreen({
             textAlign: "left"
           }}
         >
-          {latestLook.display_image_url ? (
+          {pixelCovers[latestLook.id]?.output_image_url ??
+          latestLook.display_image_url ? (
             <img
-              src={latestLook.display_image_url}
-              alt="最近收藏的真实穿搭"
+              src={
+                pixelCovers[latestLook.id]?.output_image_url ??
+                latestLook.display_image_url ??
+                undefined
+              }
+              alt={
+                pixelCovers[latestLook.id]?.output_image_url
+                  ? "最近收藏穿搭的像素封面"
+                  : "最近收藏的真实穿搭"
+              }
+              data-pixel={
+                pixelCovers[latestLook.id]?.output_image_url ? "true" : undefined
+              }
               style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "8px" }}
             />
           ) : (
