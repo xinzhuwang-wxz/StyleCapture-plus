@@ -60,7 +60,8 @@ same public `CommunityPresence` contract.
 - [x] Four reactions are usable and visible.
 - [x] Resident identity is explicitly non-human and exposes only public tags.
 - [x] Share card has working download and recoverable failure state.
-- [x] Mobile screenshots and fresh automated evidence are captured.
+- [x] Mobile screenshots and fresh automated evidence are captured, including the runway
+  state after `轮到我上台`.
 
 ## Progress
 
@@ -77,8 +78,10 @@ same public `CommunityPresence` contract.
 - [x] 2026-07-25: Independent reviews required an explicit avatar-source seam, truthful
   non-live presence copy, a scene-faithful share card, and modal keyboard/reader support;
   all were incorporated before final verification.
-- [x] 2026-07-25: Fresh full H5 suite (9 files / 32 tests), typecheck, production build,
+- [x] 2026-07-25: Fresh full H5 suite (9 files / 35 tests), typecheck, production build,
   and two mobile Playwright journeys passed after the final accessibility update.
+- [x] 2026-07-25: Extended the mobile Playwright journey through `轮到我上台`, asserted
+  the `正在走秀` live-region status, and captured `08-community-runway.png` at 390×844.
 - [ ] Update Issue, commit, push, and open the experience PR.
 
 ## Surprises & Discoveries
@@ -97,6 +100,9 @@ same public `CommunityPresence` contract.
   `CommunityAvatarSource` seam is deliberately visible as `Demo 像素形象` rather than
   implying a per-Look cover is already present. It accepts the future public artifact URL
   without exposing an original reference image.
+- 2026-07-25: Runway evidence uses the same public avatar-source boundary. It verifies the
+  user-facing handoff point for a future public Look RenderArtifact without changing the
+  browser contract or leaking private Item/reference media.
 
 ## Decision Log
 

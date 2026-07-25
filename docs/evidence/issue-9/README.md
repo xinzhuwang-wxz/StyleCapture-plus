@@ -2,8 +2,8 @@
 
 Viewport: 390 × 844 mobile browser.
 Journey: open the H5 Community tab, tap the central dance floor, send `闪闪`, inspect
-the explicitly non-human resident `紫丁香`, create a PNG share card, and simulate a
-browser Canvas export failure to verify retry recovery.
+the explicitly non-human resident `紫丁香`, enter the runway with `轮到我上台`, create
+a PNG share card, and simulate a browser Canvas export failure to verify retry recovery.
 
 | Evidence | State |
 | --- | --- |
@@ -14,9 +14,20 @@ browser Canvas export failure to verify retry recovery.
 | `05-community-share-failure.png` | Browser export failure shows a retryable action |
 | `06-community-share-recovered.png` | Retrying after the simulated export failure succeeds |
 | `07-community-share-card.png` | Downloaded card includes the current demo avatar, dance state, and reaction |
+| `08-community-runway.png` | Runway state after `轮到我上台`, with the status live region showing `正在走秀` |
 
 Fresh browser evidence: `STYLECAPTURE_E2E_BASE_URL=http://127.0.0.1:5174 pnpm exec
 playwright test e2e/community-ballroom.spec.ts` produced 2 passing tests.
+
+Fresh H5 verification: `pnpm --filter @stylecapture/h5 test && pnpm --filter
+@stylecapture/h5 typecheck && pnpm --filter @stylecapture/h5 build` produced 9
+passing Vitest files / 35 tests, a clean TypeScript check, and a successful production
+Vite build.
+
+RenderArtifact handoff boundary: this evidence still uses the labelled `Demo 像素形象`
+avatar source. The Community UI accepts a future public Look RenderArtifact once Issue
+#3/#5 provides it, but this Issue #9 journey does not expose original reference images
+or private Item media in the browser, screenshots, or downloaded card.
 
 Visual verdict:
 
@@ -33,6 +44,6 @@ Visual verdict:
     "Keep future community scenes on the same purple-pink palette and retain the labelled resident treatment.",
     "Reassess navigation density before adding a fourth primary destination."
   ],
-  "reasoning": "The mobile scene retains the established StyleCapture pixel-purple identity while making movement, dance, public-only resident information, share-state feedback, and the downloaded avatar card visually legible."
+  "reasoning": "The mobile scene retains the established StyleCapture pixel-purple identity while making movement, dance, runway state, public-only resident information, share-state feedback, and the downloaded avatar card visually legible."
 }
 ```

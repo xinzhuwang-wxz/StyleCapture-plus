@@ -26,6 +26,10 @@ test("a mobile user can enter the ballroom, dance, react, inspect a resident, an
   await page.screenshot({ path: evidence("03-community-resident.png"), animations: "disabled" });
   await page.getByRole("button", { name: "关闭紫丁香的公开穿搭" }).click();
 
+  await page.getByRole("button", { name: "轮到我上台" }).click();
+  await expect(page.getByRole("status")).toContainText("正在走秀");
+  await page.screenshot({ path: evidence("08-community-runway.png"), animations: "disabled" });
+
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "生成分享卡" }).click();
   const shareCard = await download;
