@@ -201,14 +201,12 @@ export function App() {
 
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
-    queryFn: wardrobeApi.listItems,
-    refetchInterval: 2_000
+    queryFn: wardrobeApi.listItems
   });
   const items = itemsQuery.data ?? [];
   const looksQuery = useQuery({
     queryKey: ["wardrobe-looks"],
-    queryFn: wardrobeApi.listLooks,
-    refetchInterval: 2_000
+    queryFn: wardrobeApi.listLooks
   });
   const looks = looksQuery.data ?? [];
   const lookRenderQueries = useQueries({
@@ -279,10 +277,13 @@ export function App() {
   }, [items]);
 
   useEffect(() => {
-    if (!pending.length) return;
+    const active = pending.filter(
+      (entry) => entry.state === "queued" || entry.state === "processing"
+    );
+    if (!active.length) return;
     const timer = window.setInterval(() => {
       void Promise.all(
-        pending.map(async (entry) => {
+        active.map(async (entry) => {
           try {
             const job = await wardrobeApi.getJob(entry.jobId);
             setPending((current) =>
@@ -297,6 +298,10 @@ export function App() {
                   : candidate
               )
             );
+            if (job.state === "ready" || job.state === "partial") {
+              void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+              void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+            }
           } catch (error) {
             if (error instanceof ProductApiError && error.code === "job_not_found") {
               releaseBrowserImagePreview(entry.previewUrl);
@@ -311,7 +316,7 @@ export function App() {
       );
     }, 1_500);
     return () => window.clearInterval(timer);
-  }, [pending]);
+  }, [pending, queryClient]);
 
   const updateMutation = useMutation({
     mutationFn: ({

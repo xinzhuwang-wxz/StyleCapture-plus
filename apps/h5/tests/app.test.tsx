@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
@@ -165,8 +165,26 @@ describe("StyleCapture garment ingest", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("does not continuously redownload the full wardrobe while idle", async () => {
+    vi.useFakeTimers();
+    renderApp();
+
+    await vi.waitFor(() => {
+      expect(api.listItems).toHaveBeenCalledTimes(1);
+      expect(api.listLooks).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+
+    expect(api.listItems).toHaveBeenCalledTimes(1);
+    expect(api.listLooks).toHaveBeenCalledTimes(1);
   });
 
   it("opens to the Feed first and lets users enter the digital wardrobe from there", async () => {
