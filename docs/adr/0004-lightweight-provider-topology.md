@@ -20,7 +20,9 @@ than a gesture-path requirement.
 Current upstream evidence also supports a smaller topology:
 
 - SAM 2.1 tiny has 38.9M parameters; the quality gap to the 224.4M large checkpoint is
-  modest enough to benchmark rather than assume a large checkpoint is required.
+  modest enough to benchmark rather than assume a large checkpoint is required. A
+  real project frame benchmark produced a clean 0.974 coat mask at 0.609 seconds warm
+  CPU inference with two threads.
 - MobileSAM is a 9.66M-parameter promptable segmenter with ONNX export and demonstrated
   CPU operation, so it is a credible fallback for still-frame mask refinement.
 - Volcengine exposes visual grounding and multimodal image/text embeddings as hosted
@@ -40,11 +42,14 @@ Current upstream evidence also supports a smaller topology:
    lasso rendering, approximate lifted-subject compositing, and swipe confirmation.
    The API persists the save intent before any AI work begins.
 3. `promptable_segmentation` is a provider contract:
-   - default self-hosted candidate: MobileSAM/ONNX, one still frame at a time under
-     the `ai-light` profile;
+   - default runtime mode: the durable coarse lasso, with no local model loaded;
+   - validated opt-in quality adapter: SAM 2.1 Hiera Tiny, one still frame at a time
+     in the isolated media worker under the `ai-light` profile; it runs on a
+     two-thread CPU and needs a 2 GiB worker memory limit;
    - coarse lasso is always retained as the durable fallback;
-   - SAM 2.1 tiny/small are hosted or optional GPU quality tiers; larger checkpoints
-     and video propagation are not default runtime dependencies.
+   - MobileSAM/ONNX remains a smaller candidate if later deployment measurements show
+     that SAM 2.1 Tiny's roughly 1.25 GiB process peak is unacceptable; larger
+     checkpoints and video propagation are not default runtime dependencies.
 4. Whole-Look component discovery does not self-host Grounding DINO by default.
    `visual_grounding` routes to Doubao/Ark through the model boundary and returns
    structured garment regions; the promptable segmenter refines those regions.

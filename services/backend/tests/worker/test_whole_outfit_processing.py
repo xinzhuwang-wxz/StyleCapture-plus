@@ -60,6 +60,7 @@ def assert_no_provider_identity(payload: object) -> None:
     assert "provider_model" not in serialized
     assert "internal-provider-id" not in serialized
     assert "provider-model-v1" not in serialized
+    assert "raw-provider-embedding-id" not in serialized
     assert "provider-outfit-v1" not in serialized
 
 
@@ -294,7 +295,7 @@ class RecordingVision:
                 "category": ModelField(
                     value=f"category-for-{selection.selection_key}",
                     confidence=0.91,
-                    model_version="provider-model-v1",
+                    model_version="vision_understanding",
                 )
             },
             metadata=ModelMetadata(
@@ -321,7 +322,7 @@ class FixedEmbedder:
             )
         return EmbeddingResult(
             vector=(1.0,) + (0.0,) * 2047,
-            model_version="doubao-embedding-vision-250615",
+            model_version="fashion_embedding",
         )
 
 
@@ -508,6 +509,19 @@ async def test_whole_outfit_creates_components_items_display_assets_and_analysis
     assert_no_provider_identity(looks.look.analysis.metadata.provider_model)
     for item in wardrobe.items.values():
         assert_no_provider_identity(item.model_metadata)
+        assert item.model_metadata["embedding_model"] == "fashion_embedding"
+        assert {field.model_version for field in item.attributes.fields.values()} == {
+            "vision_understanding"
+        }
+        assert_no_provider_identity(
+            {
+                name: {
+                    "value": field.value,
+                    "model_version": field.model_version,
+                }
+                for name, field in item.attributes.fields.items()
+            }
+        )
     for component in looks.components.values():
         assert_no_provider_identity(component.grounding_metadata)
 

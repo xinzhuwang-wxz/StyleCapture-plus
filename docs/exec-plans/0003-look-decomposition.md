@@ -69,8 +69,12 @@ SAM 2.1 Hiera Tiny refinement, Playwright, Vitest, pytest, Docker Compose.
   0.306 s on Apple MPS and 0.609 s on CPU with two threads. CPU process RSS peaked at
   1,252 MiB, so it qualifies as an optional isolated refinement service without a GPU,
   not as a dependency of the API container.
-- [ ] Complete hosted grounding, Look analysis, segmentation/tagging orchestration,
-  retry behavior, and trace metadata.
+- [x] 2026-07-25: Completed hosted grounding, Look analysis,
+  segmentation/tagging orchestration, stable partial retry behavior,
+  capability-alias metadata, and the optional SAM 2.1 Tiny worker adapter. The
+  production adapter was re-run against the same real frame and produced a 0.974
+  refined mask; 175 backend tests, Ruff, and mypy pass. Coarse mode remains the
+  zero-model default.
 - [ ] Generate API contracts and implement Feed intent plus Look list/detail/feedback.
 - [ ] Run full automated verification and real 390×844 user flow with screenshots and
   trace, then review, merge, and synchronize Issue/Goal state.
@@ -169,7 +173,7 @@ LiteLLM/Doubao path.
 | Item facts, confidence and user locks | Current wardrobe domain/repository | Direct reuse | Already enforces the unique garment truth and guarded merge | This repo, user-owned |
 | Garment taxonomy and VLM tagging | Current taxonomy and `LiteLLMVisionTagger` | Direct reuse | Strict schema, normalization, provider metadata and tests already exist | This repo; LiteLLM MIT |
 | Hosted visual grounding | Direct Ark SDK; custom HTTP; current LiteLLM transport | Adapt existing LiteLLM transport with a thin bbox-tag parser | Keeps credentials and provider selection server-side and avoids another SDK | LiteLLM MIT; Volcengine hosted API |
-| Component mask refinement | Coarse lasso; MobileSAM; SAM 2.1 Hiera Tiny; Grounded-SAM2 | Coarse truth by default; optional SAM 2.1 Tiny service after real benchmark | The official 156 MB checkpoint produced a clean coat mask; warm inference was 0.306 s on MPS and 0.609 s on two-thread CPU, while isolation avoids adding the ~1.25 GiB runtime peak to core containers | `facebookresearch/sam2@2b90b9f`, Apache-2.0; official `facebook/sam2.1-hiera-tiny` |
+| Component mask refinement | Coarse lasso; MobileSAM; SAM 2.1 Hiera Tiny; Grounded-SAM2 | Coarse truth by default; optional SAM 2.1 Tiny adapter in the isolated media worker | The official 156 MB checkpoint produced a clean coat mask; warm inference was 0.306 s on MPS and 0.609 s on two-thread CPU, while lazy loading and an opt-in `ai-light` image avoid adding the ~1.25 GiB runtime peak to core containers | `facebookresearch/sam2@2b90b9f`, Apache-2.0; official `facebook/sam2.1-hiera-tiny` |
 | Clean wardrobe image | Current in-memory `PillowSelectionImageRenderer`; `wardrowbe` thumbnail/background-removal pipeline; custom canvas crop | Persist the existing renderer output through a thin derived-asset store; retain `wardrowbe` HTTP/rembg provider pattern as optional refinement | We already generate the correct transparent PNG for tagging, so persisting it avoids a second crop pipeline; optional background removal can improve edges without becoming an ingest dependency | This repo; `wardrowbe@c63ced9` MIT; Pillow HPND |
 | Item display/source API split | Current `/v1/items/{id}/image` and source delete route; generated OpenAPI client; `_ref/third-party/wardrowbe@c63ced9` source/thumbnail separation | Adapt current Item route: `/image` serves display asset with source fallback, `/source` serves original evidence, DTO exposes both URLs | Reuses the authenticated private-media path and generated contracts without duplicating a frontend/backend contract or copying reference code | This repo; `wardrowbe@c63ced9` MIT; `openapi-typescript` MIT |
 | Async processing and retries | New queue; current Capture/Celery worker | Direct reuse with a narrow whole-outfit processor port | One durable job/retry model already exists | This repo; Celery BSD-3-Clause |

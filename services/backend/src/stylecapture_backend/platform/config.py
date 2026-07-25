@@ -32,6 +32,11 @@ class BackendSettings(BaseSettings):
     vision_model_alias: str = "vision_understanding"
     grounding_model_alias: str = "visual_grounding"
     outfit_analysis_model_alias: str = "outfit_analysis"
+    segmentation_mode: Literal["coarse", "sam2"] = "coarse"
+    segmentation_model_alias: str = "segmentation_refinement"
+    segmentation_model: str = "facebook/sam2.1-hiera-tiny"
+    segmentation_device: str = "cpu"
+    segmentation_score_threshold: float = 0.7
     litellm_base_url: str = "http://litellm:4000/v1"
     litellm_api_key: SecretStr = SecretStr(PLACEHOLDER_GATEWAY_SECRET)
     embedding_mode: Literal["hosted", "fashion_siglip", "disabled"] = "hosted"
@@ -60,6 +65,13 @@ class BackendSettings(BaseSettings):
         value = value.strip()
         if not value or len(value) > 80:
             raise ValueError("capture queue must contain between 1 and 80 characters")
+        return value
+
+    @field_validator("segmentation_score_threshold")
+    @classmethod
+    def validate_segmentation_score_threshold(cls, value: float) -> float:
+        if not 0 <= value <= 1:
+            raise ValueError("segmentation score threshold must be between 0 and 1")
         return value
 
     @model_validator(mode="after")

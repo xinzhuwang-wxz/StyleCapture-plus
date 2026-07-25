@@ -7,7 +7,7 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 from stylecapture_backend.features.capture.domain import (
     FeedSelection,
     ImagePayload,
@@ -21,6 +21,8 @@ from stylecapture_backend.features.capture.infrastructure.feed_media import (
     CoarsePolygonSegmentationProvider,
     FfmpegFrameExtractor,
     PillowSelectionImageRenderer,
+    Sam2MaskCandidate,
+    Sam2PromptableSegmentationProvider,
 )
 from stylecapture_backend.features.capture.processing import ProviderError
 
@@ -71,6 +73,32 @@ def _selection() -> FeedSelection:
     )
 
 
+def _png_payload(*, size: tuple[int, int] = (10, 8)) -> ImagePayload:
+    output = BytesIO()
+    Image.new("RGB", size, color=(120, 80, 200)).save(output, format="PNG")
+    body = output.getvalue()
+    return ImagePayload(
+        object_key="feed/look/frame.png",
+        content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
+
+
+class RecordingSam2Backend:
+    def __init__(self, candidates: tuple[Sam2MaskCandidate, ...]) -> None:
+        self.candidates = candidates
+        self.calls: list[tuple[tuple[int, int], tuple[int, int, int, int]]] = []
+
+    def segment_box(
+        self,
+        image: Image.Image,
+        box: tuple[int, int, int, int],
+    ) -> tuple[Sam2MaskCandidate, ...]:
+        self.calls.append((image.size, box))
+        return self.candidates
+
+
 def test_pillow_renderer_isolates_the_coarse_selection_as_a_real_png() -> None:
     source = BytesIO()
     Image.new("RGB", (100, 80), color=(120, 80, 200)).save(source, format="PNG")
@@ -100,6 +128,209 @@ def test_pillow_renderer_isolates_the_coarse_selection_as_a_real_png() -> None:
         assert 0 < rendered.width < 100
         assert 0 < rendered.height < 80
         assert rendered.getchannel("A").getextrema() == (0, 255)
+
+
+def test_sam2_provider_converts_prompt_polygon_to_pixel_box_and_full_frame_mask() -> None:
+    # Catches: using normalized box values or returning a cropped mask instead of a full-frame PNG.
+    mask = Image.new("L", (10, 8), 0)
+    ImageDraw.Draw(mask).rectangle((2, 2, 7, 6), fill=255)
+    backend = RecordingSam2Backend((Sam2MaskCandidate(mask=mask, score=0.93),))
+    provider = Sam2PromptableSegmentationProvider(
+        backend_factory=lambda: backend,
+        score_threshold=0.5,
+    )
+    selection = FeedSelection(
+        selection_key="coat",
+        polygon=(
+            NormalizedPoint(0.20, 0.25),
+            NormalizedPoint(0.80, 0.25),
+            NormalizedPoint(0.80, 0.75),
+            NormalizedPoint(0.20, 0.75),
+        ),
+    )
+
+    result = provider.segment(
+        SegmentationPrompt(
+            frame=_png_payload(size=(10, 8)),
+            selection=selection,
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    assert backend.calls == [((10, 8), (2, 2, 7, 5))]
+    assert result.selection_key == "coat"
+    assert result.coarse_polygon == selection.polygon
+    assert result.mask is not None
+    assert result.mask.object_key == "feed/look/frame.png#mask=coat"
+    assert result.mask.content_type == "image/png"
+    assert result.mask.sha256 == sha256(result.mask.body).hexdigest()
+    with Image.open(BytesIO(result.mask.body)) as refined:
+        assert refined.mode == "L"
+        assert refined.size == (10, 8)
+        assert refined.getbbox() == (2, 2, 8, 7)
+
+
+def test_sam2_provider_selects_highest_quality_non_empty_mask_and_metadata() -> None:
+    # Catches: accepting the first mask, accepting empty masks, or omitting refined metadata.
+    empty = Image.new("L", (10, 8), 0)
+    weaker = Image.new("L", (10, 8), 0)
+    ImageDraw.Draw(weaker).rectangle((1, 1, 2, 2), fill=255)
+    best = Image.new("L", (10, 8), 0)
+    ImageDraw.Draw(best).rectangle((4, 3, 8, 6), fill=255)
+    provider = Sam2PromptableSegmentationProvider(
+        backend_factory=lambda: RecordingSam2Backend(
+            (
+                Sam2MaskCandidate(mask=empty, score=0.99),
+                Sam2MaskCandidate(mask=weaker, score=0.71),
+                Sam2MaskCandidate(mask=best, score=0.94),
+            )
+        ),
+        score_threshold=0.7,
+    )
+
+    result = provider.segment(
+        SegmentationPrompt(
+            frame=_png_payload(size=(10, 8)),
+            selection=_selection(),
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    assert result.metadata.refined is True
+    assert result.metadata.representation == "refined_mask"
+    assert result.metadata.provider == "local_promptable_segmentation"
+    assert result.metadata.model_alias == "segmentation_refinement"
+    assert result.metadata.score == pytest.approx(0.94)
+    assert result.metadata.fallback_reason is None
+    assert result.metadata.latency_ms >= 0
+    assert result.mask is not None
+    with Image.open(BytesIO(result.mask.body)) as refined:
+        assert refined.getbbox() == (4, 3, 9, 7)
+
+
+def test_sam2_provider_loads_runtime_once_per_process() -> None:
+    # Catches: constructing the heavy Transformers runtime for every segmentation.
+    loads = 0
+    mask = Image.new("L", (10, 8), 0)
+    ImageDraw.Draw(mask).rectangle((2, 2, 7, 6), fill=255)
+
+    def load_backend() -> RecordingSam2Backend:
+        nonlocal loads
+        loads += 1
+        return RecordingSam2Backend((Sam2MaskCandidate(mask=mask, score=0.91),))
+
+    provider = Sam2PromptableSegmentationProvider(
+        backend_factory=load_backend,
+        score_threshold=0.5,
+    )
+    prompt = SegmentationPrompt(
+        frame=_png_payload(size=(10, 8)),
+        selection=_selection(),
+        fallback_reason="refinement_unavailable",
+    )
+
+    provider.segment(prompt)
+    provider.segment(prompt)
+
+    assert loads == 1
+
+
+@pytest.mark.parametrize(
+    ("candidates", "reason"),
+    [
+        ((), "refinement_model_unavailable"),
+        ((Sam2MaskCandidate(mask=Image.new("L", (10, 8), 0), score=0.99),), "refinement_empty_mask"),
+        (
+            (
+                Sam2MaskCandidate(
+                    mask=Image.new("L", (10, 8), 255),
+                    score=0.42,
+                ),
+            ),
+            "refinement_low_score",
+        ),
+    ],
+)
+def test_sam2_provider_falls_back_truthfully_without_changing_selection_identity(
+    candidates: tuple[Sam2MaskCandidate, ...],
+    reason: str,
+) -> None:
+    # Catches: presenting fallback results as refined or losing the user's selected identity.
+    selection = _selection()
+    provider = Sam2PromptableSegmentationProvider(
+        backend_factory=lambda: RecordingSam2Backend(candidates),
+        score_threshold=0.8,
+    )
+
+    result = provider.segment(
+        SegmentationPrompt(
+            frame=_png_payload(size=(10, 8)),
+            selection=selection,
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    assert result.selection_key == selection.selection_key
+    assert result.coarse_polygon == selection.polygon
+    assert result.mask is None
+    assert result.metadata.refined is False
+    assert result.metadata.representation == "coarse_polygon"
+    assert result.metadata.provider == "deterministic_lasso_fallback"
+    assert result.metadata.fallback_reason == reason
+
+
+def test_sam2_provider_falls_back_when_runtime_load_or_inference_fails() -> None:
+    # Catches: surfacing optional local-model failures as hard product failures.
+    selection = _selection()
+
+    def unavailable_backend() -> RecordingSam2Backend:
+        raise RuntimeError("transformers unavailable")
+
+    result = Sam2PromptableSegmentationProvider(
+        backend_factory=unavailable_backend,
+        score_threshold=0.8,
+    ).segment(
+        SegmentationPrompt(
+            frame=_png_payload(size=(10, 8)),
+            selection=selection,
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    assert result.selection_key == selection.selection_key
+    assert result.mask is None
+    assert result.metadata.refined is False
+    assert result.metadata.fallback_reason == "refinement_model_unavailable"
+
+    class FailingBackend(RecordingSam2Backend):
+        def segment_box(
+            self,
+            image: Image.Image,
+            box: tuple[int, int, int, int],
+        ) -> tuple[Sam2MaskCandidate, ...]:
+            raise RuntimeError("inference timeout")
+
+    result = Sam2PromptableSegmentationProvider(
+        backend_factory=lambda: FailingBackend(()),
+        score_threshold=0.8,
+    ).segment(
+        SegmentationPrompt(
+            frame=_png_payload(size=(10, 8)),
+            selection=selection,
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    assert result.selection_key == selection.selection_key
+    assert result.mask is None
+    assert result.metadata.refined is False
+    assert result.metadata.fallback_reason == "refinement_inference_failed"
+
+
+@pytest.mark.parametrize("score", [-0.01, 1.01, float("nan"), float("inf")])
+def test_sam2_mask_candidate_rejects_invalid_quality_scores(score: float) -> None:
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        Sam2MaskCandidate(mask=Image.new("L", (2, 2), 255), score=score)
 
 
 def test_ffmpeg_extracts_the_requested_frame_and_atomically_publishes_it(

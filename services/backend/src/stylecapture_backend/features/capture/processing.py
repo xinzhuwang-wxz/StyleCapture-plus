@@ -803,7 +803,7 @@ class CaptureProcessor:
 
 
 def _segmentation_metadata(result: SegmentationResult) -> dict[str, object]:
-    return {
+    metadata: dict[str, object] = {
         "selection_key": result.selection_key,
         "representation": result.metadata.representation.value,
         "refined": result.metadata.refined,
@@ -813,6 +813,11 @@ def _segmentation_metadata(result: SegmentationResult) -> dict[str, object]:
         "provider": result.metadata.provider,
         "coarse_polygon": [{"x": point.x, "y": point.y} for point in result.coarse_polygon],
     }
+    if result.metadata.model_alias is not None:
+        metadata["model_alias"] = result.metadata.model_alias
+    if result.metadata.score is not None:
+        metadata["score"] = result.metadata.score
+    return metadata
 
 
 def _grounding_metadata(

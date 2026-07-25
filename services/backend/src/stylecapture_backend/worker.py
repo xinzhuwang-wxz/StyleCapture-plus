@@ -5,7 +5,6 @@ from stylecapture_backend.features.capture.infrastructure.fashion_embedding impo
     FashionSiglipEmbedder,
 )
 from stylecapture_backend.features.capture.infrastructure.feed_media import (
-    CoarsePolygonSegmentationProvider,
     PillowSelectionImageRenderer,
 )
 from stylecapture_backend.features.capture.infrastructure.grounding import (
@@ -33,6 +32,7 @@ from stylecapture_backend.features.wardrobe.infrastructure.repository import (
 from stylecapture_backend.platform.celery import build_celery
 from stylecapture_backend.platform.config import BackendSettings
 from stylecapture_backend.platform.database import build_session_factory
+from stylecapture_backend.platform.worker_dependencies import build_promptable_segmenter
 
 settings = BackendSettings()  # type: ignore[call-arg]
 sessions = build_session_factory(
@@ -82,7 +82,7 @@ processor = CaptureProcessor(
     objects=object_store,
     vision=vision,
     embedder=embedder,
-    segmenter=CoarsePolygonSegmentationProvider(),
+    segmenter=build_promptable_segmenter(settings),
     selection_images=PillowSelectionImageRenderer(),
     display_assets=object_store,
     looks=look_repository,
