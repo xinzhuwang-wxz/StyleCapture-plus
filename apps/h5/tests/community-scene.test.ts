@@ -1,6 +1,8 @@
 import {
   createCommunityScene,
   moveAvatarTo,
+  returnAvatarBackstage,
+  sendAvatarToRunway,
   selectReaction
 } from "../src/features/community/communityScene";
 
@@ -31,5 +33,19 @@ describe("pixel dance community scene", () => {
         expect.objectContaining({ label: "场景居民", publicTags: expect.any(Array) })
       ])
     );
+  });
+
+  it("sends the avatar to the runway and returns backstage", () => {
+    const scene = createCommunityScene();
+
+    const runwayScene = sendAvatarToRunway(scene);
+    const backstageScene = returnAvatarBackstage(runwayScene);
+
+    expect(runwayScene.runway).toMatchObject({
+      featuredAvatar: "me",
+      applause: 12,
+      isShowing: true
+    });
+    expect(backstageScene.runway.isShowing).toBe(false);
   });
 });

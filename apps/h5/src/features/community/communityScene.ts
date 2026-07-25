@@ -14,6 +14,12 @@ export type CommunityResident = {
   accent: string;
 };
 
+export type RunwayState = {
+  featuredAvatar: "me" | null;
+  applause: number;
+  isShowing: boolean;
+};
+
 export type CommunityScene = {
   bounds: {
     minX: number;
@@ -32,6 +38,7 @@ export type CommunityScene = {
     isDancing: boolean;
     reaction: CommunityReaction | null;
   };
+  runway: RunwayState;
   residents: readonly CommunityResident[];
 };
 
@@ -70,6 +77,7 @@ export function createCommunityScene(): CommunityScene {
     danceFloor: { minX: 37, maxX: 65, minY: 31, maxY: 63 },
     reactions,
     avatar: { x: 18, y: 70, isDancing: false, reaction: null },
+    runway: { featuredAvatar: null, applause: 0, isShowing: false },
     residents
   };
 }
@@ -84,6 +92,14 @@ export function moveAvatarTo(scene: CommunityScene, target: ScenePoint): Communi
     y <= scene.danceFloor.maxY;
 
   return { ...scene, avatar: { ...scene.avatar, x, y, isDancing } };
+}
+
+export function sendAvatarToRunway(scene: CommunityScene): CommunityScene {
+  return { ...scene, runway: { featuredAvatar: "me", applause: 12, isShowing: true } };
+}
+
+export function returnAvatarBackstage(scene: CommunityScene): CommunityScene {
+  return { ...scene, runway: { ...scene.runway, isShowing: false } };
 }
 
 export function selectReaction(
