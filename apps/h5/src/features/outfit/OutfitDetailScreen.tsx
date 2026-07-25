@@ -1,65 +1,78 @@
 import { useEffect, useState } from "react";
-import { PixelButton, PixelCard, PixelSectionHeader } from "../../components/PixelUI";
-import type { Item } from "../../api/client";
-import { mockApi } from "../../mock/mockApi";
+import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { ShareModal } from "../../components/ShareModal";
+import {
+  douyinShopUrl,
+  mockApi,
+  type MockOutfit
+} from "../../mock/mockApi";
+import {
+  buildShareCard,
+  pixelAvatarDataUrl,
+  pixelGarmentIcon
+} from "../../utils/pixelAvatar";
 
 interface OutfitDetailScreenProps {
   outfitId: string;
   onBack: () => void;
-  onItemClick: (itemId: string) => void;
 }
 
-export function OutfitDetailScreen({
-  outfitId,
-  onBack,
-  onItemClick
-}: OutfitDetailScreenProps) {
-  const [outfit, setOutfit] = useState<any>(null);
-  const [items, setItems] = useState<Item[]>([]);
-  const [showTryOn, setShowTryOn] = useState(false);
+/**
+ * 穿搭详情分析页：
+ * 上方大图 — 左半拼贴图，右半虚化背景 + 「显示真人试穿效果」；
+ * 下方 — 单品卡片：已有=点亮，未拥有=灰色（点击跳抖音商城）。
+ */
+export function OutfitDetailScreen({ outfitId, onBack }: OutfitDetailScreenProps) {
+  const [outfit, setOutfit] = useState<MockOutfit | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showTryOn, setShowTryOn] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
-      const o = await mockApi.getOutfit(outfitId);
-      setOutfit(o);
-      if (o) {
-        const allItems = await mockApi.listItems();
-        const outfitItems = allItems.filter((i: Item) => o.items.includes(i.id));
-        setItems(outfitItems);
+    let cancelled = false;
+    setLoading(true);
+    void mockApi.getOutfit(outfitId).then((o) => {
+      if (!cancelled) {
+        setOutfit(o);
+        setLoading(false);
       }
-      setLoading(false);
-    }
-    void load();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [outfitId]);
 
   if (loading) {
     return (
-      <div className="pixel-app">
-        <div className="pixel-loading">
-          <div className="pixel-loading__skeleton" />
-          <div className="pixel-loading__skeleton" />
-        </div>
+      <div className="pixel-loading">
+        <div className="pixel-loading__skeleton" />
+        <div className="pixel-loading__skeleton" />
       </div>
     );
   }
 
   if (!outfit) {
     return (
-      <div className="pixel-app">
-        <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
-          <p className="pixel-subtitle">穿搭方案未找到</p>
-          <PixelButton variant="primary" onClick={onBack}>
-            返回
-          </PixelButton>
-        </div>
+      <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
+        <p className="pixel-subtitle">这套穿搭走丢了</p>
+        <PixelButton variant="primary" onClick={onBack}>
+          返回
+        </PixelButton>
       </div>
     );
   }
 
+  const ownedCount = outfit.slots.filter((s) => s.owned).length;
+
+  const saveToAtlas = async () => {
+    await mockApi.saveOutfit(outfit.id);
+    setSaved(true);
+  };
+
   return (
-    <div className="pixel-app">
-      {/* Top Bar */}
+    <div>
+      {/* 顶栏 */}
       <div
         style={{
           display: "flex",
@@ -73,168 +86,208 @@ export function OutfitDetailScreen({
         <PixelButton variant="ghost" onClick={onBack} ariaLabel="返回">
           ‹
         </PixelButton>
-        <h1 className="pixel-title" style={{ fontSize: "1.1rem", margin: 0 }}>
-          {outfit.name}
-        </h1>
+        <div style={{ flex: 1 }}>
+          <p className="pixel-label" style={{ margin: 0 }}>
+            {outfit.style} · {outfit.scene}
+          </p>
+          <h1 className="pixel-title" style={{ fontSize: "1.1rem", margin: 0 }}>
+            {outfit.name}
+          </h1>
+        </div>
+        <span
+          style={{
+            fontFamily: "var(--font-pixel)",
+            fontSize: "0.68rem",
+            color: "var(--pixel-text-dim)"
+          }}
+        >
+          已有 {ownedCount}/{outfit.slots.length}
+        </span>
       </div>
 
-      {/* Collage Image */}
+      {/* 上方大图：左拼贴 / 右虚化 + 试穿 */}
       <div
         style={{
-          position: "relative",
-          border: "3px solid var(--pixel-border)",
-          boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          borderRadius: "var(--pixel-border-radius)",
+          overflow: "hidden",
+          border: "2px solid var(--pixel-border)",
+          boxShadow: "var(--pixel-shadow)",
           marginBottom: "var(--px-4)",
-          overflow: "hidden"
+          minHeight: "15rem"
         }}
       >
-        <img
-          src={outfit.collageUrl}
-          alt={outfit.name}
+        {/* 左半：拼贴图 */}
+        <div
           style={{
-            width: "100%",
-            aspectRatio: "4/5",
-            objectFit: "cover",
-            filter: showTryOn ? "blur(8px)" : "none",
-            transition: "filter 0.3s"
+            background: "linear-gradient(160deg, #faf5ff, #fdeef5)",
+            display: "grid",
+            placeItems: "center",
+            padding: "var(--px-3)"
           }}
-        />
-        {showTryOn ? (
-          <div
+        >
+          <img
+            src={pixelAvatarDataUrl(outfit.seed, { size: 260 })}
+            alt={`${outfit.name} 平面拼贴`}
+            data-pixel="true"
+            style={{ width: "100%", borderRadius: "10px" }}
+          />
+        </div>
+
+        {/* 右半：虚化背景 + 真人试穿 */}
+        <div
+          style={{
+            position: "relative",
+            display: "grid",
+            placeItems: "center",
+            overflow: "hidden"
+          }}
+        >
+          <img
+            src={pixelAvatarDataUrl(outfit.seed, { size: 260, backdrop: true })}
+            alt=""
+            aria-hidden="true"
+            data-pixel="true"
             style={{
               position: "absolute",
               inset: 0,
-              display: "grid",
-              placeItems: "center",
-              background: "rgba(0,0,0,0.3)"
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              filter: showTryOn ? "none" : "blur(14px) saturate(1.1)",
+              transform: "scale(1.3)",
+              transition: "filter 0.35s ease"
+            }}
+          />
+          {showTryOn ? (
+            <span
+              style={{
+                position: "absolute",
+                bottom: "var(--px-2)",
+                left: "50%",
+                transform: "translateX(-50%)",
+                padding: "2px 10px",
+                fontFamily: "var(--font-pixel)",
+                fontSize: "0.62rem",
+                background: "rgba(255,255,255,0.9)",
+                borderRadius: "999px",
+                color: "var(--pixel-primary-dark)",
+                whiteSpace: "nowrap"
+              }}
+            >
+              ✨ 真人试穿效果（示意）
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowTryOn(!showTryOn)}
+            style={{
+              position: "relative",
+              zIndex: 2,
+              padding: "var(--px-2) var(--px-4)",
+              fontFamily: "var(--font-pixel)",
+              fontSize: "0.72rem",
+              background: showTryOn ? "var(--pixel-primary)" : "rgba(255,255,255,0.94)",
+              color: showTryOn ? "#fff" : "var(--pixel-primary-dark)",
+              border: "2px solid var(--pixel-primary)",
+              borderRadius: "999px",
+              boxShadow: "var(--pixel-shadow)",
+              maxWidth: "88%"
             }}
           >
-            <div style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  fontSize: "4rem",
-                  marginBottom: "var(--px-3)",
-                  filter: "drop-shadow(3px 3px 0 rgba(0,0,0,0.5))"
-                }}
-              >
-                👾
-              </div>
-              <p className="pixel-subtitle" style={{ color: "#fff" }}>
-                真人试穿效果预览
-              </p>
-            </div>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setShowTryOn(!showTryOn)}
-          style={{
-            position: "absolute",
-            bottom: "var(--px-3)",
-            right: "var(--px-3)",
-            padding: "var(--px-2) var(--px-4)",
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.7rem",
-            background: showTryOn ? "var(--pixel-primary)" : "var(--pixel-surface)",
-            color: "#fff",
-            border: "2px solid var(--pixel-border)",
-            boxShadow: "2px 2px 0 rgba(0,0,0,0.3)"
-          }}
-        >
-          {showTryOn ? "隐藏试穿" : "👤 显示真人试穿"}
-        </button>
+            {showTryOn ? "收起试穿" : "👤 显示真人试穿效果"}
+          </button>
+        </div>
       </div>
 
-      {/* Description */}
       <p
         style={{
-          fontSize: "0.85rem",
+          fontSize: "0.82rem",
           color: "var(--pixel-text-muted)",
-          lineHeight: 1.6,
+          lineHeight: 1.7,
           marginBottom: "var(--px-5)"
         }}
       >
         {outfit.description}
       </p>
 
-      {/* Item Cards */}
+      {/* 单品卡片：已有点亮 / 未拥有灰色 → 抖音商城 */}
       <PixelSectionHeader
         kicker="搭配单品"
-        title="组成这件穿搭的单品"
+        title="这套穿搭用了什么"
+        action={
+          <span
+            style={{
+              fontFamily: "var(--font-pixel)",
+              fontSize: "0.62rem",
+              color: "var(--pixel-text-dim)"
+            }}
+          >
+            灰色可去商城购买 ›
+          </span>
+        }
       />
 
       <div className="pixel-grid" style={{ marginBottom: "var(--px-6)" }}>
-        {items.map((item) => (
-          <PixelCard
-            key={item.id}
-            onClick={() => onItemClick(item.id)}
-            ariaLabel={String(
-              item.attributes.description?.value ?? "单品"
-            )}
+        {outfit.slots.map((slot) => (
+          <button
+            key={slot.name}
+            type="button"
+            onClick={() => {
+              if (!slot.owned) {
+                window.open(douyinShopUrl(slot.name), "_blank", "noreferrer");
+              }
+            }}
+            style={{
+              position: "relative",
+              padding: "var(--px-3)",
+              background: slot.owned ? "var(--pixel-surface)" : "#f1eff5",
+              border: `2px solid ${slot.owned ? "var(--pixel-secondary)" : "#e2deeb"}`,
+              borderRadius: "var(--pixel-border-radius)",
+              boxShadow: slot.owned ? "var(--pixel-shadow)" : "none",
+              textAlign: "center",
+              cursor: slot.owned ? "default" : "pointer",
+              filter: slot.owned ? "none" : "grayscale(0.5)"
+            }}
+            aria-label={
+              slot.owned ? `${slot.name}（已有）` : `${slot.name}（未拥有，点击去抖音商城）`
+            }
           >
-            <div
+            <img
+              src={pixelGarmentIcon(slot.category, { owned: slot.owned, size: 120 })}
+              alt={slot.name}
+              data-pixel="true"
               style={{
-                position: "relative",
-                aspectRatio: "1",
-                background:
-                  item.ownership === "owned"
-                    ? "linear-gradient(145deg, #2d1b4e, #3d2b5e)"
-                    : "linear-gradient(145deg, #1a0f2e, #251540)",
-                overflow: "hidden"
+                width: "56%",
+                margin: "0 auto var(--px-2)",
+                filter: slot.owned ? "none" : "opacity(0.6)"
+              }}
+            />
+            <strong
+              style={{
+                fontFamily: "var(--font-pixel)",
+                fontSize: "0.72rem",
+                color: slot.owned ? "var(--pixel-text)" : "var(--pixel-text-dim)",
+                display: "block"
               }}
             >
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: "3rem"
-                }}
-              >
-                {item.ownership === "owned" ? "⭐" : "💖"}
-              </div>
-              <span
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: "var(--px-2)",
-                  background: "rgba(0,0,0,0.6)",
-                  fontSize: "0.65rem",
-                  fontFamily: "var(--font-pixel)",
-                  color: item.ownership === "owned" ? "var(--pixel-accent)" : "var(--pixel-primary)"
-                }}
-              >
-                {item.ownership === "owned" ? "✓ 已拥有" : "✧ 未拥有"}
-              </span>
-            </div>
-            <div style={{ padding: "var(--px-3)" }}>
-              <strong
-                style={{
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.8rem",
-                  color: "var(--pixel-text)"
-                }}
-              >
-                {String(item.attributes.subcategory?.value ?? item.attributes.category?.value ?? "单品")}
-              </strong>
-              <p
-                style={{
-                  margin: "4px 0 0",
-                  fontSize: "0.7rem",
-                  color: "var(--pixel-text-dim)"
-                }}
-              >
-                {String(item.attributes.description?.value ?? "").slice(0, 20)}
-              </p>
-            </div>
-          </PixelCard>
+              {slot.name}
+            </strong>
+            <span
+              style={{
+                fontFamily: "var(--font-pixel)",
+                fontSize: "0.62rem",
+                color: slot.owned ? "var(--pixel-accent-glow)" : "var(--pixel-pink-dark)"
+              }}
+            >
+              {slot.owned ? "⭐ 已有" : `💖 ¥${slot.price ?? "--"} · 去商城`}
+            </span>
+          </button>
         ))}
       </div>
 
-      {/* Action Buttons */}
+      {/* 操作 */}
       <div
         style={{
           display: "grid",
@@ -243,13 +296,33 @@ export function OutfitDetailScreen({
           marginBottom: "var(--px-6)"
         }}
       >
-        <PixelButton variant="primary">
-          <span>💾</span> 保存穿搭
+        <PixelButton variant="primary" onClick={() => void saveToAtlas()} disabled={saved}>
+          {saved ? "✓ 已存入图鉴" : "💜 存进穿搭图鉴"}
         </PixelButton>
-        <PixelButton variant="accent">
-          <span>📤</span> 分享穿搭
+        <PixelButton
+          variant="accent"
+          onClick={() =>
+            setShareUrl(
+              buildShareCard({
+                seed: outfit.seed,
+                title: outfit.name,
+                subtitle: `${outfit.style} · ${outfit.scene}`,
+                badge: outfit.slots.every((s) => s.owned) ? "star" : "heart"
+              })
+            )
+          }
+        >
+          📤 分享穿搭
         </PixelButton>
       </div>
+
+      {shareUrl ? (
+        <ShareModal
+          imageUrl={shareUrl}
+          title={`分享：${outfit.name}`}
+          onClose={() => setShareUrl(null)}
+        />
+      ) : null}
     </div>
   );
 }

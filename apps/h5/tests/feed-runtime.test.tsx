@@ -106,7 +106,12 @@ function renderFeed(onAccepted = vi.fn()) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <FeedScreen onAccepted={onAccepted} />
+      <FeedScreen
+        api={{ ingestFeedFrame: api.ingestFeedFrame }}
+        onAccepted={onAccepted}
+        onEnterMini={vi.fn()}
+        onViewAI={vi.fn()}
+      />
     </QueryClientProvider>
   );
 }
@@ -303,6 +308,12 @@ describe("Feed runtime", () => {
 
     await drawAndConfirm();
 
+    // 圈选完成 → 弹出卡片，点击「存入衣橱」才真正保存
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /存入衣橱/ }));
+      await Promise.resolve();
+    });
+
     await waitFor(() =>
       expect(api.ingestFeedFrame).toHaveBeenCalledWith(
         expect.objectContaining({ type: "image/png" }),
@@ -327,9 +338,13 @@ describe("Feed runtime", () => {
       )
     );
     expect(onAccepted).toHaveBeenCalledWith(accepted, expect.any(File));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "已存入数字衣橱"
-    );
+    expect(await screen.findByText("已存入数字衣橱！")).toBeInTheDocument();
+
+    // 点「继续刷」回到视频并恢复播放
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "继续刷" }));
+      await Promise.resolve();
+    });
     expect(play).toHaveBeenCalled();
   });
 
@@ -356,12 +371,16 @@ describe("Feed runtime", () => {
     });
     await drawAndConfirm();
 
-    expect(
-      await screen.findByRole("alert", { name: "Feed 保存失败" })
-    ).toHaveTextContent("圈选仍保留");
+    // 弹出卡片后点击保存，第一次失败 → 卡片进入错误态，幂等键保留
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /存入衣橱/ }));
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText("😵 这次没存进去")).toBeInTheDocument();
     const firstKey = api.ingestFeedFrame.mock.calls[0]?.[2];
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+      fireEvent.click(screen.getByRole("button", { name: "重试" }));
       await Promise.resolve();
     });
     await waitFor(() => expect(api.ingestFeedFrame).toHaveBeenCalledTimes(2));

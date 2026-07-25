@@ -1,34 +1,73 @@
 import { useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  type CaptureAccepted,
-  type FeedFrameContext,
-  wardrobeApi
-} from "../../api/client";
+import type { CaptureAccepted, FeedFrameContext } from "../../api/client";
 import {
   FeedSelectionOverlay,
   type FeedSelectionDecision
 } from "./FeedSelectionOverlay";
+import { FeedCaptureCard, type CaptureCardState } from "./FeedCaptureCard";
 import { captureVideoFrame, type CapturedVideoFrame } from "./frameCapture";
 import { type FeedAsset, feedMediaUrl } from "./manifest";
+
+interface FeedApi {
+  ingestFeedFrame(
+    file: File,
+    context: FeedFrameContext,
+    idempotencyKey: string
+  ): Promise<CaptureAccepted>;
+}
 
 interface FeedVideoProps {
   active: boolean;
   asset: FeedAsset;
+  api: FeedApi;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
+  onEnterMini: () => void;
+  onViewAI: (tagLabel: string) => void;
 }
 
 type FrameState = CapturedVideoFrame & {
   previewUrl: string;
 };
 
-type SaveAttempt = {
-  decision: FeedSelectionDecision;
-  idempotencyKey: string;
+/** 圈选 / 标签 产生的待保存内容 */
+type PendingCapture = {
+  tagLabel: string;
+  context: FeedFrameContext;
+  showAIEntry: boolean;
 };
 
-function feedContext(
+/** 暂停后冒出的标签（Tag 交互） */
+const FEED_TAGS = [
+  { key: "整套穿搭", label: "存整套穿搭", ai: false },
+  { key: "同款上衣", label: "存同款上衣", ai: true },
+  { key: "同款下装", label: "存同款下装", ai: true },
+  { key: "同款鞋子", label: "存同款鞋子", ai: true },
+  { key: "同款包包", label: "存同款包包", ai: true }
+] as const;
+
+function fullFrameContext(asset: FeedAsset, frame: FrameState, key: string): FeedFrameContext {
+  return {
+    video_ref: asset.assetId,
+    timestamp_ms: frame.timestampMs,
+    frame_width: frame.width,
+    frame_height: frame.height,
+    selections: [
+      {
+        selection_key: `tag-${key}`,
+        polygon: [
+          { x: 0.1, y: 0.1 },
+          { x: 0.9, y: 0.1 },
+          { x: 0.9, y: 0.9 },
+          { x: 0.1, y: 0.9 }
+        ]
+      }
+    ]
+  };
+}
+
+function lassoContext(
   asset: FeedAsset,
   frame: FrameState,
   decision: FeedSelectionDecision
@@ -45,30 +84,33 @@ function feedContext(
   };
 }
 
-export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
+export function FeedVideo({
+  active,
+  asset,
+  api,
+  onAccepted,
+  onEnterMini,
+  onViewAI
+}: FeedVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<FrameState | null>(null);
   const mountedRef = useRef(true);
-  const savedTimerRef = useRef<number | null>(null);
   const reduceMotion = useReducedMotion();
+
   const [frame, setFrame] = useState<FrameState | null>(null);
-  const [attempt, setAttempt] = useState<SaveAttempt | null>(null);
+  const [pending, setPending] = useState<PendingCapture | null>(null);
+  const [cardState, setCardState] = useState<CaptureCardState>("decide");
+  const [idempotencyKey, setIdempotencyKey] = useState<string>("");
   const [capturing, setCapturing] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const resume = () => {
     const video = videoRef.current;
-    if (!video || !active || reduceMotion) {
-      return;
-    }
-    void video.play().catch(() => {
-      // Autoplay can be blocked; the visible button remains a user-gesture path.
-    });
+    if (!video || !active || reduceMotion) return;
+    void video.play().catch(() => {});
   };
 
   const releaseFrame = () => {
@@ -77,32 +119,28 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
       frameRef.current = null;
     }
     setFrame(null);
-    setAttempt(null);
+    setPending(null);
+    setCardState("decide");
     setCaptureError(null);
-    setSubmitError(null);
+    setSaveError(null);
   };
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (!active || frame || capturing || submitting || reduceMotion) {
+    if (!active || frame || capturing || reduceMotion) {
       video.pause();
       return;
     }
     if (mediaReady) {
-      void video.play().catch(() => {
-        // The explicit pause/circle button remains available if autoplay is denied.
-      });
+      void video.play().catch(() => {});
     }
-  }, [active, capturing, frame, mediaReady, reduceMotion, submitting]);
+  }, [active, capturing, frame, mediaReady, reduceMotion]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (savedTimerRef.current !== null) {
-        window.clearTimeout(savedTimerRef.current);
-      }
       if (frameRef.current) {
         URL.revokeObjectURL(frameRef.current.previewUrl);
         frameRef.current = null;
@@ -112,7 +150,7 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
 
   const pauseAndCapture = async () => {
     const video = videoRef.current;
-    if (!video || !mediaReady || capturing || submitting || frame) return;
+    if (!video || !mediaReady || capturing || frame) return;
     video.pause();
     setCapturing(true);
     setCaptureError(null);
@@ -130,45 +168,57 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
       setFrame(nextFrame);
     } catch (error) {
       if (!mountedRef.current) return;
-      setCaptureError(
-        error instanceof Error ? error.message : "当前画面捕捉失败"
-      );
+      setCaptureError(error instanceof Error ? error.message : "当前画面捕捉失败");
     } finally {
-      if (mountedRef.current) {
-        setCapturing(false);
-      }
+      if (mountedRef.current) setCapturing(false);
     }
   };
 
-  const submit = async (nextAttempt: SaveAttempt) => {
-    if (!frame || submitting) return;
-    setSubmitting(true);
-    setSubmitError(null);
+  /** 弹出卡片（标签 或 圈选 都汇聚到这里） */
+  const openCard = (capture: PendingCapture) => {
+    setPending(capture);
+    setCardState("decide");
+    setSaveError(null);
+    setIdempotencyKey(crypto.randomUUID());
+  };
+
+  const handleTag = (tag: (typeof FEED_TAGS)[number]) => {
+    if (!frame) return;
+    openCard({
+      tagLabel: tag.key,
+      context: fullFrameContext(asset, frame, tag.key),
+      showAIEntry: tag.ai
+    });
+  };
+
+  const handleLassoConfirm = (decision: FeedSelectionDecision) => {
+    if (!frame) return;
+    openCard({
+      tagLabel: decision.selections.length > 1 ? `圈选 ${decision.selections.length} 处` : "圈选穿搭",
+      context: lassoContext(asset, frame, decision),
+      showAIEntry: true
+    });
+  };
+
+  /** 右滑 / 点击 → 存入衣橱（走 Mock 或真实 API，由 App 注入） */
+  const save = async () => {
+    if (!frame || !pending || cardState === "saving") return;
+    setCardState("saving");
+    setSaveError(null);
     try {
-      const accepted = await wardrobeApi.ingestFeedFrame(
+      const accepted = await api.ingestFeedFrame(
         frame.file,
-        feedContext(asset, frame, nextAttempt.decision),
-        nextAttempt.idempotencyKey
+        pending.context,
+        idempotencyKey || crypto.randomUUID()
       );
+      if (!mountedRef.current) return;
       onAccepted(accepted, frame.file);
-      releaseFrame();
-      setSaved(true);
-      savedTimerRef.current = window.setTimeout(() => setSaved(false), 1_800);
-      resume();
-    } catch {
-      setSubmitError("保存失败，圈选仍保留，可以直接重试");
-    } finally {
-      setSubmitting(false);
+      setCardState("saved");
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setSaveError(error instanceof Error ? error.message : "保存失败，请重试");
+      setCardState("error");
     }
-  };
-
-  const confirm = (decision: FeedSelectionDecision) => {
-    const nextAttempt = {
-      decision,
-      idempotencyKey: crypto.randomUUID()
-    };
-    setAttempt(nextAttempt);
-    void submit(nextAttempt);
   };
 
   const dismiss = () => {
@@ -204,9 +254,7 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
           setMediaReady(true);
           setMediaError(false);
         }}
-        onClick={
-          reduceMotion ? undefined : () => void pauseAndCapture()
-        }
+        onClick={reduceMotion ? undefined : () => void pauseAndCapture()}
         onError={() => {
           setMediaReady(false);
           setMediaError(true);
@@ -214,22 +262,17 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
       />
 
       <div className="feed-video__shade" aria-hidden="true" />
-      <header className="feed-video__brand" aria-label="StyleCapture Feed">
-        <span>STYLECAPTURE</span>
-        <strong>灵感 Feed</strong>
-      </header>
       <div className="feed-video__meta">
         <strong>@{asset.creatorName}</strong>
-        <p>暂停画面，圈住想带进衣橱的单品或整套穿搭</p>
-        <a href={asset.sourcePageUrl} target="_blank" rel="noreferrer">
-          {asset.sourcePlatform} · {asset.licenseName}
-        </a>
+        <p>暂停画面，点标签或圈选，把穿搭带进数字衣橱</p>
       </div>
+
+      {/* 右侧操作栏：圈选按钮 */}
       <div className="feed-video__rail">
         <button
           aria-label="暂停并圈选"
           className="feed-video__circle-button"
-          disabled={!mediaReady || capturing || submitting || Boolean(frame)}
+          disabled={!mediaReady || capturing || Boolean(frame)}
           type="button"
           onClick={() => void pauseAndCapture()}
         >
@@ -238,40 +281,46 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
         </button>
       </div>
 
-      {frame && !attempt ? (
-        <FeedSelectionOverlay
-          frame={{ videoId: asset.assetId, timestampMs: frame.timestampMs }}
-          frameImageUrl={frame.previewUrl}
-          videoSize={{ width: frame.width, height: frame.height }}
-          onConfirm={confirm}
-          onDismiss={dismiss}
-        />
-      ) : null}
-
-      {submitting ? (
-        <div className="feed-save-state" role="status">
-          <span className="feed-spinner" aria-hidden="true" />
-          正在安全存入衣橱…
-        </div>
-      ) : null}
-
-      {submitError && attempt ? (
-        <div
-          aria-label="Feed 保存失败"
-          className="feed-save-error"
-          role="alert"
-        >
-          <strong>这次还没存进去</strong>
-          <p>{submitError}</p>
-          <div>
-            <button type="button" onClick={() => void submit(attempt)}>
-              重试保存
-            </button>
-            <button type="button" onClick={dismiss}>
-              放弃并继续播放
-            </button>
+      {/* 暂停后：标签（Tag）交互 + 圈选层 */}
+      {frame && !pending ? (
+        <>
+          <div className="feed-tags" role="group" aria-label="快速保存标签">
+            <p className="feed-tags__title">✦ 存点什么？</p>
+            {FEED_TAGS.map((tag) => (
+              <button
+                key={tag.key}
+                type="button"
+                className="feed-tag"
+                onClick={() => handleTag(tag)}
+              >
+                {tag.label}
+              </button>
+            ))}
           </div>
-        </div>
+          <FeedSelectionOverlay
+            frame={{ videoId: asset.assetId, timestampMs: frame.timestampMs }}
+            frameImageUrl={frame.previewUrl}
+            videoSize={{ width: frame.width, height: frame.height }}
+            onConfirm={handleLassoConfirm}
+            onDismiss={dismiss}
+          />
+        </>
+      ) : null}
+
+      {/* 圈选 / 标签 → 弹出卡片（右滑存 / 左滑删） */}
+      {frame && pending ? (
+        <FeedCaptureCard
+          frameImageUrl={frame.previewUrl}
+          tagLabel={pending.tagLabel}
+          creatorName={asset.creatorName}
+          state={cardState}
+          errorMessage={saveError}
+          showAIEntry={pending.showAIEntry}
+          onSave={() => void save()}
+          onDismiss={dismiss}
+          onViewAI={() => onViewAI(pending.tagLabel)}
+          onEnterMini={onEnterMini}
+        />
       ) : null}
 
       {captureError ? (
@@ -301,13 +350,6 @@ export function FeedVideo({ active, asset, onAccepted }: FeedVideoProps) {
           <button type="button" onClick={retryMedia}>
             重新加载
           </button>
-        </div>
-      ) : null}
-
-      {saved ? (
-        <div className="feed-saved-toast" role="status">
-          <span aria-hidden="true">✓</span>
-          已存入数字衣橱
         </div>
       ) : null}
 

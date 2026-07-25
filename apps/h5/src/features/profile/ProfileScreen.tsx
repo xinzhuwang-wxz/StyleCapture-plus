@@ -1,156 +1,242 @@
 import { useCallback, useRef, useState } from "react";
-import { PixelButton, PixelCard } from "../../components/PixelUI";
+import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 
 interface ProfileScreenProps {
-  onBack: () => void;
+  itemCount: number;
+  outfitCount: number;
 }
 
-export function ProfileScreen({ onBack }: ProfileScreenProps) {
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [avatarHistory, setAvatarHistory] = useState<string[]>([]);
+/**
+ * 我的页面：
+ * 像素形象 + 我的形象照管理（真人试穿参考图）。
+ */
+export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [activePhoto, setActivePhoto] = useState<number>(0);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      setUploading(true);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target?.result as string;
-        setAvatarUrl(url);
-        setAvatarHistory((prev) => [url, ...prev].slice(0, 5));
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-      event.target.value = "";
-    },
-    []
-  );
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target?.result as string;
+      setPhotos((prev) => [url, ...prev].slice(0, 6));
+      setActivePhoto(0);
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }, []);
 
   return (
-    <div className="pixel-app">
-      {/* Top Bar */}
-      <div
+    <div>
+      {/* 用户信息卡 */}
+      <section
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "var(--px-3)",
-          marginBottom: "var(--px-5)",
-          paddingBottom: "var(--px-3)",
-          borderBottom: "2px dashed var(--pixel-border)"
-        }}
-      >
-        <PixelButton variant="ghost" onClick={onBack} ariaLabel="返回">
-          ‹
-        </PixelButton>
-        <h1 className="pixel-title" style={{ fontSize: "1.1rem", margin: 0 }}>
-          我的形象
-        </h1>
-      </div>
-
-      {/* Avatar Display */}
-      <div
-        style={{
-          display: "grid",
-          placeItems: "center",
+          gap: "var(--px-4)",
+          padding: "var(--px-4)",
+          background: "linear-gradient(135deg, #f3edfd, #fdeef5)",
+          border: "2px solid var(--pixel-secondary)",
+          borderRadius: "var(--pixel-border-radius)",
           marginBottom: "var(--px-5)"
         }}
       >
-        <div
+        <img
+          src={pixelAvatarDataUrl("user-profile", { size: 120, hat: false })}
+          alt="我的像素形象"
+          data-pixel="true"
           style={{
-            width: "10rem",
-            height: "10rem",
-            border: "3px solid var(--pixel-border)",
-            background: avatarUrl
-              ? "transparent"
-              : "linear-gradient(145deg, var(--pixel-surface-raised), var(--pixel-bg-light))",
-            boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden",
-            position: "relative"
+            width: "4.5rem",
+            height: "4.5rem",
+            borderRadius: "50%",
+            border: "3px solid #fff",
+            boxShadow: "var(--pixel-shadow)"
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <h1 className="pixel-title" style={{ fontSize: "1.2rem", margin: "0 0 4px" }}>
+            小甜甜
+          </h1>
+          <span
+            style={{
+              fontFamily: "var(--font-pixel)",
+              fontSize: "0.68rem",
+              padding: "2px 10px",
+              background: "var(--pixel-primary)",
+              color: "#fff",
+              borderRadius: "999px"
+            }}
+          >
+            Lv.3 穿搭收藏家
+          </span>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "var(--font-pixel)", fontSize: "1.2rem", color: "var(--pixel-primary-dark)" }}>
+            {itemCount}
+          </div>
+          <div style={{ fontSize: "0.62rem", color: "var(--pixel-text-dim)" }}>单品</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "var(--font-pixel)", fontSize: "1.2rem", color: "var(--pixel-pink-dark)" }}>
+            {outfitCount}
+          </div>
+          <div style={{ fontSize: "0.62rem", color: "var(--pixel-text-dim)" }}>穿搭</div>
+        </div>
+      </section>
+
+      {/* 我的形象 */}
+      <PixelSectionHeader
+        kicker="真人试穿参考"
+        title="我的形象"
+        action={
+          uploading ? (
+            <span className="pixel-label">处理中…</span>
+          ) : null
+        }
+      />
+
+      {photos.length === 0 ? (
+        <section
+          style={{
+            padding: "var(--px-6) var(--px-4)",
+            background: "var(--pixel-surface)",
+            border: "2px dashed var(--pixel-secondary)",
+            borderRadius: "var(--pixel-border-radius)",
+            textAlign: "center",
+            marginBottom: "var(--px-5)"
           }}
         >
-          {avatarUrl ? (
+          <span style={{ fontSize: "2.5rem" }} aria-hidden="true">📸</span>
+          <p
+            style={{
+              fontFamily: "var(--font-pixel)",
+              fontSize: "0.85rem",
+              color: "var(--pixel-text-muted)",
+              lineHeight: 1.7,
+              margin: "var(--px-3) 0 var(--px-4)"
+            }}
+          >
+            还没有形象照
+            <br />
+            <small style={{ fontSize: "0.68rem", color: "var(--pixel-text-dim)" }}>
+              上传正面全身照，用于 AI 真人试穿效果
+            </small>
+          </p>
+          <div style={{ display: "flex", gap: "var(--px-3)", justifyContent: "center" }}>
+            <PixelButton variant="primary" onClick={() => fileInputRef.current?.click()}>
+              📷 上传照片
+            </PixelButton>
+            <PixelButton variant="accent" onClick={() => fileInputRef.current?.click()}>
+              🤳 拍一张
+            </PixelButton>
+          </div>
+        </section>
+      ) : (
+        <section style={{ marginBottom: "var(--px-5)" }}>
+          {/* 当前使用的形象 */}
+          <div
+            style={{
+              position: "relative",
+              width: "60%",
+              margin: "0 auto var(--px-4)",
+              borderRadius: "var(--pixel-border-radius)",
+              overflow: "hidden",
+              border: "3px solid var(--pixel-primary)",
+              boxShadow: "var(--pixel-shadow-lg)"
+            }}
+          >
             <img
-              src={avatarUrl}
-              alt="我的形象"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                imageRendering: "auto"
-              }}
+              src={photos[activePhoto]}
+              alt="当前使用的形象照"
+              style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", imageRendering: "auto" }}
             />
-          ) : (
-            <span style={{ fontSize: "4rem" }}>👤</span>
-          )}
-          {uploading ? (
-            <div
+            <span
               style={{
                 position: "absolute",
-                inset: 0,
-                background: "rgba(0,0,0,0.5)",
-                display: "grid",
-                placeItems: "center",
+                top: "var(--px-2)",
+                left: "var(--px-2)",
+                padding: "2px 10px",
                 fontFamily: "var(--font-pixel)",
-                color: "#fff"
+                fontSize: "0.62rem",
+                background: "var(--pixel-primary)",
+                color: "#fff",
+                borderRadius: "999px"
               }}
             >
-              处理中…
-            </div>
-          ) : null}
-        </div>
-      </div>
+              ✓ 试穿使用这张
+            </span>
+          </div>
 
-      {/* Upload Actions */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "var(--px-3)",
-          marginBottom: "var(--px-6)"
-        }}
-      >
-        <PixelButton
-          variant="primary"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <span>📷</span> 上传照片
-        </PixelButton>
-        <PixelButton
-          variant="accent"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <span>🎨</span> 拍照录入
-        </PixelButton>
-      </div>
+          {/* 照片列表 + 新增 */}
+          <div style={{ display: "flex", gap: "var(--px-2)", overflowX: "auto", paddingBottom: "var(--px-2)" }}>
+            {photos.map((url, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setActivePhoto(i)}
+                aria-label={`形象照 ${i + 1}${i === activePhoto ? "（使用中）" : ""}`}
+                style={{
+                  flex: "0 0 auto",
+                  width: "4rem",
+                  padding: 0,
+                  borderRadius: "var(--pixel-radius-sm)",
+                  overflow: "hidden",
+                  border: `3px solid ${i === activePhoto ? "var(--pixel-primary)" : "var(--pixel-border)"}`,
+                  background: "none"
+                }}
+              >
+                <img
+                  src={url}
+                  alt=""
+                  style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", imageRendering: "auto" }}
+                />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="添加新形象照"
+              style={{
+                flex: "0 0 auto",
+                width: "4rem",
+                aspectRatio: "3/4",
+                borderRadius: "var(--pixel-radius-sm)",
+                border: "2px dashed var(--pixel-secondary)",
+                background: "var(--pixel-surface)",
+                color: "var(--pixel-primary)",
+                fontSize: "1.4rem"
+              }}
+            >
+              +
+            </button>
+          </div>
+        </section>
+      )}
 
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="user"
         className="visually-hidden"
         onChange={handleFileSelect}
       />
 
-      {/* Instructions */}
-      <div
+      {/* 提示 */}
+      <section
         style={{
           padding: "var(--px-4)",
-          background: "var(--pixel-surface-raised)",
+          background: "var(--pixel-surface)",
           border: "2px solid var(--pixel-border)",
-          marginBottom: "var(--px-5)"
+          borderRadius: "var(--pixel-border-radius)"
         }}
       >
-        <h3
-          className="pixel-subtitle"
-          style={{ marginBottom: "var(--px-3)" }}
-        >
+        <h3 className="pixel-subtitle" style={{ marginBottom: "var(--px-2)" }}>
           💡 使用提示
         </h3>
         <ul
@@ -158,129 +244,15 @@ export function ProfileScreen({ onBack }: ProfileScreenProps) {
             margin: 0,
             paddingLeft: "var(--px-5)",
             color: "var(--pixel-text-dim)",
-            fontSize: "0.78rem",
-            lineHeight: 1.7
+            fontSize: "0.75rem",
+            lineHeight: 1.8
           }}
         >
-          <li>请上传正面全身照，用于 AI 试穿效果生成</li>
-          <li>照片仅保存在本地，不会上传服务器</li>
-          <li>建议穿着贴身衣物拍摄，效果更好</li>
-          <li>可以保存多张照片，随时切换使用</li>
+          <li>上传正面全身照，作为真人试穿的参考图</li>
+          <li>照片仅保存在本机，不会上传服务器</li>
+          <li>可以保存多张，点缩略图随时切换</li>
         </ul>
-      </div>
-
-      {/* Avatar History */}
-      {avatarHistory.length > 0 ? (
-        <>
-          <h3
-            className="pixel-subtitle"
-            style={{ marginBottom: "var(--px-3)" }}
-          >
-            📚 历史形象
-          </h3>
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--px-3)",
-              overflowX: "auto",
-              paddingBottom: "var(--px-3)",
-              marginBottom: "var(--px-5)"
-            }}
-          >
-            {avatarHistory.map((url, i) => (
-              <PixelCard
-                key={i}
-                onClick={() => setAvatarUrl(url)}
-                className={avatarUrl === url ? "is-active" : ""}
-              >
-                <div
-                  style={{
-                    width: "5rem",
-                    height: "5rem",
-                    overflow: "hidden"
-                  }}
-                >
-                  <img
-                    src={url}
-                    alt={`历史形象 ${i + 1}`}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      imageRendering: "auto"
-                    }}
-                  />
-                </div>
-              </PixelCard>
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      {/* Stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "var(--px-3)",
-          marginBottom: "var(--px-5)"
-        }}
-      >
-        <div
-          style={{
-            padding: "var(--px-4)",
-            background: "var(--pixel-surface-raised)",
-            border: "2px solid var(--pixel-border)",
-            textAlign: "center"
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--font-pixel)",
-              fontSize: "1.5rem",
-              color: "var(--pixel-accent)"
-            }}
-          >
-            12
-          </div>
-          <div
-            style={{
-              fontSize: "0.7rem",
-              color: "var(--pixel-text-dim)",
-              marginTop: "4px"
-            }}
-          >
-            已存单品
-          </div>
-        </div>
-        <div
-          style={{
-            padding: "var(--px-4)",
-            background: "var(--pixel-surface-raised)",
-            border: "2px solid var(--pixel-border)",
-            textAlign: "center"
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--font-pixel)",
-              fontSize: "1.5rem",
-              color: "var(--pixel-primary)"
-            }}
-          >
-            5
-          </div>
-          <div
-            style={{
-              fontSize: "0.7rem",
-              color: "var(--pixel-text-dim)",
-              marginTop: "4px"
-            }}
-          >
-            搭配方案
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

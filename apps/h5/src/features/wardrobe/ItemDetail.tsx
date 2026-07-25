@@ -1,386 +1,291 @@
-import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-
+import { AnimatePresence, motion } from "motion/react";
+import { PixelBadge, PixelButton } from "../../components/PixelUI";
 import type { Item, Ownership } from "../../api/client";
-import { useSourceImage } from "./useSourceImage";
+import { douyinShopUrl, mockApi, type MockOutfit } from "../../mock/mockApi";
+import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 
-type ItemDetailProps = {
+interface ItemDetailProps {
   item: Item | null;
   saving: boolean;
   onClose: () => void;
-  onSave: (
-    itemId: string,
-    changes: {
-      ownership: Ownership;
-      corrections: Record<string, string>;
-    }
-  ) => void;
-  onDeleteSource: (itemId: string) => void;
-};
+  onSave: (itemId: string, changes: { ownership: Ownership }) => void;
+  onOpenOutfit: (outfitId: string) => void;
+}
 
-function DetailContent({
+/**
+ * 单品详情页（写实展示）：
+ * 上半 — 实物图；下半 — 「查看 AI 穿搭」长按钮 + 🛒 抖音商城。
+ * 点击 AI 穿搭后：实物图缩小，下方出现三套搭配（三列），点击进穿搭详情。
+ */
+export function ItemDetail({
   item,
   saving,
   onClose,
   onSave,
-  onDeleteSource
-}: Omit<ItemDetailProps, "item"> & { item: Item }) {
-  const imageUrl = useSourceImage(item.id, !item.source_available);
-  const [ownership, setOwnership] = useState<Ownership>(item.ownership);
-  const [category, setCategory] = useState(
-    String(item.attributes.category?.value ?? "")
-  );
-  const [description, setDescription] = useState(
-    String(item.attributes.description?.value ?? "")
-  );
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  onOpenOutfit
+}: ItemDetailProps) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [aiMode, setAiMode] = useState(false);
+  const [outfits, setOutfits] = useState<MockOutfit[] | null>(null);
+  const [loadingOutfits, setLoadingOutfits] = useState(false);
 
   useEffect(() => {
-    setOwnership(item.ownership);
-    setCategory(String(item.attributes.category?.value ?? ""));
-    setDescription(String(item.attributes.description?.value ?? ""));
-    setConfirmingDelete(false);
-  }, [item]);
+    setPhotoUrl(null);
+    setAiMode(false);
+    setOutfits(null);
+    if (!item) return;
+    let cancelled = false;
+    void mockApi.sourceImage(item.id).then((url) => {
+      if (!cancelled) setPhotoUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.id]);
 
-  const isOwned = ownership === "owned";
+  if (!item) return null;
+
+  const name = String(
+    item.attributes.subcategory?.value ??
+      item.attributes.description?.value ??
+      "单品"
+  );
+  const isOwned = item.ownership === "owned";
+
+  const showAIOutfits = async () => {
+    if (aiMode) {
+      setAiMode(false);
+      return;
+    }
+    setAiMode(true);
+    if (outfits) return;
+    setLoadingOutfits(true);
+    const generated = await mockApi.generateOutfits(name);
+    setOutfits(generated);
+    setLoadingOutfits(false);
+  };
+
+  const openShop = () => {
+    window.open(douyinShopUrl(`${name} 穿搭`), "_blank", "noreferrer");
+  };
 
   return (
-    <motion.section
-      className="pixel-sheet__content"
-      style={{
-        height: "100dvh",
-        paddingTop: "max(var(--px-4), env(safe-area-inset-top))"
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="item-detail-title"
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", stiffness: 340, damping: 36 }}
-    >
-      {/* Top Bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "var(--px-4)",
-          paddingBottom: "var(--px-3)",
-          borderBottom: "2px dashed var(--pixel-border)"
+    <AnimatePresence>
+      <motion.div
+        className="pixel-sheet"
+        role="presentation"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
         }}
       >
-        <button
-          type="button"
-          className="pixel-button pixel-button--ghost"
-          style={{ width: "2.5rem", height: "2.5rem", padding: 0 }}
-          aria-label="返回衣橱"
-          onClick={onClose}
+        <motion.section
+          className="pixel-sheet__content"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`单品详情：${name}`}
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 330, damping: 34 }}
         >
-          ‹
-        </button>
-        <strong
-          id="item-detail-title"
-          className="pixel-subtitle"
-          style={{ color: "var(--pixel-text)" }}
-        >
-          单品详情
-        </strong>
-        <span style={{ width: "2.5rem" }} />
-      </div>
-
-      {/* Image */}
-      <div
-        style={{
-          height: "min(45dvh, 22rem)",
-          marginBottom: "var(--px-4)",
-          border: "3px solid var(--pixel-border)",
-          boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
-          overflow: "hidden",
-          background: "var(--pixel-surface-raised)",
-          display: "grid",
-          placeItems: "center"
-        }}
-      >
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={description || "衣橱单品"}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover"
-            }}
-          />
-        ) : (
+          {/* 顶部 */}
           <div
             style={{
-              textAlign: "center",
-              color: "var(--pixel-text-dim)"
-            }}
-          >
-            <span style={{ fontSize: "4rem" }}>👕</span>
-            <p
-              style={{
-                fontFamily: "var(--font-pixel)",
-                fontSize: "0.75rem",
-                marginTop: "var(--px-2)"
-              }}
-            >
-              原图不可用
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Meta */}
-      <div
-        style={{
-          display: "flex",
-          gap: "var(--px-2)",
-          marginBottom: "var(--px-4)"
-        }}
-      >
-        <span
-          style={{
-            padding: "var(--px-1) var(--px-3)",
-            background: "var(--pixel-surface-raised)",
-            border: "2px solid var(--pixel-border)",
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.65rem",
-            color: "var(--pixel-text-muted)"
-          }}
-        >
-          {item.source_kind === "camera" ? "📷 拍照录入" : "🖼️ 相册录入"}
-        </span>
-        <span
-          style={{
-            padding: "var(--px-1) var(--px-3)",
-            background: "var(--pixel-surface-raised)",
-            border: "2px solid var(--pixel-border)",
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.65rem",
-            color:
-              item.status === "ready"
-                ? "var(--pixel-success)"
-                : "var(--pixel-warning)"
-          }}
-        >
-          {item.status === "ready" ? "✓ 已完成" : "🔄 处理中"}
-        </span>
-      </div>
-
-      {/* Form Fields */}
-      <div style={{ marginBottom: "var(--px-3)" }}>
-        <label
-          style={{
-            display: "block",
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.75rem",
-            color: "var(--pixel-text-muted)",
-            marginBottom: "var(--px-2)"
-          }}
-        >
-          分类
-        </label>
-        <input
-          value={category}
-          maxLength={80}
-          placeholder="例如：上装"
-          onChange={(event) => setCategory(event.target.value)}
-          style={{
-            width: "100%",
-            padding: "var(--px-3)",
-            background: "var(--pixel-surface-raised)",
-            border: "2px solid var(--pixel-border)",
-            color: "var(--pixel-text)",
-            fontFamily: "var(--font-body)",
-            fontSize: "0.85rem",
-            outline: "none"
-          }}
-        />
-      </div>
-
-      <div style={{ marginBottom: "var(--px-4)" }}>
-        <label
-          style={{
-            display: "block",
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.75rem",
-            color: "var(--pixel-text-muted)",
-            marginBottom: "var(--px-2)"
-          }}
-        >
-          单品描述
-        </label>
-        <textarea
-          value={description}
-          maxLength={1000}
-          rows={3}
-          placeholder="补充更准确的描述"
-          onChange={(event) => setDescription(event.target.value)}
-          style={{
-            width: "100%",
-            padding: "var(--px-3)",
-            background: "var(--pixel-surface-raised)",
-            border: "2px solid var(--pixel-border)",
-            color: "var(--pixel-text)",
-            fontFamily: "var(--font-body)",
-            fontSize: "0.85rem",
-            resize: "vertical",
-            outline: "none"
-          }}
-        />
-      </div>
-
-      {/* Ownership Toggle */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "var(--px-2)",
-          marginBottom: "var(--px-4)"
-        }}
-      >
-        <button
-          type="button"
-          className="pixel-button"
-          style={{
-            background: isOwned ? "var(--pixel-accent)" : "var(--pixel-surface)",
-            borderColor: isOwned ? "var(--pixel-accent-glow)" : "var(--pixel-border)",
-            color: isOwned ? "var(--pixel-surface)" : "var(--pixel-text-muted)"
-          }}
-          onClick={() => setOwnership("owned")}
-        >
-          ⭐ 我的衣服
-        </button>
-        <button
-          type="button"
-          className="pixel-button"
-          style={{
-            background: !isOwned ? "var(--pixel-primary)" : "var(--pixel-surface)",
-            borderColor: !isOwned ? "var(--pixel-primary-dark)" : "var(--pixel-border)",
-            color: !isOwned ? "#fff" : "var(--pixel-text-muted)"
-          }}
-          onClick={() => setOwnership("inspiration")}
-        >
-          💖 穿搭灵感
-        </button>
-      </div>
-
-      {/* Save Button */}
-      <button
-        type="button"
-        className="pixel-button pixel-button--primary w-full"
-        disabled={saving}
-        onClick={() =>
-          onSave(item.id, {
-            ownership,
-            corrections: {
-              ...(category.trim() ? { category: category.trim() } : {}),
-              ...(description.trim() ? { description: description.trim() } : {})
-            }
-          })
-        }
-        style={{ marginBottom: "var(--px-3)" }}
-      >
-        {saving ? "🔄 保存中…" : "💾 保存修改"}
-      </button>
-
-      {/* Delete Section */}
-      {!item.source_available ? (
-        <p
-          style={{
-            textAlign: "center",
-            fontSize: "0.65rem",
-            color: "var(--pixel-text-dim)",
-            fontFamily: "var(--font-pixel)"
-          }}
-        >
-          原图已删除，标签和描述仍可编辑
-        </p>
-      ) : confirmingDelete ? (
-        <div
-          style={{
-            padding: "var(--px-4)",
-            background: "rgba(248, 113, 113, 0.1)",
-            border: "2px solid var(--pixel-error)",
-            marginTop: "var(--px-3)"
-          }}
-        >
-          <p
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--pixel-error)",
-              fontFamily: "var(--font-pixel)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               marginBottom: "var(--px-3)"
             }}
           >
-            ⚠️ 删除后原图无法恢复
-          </p>
+            <div>
+              <p className="pixel-label">单品详情</p>
+              <h2 className="pixel-subtitle" style={{ color: "var(--pixel-text)", margin: 0 }}>
+                {name}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="pixel-button pixel-button--ghost"
+              style={{ width: "2.5rem", height: "2.5rem", padding: 0 }}
+              aria-label="关闭"
+              onClick={onClose}
+            >
+              ×
+            </button>
+          </div>
+
+          {/* 实物图（AI 模式下缩小） */}
+          <motion.div
+            layout
+            style={{
+              position: "relative",
+              marginBottom: "var(--px-4)",
+              borderRadius: "var(--pixel-border-radius)",
+              overflow: "hidden",
+              border: "2px solid var(--pixel-border)",
+              boxShadow: "var(--pixel-shadow)"
+            }}
+            animate={{ height: aiMode ? "7.5rem" : "16rem" }}
+            transition={{ type: "spring", stiffness: 260, damping: 28 }}
+          >
+            {photoUrl ? (
+              <img
+                src={photoUrl}
+                alt={`${name} 实物图`}
+                style={{ width: "100%", height: "100%", objectFit: "cover", imageRendering: "auto" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "grid",
+                  placeItems: "center",
+                  background: "var(--pixel-bg)",
+                  color: "var(--pixel-text-dim)",
+                  fontFamily: "var(--font-pixel)",
+                  fontSize: "0.8rem"
+                }}
+              >
+                正在生成实物图…
+              </div>
+            )}
+            <PixelBadge variant={isOwned ? "star" : "heart"}>
+              {isOwned ? "⭐" : "💖"}
+            </PixelBadge>
+          </motion.div>
+
+          {/* 拥有状态切换 */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "var(--px-2)"
+              display: "flex",
+              gap: "var(--px-2)",
+              marginBottom: "var(--px-4)"
             }}
           >
             <button
               type="button"
-              className="pixel-button"
-              onClick={() => setConfirmingDelete(false)}
+              className="pixel-tag"
+              style={
+                isOwned
+                  ? { background: "#fffbeb", borderColor: "var(--pixel-accent)", color: "#92600a" }
+                  : undefined
+              }
+              disabled={saving}
+              onClick={() => onSave(item.id, { ownership: "owned" })}
             >
-              保留原图
+              ⭐ 我已有这件
             </button>
             <button
               type="button"
-              className="pixel-button"
-              style={{
-                background: "var(--pixel-error)",
-                color: "#fff"
-              }}
-              onClick={() => onDeleteSource(item.id)}
+              className="pixel-tag"
+              style={
+                !isOwned
+                  ? { background: "#fdf2f8", borderColor: "var(--pixel-pink)", color: "#be185d" }
+                  : undefined
+              }
+              disabled={saving}
+              onClick={() => onSave(item.id, { ownership: "inspiration" })}
             >
-              确认删除
+              💖 还未拥有
             </button>
           </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirmingDelete(true)}
-          style={{
-            width: "100%",
-            padding: "var(--px-3)",
-            background: "transparent",
-            border: "none",
-            color: "var(--pixel-error)",
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.7rem",
-            cursor: "pointer"
-          }}
-        >
-          🗑️ 删除原图
-        </button>
-      )}
-    </motion.section>
-  );
-}
 
-export function ItemDetail(props: ItemDetailProps) {
-  return (
-    <AnimatePresence>
-      {props.item ? (
-        <div
-          className="pixel-sheet"
-          style={{ alignItems: "flex-start", zIndex: 50 }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) props.onClose();
-          }}
-        >
-          <DetailContent {...props} item={props.item} />
-        </div>
-      ) : null}
+          {/* 下半：AI 穿搭长按钮 + 购物车 */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: "var(--px-3)",
+              marginBottom: "var(--px-4)"
+            }}
+          >
+            <PixelButton
+              variant="primary"
+              className="w-full"
+              onClick={() => void showAIOutfits()}
+              ariaLabel="查看 AI 穿搭"
+            >
+              {aiMode ? "收起 AI 穿搭 ▲" : "🤖 点击查看 AI 穿搭"}
+            </PixelButton>
+            <PixelButton variant="accent" onClick={openShop} ariaLabel="去抖音商城购买">
+              🛒
+            </PixelButton>
+          </div>
+
+          {/* 三套 AI 搭配（三列竖向排列） */}
+          {aiMode ? (
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <p className="pixel-label" style={{ marginBottom: "var(--px-2)" }}>
+                三套搭配方案 · 点任意一套看详情
+              </p>
+              {loadingOutfits || !outfits ? (
+                <p
+                  style={{
+                    textAlign: "center",
+                    fontFamily: "var(--font-pixel)",
+                    fontSize: "0.8rem",
+                    color: "var(--pixel-text-dim)",
+                    padding: "var(--px-6) 0"
+                  }}
+                >
+                  <span className="pixel-pulse">🤖 正在为你搭配…</span>
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: "var(--px-2)"
+                  }}
+                >
+                  {outfits.map((outfit) => (
+                    <button
+                      key={outfit.id}
+                      type="button"
+                      onClick={() => onOpenOutfit(outfit.id)}
+                      style={{
+                        padding: "var(--px-2)",
+                        background: "var(--pixel-surface)",
+                        border: "2px solid var(--pixel-border)",
+                        borderRadius: "var(--pixel-radius-sm)",
+                        boxShadow: "var(--pixel-shadow)",
+                        textAlign: "center"
+                      }}
+                    >
+                      <img
+                        src={pixelAvatarDataUrl(outfit.seed, { size: 160 })}
+                        alt={outfit.name}
+                        data-pixel="true"
+                        style={{ width: "100%", borderRadius: "8px", marginBottom: "6px" }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "var(--font-pixel)",
+                          fontSize: "0.62rem",
+                          color: "var(--pixel-text)",
+                          lineHeight: 1.4,
+                          display: "block"
+                        }}
+                      >
+                        {outfit.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          ) : null}
+        </motion.section>
+      </motion.div>
     </AnimatePresence>
   );
 }

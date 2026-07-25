@@ -6,6 +6,7 @@ import { FeedScreen } from "../features/feed/FeedScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
 import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
 import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
+import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
 import { ProfileScreen } from "../features/profile/ProfileScreen";
 import { OutfitDetailScreen } from "../features/outfit/OutfitDetailScreen";
 import { PixelToast } from "../components/PixelUI";
@@ -33,11 +34,14 @@ const api = USE_MOCK ? mockApi : wardrobeApi;
 
 // ─── Types ─────────────────────────────────────────────
 
-type Tab = "feed" | "wardrobe" | "ai" | "profile";
+/** 应用模式：feed = 抖音式 Feed 流入口；mini = 小程序 */
+type Mode = "feed" | "mini";
+
+type Tab = "wardrobe" | "ai" | "analysis" | "profile";
 
 type Page =
   | { type: "tab"; tab: Tab }
-  | { type: "outfit"; outfitId: string };
+  | { type: "outfit"; outfitId: string; from: Tab };
 
 type Selection = {
   file: File;
@@ -61,6 +65,7 @@ export function App() {
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
 
+  const [mode, setMode] = useState<Mode>("feed");
   const [page, setPage] = useState<Page>({ type: "tab", tab: "wardrobe" });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<PendingItem[]>([]);
@@ -68,6 +73,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [aiPreset, setAiPreset] = useState<string | null>(null);
 
   const currentTab = page.type === "tab" ? page.tab : null;
 
@@ -79,6 +85,13 @@ export function App() {
     refetchInterval: 2_000
   });
   const items = itemsQuery.data ?? [];
+
+  const outfitsQuery = useQuery({
+    queryKey: ["wardrobe-outfits"],
+    queryFn: mockApi.listWardrobeOutfits,
+    refetchInterval: 2_000
+  });
+  const outfits = outfitsQuery.data ?? [];
 
   // ─── Effects ─────────────────────────────────────────
 
@@ -117,6 +130,12 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [pending]);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 2_400);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   // ─── Mutations ───────────────────────────────────────
 
   const updateMutation = useMutation({
@@ -125,10 +144,7 @@ export function App() {
       changes
     }: {
       itemId: string;
-      changes: {
-        ownership: Ownership;
-        corrections: Record<string, string>;
-      };
+      changes: { ownership?: Ownership; corrections?: Record<string, string> };
     }) => api.updateItem(itemId, changes),
     onSuccess: (updated) => {
       setSelectedItem(updated);
@@ -147,21 +163,7 @@ export function App() {
     onError: (err) => setNotice(errorMessage(err))
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (itemId: string) => api.deleteSource(itemId),
-    onSuccess: (_, itemId) => {
-      queryClient.setQueryData<Item[]>(["wardrobe-items"], (current) =>
-        current?.map((item) =>
-          item.id === itemId ? { ...item, source_available: false } : item
-        )
-      );
-      setSelectedItem(null);
-      setNotice("原图已删除 🗑️");
-    },
-    onError: (err) => setNotice(errorMessage(err))
-  });
-
-  // ─── Actions ─────────────────────────────────────────
+  // ─── Navigation ──────────────────────────────────────
 
   const navigateTo = useCallback((newPage: Page) => {
     setPage(newPage);
@@ -173,24 +175,46 @@ export function App() {
     [navigateTo]
   );
 
-  const chooseFile = useCallback(
-    (file: File | undefined, sourceKind: SourceKind) => {
-      if (!file) return;
-      const validationError = validateImage(file);
-      if (validationError) {
-        setNotice(validationError);
-        return;
-      }
-      setNotice(null);
-      setSheetError(null);
-      setSelection({
-        file,
-        sourceKind,
-        previewUrl: URL.createObjectURL(file)
-      });
-    },
-    []
+  const openOutfit = useCallback(
+    (outfitId: string, from: Tab = "wardrobe") =>
+      navigateTo({ type: "outfit", outfitId, from }),
+    [navigateTo]
   );
+
+  const enterMini = useCallback(() => {
+    setMode("mini");
+    goToTab("wardrobe");
+    window.scrollTo(0, 0);
+  }, [goToTab]);
+
+  const backToFeed = useCallback(() => {
+    setMode("feed");
+    window.scrollTo(0, 0);
+  }, []);
+
+  /** Feed 单品标签 → 小程序 AI 推荐 */
+  const viewAIFromFeed = useCallback(
+    (tagLabel: string) => {
+      setMode("mini");
+      setAiPreset(`我在视频里圈到了「${tagLabel}」，帮我搭三套`);
+      goToTab("ai");
+    },
+    [goToTab]
+  );
+
+  // ─── Capture（相册 / 拍照入库）────────────────────────
+
+  const chooseFile = useCallback((file: File | undefined, sourceKind: SourceKind) => {
+    if (!file) return;
+    const validationError = validateImage(file);
+    if (validationError) {
+      setNotice(validationError);
+      return;
+    }
+    setNotice(null);
+    setSheetError(null);
+    setSelection({ file, sourceKind, previewUrl: URL.createObjectURL(file) });
+  }, []);
 
   const cancelSelection = useCallback(() => {
     if (selection) URL.revokeObjectURL(selection.previewUrl);
@@ -249,189 +273,150 @@ export function App() {
     [queryClient]
   );
 
-  // ─── Render Content ──────────────────────────────────
+  // ─── Feed 模式（独立入口，不是小程序的一个 Tab）─────────
 
-  const renderContent = () => {
-    switch (page.type) {
-      case "tab":
-        switch (page.tab) {
-          case "feed":
-            return (
-              <FeedScreen
-                active={currentTab === "feed"}
-                onAccepted={acceptFeedCapture}
-              />
-            );
-          case "wardrobe":
-            return (
-              <>
-                <header
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "var(--px-3)",
-                    marginBottom: "var(--px-4)",
-                    paddingBottom: "var(--px-3)",
-                    borderBottom: "2px dashed var(--pixel-border)"
-                  }}
-                >
-                  <div>
-                    <p className="pixel-label">STYLECAPTURE</p>
-                    <h1 className="pixel-title">我的衣橱</h1>
-                  </div>
-                  <div
-                    style={{
-                      width: "3.5rem",
-                      height: "3.5rem",
-                      border: "3px solid var(--pixel-border)",
-                      background: "var(--pixel-surface-raised)",
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: "2rem",
-                      boxShadow: "3px 3px 0 rgba(0,0,0,0.3)"
-                    }}
-                  >
-                    👾
-                  </div>
-                </header>
+  if (mode === "feed") {
+    return (
+      <main className="pixel-shell" style={{ background: "#050507" }}>
+        <FeedScreen
+          active
+          api={api}
+          onAccepted={acceptFeedCapture}
+          onEnterMini={enterMini}
+          onViewAI={viewAIFromFeed}
+        />
+        {notice ? <PixelToast message={notice} /> : null}
+      </main>
+    );
+  }
 
-                <section
-                  style={{
-                    padding: "var(--px-4)",
-                    background: "var(--pixel-surface-raised)",
-                    border: "3px solid var(--pixel-border)",
-                    boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
-                    marginBottom: "var(--px-5)"
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "var(--px-4)"
-                    }}
-                  >
-                    <div>
-                      <p className="pixel-label">新增单品</p>
-                      <h2
-                        className="pixel-subtitle"
-                        style={{ color: "var(--pixel-text)" }}
-                      >
-                        今天想存哪一件？
-                      </h2>
-                    </div>
-                    <span style={{ fontSize: "1.5rem" }}>✨</span>
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "var(--px-3)"
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="pixel-button pixel-button--primary"
-                      onClick={() => cameraInput.current?.click()}
-                      style={{ flexDirection: "column", minHeight: "5rem" }}
-                    >
-                      <span style={{ fontSize: "1.5rem" }}>📷</span>
-                      <span>
-                        <strong>拍一件</strong>
-                        <small
-                          style={{
-                            display: "block",
-                            fontSize: "0.6rem",
-                            opacity: 0.7
-                          }}
-                        >
-                          记录真实衣服
-                        </small>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="pixel-button pixel-button--accent"
-                      onClick={() => galleryInput.current?.click()}
-                      style={{ flexDirection: "column", minHeight: "5rem" }}
-                    >
-                      <span style={{ fontSize: "1.5rem" }}>🖼️</span>
-                      <span>
-                        <strong>从相册选</strong>
-                        <small
-                          style={{
-                            display: "block",
-                            fontSize: "0.6rem",
-                            opacity: 0.7
-                          }}
-                        >
-                          导入灵感
-                        </small>
-                      </span>
-                    </button>
-                  </div>
-                </section>
+  // ─── 小程序模式 ───────────────────────────────────────
 
-                <input
-                  ref={cameraInput}
-                  className="visually-hidden"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  capture="environment"
-                  onChange={(event) => {
-                    chooseFile(event.target.files?.[0], "camera");
-                    event.target.value = "";
-                  }}
-                />
-                <input
-                  ref={galleryInput}
-                  className="visually-hidden"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  onChange={(event) => {
-                    chooseFile(event.target.files?.[0], "upload");
-                    event.target.value = "";
-                  }}
-                />
+  const renderTab = () => {
+    if (page.type === "outfit") {
+      return (
+        <OutfitDetailScreen
+          outfitId={page.outfitId}
+          onBack={() => goToTab(page.from)}
+        />
+      );
+    }
 
-                <WardrobeScreen
-                  items={items}
-                  pending={pending}
-                  loading={itemsQuery.isLoading}
-                  onOpenItem={setSelectedItem}
-                  onOpenOutfit={(id) =>
-                    navigateTo({ type: "outfit", outfitId: id })
-                  }
-                  onRetry={(item) => retryMutation.mutate(item)}
-                />
-              </>
-            );
-          case "ai":
-            return (
-              <AIRecommendScreen
-                onOutfitClick={(id) =>
-                  navigateTo({ type: "outfit", outfitId: id })
-                }
-              />
-            );
-          case "profile":
-            return <ProfileScreen onBack={() => goToTab("wardrobe")} />;
-          default:
-            return null;
-        }
-      case "outfit":
+    switch (page.tab) {
+      case "wardrobe":
         return (
-          <OutfitDetailScreen
-            outfitId={page.outfitId}
-            onBack={() => goToTab("wardrobe")}
-            onItemClick={(itemId) => {
-              const item = items.find((i: Item) => i.id === itemId);
-              if (item) setSelectedItem(item);
-            }}
+          <>
+            <header
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "var(--px-3)",
+                marginBottom: "var(--px-4)"
+              }}
+            >
+              <div>
+                <p className="pixel-label">STYLECAPTURE</p>
+                <h1 className="pixel-title" style={{ margin: 0 }}>
+                  数字衣橱
+                </h1>
+              </div>
+              <button
+                type="button"
+                className="pixel-tag"
+                onClick={backToFeed}
+                aria-label="回到穿搭 Feed"
+              >
+                📺 刷 Feed
+              </button>
+            </header>
+
+            {/* 拍一件 / 从相册选 */}
+            <section
+              style={{
+                padding: "var(--px-4)",
+                background: "var(--pixel-surface)",
+                border: "2px solid var(--pixel-border)",
+                borderRadius: "var(--pixel-border-radius)",
+                boxShadow: "var(--pixel-shadow)",
+                marginBottom: "var(--px-5)"
+              }}
+            >
+              <p className="pixel-label" style={{ marginBottom: "var(--px-3)" }}>
+                新增单品
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--px-3)" }}>
+                <button
+                  type="button"
+                  className="pixel-button pixel-button--primary"
+                  onClick={() => cameraInput.current?.click()}
+                >
+                  📷 拍一件
+                </button>
+                <button
+                  type="button"
+                  className="pixel-button pixel-button--pink"
+                  onClick={() => galleryInput.current?.click()}
+                >
+                  🖼️ 从相册选
+                </button>
+              </div>
+            </section>
+
+            <input
+              ref={cameraInput}
+              className="visually-hidden"
+              type="file"
+              aria-label="拍摄衣物照片"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              capture="environment"
+              onChange={(event) => {
+                chooseFile(event.target.files?.[0], "camera");
+                event.target.value = "";
+              }}
+            />
+            <input
+              ref={galleryInput}
+              className="visually-hidden"
+              type="file"
+              aria-label="选择衣物照片"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              onChange={(event) => {
+                chooseFile(event.target.files?.[0], "upload");
+                event.target.value = "";
+              }}
+            />
+
+            <WardrobeScreen
+              items={items}
+              pending={pending}
+              loading={itemsQuery.isLoading}
+              outfits={outfits}
+              onOpenItem={setSelectedItem}
+              onOpenOutfit={(id) => openOutfit(id, "wardrobe")}
+              onRetry={(item) => retryMutation.mutate(item)}
+            />
+          </>
+        );
+      case "ai":
+        return (
+          <AIRecommendScreen
+            presetPrompt={aiPreset}
+            onOutfitClick={(id) => openOutfit(id, "ai")}
           />
         );
+      case "analysis":
+        return (
+          <AnalysisScreen
+            items={items}
+            outfits={outfits}
+            onGoAI={() => goToTab("ai")}
+            onGoWardrobe={() => goToTab("wardrobe")}
+            onOpenOutfit={(id) => openOutfit(id, "analysis")}
+          />
+        );
+      case "profile":
+        return <ProfileScreen itemCount={items.length} outfitCount={outfits.length} />;
       default:
         return null;
     }
@@ -439,19 +424,10 @@ export function App() {
 
   return (
     <main className="pixel-shell">
-      <div className="pixel-app">{renderContent()}</div>
+      <div className="pixel-app">{renderTab()}</div>
 
       {page.type === "tab" ? (
         <nav aria-label="主要功能" className="pixel-nav">
-          <button
-            aria-current={currentTab === "feed" ? "page" : undefined}
-            className={currentTab === "feed" ? "is-active" : ""}
-            type="button"
-            onClick={() => goToTab("feed")}
-          >
-            <span className="nav-icon">📺</span>
-            <small>逛灵感</small>
-          </button>
           <button
             aria-current={currentTab === "wardrobe" ? "page" : undefined}
             className={currentTab === "wardrobe" ? "is-active" : ""}
@@ -459,19 +435,19 @@ export function App() {
             onClick={() => goToTab("wardrobe")}
           >
             <span className="nav-icon">👕</span>
-            <small>衣橱</small>
+            <small>数字衣橱</small>
             {pending.length > 0 ? (
               <b
                 aria-label={`${pending.length} 个处理中`}
                 style={{
                   position: "absolute",
-                  top: "2px",
-                  right: "4px",
-                  background: "var(--pixel-primary)",
+                  top: "0",
+                  right: "6px",
+                  background: "var(--pixel-pink)",
                   color: "#fff",
-                  fontSize: "0.6rem",
+                  fontSize: "0.55rem",
                   padding: "1px 5px",
-                  border: "2px solid var(--pixel-surface)"
+                  borderRadius: "999px"
                 }}
               >
                 {Math.min(pending.length, 9)}
@@ -482,10 +458,22 @@ export function App() {
             aria-current={currentTab === "ai" ? "page" : undefined}
             className={currentTab === "ai" ? "is-active" : ""}
             type="button"
-            onClick={() => goToTab("ai")}
+            onClick={() => {
+              setAiPreset(null);
+              goToTab("ai");
+            }}
           >
             <span className="nav-icon">🤖</span>
-            <small>AI搭配</small>
+            <small>AI推荐</small>
+          </button>
+          <button
+            aria-current={currentTab === "analysis" ? "page" : undefined}
+            className={currentTab === "analysis" ? "is-active" : ""}
+            type="button"
+            onClick={() => goToTab("analysis")}
+          >
+            <span className="nav-icon">📊</span>
+            <small>穿搭分析</small>
           </button>
           <button
             aria-current={currentTab === "profile" ? "page" : undefined}
@@ -515,7 +503,10 @@ export function App() {
         saving={updateMutation.isPending}
         onClose={() => setSelectedItem(null)}
         onSave={(itemId, changes) => updateMutation.mutate({ itemId, changes })}
-        onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+        onOpenOutfit={(id) => {
+          setSelectedItem(null);
+          openOutfit(id, "wardrobe");
+        }}
       />
     </main>
   );
