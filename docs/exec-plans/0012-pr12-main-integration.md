@@ -113,3 +113,6 @@
 - 手机 390×844：已实操 Feed 暂停/常亮圈选/画圈引导/整套保存、衣橱双视图、真实单品
   详情、中文 AI 推荐、真实拼贴、真人试穿、像素封面、照片像素 Try 和用户上传实物图。
 - 证据截图：`docs/evidence/pr12-integration/`。
+- AutoResearch 第 1/3 轮：更新旧版 Feed E2E 为当前 PR12 真实入口，并机械验证播放态与
+  暂停态的圈选按钮均可用、前两条 Feed 展示画圈引导、空白轻点恢复播放、整套真实入库；
+  Playwright `1 passed (1.5m)`，H5 Vitest `59 passed`，TypeScript 与 diff check 通过。
