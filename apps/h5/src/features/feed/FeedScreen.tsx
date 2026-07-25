@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { CaptureAccepted } from "../../api/client";
 import "./feed.css";
@@ -9,9 +9,18 @@ import { loadFeedManifest } from "./manifest";
 export interface FeedScreenProps {
   active?: boolean;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
+  restoreTarget?: {
+    videoRef: string;
+    timestampMs: number;
+    requestId: string;
+  } | null;
 }
 
-export function FeedScreen({ active = true, onAccepted }: FeedScreenProps) {
+export function FeedScreen({
+  active = true,
+  onAccepted,
+  restoreTarget
+}: FeedScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const manifestQuery = useQuery({
@@ -19,6 +28,22 @@ export function FeedScreen({ active = true, onAccepted }: FeedScreenProps) {
     queryFn: ({ signal }) => loadFeedManifest(signal),
     staleTime: 5 * 60_000
   });
+
+  useEffect(() => {
+    if (!active || !restoreTarget || !manifestQuery.data) return;
+    const index = manifestQuery.data.findIndex(
+      (asset) => asset.assetId === restoreTarget.videoRef
+    );
+    if (index < 0) return;
+    setActiveIndex(index);
+    const container = containerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: index * container.clientHeight,
+        behavior: "auto"
+      });
+    }
+  }, [active, manifestQuery.data, restoreTarget]);
 
   if (manifestQuery.isPending) {
     return (
@@ -72,6 +97,14 @@ export function FeedScreen({ active = true, onAccepted }: FeedScreenProps) {
           asset={asset}
           key={asset.assetId}
           onAccepted={onAccepted}
+          restoreRequest={
+            restoreTarget && restoreTarget.videoRef === asset.assetId
+              ? {
+                  requestId: restoreTarget.requestId,
+                  timestampMs: restoreTarget.timestampMs
+                }
+              : null
+          }
         />
       ))}
     </div>

@@ -407,7 +407,7 @@ Product API 必须满足：
 - Docker Compose 划分 `core`、`ai-light` 和 `ai-heavy` profiles；默认笔记本只运行带健康检查、持久卷和资源限制的 core，CUDA 与重模型镜像不进入默认 profile。
 - 长时构建、E2E 或媒体任务每五分钟检查 CPU、内存压力、温控、swap、磁盘和容器资源；触发 `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md` 时立即降并发或停止昂贵任务。
 - 视觉理解、分割、试穿和像素生成统一通过 provider contract 调用；开发期优先选择真实托管 API、Apple Silicon/CPU 可运行的轻量模型或已有 StyleCapture provider。
-- 默认 provider 组合为：豆包视觉理解/定位/多模态向量，MobileSAM 单帧 CPU/ONNX 精修，FASHN `tryon-v1.6` 托管试穿，Seedream 托管生图；重模型不是默认依赖。
+- 默认 Demo provider 组合为：豆包视觉理解/定位/多模态向量，SAM2.1 Hiera Tiny 单帧 CPU 精修，FASHN `tryon-v1.6` 托管试穿，Seedream 托管生图；SAM2 仅进入单并发 `ai-light` 媒体 Worker，粗圈选为失败兜底，API 与同步 Feed 路径不加载模型。
 - runtime 仍禁止 mock、stub 和固定结果。某个重 provider 暂时不可运行时，必须使用真实轻量 provider、真实托管 provider，或明确降级为真实单品拼贴，而不是伪造 AI 产物。
 - FastFit/FASHN 的适配器、合同测试和容器配置可以先完成；自托管重模型的 live smoke 放到最终部署 Issue，不阻塞前端、领域、API、任务编排和完整交互开发。
 

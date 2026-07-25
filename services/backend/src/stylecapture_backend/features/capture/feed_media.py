@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
 from typing import Protocol
 
 from stylecapture_backend.features.capture.domain import (
@@ -44,16 +45,18 @@ class SegmentationPrompt:
 
 @dataclass(frozen=True, slots=True)
 class SegmentationMetadata:
-    provider: str
+    capability_alias: str
     representation: SegmentationRepresentation
     refined: bool
     schema_version: str
     latency_ms: int
     fallback_reason: str | None = None
+    model_alias: str | None = None
+    score: float | None = None
 
     def __post_init__(self) -> None:
-        if not self.provider.strip():
-            raise ValueError("segmentation provider must not be empty")
+        if not self.capability_alias.strip():
+            raise ValueError("segmentation capability alias must not be empty")
         if not self.schema_version.strip():
             raise ValueError("segmentation schema version must not be empty")
         if self.latency_ms < 0:
@@ -65,6 +68,8 @@ class SegmentationMetadata:
             and self.representation is not SegmentationRepresentation.COARSE_POLYGON
         ):
             raise ValueError("unrefined segmentation must use the coarse-polygon representation")
+        if self.score is not None and (not isfinite(self.score) or not 0 <= self.score <= 1):
+            raise ValueError("segmentation score must be between 0 and 1")
 
 
 @dataclass(frozen=True, slots=True)

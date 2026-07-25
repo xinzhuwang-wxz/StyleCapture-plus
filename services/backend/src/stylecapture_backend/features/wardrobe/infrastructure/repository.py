@@ -85,6 +85,8 @@ class SqlAlchemyWardrobeRepository:
             else:
                 attributes = _merge_worker_attributes(existing.attributes, incoming.attributes)
                 existing.source_available = existing.source_available and incoming.source_available
+                if incoming.display_object_key is not None:
+                    existing.display_object_key = incoming.display_object_key
                 existing.status = incoming.status
                 existing.category = _json_text_field(attributes, "category")
                 existing.subcategory = _json_text_field(attributes, "subcategory")
@@ -154,6 +156,7 @@ def _item_record(item: WardrobeItem) -> ItemRecord:
         capture_id=item.capture_id,
         selection_key=item.selection_key,
         source_object_key=item.source_object_key,
+        display_object_key=item.display_object_key,
         source_available=item.source_available,
         ownership=item.ownership.value,
         status=item.status.value,
@@ -178,6 +181,7 @@ def _item_from_record(record: ItemRecord, source_kind: str) -> WardrobeItem:
         capture_id=record.capture_id,
         selection_key=record.selection_key,
         source_object_key=record.source_object_key,
+        display_object_key=record.display_object_key,
         source_available=record.source_available,
         source_kind=CaptureSourceKind(source_kind),
         ownership=OwnershipState(record.ownership),

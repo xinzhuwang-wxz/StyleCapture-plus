@@ -60,10 +60,44 @@
   bottom: max(98px, calc(env(safe-area-inset-bottom) + 84px));
   left: 20px;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto;
   gap: 12px;
   justify-content: center;
   pointer-events: auto;
+}
+
+.feed-intent-toggle {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 999px;
+  background: rgb(12 9 18 / 70%);
+  backdrop-filter: blur(18px);
+}
+
+.feed-intent-toggle button {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  color: rgb(255 255 255 / 68%);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.feed-intent-toggle button.is-selected {
+  color: #fff;
+  background: linear-gradient(135deg, #7560ff, #ea5ac8);
+  box-shadow: 0 6px 18px rgb(111 65 208 / 34%);
+}
+
+.feed-intent-toggle button:disabled {
+  opacity: 0.38;
 }
 
 .feed-screen {
@@ -274,6 +308,22 @@
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 38%);
   backdrop-filter: blur(18px);
   transform: translate(-50%, -50%);
+}
+
+.feed-source-restored {
+  position: absolute;
+  z-index: 12;
+  top: max(76px, calc(env(safe-area-inset-top) + 52px));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 999px;
+  background: rgb(15 12 25 / 78%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  backdrop-filter: blur(14px);
 }
 
 .feed-saved-toast {

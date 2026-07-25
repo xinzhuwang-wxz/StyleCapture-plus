@@ -6,6 +6,8 @@ export type CaptureAccepted = components["schemas"]["CaptureAcceptedResponse"];
 export type FeedFrameContext = components["schemas"]["FeedFrameContextBody"];
 export type Item = components["schemas"]["ItemResponse"];
 export type Job = components["schemas"]["JobResponse"];
+export type Look = components["schemas"]["LookSummaryResponse"];
+export type LookDetail = components["schemas"]["LookDetailResponse"];
 export type Ownership = components["schemas"]["OwnershipState"];
 export type SourceKind = components["schemas"]["CaptureSourceKind"];
 
@@ -188,6 +190,54 @@ async function listItems(): Promise<Item[]> {
   return response.data.items;
 }
 
+async function listLooks(): Promise<Look[]> {
+  await ensureSession();
+  const response = await client.GET("/v1/looks", { params: {} });
+  if (!response.data) {
+    throwApiError(response.error, "穿搭衣橱暂时无法加载");
+  }
+  return response.data.looks;
+}
+
+async function getLook(lookId: string): Promise<LookDetail> {
+  await ensureSession();
+  const response = await client.GET("/v1/looks/{look_id}", {
+    params: { path: { look_id: lookId } }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "这套穿搭暂时无法打开");
+  }
+  return response.data;
+}
+
+async function addLikingReason(
+  lookId: string,
+  reason: string,
+  idempotencyKey: string
+): Promise<void> {
+  await ensureSession();
+  const response = await client.POST("/v1/looks/{look_id}/feedback", {
+    params: {
+      path: { look_id: lookId },
+      header: { "Idempotency-Key": idempotencyKey }
+    },
+    body: { reason }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "喜欢原因没有保存");
+  }
+}
+
+async function retryLook(lookId: string): Promise<void> {
+  await ensureSession();
+  const response = await client.POST("/v1/looks/{look_id}/retry", {
+    params: { path: { look_id: lookId } }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "这套穿搭暂时无法重试");
+  }
+}
+
 async function getJob(jobId: string): Promise<Job> {
   await ensureSession();
   const response = await client.GET("/v1/jobs/{job_id}", {
@@ -276,6 +326,10 @@ export const wardrobeApi = {
   ingest,
   ingestFeedFrame,
   listItems,
+  listLooks,
+  getLook,
+  addLikingReason,
+  retryLook,
   getJob,
   retryJob,
   retryItem,

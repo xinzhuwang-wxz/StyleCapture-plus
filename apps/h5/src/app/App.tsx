@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type CaptureAccepted,
   type Item,
+  type Look,
   type Ownership,
   type SourceKind,
   ProductApiError,
@@ -13,6 +14,7 @@ import {
 import { CaptureSheet } from "../features/capture/CaptureSheet";
 import { FeedScreen } from "../features/feed/FeedScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
+import { LookDetail } from "../features/wardrobe/LookDetail";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
 import "./styles.css";
@@ -24,6 +26,11 @@ type Selection = {
 };
 
 type Destination = "feed" | "wardrobe";
+type FeedRestoreTarget = {
+  videoRef: string;
+  timestampMs: number;
+  requestId: string;
+};
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError || error instanceof Error) {
@@ -37,9 +44,12 @@ export function App() {
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const [destination, setDestination] = useState<Destination>("feed");
+  const [feedRestoreTarget, setFeedRestoreTarget] =
+    useState<FeedRestoreTarget | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [selectedLookId, setSelectedLookId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -50,6 +60,22 @@ export function App() {
     refetchInterval: 2_000
   });
   const items = itemsQuery.data ?? [];
+  const looksQuery = useQuery({
+    queryKey: ["wardrobe-looks"],
+    queryFn: wardrobeApi.listLooks,
+    refetchInterval: 2_000
+  });
+  const looks = looksQuery.data ?? [];
+  const lookQuery = useQuery({
+    queryKey: ["wardrobe-look", selectedLookId],
+    queryFn: () => wardrobeApi.getLook(selectedLookId!),
+    enabled: selectedLookId !== null,
+    refetchInterval: (query) =>
+      query.state.data?.look.status === "processing" ||
+      query.state.data?.look.status === "partial"
+        ? 2_000
+        : false
+  });
 
   useEffect(() => {
     if (!items.length) return;
@@ -128,6 +154,29 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
 
+  const lookReasonMutation = useMutation({
+    mutationFn: ({ lookId, reason }: { lookId: string; reason: string }) =>
+      wardrobeApi.addLikingReason(lookId, reason, crypto.randomUUID()),
+    onSuccess: () => {
+      setNotice("喜欢原因已记住，会用于之后的搭配");
+      void queryClient.invalidateQueries({
+        queryKey: ["wardrobe-look", selectedLookId]
+      });
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+  const lookRetryMutation = useMutation({
+    mutationFn: (lookId: string) => wardrobeApi.retryLook(lookId),
+    onSuccess: () => {
+      setNotice("已经继续解析，原始穿搭和已有单品都会保留");
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["wardrobe-look", selectedLookId]
+      });
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
   function chooseFile(file: File | undefined, sourceKind: SourceKind) {
     if (!file) return;
     const validationError = validateImage(file);
@@ -182,6 +231,12 @@ export function App() {
   }
 
   function acceptFeedCapture(accepted: CaptureAccepted, file: File) {
+    if (accepted.look_id) {
+      setNotice("整套已收藏，AI 正在后台拆成真实单品");
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      return;
+    }
     setPending((current) => [
       {
         captureId: accepted.capture_id,
@@ -205,6 +260,7 @@ export function App() {
         <FeedScreen
           active={destination === "feed"}
           onAccepted={acceptFeedCapture}
+          restoreTarget={feedRestoreTarget}
         />
       </section>
 
@@ -303,10 +359,13 @@ export function App() {
         </section>
 
         <WardrobeScreen
+          looks={looks}
           items={items}
           pending={pending}
-          loading={itemsQuery.isLoading}
+          itemsLoading={itemsQuery.isLoading}
+          looksLoading={looksQuery.isLoading}
           onOpen={setSelectedItem}
+          onOpenLook={(look: Look) => setSelectedLookId(look.id)}
           onRetry={(item) => retryMutation.mutate(item)}
         />
 
@@ -326,6 +385,26 @@ export function App() {
             updateMutation.mutate({ itemId, changes })
           }
           onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+        />
+        <LookDetail
+          detail={lookQuery.data ?? null}
+          loading={lookQuery.isLoading}
+          retrying={lookRetryMutation.isPending}
+          saving={lookReasonMutation.isPending}
+          onClose={() => setSelectedLookId(null)}
+          onReturnToSource={(videoRef, timestampMs) => {
+            setSelectedLookId(null);
+            setFeedRestoreTarget({
+              videoRef,
+              timestampMs,
+              requestId: crypto.randomUUID()
+            });
+            setDestination("feed");
+          }}
+          onRetry={(lookId) => lookRetryMutation.mutate(lookId)}
+          onSaveReason={(lookId, reason) =>
+            lookReasonMutation.mutate({ lookId, reason })
+          }
         />
       </div>
 

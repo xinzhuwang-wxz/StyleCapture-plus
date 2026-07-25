@@ -10,6 +10,7 @@ from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
     CaptureSourceKind,
+    FeedCaptureIntent,
     FeedFrameContext,
     FeedSelection,
     JobState,
@@ -186,6 +187,7 @@ def _feed_context_to_json(context: FeedFrameContext | None) -> dict[str, object]
             "timestamp_ms": context.timestamp_ms,
             "frame_width": context.frame_width,
             "frame_height": context.frame_height,
+            "intent": context.intent.value,
             "selections": [
                 {
                     "selection_key": selection.selection_key,
@@ -227,4 +229,7 @@ def _feed_context_from_json(payload: dict[str, object]) -> FeedFrameContext | No
         frame_width=int(raw_context["frame_width"]),
         frame_height=int(raw_context["frame_height"]),
         selections=tuple(selections),
+        intent=FeedCaptureIntent(
+            str(raw_context.get("intent", FeedCaptureIntent.ITEM_SELECTIONS.value))
+        ),
     )

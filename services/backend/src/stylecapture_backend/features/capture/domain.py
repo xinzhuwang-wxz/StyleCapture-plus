@@ -50,6 +50,11 @@ class FeedSelection:
             raise ValueError("selection polygon must contain at least 3 unique points")
 
 
+class FeedCaptureIntent(StrEnum):
+    ITEM_SELECTIONS = "item_selections"
+    WHOLE_OUTFIT = "whole_outfit"
+
+
 @dataclass(frozen=True, slots=True)
 class FeedFrameContext:
     video_ref: str
@@ -57,10 +62,13 @@ class FeedFrameContext:
     frame_width: int
     frame_height: int
     selections: tuple[FeedSelection, ...]
+    intent: FeedCaptureIntent = FeedCaptureIntent.ITEM_SELECTIONS
 
     def __post_init__(self) -> None:
         if not 1 <= len(self.selections) <= 8:
             raise ValueError("a feed frame must contain between 1 and 8 selections")
+        if self.intent is FeedCaptureIntent.WHOLE_OUTFIT and len(self.selections) != 1:
+            raise ValueError("a whole-outfit Feed capture must contain exactly one selection")
         selection_keys = [selection.selection_key for selection in self.selections]
         if len(selection_keys) != len(set(selection_keys)):
             raise ValueError("selection keys must be unique within a feed frame")

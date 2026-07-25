@@ -9,6 +9,7 @@ from stylecapture_backend.features.capture.application import (
     JobRetryApplication,
 )
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.look.interfaces.http import LookHttpServices
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
 
@@ -22,6 +23,7 @@ def export() -> Path:
         objects=cast(ObjectStore, None),
         retries=cast(JobRetryApplication, None),
         wardrobe=cast(WardrobeApplication, None),
+        looks=cast(LookHttpServices, object()),
     )
     schema = create_app(services).openapi()
     output.write_text(

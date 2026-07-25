@@ -204,6 +204,44 @@ class LocalObjectStore:
             sha256=stored.sha256,
         )
 
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        if image.content_type not in {"image/png", "image/webp", "image/jpeg"}:
+            raise CaptureError(
+                "derived_image_type_invalid",
+                "Derived display assets must be PNG, WebP, or JPEG",
+            )
+        actual_hash = sha256(image.body).hexdigest()
+        if not hmac.compare_digest(actual_hash, image.sha256):
+            raise CaptureError(
+                "derived_image_hash_mismatch",
+                "Derived display asset hash does not match its bytes",
+            )
+        width, height = self._validate_image(image.body, image.content_type)
+        extension = ALLOWED_MIME_EXTENSIONS[image.content_type]
+        object_key = f"{self._validate_derived_prefix(prefix)}/{actual_hash}{extension}"
+        stored = StoredObject(
+            owner_id=owner_id,
+            object_key=object_key,
+            content_type=image.content_type,
+            byte_size=len(image.body),
+            sha256=actual_hash,
+            width=width,
+            height=height,
+        )
+        self._persist(stored, image.body)
+        return ImagePayload(
+            object_key=object_key,
+            content_type=image.content_type,
+            body=image.body,
+            sha256=actual_hash,
+        )
+
     def delete(self, object_key: str) -> None:
         object_path = self._object_path(object_key)
         metadata_path = self._metadata_path(object_key)
@@ -325,10 +363,23 @@ class LocalObjectStore:
         if (
             path.is_absolute()
             or ".." in path.parts
-            or not object_key.startswith("originals/")
+            or not (object_key.startswith("originals/") or object_key.startswith("derived/"))
             or "\\" in object_key
         ):
             raise CaptureError("object_key_invalid", "Object key is invalid")
+
+    @staticmethod
+    def _validate_derived_prefix(prefix: str) -> str:
+        normalized = prefix.strip().strip("/")
+        path = PurePosixPath(normalized)
+        if (
+            not normalized.startswith("derived/")
+            or path.is_absolute()
+            or ".." in path.parts
+            or "\\" in normalized
+        ):
+            raise CaptureError("object_key_invalid", "Derived object prefix is invalid")
+        return normalized
 
     @staticmethod
     def _validate_sha256(value: str) -> None:

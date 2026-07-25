@@ -57,6 +57,13 @@ class MemorySources:
         self.deleted = False
 
     def read_image(self, object_key: str) -> ImagePayload:
+        if object_key == self.item.display_object_key:
+            return ImagePayload(
+                object_key=object_key,
+                content_type="image/png",
+                body=b"transparent-display-bytes",
+                sha256="c" * 64,
+            )
         if self.deleted:
             raise FileNotFoundError(object_key)
         return ImagePayload(
@@ -83,6 +90,7 @@ def build_client() -> tuple[AsyncClient, UUID, WardrobeItem]:
     )
     item = replace(
         WardrobeItem.processing(capture).with_status(ItemStatus.READY),
+        display_object_key="derived/items/http-display.png",
         model_metadata={
             "capability_alias": "vision_understanding",
             "provider_model": "private-provider-endpoint",
@@ -133,8 +141,10 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
             },
         )
         image = await client.get(f"/v1/items/{item.id}/image")
+        source_image = await client.get(f"/v1/items/{item.id}/source")
         deleted = await client.delete(f"/v1/items/{item.id}/source")
         missing_image = await client.get(f"/v1/items/{item.id}/image")
+        missing_source = await client.get(f"/v1/items/{item.id}/source")
         deleted_item = await client.get(f"/v1/items/{item.id}")
         rejected_retry = await client.post(f"/v1/items/{item.id}/retry")
 
@@ -143,7 +153,8 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert listed.headers["vary"] == "Cookie"
     assert listed.json()["items"][0]["source_kind"] == "upload"
     assert listed.json()["items"][0]["source_available"] is True
-    assert listed.json()["items"][0]["source_image_url"].endswith(f"/{item.id}/image")
+    assert listed.json()["items"][0]["display_image_url"].endswith(f"/{item.id}/image")
+    assert listed.json()["items"][0]["source_image_url"].endswith(f"/{item.id}/source")
     assert listed.json()["items"][0]["model_metadata"]["capability_alias"] == (
         "vision_understanding"
     )
@@ -153,12 +164,17 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert updated.json()["ownership"] == "inspiration"
     assert updated.json()["attributes"]["description"]["provenance"] == "user"
     assert image.status_code == 200
-    assert image.content == b"real-image-bytes"
-    assert image.headers["content-type"] == "image/jpeg"
+    assert image.content == b"transparent-display-bytes"
+    assert image.headers["content-type"] == "image/png"
     assert image.headers["cache-control"] == "private, no-store"
+    assert source_image.status_code == 200
+    assert source_image.content == b"real-image-bytes"
+    assert source_image.headers["content-type"] == "image/jpeg"
     assert deleted.status_code == 204
-    assert missing_image.status_code == 404
-    assert missing_image.json()["error"]["code"] == "item_source_not_found"
+    assert missing_image.status_code == 200
+    assert missing_image.content == b"transparent-display-bytes"
+    assert missing_source.status_code == 404
+    assert missing_source.json()["error"]["code"] == "item_source_not_found"
     assert deleted_item.json()["source_available"] is False
     assert rejected_retry.status_code == 409
     assert rejected_retry.json()["error"]["code"] == "source_deleted_not_retryable"

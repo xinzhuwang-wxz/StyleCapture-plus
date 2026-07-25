@@ -63,7 +63,7 @@ async def test_litellm_embedding_normalizes_the_real_multimodal_response() -> No
     raw_vector[0] = 2.0
     gateway = RecordingGateway(
         {
-            "model": "doubao-embedding-vision-250615",
+            "model": "raw-provider-embedding-id",
             "data": {
                 "object": "embedding",
                 "embedding": raw_vector,
@@ -72,6 +72,7 @@ async def test_litellm_embedding_normalizes_the_real_multimodal_response() -> No
     )
     embedder = LiteLLMMultimodalEmbedder(
         model="doubao-embedding-vision-250615",
+        model_version_alias="fashion_embedding",
         gateway_base_url="http://litellm:4000/v1",
         gateway_api_key="gateway-secret",
         gateway=gateway,
@@ -79,7 +80,8 @@ async def test_litellm_embedding_normalizes_the_real_multimodal_response() -> No
 
     result = await embedder.embed(image())
 
-    assert result.model_version == "doubao-embedding-vision-250615"
+    assert result.model_version == "fashion_embedding"
+    assert result.model_version != "raw-provider-embedding-id"
     assert len(result.vector) == DOUBAO_MULTIMODAL_EMBEDDING_DIMENSION
     assert result.vector[0] == 1.0
     assert all(value == 0.0 for value in result.vector[1:])

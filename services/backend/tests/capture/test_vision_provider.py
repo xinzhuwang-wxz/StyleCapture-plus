@@ -81,6 +81,7 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
 
     assert result.fields["category"].value == "tops"
     assert result.fields["colors"].value == ["blue"]
+    assert {field.model_version for field in result.fields.values()} == {"vision_understanding"}
     assert result.metadata.capability_alias == "vision_understanding"
     assert result.metadata.provider_model == "provider-model-v1"
     assert result.metadata.prompt_version == GARMENT_PROMPT_VERSION
@@ -95,6 +96,16 @@ async def test_litellm_adapter_uses_capability_alias_and_strict_schema() -> None
     image_url = call["messages"][1]["content"][1]["image_url"]["url"]
     assert image_url.startswith("data:image/jpeg;base64,")
     assert "provider-model-v1" not in json.dumps(call)
+    assert "provider-model-v1" not in json.dumps(
+        {
+            name: {
+                "value": field.value,
+                "confidence": field.confidence,
+                "model_version": field.model_version,
+            }
+            for name, field in result.fields.items()
+        }
+    )
 
 
 @pytest.mark.asyncio

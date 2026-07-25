@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import threading
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from io import BytesIO
@@ -25,6 +28,7 @@ from stylecapture_backend.features.capture.ports import (
     CaptureSubmission,
     JobDispatcher,
     JobRepository,
+    WholeOutfitRegistrar,
 )
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
@@ -42,10 +46,11 @@ async def start_session(client: AsyncClient) -> UUID:
     return UUID(response.json()["user_id"])
 
 
-class MemoryRepository(CaptureRepository, JobRepository):
+class MemoryRepository(CaptureRepository, JobRepository, WholeOutfitRegistrar):
     def __init__(self) -> None:
         self.submissions: dict[tuple[UUID, str], CaptureSubmission] = {}
         self.jobs: dict[UUID, tuple[UUID, ProcessingJob]] = {}
+        self.looks: dict[UUID, PendingLookReference] = {}
 
     async def find_by_idempotency(
         self,
@@ -89,6 +94,19 @@ class MemoryRepository(CaptureRepository, JobRepository):
         user_id, _ = self.jobs[job.id]
         self.jobs[job.id] = (user_id, job)
         return job
+
+    async def ensure_saved_look(
+        self,
+        capture: Capture,
+        *,
+        idempotency_key: str,
+    ) -> PendingLookReference:
+        return self.looks.setdefault(capture.id, PendingLookReference(id=uuid4()))
+
+
+@dataclass(frozen=True)
+class PendingLookReference:
+    id: UUID
 
 
 class RecordingDispatcher(JobDispatcher):
@@ -145,6 +163,7 @@ def api(tmp_path: Path) -> tuple[AsyncClient, MemoryRepository, RecordingDispatc
                 captures=repository,
                 objects=objects,
                 dispatcher=dispatcher,
+                whole_outfits=repository,
             ),
             jobs=repository,
             objects=objects,
@@ -491,6 +510,68 @@ async def test_feed_capture_accepts_and_persists_normalized_selection_paths(
         "hat",
         "top",
     ]
+
+
+@pytest.mark.asyncio
+async def test_whole_outfit_capture_returns_durable_pending_look_identity(
+    api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
+) -> None:
+    client, repository, dispatcher = api
+    body = png_bytes()
+    async with client:
+        await start_session(client)
+        prepared = (
+            await client.post(
+                "/v1/uploads/prepare",
+                json={
+                    "file_name": "whole-look.png",
+                    "content_type": "image/png",
+                    "byte_size": len(body),
+                    "sha256": sha256(body).hexdigest(),
+                },
+            )
+        ).json()
+        await client.put(
+            prepared["upload_url"],
+            content=body,
+            headers={
+                "Content-Type": "image/png",
+                "X-Upload-Token": prepared["upload_token"],
+            },
+        )
+        response = await client.post(
+            "/v1/captures",
+            headers={"Idempotency-Key": "feed-http-whole-look"},
+            json={
+                "object_key": prepared["object_key"],
+                "sha256": sha256(body).hexdigest(),
+                "source_kind": "feed",
+                "ownership": "inspiration",
+                "feed_context": {
+                    "video_ref": "feed://demo/http-whole-look",
+                    "timestamp_ms": 1_250,
+                    "frame_width": 48,
+                    "frame_height": 64,
+                    "intent": "whole_outfit",
+                    "selections": [
+                        {
+                            "selection_key": "whole-look",
+                            "polygon": [
+                                {"x": 0.1, "y": 0.1},
+                                {"x": 0.9, "y": 0.1},
+                                {"x": 0.9, "y": 0.9},
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    capture_id = UUID(payload["capture_id"])
+    assert UUID(payload["look_id"]) == repository.looks[capture_id].id
+    assert dispatcher.calls == [(capture_id, UUID(payload["job_id"]))]
 
 
 @pytest.mark.asyncio

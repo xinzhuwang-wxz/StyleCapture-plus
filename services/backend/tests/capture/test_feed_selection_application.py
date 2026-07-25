@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 from uuid import UUID, uuid4
@@ -11,6 +13,7 @@ from stylecapture_backend.features.capture.application import (
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSourceKind,
+    FeedCaptureIntent,
     FeedFrameContext,
     FeedSelection,
     NormalizedPoint,
@@ -22,7 +25,9 @@ from stylecapture_backend.features.capture.ports import (
     CaptureSubmission,
     JobDispatcher,
     StoredObject,
+    WholeOutfitRegistrar,
 )
+from stylecapture_backend.features.look.ports import LookPersistenceUnavailable
 
 
 class MemoryCaptureRepository(CaptureRepository):
@@ -53,6 +58,29 @@ class RecordingDispatcher(JobDispatcher):
 
     def enqueue_capture(self, capture_id: UUID, job_id: UUID) -> None:
         self.calls.append((capture_id, job_id))
+
+
+class MemoryWholeOutfitRegistrar(WholeOutfitRegistrar):
+    def __init__(self, events: list[str] | None = None) -> None:
+        self.looks: dict[UUID, PendingLookReference] = {}
+        self.calls: list[tuple[UUID, str]] = []
+        self.events = events
+
+    async def ensure_saved_look(
+        self,
+        capture: Capture,
+        *,
+        idempotency_key: str,
+    ) -> PendingLookReference:
+        self.calls.append((capture.id, idempotency_key))
+        if self.events is not None:
+            self.events.append("look")
+        return self.looks.setdefault(capture.id, PendingLookReference(id=uuid4()))
+
+
+@dataclass(frozen=True)
+class PendingLookReference:
+    id: UUID
 
 
 @dataclass(frozen=True)
@@ -88,6 +116,18 @@ def feed_context() -> FeedFrameContext:
                 ),
             ),
         ),
+    )
+
+
+def whole_outfit_context() -> FeedFrameContext:
+    selection = feed_context().selections[1]
+    return FeedFrameContext(
+        video_ref="feed://demo/look-001",
+        timestamp_ms=4_200,
+        frame_width=1080,
+        frame_height=1920,
+        selections=(selection,),
+        intent=FeedCaptureIntent.WHOLE_OUTFIT,
     )
 
 
@@ -243,6 +283,232 @@ async def test_feed_submit_reuses_the_original_selection_batch_on_network_retry(
         (first.capture.id, first.job.id),
         (first.capture.id, first.job.id),
     ]
+
+
+@pytest.mark.asyncio
+async def test_whole_outfit_submit_ensures_pending_look_before_dispatch() -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/feed/whole-look.webp",
+        content_type="image/webp",
+        byte_size=456,
+        sha256="9" * 64,
+        width=1080,
+        height=1920,
+    )
+    repository = MemoryCaptureRepository()
+    events: list[str] = []
+    registrar = MemoryWholeOutfitRegistrar(events)
+
+    class OrderedDispatcher(RecordingDispatcher):
+        def enqueue_capture(self, capture_id: UUID, job_id: UUID) -> None:
+            events.append("dispatch")
+            super().enqueue_capture(capture_id, job_id)
+
+    dispatcher = OrderedDispatcher()
+    application = CaptureApplication(
+        captures=repository,
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=dispatcher,
+        whole_outfits=registrar,
+    )
+
+    submission = await application.submit(
+        SubmitCaptureCommand(
+            user_id=user_id,
+            object_key=stored.object_key,
+            sha256=stored.sha256,
+            source_kind=CaptureSourceKind.FEED,
+            ownership=OwnershipState.INSPIRATION,
+            idempotency_key="feed-whole-look-001",
+            feed_context=whole_outfit_context(),
+        )
+    )
+
+    assert submission.look_id == registrar.looks[submission.capture.id].id
+    assert events == ["look", "dispatch"]
+    assert dispatcher.calls == [(submission.capture.id, submission.job.id)]
+
+
+@pytest.mark.asyncio
+async def test_whole_outfit_retry_repairs_pending_look_without_duplicate_identity() -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/feed/whole-look-retry.webp",
+        content_type="image/webp",
+        byte_size=456,
+        sha256="8" * 64,
+        width=1080,
+        height=1920,
+    )
+    repository = MemoryCaptureRepository()
+    dispatcher = RecordingDispatcher()
+    registrar = MemoryWholeOutfitRegistrar()
+    application = CaptureApplication(
+        captures=repository,
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=dispatcher,
+        whole_outfits=registrar,
+    )
+    command = SubmitCaptureCommand(
+        user_id=user_id,
+        object_key=stored.object_key,
+        sha256=stored.sha256,
+        source_kind=CaptureSourceKind.FEED,
+        ownership=OwnershipState.INSPIRATION,
+        idempotency_key="feed-whole-look-retry",
+        feed_context=whole_outfit_context(),
+    )
+
+    first = await application.submit(command)
+    second = await application.submit(command)
+
+    assert second.capture.id == first.capture.id
+    assert second.job.id == first.job.id
+    assert second.look_id == first.look_id
+    assert registrar.calls == [
+        (first.capture.id, "feed-whole-look-retry"),
+        (first.capture.id, "feed-whole-look-retry"),
+    ]
+    assert len(registrar.looks) == 1
+
+
+@pytest.mark.asyncio
+async def test_whole_outfit_without_registrar_keeps_capture_safe_and_does_not_dispatch() -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/feed/whole-look-unwired.webp",
+        content_type="image/webp",
+        byte_size=456,
+        sha256="7" * 64,
+        width=1080,
+        height=1920,
+    )
+    repository = MemoryCaptureRepository()
+    dispatcher = RecordingDispatcher()
+    application = CaptureApplication(
+        captures=repository,
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=dispatcher,
+    )
+
+    with pytest.raises(CaptureError) as error:
+        await application.submit(
+            SubmitCaptureCommand(
+                user_id=user_id,
+                object_key=stored.object_key,
+                sha256=stored.sha256,
+                source_kind=CaptureSourceKind.FEED,
+                ownership=OwnershipState.INSPIRATION,
+                idempotency_key="feed-whole-look-unwired",
+                feed_context=whole_outfit_context(),
+            )
+        )
+
+    assert error.value.code == "look_registration_unavailable"
+    assert len(repository.submissions) == 1
+    assert dispatcher.calls == []
+
+
+@pytest.mark.asyncio
+async def test_whole_outfit_programming_error_is_not_misreported_as_retryable() -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/feed/whole-look-invariant.webp",
+        content_type="image/webp",
+        byte_size=456,
+        sha256="6" * 64,
+        width=1080,
+        height=1920,
+    )
+
+    class BrokenRegistrar(WholeOutfitRegistrar):
+        async def ensure_saved_look(
+            self,
+            capture: Capture,
+            *,
+            idempotency_key: str,
+        ) -> PendingLookReference:
+            raise AssertionError("programming invariant failed")
+
+    repository = MemoryCaptureRepository()
+    dispatcher = RecordingDispatcher()
+    application = CaptureApplication(
+        captures=repository,
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=dispatcher,
+        whole_outfits=BrokenRegistrar(),
+    )
+
+    with pytest.raises(AssertionError, match="programming invariant failed"):
+        await application.submit(
+            SubmitCaptureCommand(
+                user_id=user_id,
+                object_key=stored.object_key,
+                sha256=stored.sha256,
+                source_kind=CaptureSourceKind.FEED,
+                ownership=OwnershipState.INSPIRATION,
+                idempotency_key="feed-whole-look-invariant",
+                feed_context=whole_outfit_context(),
+            )
+        )
+
+    assert len(repository.submissions) == 1
+    assert dispatcher.calls == []
+
+
+@pytest.mark.asyncio
+async def test_whole_outfit_persistence_unavailable_remains_retryable() -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/feed/whole-look-store-unavailable.webp",
+        content_type="image/webp",
+        byte_size=456,
+        sha256="5" * 64,
+        width=1080,
+        height=1920,
+    )
+
+    class UnavailableRegistrar(WholeOutfitRegistrar):
+        async def ensure_saved_look(
+            self,
+            capture: Capture,
+            *,
+            idempotency_key: str,
+        ) -> PendingLookReference:
+            raise LookPersistenceUnavailable("database unavailable")
+
+    repository = MemoryCaptureRepository()
+    dispatcher = RecordingDispatcher()
+    application = CaptureApplication(
+        captures=repository,
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=dispatcher,
+        whole_outfits=UnavailableRegistrar(),
+    )
+
+    with pytest.raises(CaptureError) as error:
+        await application.submit(
+            SubmitCaptureCommand(
+                user_id=user_id,
+                object_key=stored.object_key,
+                sha256=stored.sha256,
+                source_kind=CaptureSourceKind.FEED,
+                ownership=OwnershipState.INSPIRATION,
+                idempotency_key="feed-whole-look-store-unavailable",
+                feed_context=whole_outfit_context(),
+            )
+        )
+
+    assert error.value.code == "look_registration_unavailable"
+    assert error.value.details["retryable"] is True
+    assert len(repository.submissions) == 1
+    assert dispatcher.calls == []
 
 
 @pytest.mark.asyncio

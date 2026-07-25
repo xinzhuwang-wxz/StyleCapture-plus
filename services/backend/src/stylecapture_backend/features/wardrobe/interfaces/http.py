@@ -45,6 +45,7 @@ class ItemResponse(BaseModel):
     status: ItemStatus
     ownership: OwnershipState
     source_kind: CaptureSourceKind
+    display_image_url: str
     source_image_url: str
     source_available: bool
     attributes: dict[str, FieldResponse]
@@ -60,7 +61,8 @@ class ItemResponse(BaseModel):
             status=item.status,
             ownership=item.ownership,
             source_kind=item.source_kind,
-            source_image_url=f"/v1/items/{item.id}/image",
+            display_image_url=f"/v1/items/{item.id}/image",
+            source_image_url=f"/v1/items/{item.id}/source",
             source_available=item.source_available,
             attributes={
                 name: FieldResponse.from_domain(field)
@@ -169,6 +171,27 @@ def build_wardrobe_router(
         responses=STABLE_ERROR_RESPONSES,
     )
     async def get_item_image(
+        item_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        try:
+            source = await application.read_display(user_id, item_id)
+        except (FileNotFoundError, KeyError) as error:
+            raise ItemSourceNotFoundError(item_id) from error
+        return Response(
+            content=source.body,
+            media_type=source.content_type,
+            headers={
+                "Cache-Control": "private, no-store",
+                "ETag": f'"{source.sha256}"',
+            },
+        )
+
+    @router.get(
+        "/{item_id}/source",
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def get_item_source(
         item_id: UUID,
         user_id: UUID = principal,
     ) -> Response:
