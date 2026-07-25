@@ -99,6 +99,11 @@ the stored mask asynchronously but is not the source of the user's save decision
   compatibility. Fresh evidence: 82 backend tests, four H5 tests, typecheck, production
   build, healthy Compose, and the existing 390×844 upload/delete/reload Playwright path
   with a 5.9 MiB trace all pass.
+- 2026-07-25: The first concrete 30-item Pexels candidate set is a discovery pool, not
+  an acceptable corpus: it contains too few videos and does not satisfy the locked
+  8/8/4/4/4/2 category distribution. Its non-canonical `accessories`, `boutique`, and
+  `mannequin` labels would also fail the Pydantic contract. No candidate was downloaded
+  or relabeled to manufacture coverage; a source-verified replacement pass is required.
 
 ## Decision Log
 
