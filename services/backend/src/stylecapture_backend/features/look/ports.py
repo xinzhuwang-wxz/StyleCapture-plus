@@ -24,6 +24,13 @@ class LookPersistenceUnavailable(RuntimeError):
 
 
 class LookRepository(Protocol):
+    async def save_bundle(
+        self,
+        look: Look,
+        components: tuple[LookComponent, ...],
+        signal: PreferenceSignal,
+    ) -> Look: ...
+
     async def ensure_placeholder(
         self,
         look: Look,

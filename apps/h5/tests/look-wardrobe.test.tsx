@@ -86,6 +86,7 @@ function renderArtifact(
     kind: "collage",
     status: "succeeded",
     presentation_label: "真实单品拼贴",
+    subject_attached: false,
     personalized: false,
     output_image_url:
       "/v1/render-artifacts/55555555-5555-4555-8555-555555555555/image",
@@ -168,7 +169,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("来源画面已删除")).toBeInTheDocument();
+    expect(screen.getByText("Feed 来源画面已删除")).toBeInTheDocument();
     expect(
       screen.getByText("原始画面已删除，穿搭关系和已拆出的单品仍保留。")
     ).toBeInTheDocument();
@@ -222,11 +223,108 @@ describe("Look wardrobe states", () => {
       screen.getByText("像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。")
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "生成像素封面" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新生成像素封面" }));
     expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
     expect(
       screen.queryByRole("button", { name: "分享像素封面" })
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the last successful pixel visible while a refresh is running", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact(),
+          renderArtifact({
+            id: "77777777-7777-4777-8777-777777777777",
+            kind: "pixel_cover",
+            presentation_label: "像素穿搭封面",
+            share_eligible: true,
+            output_image_url:
+              "/v1/render-artifacts/77777777-7777-4777-8777-777777777777/image",
+            updated_at: "2026-07-25T00:01:00Z"
+          }),
+          renderArtifact({
+            id: "88888888-8888-4888-8888-888888888888",
+            kind: "pixel_cover",
+            status: "running",
+            presentation_label: "像素穿搭封面",
+            output_image_url: null,
+            updated_at: "2026-07-25T00:02:00Z"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
+
+    expect(
+      screen.getByRole("img", { name: "像素穿搭封面" })
+    ).toHaveAttribute(
+      "src",
+      expect.stringContaining("77777777-7777-4777-8777-777777777777")
+    );
+    expect(screen.getByText("后台生成中…")).toBeInTheDocument();
+  });
+
+  it("never presents the real collage as an ungenerated try-on or pixel cover", () => {
+    const onGenerate = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[renderArtifact()]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onGenerate={onGenerate}
+        onTryOn={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("img", { name: "真实单品拼贴" })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
+    expect(
+      screen.queryByRole("img", { name: "真实单品拼贴" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "拍照或上传全身照" })
+    ).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
+    expect(
+      screen.queryByRole("img", { name: "真实单品拼贴" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "生成像素封面" }));
+    expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
   });
 
   it("localizes wardrobe taxonomy and outfit relationship labels for users", () => {
@@ -253,5 +351,176 @@ describe("Look wardrobe states", () => {
     expect(screen.getByText("黑底搭配银色花卉")).toBeInTheDocument();
     expect(screen.queryByText("tops")).not.toBeInTheDocument();
     expect(screen.queryByText("color")).not.toBeInTheDocument();
+  });
+
+  it("labels curated and human-reviewed relationship analysis as manual", () => {
+    const detail = readyDetail();
+    detail.analysis = {
+      ...detail.analysis!,
+      capability_alias: "curated_seed",
+      model_version: "human_reviewed"
+    };
+
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        renders={[]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("人工整理 · 示例搭配解析")).toBeInTheDocument();
+    expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
+  });
+
+  it("keeps the AI label for real model relationship analysis", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("AI 理解")).toBeInTheDocument();
+    expect(
+      screen.queryByText("人工整理 · 示例搭配解析")
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows and advances missing purchase demands", () => {
+    const onAdvancePurchaseDemand = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[]}
+        purchaseDemands={[
+          {
+            id: "99999999-9999-4999-8999-999999999999",
+            look_id: readyDetail().look.id,
+            item_id: null,
+            role: "shoes",
+            search_query: "黑色乐福鞋",
+            search_url: "https://www.douyin.com/search/黑色乐福鞋",
+            status: "wanted",
+            can_mark_owned: false
+          }
+        ]}
+        purchaseDemandsLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onAdvancePurchaseDemand={onAdvancePurchaseDemand}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "补齐这套" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "标记已下单" }));
+    expect(onAdvancePurchaseDemand).toHaveBeenCalledWith(
+      "99999999-9999-4999-8999-999999999999",
+      "purchased_pending"
+    );
+  });
+
+  it("never calls an unlinked purchase demand owned before photo intake", () => {
+    const onAdvancePurchaseDemand = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[]}
+        purchaseDemands={[
+          {
+            id: "99999999-9999-4999-8999-999999999999",
+            look_id: readyDetail().look.id,
+            item_id: null,
+            role: "shoes",
+            search_query: "黑色乐福鞋",
+            search_url: "https://www.douyin.com/search/黑色乐福鞋",
+            status: "purchased_pending",
+            can_mark_owned: false
+          }
+        ]}
+        purchaseDemandsLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onAdvancePurchaseDemand={onAdvancePurchaseDemand}
+      />
+    );
+
+    expect(screen.getByText("已下单，收到后需拍照入库")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "收到后请拍照上传；完成识别入库后才会成为“我的衣服”。"
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "确认已收到" })
+    ).not.toBeInTheDocument();
+    expect(onAdvancePurchaseDemand).not.toHaveBeenCalled();
+  });
+
+  it("lets a linked inspiration item become owned when received", () => {
+    const onAdvancePurchaseDemand = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[]}
+        purchaseDemands={[
+          {
+            id: "99999999-9999-4999-8999-999999999999",
+            look_id: readyDetail().look.id,
+            item_id: "44444444-4444-4444-8444-444444444444",
+            role: "shoes",
+            search_query: "黑色乐福鞋",
+            search_url: "https://www.douyin.com/search/黑色乐福鞋",
+            status: "purchased_pending",
+            can_mark_owned: true
+          }
+        ]}
+        purchaseDemandsLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onAdvancePurchaseDemand={onAdvancePurchaseDemand}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "确认已收到" }));
+    expect(onAdvancePurchaseDemand).toHaveBeenCalledWith(
+      "99999999-9999-4999-8999-999999999999",
+      "owned"
+    );
   });
 });

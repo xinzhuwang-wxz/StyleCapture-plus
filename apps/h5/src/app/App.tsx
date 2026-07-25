@@ -11,6 +11,7 @@ import {
   type Item,
   type Look,
   type Ownership,
+  type PurchaseDemand,
   type RenderArtifact,
   type RenderKind,
   type SourceKind,
@@ -61,9 +62,19 @@ export function App() {
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [selectedLookId, setSelectedLookId] = useState<string | null>(null);
+  const [aiAnchorItemId, setAiAnchorItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pendingPixelLookId, setPendingPixelLookId] = useState<string | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
 
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
@@ -124,6 +135,11 @@ export function App() {
       )
         ? 1_500
         : false
+  });
+  const purchaseDemandsQuery = useQuery({
+    queryKey: ["look-purchase-demands", selectedLookId],
+    queryFn: () => wardrobeApi.listPurchaseDemands(selectedLookId!),
+    enabled: selectedLookId !== null
   });
 
   useEffect(() => {
@@ -251,26 +267,118 @@ export function App() {
       });
     }
   });
+  const tryOnMutation = useMutation({
+    mutationFn: async ({ lookId, file }: { lookId: string; file: File }) => {
+      const subjectObjectKey = await wardrobeApi.uploadPrivateImage(file);
+      try {
+        return await wardrobeApi.createRender(
+          lookId,
+          "try_on",
+          `personal-try-on:${crypto.randomUUID()}`,
+          subjectObjectKey
+        );
+      } catch (error) {
+        await wardrobeApi.discardPrivateUpload(subjectObjectKey).catch(() => undefined);
+        throw error;
+      }
+    },
+    onSuccess: (render) => {
+      queryClient.setQueryData<RenderArtifact[]>(
+        ["look-renders", render.look_id],
+        (current = []) => [
+          render,
+          ...current.filter((candidate) => candidate.id !== render.id)
+        ]
+      );
+      setNotice("全身照已安全上传，真人试穿正在后台生成");
+    },
+    onError: (error) => setNotice(errorMessage(error)),
+    onSettled: (_data, _error, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["look-renders", variables.lookId]
+      });
+    }
+  });
+  const deleteTryOnPhotoMutation = useMutation({
+    mutationFn: (artifactId: string) =>
+      wardrobeApi.deleteTryOnSubject(artifactId),
+    onSuccess: () => {
+      setNotice("试穿原照已删除，生成结果仍保留");
+    },
+    onError: (error) => setNotice(errorMessage(error)),
+    onSettled: () => {
+      if (selectedLookId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["look-renders", selectedLookId]
+        });
+      }
+    }
+  });
+  const purchaseDemandMutation = useMutation({
+    mutationFn: ({
+      demandId,
+      status
+    }: {
+      demandId: string;
+      status: PurchaseDemand["status"];
+    }) => wardrobeApi.advancePurchaseDemand(demandId, status),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<PurchaseDemand[]>(
+        ["look-purchase-demands", updated.look_id],
+        (current = []) =>
+          current.map((demand) => (demand.id === updated.id ? updated : demand))
+      );
+      setNotice(
+        updated.status === "purchased_pending"
+          ? updated.can_mark_owned
+            ? "已记为下单，收到后可确认转为“我的衣服”"
+            : "已记为下单，收到后请拍照上传并完成识别入库"
+          : "已确认收到，关联单品已转为“我的衣服”"
+      );
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
   const autoRenderKey = useRef<string | null>(null);
 
   useEffect(() => {
     const detail = lookQuery.data;
     if (
       !detail ||
+      detail.look.source === "ai_generated" ||
+      detail.look.source === "user_created" ||
       !detail.components.some((component) => component.item_id !== null) ||
       (detail.look.status !== "ready" && detail.look.status !== "partial")
     ) {
       return;
     }
-    const key = `auto-collage:${detail.look.id}:${detail.look.updated_at}`;
+    const kind: RenderKind = "collage";
+    const key = `auto-${kind}:${detail.look.id}:${detail.look.updated_at}`;
     if (autoRenderKey.current === key) return;
     autoRenderKey.current = key;
     renderMutation.mutate({
       lookId: detail.look.id,
-      kind: "collage",
+      kind,
       idempotencyKey: key
     });
   }, [lookQuery.data]);
+
+  useEffect(() => {
+    if (!pendingPixelLookId || renderMutation.isPending) return;
+    const readyLook = looks.find(
+      (look) =>
+        look.id === pendingPixelLookId &&
+        (look.status === "ready" || look.status === "partial")
+    );
+    if (!readyLook) return;
+    const key = `auto-upload-pixel:${readyLook.id}:${readyLook.updated_at}`;
+    setPendingPixelLookId(null);
+    setNotice("穿搭已经拆成单品，像素小人正在生成");
+    renderMutation.mutate({
+      lookId: readyLook.id,
+      kind: "pixel_cover",
+      idempotencyKey: key
+    });
+  }, [looks, pendingPixelLookId, renderMutation.isPending]);
 
   function chooseFile(file: File | undefined, sourceKind: SourceKind) {
     if (!file) return;
@@ -294,7 +402,10 @@ export function App() {
     setSheetError(null);
   }
 
-  async function confirmSelection(ownership: Ownership) {
+  async function confirmSelection(
+    ownership: Ownership,
+    intent: "item" | "whole_outfit"
+  ) {
     if (!selection) return;
     setUploading(true);
     setSheetError(null);
@@ -303,8 +414,18 @@ export function App() {
         selection.file,
         selection.sourceKind,
         ownership,
-        crypto.randomUUID()
+        crypto.randomUUID(),
+        intent
       );
+      if (accepted.look_id) {
+        URL.revokeObjectURL(selection.previewUrl);
+        setSelection(null);
+        setPendingPixelLookId(accepted.look_id);
+        setNotice("整套已保存，AI 正在拆解单品并准备像素小人");
+        void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+        void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+        return;
+      }
       setPending((current) => [
         {
           captureId: accepted.capture_id,
@@ -328,6 +449,7 @@ export function App() {
   function acceptFeedCapture(accepted: CaptureAccepted, file: File) {
     if (accepted.look_id) {
       setNotice("整套已收藏，AI 正在后台拆成真实单品");
+      setPendingPixelLookId(accepted.look_id);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
       return;
@@ -496,7 +618,23 @@ export function App() {
         {destination === "ai" ? (
           <AIRecommendScreen
             onGoWardrobe={() => setDestination("wardrobe")}
+            onSavedLook={(lookId) => {
+              setNotice("穿搭已保存；真实拼贴和像素封面正在后台生成");
+              void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+              void queryClient.invalidateQueries({ queryKey: ["look-renders", lookId] });
+              if (selectedLookId === lookId) {
+                void queryClient.invalidateQueries({
+                  queryKey: ["wardrobe-look", lookId]
+                });
+              }
+            }}
+            onOpenLook={(lookId) => {
+              setSelectedLookId(lookId);
+              setDestination("wardrobe");
+            }}
             presetPrompt={null}
+            anchorItemId={aiAnchorItemId}
+            onClearAnchor={() => setAiAnchorItemId(null)}
           />
         ) : null}
 
@@ -510,7 +648,9 @@ export function App() {
           busy={uploading}
           error={sheetError}
           onCancel={cancelSelection}
-          onConfirm={(ownership) => void confirmSelection(ownership)}
+          onConfirm={(ownership, intent) =>
+            void confirmSelection(ownership, intent)
+          }
         />
         <ItemDetail
           item={selectedItem}
@@ -520,15 +660,33 @@ export function App() {
             updateMutation.mutate({ itemId, changes })
           }
           onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+          onBuildOutfit={(itemId) => {
+            setAiAnchorItemId(itemId);
+            setSelectedItem(null);
+            setDestination("ai");
+          }}
         />
         <LookDetail
           detail={lookQuery.data ?? null}
           loading={lookQuery.isLoading}
           renders={rendersQuery.data ?? []}
           rendersLoading={rendersQuery.isLoading}
-          generatingKind={
-            renderMutation.isPending ? renderMutation.variables.kind : null
+          purchaseDemands={purchaseDemandsQuery.data ?? []}
+          purchaseDemandsLoading={purchaseDemandsQuery.isLoading}
+          updatingPurchaseDemandId={
+            purchaseDemandMutation.isPending
+              ? purchaseDemandMutation.variables.demandId
+              : null
           }
+          generatingKind={
+            tryOnMutation.isPending
+              ? "try_on"
+              : renderMutation.isPending
+                ? renderMutation.variables.kind
+                : null
+          }
+          tryOnUploading={tryOnMutation.isPending}
+          deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
           retrying={lookRetryMutation.isPending}
           saving={lookReasonMutation.isPending}
           onClose={() => setSelectedLookId(null)}
@@ -551,6 +709,15 @@ export function App() {
               kind,
               idempotencyKey: `manual-${kind}:${crypto.randomUUID()}`
             })
+          }
+          onTryOn={(lookId, file) =>
+            tryOnMutation.mutate({ lookId, file })
+          }
+          onDeleteTryOnPhoto={(artifactId) =>
+            deleteTryOnPhotoMutation.mutate(artifactId)
+          }
+          onAdvancePurchaseDemand={(demandId, status) =>
+            purchaseDemandMutation.mutate({ demandId, status })
           }
         />
       </div>

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import base64
+import ipaddress
+import socket
 from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -84,6 +87,7 @@ class LiteLLMImageGenerator:
                     decoded,
                     client=client,
                     download_max_bytes=self._download_max_bytes,
+                    resolve_download_host=self._transport is None,
                 )
             except RenderProviderError:
                 raise
@@ -163,7 +167,11 @@ class FashnTryOnGenerator:
                 run.raise_for_status()
                 prediction_id = _prediction_id(run.json())
                 status_payload = await self._poll_until_terminal(client, prediction_id)
-                image = await _image_from_fashn_status(status_payload, client=client)
+                image = await _image_from_fashn_status(
+                    status_payload,
+                    client=client,
+                    resolve_download_host=self._transport is None,
+                )
             except RenderProviderError:
                 raise
             except Exception as error:
@@ -232,6 +240,7 @@ async def _image_from_openai_response(
     *,
     client: httpx.AsyncClient,
     download_max_bytes: int,
+    resolve_download_host: bool,
 ) -> _DecodedImage:
     if not isinstance(payload, dict):
         raise RenderProviderError(
@@ -254,12 +263,17 @@ async def _image_from_openai_response(
             retryable=False,
         )
     if isinstance(first.get("b64_json"), str):
-        return _decode_base64_image(first["b64_json"], content_type="image/png")
+        return _decode_base64_image(
+            first["b64_json"],
+            content_type="image/png",
+            max_bytes=download_max_bytes,
+        )
     if isinstance(first.get("url"), str):
         return await _download_image(
             first["url"],
             client=client,
             download_max_bytes=download_max_bytes,
+            resolve_host=resolve_download_host,
         )
     raise RenderProviderError(
         "render_provider_schema_invalid",
@@ -272,12 +286,22 @@ async def _image_from_fashn_status(
     payload: dict[str, object],
     *,
     client: httpx.AsyncClient,
+    resolve_download_host: bool,
 ) -> _DecodedImage:
     output = payload.get("output")
     if isinstance(output, str):
         if output.startswith("http://") or output.startswith("https://"):
-            return await _download_image(output, client=client, download_max_bytes=20 * 1024 * 1024)
-        return _decode_base64_image(output, content_type="image/png")
+            return await _download_image(
+                output,
+                client=client,
+                download_max_bytes=20 * 1024 * 1024,
+                resolve_host=resolve_download_host,
+            )
+        return _decode_base64_image(
+            output,
+            content_type="image/png",
+            max_bytes=20 * 1024 * 1024,
+        )
     if isinstance(output, list) and output:
         first = output[0]
         if isinstance(first, str):
@@ -286,8 +310,13 @@ async def _image_from_fashn_status(
                     first,
                     client=client,
                     download_max_bytes=20 * 1024 * 1024,
+                    resolve_host=resolve_download_host,
                 )
-            return _decode_base64_image(first, content_type="image/png")
+            return _decode_base64_image(
+                first,
+                content_type="image/png",
+                max_bytes=20 * 1024 * 1024,
+            )
     raise RenderProviderError(
         "render_provider_schema_invalid",
         "FASHN status response has no usable output image",
@@ -312,12 +341,23 @@ def _prediction_id(payload: object) -> str:
     return value.strip()
 
 
-def _decode_base64_image(value: str, *, content_type: str) -> _DecodedImage:
+def _decode_base64_image(
+    value: str,
+    *,
+    content_type: str,
+    max_bytes: int,
+) -> _DecodedImage:
     try:
         if value.startswith("data:"):
             header, raw = value.split(",", maxsplit=1)
             content_type = header.removeprefix("data:").split(";", maxsplit=1)[0]
             value = raw
+        if len(value) > ((max_bytes + 2) // 3) * 4 + 4:
+            raise RenderProviderError(
+                "render_provider_output_too_large",
+                "Provider image exceeds the configured download limit",
+                retryable=False,
+            )
         body = base64.b64decode(value, validate=True)
     except ValueError as error:
         raise RenderProviderError(
@@ -326,6 +366,12 @@ def _decode_base64_image(value: str, *, content_type: str) -> _DecodedImage:
             retryable=False,
         ) from error
     _validate_image_content_type(content_type)
+    if len(body) > max_bytes:
+        raise RenderProviderError(
+            "render_provider_output_too_large",
+            "Provider image exceeds the configured download limit",
+            retryable=False,
+        )
     return _DecodedImage(body=body, content_type=content_type)
 
 
@@ -334,19 +380,71 @@ async def _download_image(
     *,
     client: httpx.AsyncClient,
     download_max_bytes: int,
+    resolve_host: bool = True,
 ) -> _DecodedImage:
-    response = await client.get(url)
-    response.raise_for_status()
-    content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
-    _validate_image_content_type(content_type)
-    body = response.content
-    if len(body) > download_max_bytes:
+    await _validate_download_url(url, resolve_host=resolve_host)
+    body = bytearray()
+    async with client.stream("GET", url) as response:
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip()
+        _validate_image_content_type(content_type)
+        async for chunk in response.aiter_bytes():
+            body.extend(chunk)
+            if len(body) > download_max_bytes:
+                raise RenderProviderError(
+                    "render_provider_output_too_large",
+                    "Provider image exceeds the configured download limit",
+                    retryable=False,
+                )
+    return _DecodedImage(body=bytes(body), content_type=content_type)
+
+
+async def _validate_download_url(url: str, *, resolve_host: bool) -> None:
+    parsed = urlsplit(url)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.hostname.lower() == "localhost"
+    ):
         raise RenderProviderError(
-            "render_provider_output_too_large",
-            "Provider image exceeds the configured download limit",
+            "render_provider_url_invalid",
+            "Provider image URL is not a public HTTPS resource",
             retryable=False,
         )
-    return _DecodedImage(body=body, content_type=content_type)
+    try:
+        literal = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        literal = None
+    if literal is not None and not literal.is_global:
+        raise RenderProviderError(
+            "render_provider_url_invalid",
+            "Provider image URL resolves to a non-public address",
+            retryable=False,
+        )
+    if not resolve_host or literal is not None:
+        return
+    import asyncio
+
+    try:
+        addresses = await asyncio.to_thread(
+            socket.getaddrinfo,
+            parsed.hostname,
+            parsed.port or 443,
+            type=socket.SOCK_STREAM,
+        )
+    except socket.gaierror as error:
+        raise RenderProviderUnavailable("Provider image host could not be resolved") from error
+    if not addresses or any(
+        not ipaddress.ip_address(sockaddr[0]).is_global
+        for _family, _type, _proto, _canonname, sockaddr in addresses
+    ):
+        raise RenderProviderError(
+            "render_provider_url_invalid",
+            "Provider image URL resolves to a non-public address",
+            retryable=False,
+        )
 
 
 def _data_url(image: ImagePayload) -> str:

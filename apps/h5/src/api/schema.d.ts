@@ -313,6 +313,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/outfit-plans/purchase-demands/{demand_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Advance Purchase Demand */
+        patch: operations["advance_purchase_demand_v1_outfit_plans_purchase_demands__demand_id__patch"];
+        trace?: never;
+    };
+    "/v1/outfit-plans/saved-looks/{look_id}/purchase-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Purchase Demands */
+        get: operations["list_purchase_demands_v1_outfit_plans_saved_looks__look_id__purchase_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/outfit-plans/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stream Outfit Plans */
+        post: operations["stream_outfit_plans_v1_outfit_plans_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/outfit-plans/traces/{trace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Outfit Workflow Trace */
+        get: operations["get_outfit_workflow_trace_v1_outfit_plans_traces__trace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/outfit-plans/{plan_id}/replace-slot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace Outfit Slot */
+        post: operations["replace_outfit_slot_v1_outfit_plans__plan_id__replace_slot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/outfit-plans/{plan_id}/save-look": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save Outfit Plan */
+        post: operations["save_outfit_plan_v1_outfit_plans__plan_id__save_look_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/render-artifacts/{artifact_id}": {
         parameters: {
             query?: never;
@@ -342,6 +444,23 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/render-artifacts/{artifact_id}/subject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Render Subject */
+        delete: operations["delete_render_subject_v1_render_artifacts__artifact_id__subject_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -398,6 +517,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/uploads/{object_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Discard Private Upload */
+        delete: operations["discard_private_upload_v1_uploads__object_key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -406,6 +542,10 @@ export interface components {
         AddLikingReasonBody: {
             /** Reason */
             reason: string;
+        };
+        /** AdvancePurchaseDemandBody */
+        AdvancePurchaseDemandBody: {
+            status: components["schemas"]["PurchaseDemandStatus"];
         };
         /** CaptureAcceptedResponse */
         CaptureAcceptedResponse: {
@@ -428,6 +568,11 @@ export interface components {
             status_url: string;
         };
         /**
+         * CaptureIntent
+         * @enum {string}
+         */
+        CaptureIntent: "item" | "whole_outfit";
+        /**
          * CaptureSourceKind
          * @enum {string}
          */
@@ -435,6 +580,8 @@ export interface components {
         /** CreateRenderArtifactBody */
         CreateRenderArtifactBody: {
             kind: components["schemas"]["RenderArtifactKind"];
+            /** Subject Object Key */
+            subject_object_key?: string | null;
         };
         /** ErrorBody */
         ErrorBody: {
@@ -679,11 +826,8 @@ export interface components {
         LookStatus: "processing" | "partial" | "ready" | "error";
         /** LookSummaryResponse */
         LookSummaryResponse: {
-            /**
-             * Capture Id
-             * Format: uuid
-             */
-            capture_id: string;
+            /** Capture Id */
+            capture_id: string | null;
             /**
              * Created At
              * Format: date-time
@@ -717,6 +861,11 @@ export interface components {
             /** Y */
             y: number;
         };
+        /**
+         * OutfitCategory
+         * @enum {string}
+         */
+        OutfitCategory: "tops" | "bottoms" | "dresses" | "outerwear" | "shoes" | "accessories";
         /** OutfitPlanResponse */
         OutfitPlanResponse: {
             /**
@@ -728,6 +877,8 @@ export interface components {
             missing_count: number;
             /** Rationale */
             rationale: string;
+            /** Save Token */
+            save_token: string;
             /** Scene */
             scene: string;
             /** Slots */
@@ -752,6 +903,11 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
+            /**
+             * Trace Id
+             * Format: uuid
+             */
+            trace_id: string;
         };
         /** OutfitRequestBody */
         OutfitRequestBody: {
@@ -759,6 +915,12 @@ export interface components {
             anchor_item_id?: string | null;
             /** Comfort */
             comfort?: string | null;
+            /** Exclude Item Ids */
+            exclude_item_ids?: string[];
+            /** Formality */
+            formality?: string | null;
+            /** Must Include Item Ids */
+            must_include_item_ids?: string[];
             /** Scene */
             scene: string;
             /** Style */
@@ -776,10 +938,59 @@ export interface components {
             item_name: string | null;
             /** Ownership */
             ownership: string | null;
-            /** Role */
-            role: string;
+            role: components["schemas"]["OutfitCategory"];
             /** Search Query */
             search_query: string | null;
+            /** Source Kind */
+            source_kind: string | null;
+        };
+        /**
+         * OutfitWorkflowStatus
+         * @enum {string}
+         */
+        OutfitWorkflowStatus: "candidates_ready" | "completed" | "degraded";
+        /** OutfitWorkflowStepResponse */
+        OutfitWorkflowStepResponse: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+        };
+        /** OutfitWorkflowTraceResponse */
+        OutfitWorkflowTraceResponse: {
+            /** Capability Alias */
+            capability_alias: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Explanation State */
+            explanation_state: string;
+            /** Model Version */
+            model_version: string;
+            /** Plan Count */
+            plan_count: number;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            status: components["schemas"]["OutfitWorkflowStatus"];
+            /** Steps */
+            steps: components["schemas"]["OutfitWorkflowStepResponse"][];
+            /**
+             * Trace Id
+             * Format: uuid
+             */
+            trace_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * OwnershipState
@@ -834,6 +1045,39 @@ export interface components {
             /** Upload Url */
             upload_url: string;
         };
+        /** PurchaseDemandListResponse */
+        PurchaseDemandListResponse: {
+            /** Demands */
+            demands: components["schemas"]["PurchaseDemandResponse"][];
+        };
+        /** PurchaseDemandResponse */
+        PurchaseDemandResponse: {
+            /** Can Mark Owned */
+            can_mark_owned: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Item Id */
+            item_id: string | null;
+            /**
+             * Look Id
+             * Format: uuid
+             */
+            look_id: string;
+            role: components["schemas"]["OutfitCategory"];
+            /** Search Query */
+            search_query: string;
+            /** Search Url */
+            search_url: string;
+            status: components["schemas"]["PurchaseDemandStatus"];
+        };
+        /**
+         * PurchaseDemandStatus
+         * @enum {string}
+         */
+        PurchaseDemandStatus: "wanted" | "purchased_pending" | "owned";
         /**
          * RenderArtifactKind
          * @enum {string}
@@ -879,6 +1123,8 @@ export interface components {
             /** Share Eligible */
             share_eligible: boolean;
             status: components["schemas"]["RenderArtifactStatus"];
+            /** Subject Attached */
+            subject_attached: boolean;
             /**
              * Updated At
              * Format: date-time
@@ -890,6 +1136,29 @@ export interface components {
          * @enum {string}
          */
         RenderArtifactStatus: "queued" | "running" | "succeeded" | "failed" | "degraded";
+        /** ReplaceOutfitSlotBody */
+        ReplaceOutfitSlotBody: {
+            role: components["schemas"]["OutfitCategory"];
+            /** Save Token */
+            save_token: string;
+        };
+        /** SaveOutfitPlanBody */
+        SaveOutfitPlanBody: {
+            /** Save Token */
+            save_token: string;
+        };
+        /** SavedOutfitLookResponse */
+        SavedOutfitLookResponse: {
+            /**
+             * Look Id
+             * Format: uuid
+             */
+            look_id: string;
+            /** Presentation State */
+            presentation_state: string;
+            /** Status */
+            status: string;
+        };
         /** StoredObjectResponse */
         StoredObjectResponse: {
             /** Byte Size */
@@ -908,6 +1177,8 @@ export interface components {
         /** SubmitCaptureBody */
         SubmitCaptureBody: {
             feed_context?: components["schemas"]["FeedFrameContextBody"] | null;
+            /** @default item */
+            intent: components["schemas"]["CaptureIntent"];
             /** Object Key */
             object_key: string;
             ownership: components["schemas"]["OwnershipState"];
@@ -3083,6 +3354,652 @@ export interface operations {
             };
         };
     };
+    advance_purchase_demand_v1_outfit_plans_purchase_demands__demand_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                demand_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvancePurchaseDemandBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseDemandResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_purchase_demands_v1_outfit_plans_saved_looks__look_id__purchase_list_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                look_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseDemandListResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    stream_outfit_plans_v1_outfit_plans_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutfitRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_outfit_workflow_trace_v1_outfit_plans_traces__trace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trace_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutfitWorkflowTraceResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    replace_outfit_slot_v1_outfit_plans__plan_id__replace_slot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceOutfitSlotBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutfitPlanResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    save_outfit_plan_v1_outfit_plans__plan_id__save_look_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveOutfitPlanBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedOutfitLookResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_render_artifact_v1_render_artifacts__artifact_id__get: {
         parameters: {
             query?: never;
@@ -3209,6 +4126,109 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_render_subject_v1_render_artifacts__artifact_id__subject_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artifact_id: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The request cannot be processed */
             400: {
@@ -3454,6 +4474,109 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PreparedUploadResponse"];
                 };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    discard_private_upload_v1_uploads__object_key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_key: string;
+            };
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The request cannot be processed */
             400: {

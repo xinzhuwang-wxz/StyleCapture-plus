@@ -17,6 +17,7 @@ type ItemDetailProps = {
     }
   ) => void;
   onDeleteSource: (itemId: string) => void;
+  onBuildOutfit: (itemId: string) => void;
 };
 
 function DetailContent({
@@ -24,9 +25,10 @@ function DetailContent({
   saving,
   onClose,
   onSave,
-  onDeleteSource
+  onDeleteSource,
+  onBuildOutfit
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
-  const imageUrl = useDisplayImage(item.id);
+  const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const [description, setDescription] = useState(
@@ -141,6 +143,13 @@ function DetailContent({
           }
         >
           {saving ? "保存中…" : "保存修改"}
+        </button>
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() => onBuildOutfit(item.id)}
+        >
+          用这件搭一套
         </button>
         {!item.source_available ? (
           <p className="privacy-note">原图已删除，保留的标签和描述仍可继续编辑。</p>

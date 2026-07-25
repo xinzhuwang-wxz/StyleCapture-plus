@@ -19,8 +19,18 @@ from stylecapture_backend.features.look.infrastructure.repository import (
 )
 from stylecapture_backend.features.look.interfaces.http import LookHttpServices
 from stylecapture_backend.features.outfit.application import OutfitApplication
+from stylecapture_backend.features.outfit.infrastructure.presentation import (
+    DefaultOutfitPresentationScheduler,
+)
+from stylecapture_backend.features.outfit.infrastructure.repository import (
+    SqlAlchemyOutfitWorkflowTraceRepository,
+    SqlAlchemyPurchaseDemandRepository,
+)
 from stylecapture_backend.features.outfit.infrastructure.reranker import (
     LiteLLMOutfitReranker,
+)
+from stylecapture_backend.features.outfit.infrastructure.tickets import (
+    OutfitPlanTicketSigner,
 )
 from stylecapture_backend.features.outfit.interfaces.http import OutfitHttpServices
 from stylecapture_backend.features.render.application import RenderApplication
@@ -51,6 +61,11 @@ def build_app() -> FastAPI:
     wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
     look_repository = SqlAlchemyLookRepository(sessions)
     render_repository = SqlAlchemyRenderArtifactRepository(sessions)
+    purchase_repository = SqlAlchemyPurchaseDemandRepository(
+        sessions,
+        wardrobe=wardrobe_repository,
+    )
+    outfit_trace_repository = SqlAlchemyOutfitWorkflowTraceRepository(sessions)
     looks = LookApplication(looks=look_repository)
     renders = RenderApplication(artifacts=render_repository)
     objects = LocalObjectStore(
@@ -117,13 +132,24 @@ def build_app() -> FastAPI:
             outfits=OutfitHttpServices(
                 outfits=OutfitApplication(
                     wardrobe=wardrobe_repository,
+                    looks=look_repository,
                     reranker=LiteLLMOutfitReranker(
                         capability_alias=settings.reasoning_model_alias,
                         gateway_base_url=settings.litellm_base_url,
                         gateway_api_key=settings.litellm_api_key.get_secret_value(),
                         timeout_seconds=settings.outfit_reasoning_timeout_seconds,
                     ),
-                )
+                    presentation=DefaultOutfitPresentationScheduler(
+                        looks=looks,
+                        captures=repository,
+                        objects=objects,
+                        renders=renders,
+                        dispatcher=render_dispatcher,
+                    ),
+                    purchases=purchase_repository,
+                    traces=outfit_trace_repository,
+                ),
+                tickets=OutfitPlanTicketSigner(settings.session_signing_secret.get_secret_value()),
             ),
             demo_wardrobe=demo_wardrobe,
         ),

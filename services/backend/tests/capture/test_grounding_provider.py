@@ -56,6 +56,18 @@ def selection() -> FeedSelection:
     )
 
 
+def whole_capture_selection() -> FeedSelection:
+    return FeedSelection(
+        selection_key="whole_capture",
+        polygon=(
+            NormalizedPoint(0, 0),
+            NormalizedPoint(1, 0),
+            NormalizedPoint(1, 1),
+            NormalizedPoint(0, 1),
+        ),
+    )
+
+
 def valid_grounding_text() -> str:
     return "\n".join(
         (
@@ -134,6 +146,30 @@ async def test_litellm_grounder_uses_alias_and_ark_tag_contract() -> None:
     assert "<bbox>x1 y1 x2 y2</bbox>" in prompt
     image_url = call["messages"][1]["content"][1]["image_url"]["url"]
     assert image_url.startswith("data:image/jpeg;base64,")
+
+
+@pytest.mark.asyncio
+async def test_whole_capture_prompt_keeps_one_connected_garment_intact() -> None:
+    completion = RecordingCompletion(
+        "component=knit_sweater; category=tops; confidence=0.98; "
+        "visible=0.97; <bbox>20 210 980 995</bbox>"
+    )
+    grounder = LiteLLMVisualGrounder(
+        capability_alias="visual_grounding",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="internal-gateway-key",
+        completion=completion,
+    )
+
+    await grounder.ground(image(), scope=whole_capture_selection())
+
+    prompt = completion.calls[0]["messages"][1]["content"][0]["text"]
+    system_prompt = completion.calls[0]["messages"][0]["content"]
+    assert "Clothing hangers" in system_prompt
+    assert "must never be returned" in system_prompt
+    assert "single-garment upload flow" in prompt
+    assert "physically connected garment" in prompt
+    assert "ignore its hanger" in prompt
 
 
 @pytest.mark.asyncio

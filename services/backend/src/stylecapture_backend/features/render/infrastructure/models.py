@@ -78,5 +78,6 @@ class RenderArtifactRecord(Base):
     failure_code: Mapped[str | None] = mapped_column(String(80))
     failure_message: Mapped[str | None] = mapped_column(String(1000))
     provider_trace: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    subject_object_key: Mapped[str | None] = mapped_column(String(512))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

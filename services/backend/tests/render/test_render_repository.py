@@ -1,3 +1,4 @@
+import asyncio
 import os
 from uuid import UUID, uuid4
 
@@ -22,7 +23,7 @@ from stylecapture_backend.platform.database import build_session_factory, run_mi
 
 TEST_DATABASE_URL = os.environ.get(
     "STYLECAPTURE_TEST_DATABASE_URL",
-    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture",
+    "postgresql+asyncpg://stylecapture:stylecapture@127.0.0.1:5434/stylecapture_test",
 )
 
 
@@ -137,6 +138,11 @@ async def test_repository_persists_private_provider_trace_and_public_cache_hit()
     assert cached.provider_trace.model == "collage-v1"
     assert dict(cached.provider_trace.parameters) == {"layout": "grid"}
 
+    stale_running = requested.mark_running()
+    preserved = await repository.save(stale_running)
+    assert preserved.status.value == "succeeded"
+    assert preserved.output == output("a")
+
 
 @pytest.mark.asyncio
 async def test_repository_rejects_request_key_reuse_for_different_inputs() -> None:
@@ -174,6 +180,48 @@ async def test_repository_rejects_request_key_reuse_for_different_inputs() -> No
                 request_key="shared-render-request",
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_equivalent_requests_share_one_active_artifact() -> None:
+    await run_migrations(TEST_DATABASE_URL)
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    async with sessions() as session:
+        await session.execute(
+            text(
+                "TRUNCATE TABLE render_artifacts, preference_signals, look_components, "
+                "looks, items, processing_jobs, captures CASCADE"
+            )
+        )
+        await session.commit()
+
+    user_id = uuid4()
+    look = await insert_look(sessions=sessions, user_id=user_id, suffix="c")
+    repository = SqlAlchemyRenderArtifactRepository(sessions)
+    first, second = await asyncio.gather(
+        repository.ensure_requested(
+            RenderArtifact.queued(
+                user_id=user_id,
+                look_id=look.id,
+                kind=RenderArtifactKind.COLLAGE,
+                input_signature=signature("c"),
+                request_key="concurrent-render-one",
+            )
+        ),
+        repository.ensure_requested(
+            RenderArtifact.queued(
+                user_id=user_id,
+                look_id=look.id,
+                kind=RenderArtifactKind.COLLAGE,
+                input_signature=signature("c"),
+                request_key="concurrent-render-two",
+            )
+        ),
+    )
+
+    assert first.id == second.id
+    listed = await repository.list_for_look(user_id=user_id, look_id=look.id)
+    assert [artifact.id for artifact in listed] == [first.id]
 
 
 @pytest.mark.asyncio

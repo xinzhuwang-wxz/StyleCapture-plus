@@ -23,7 +23,7 @@ from stylecapture_backend.features.wardrobe.taxonomy import (
     GarmentCategory,
 )
 
-GROUNDING_PROMPT_VERSION = "outfit-grounding-v1"
+GROUNDING_PROMPT_VERSION = "outfit-grounding-v3"
 GROUNDING_SCHEMA_VERSION = "ark-bbox-tags-v1"
 
 _GROUNDING_LINE = re.compile(
@@ -156,7 +156,9 @@ def _messages(
             "content": (
                 "You locate visible garment and accessory components inside a user-selected "
                 "outfit. Use only visible evidence. Do not invent occluded items, brands, "
-                "materials, or pixel masks. Return no JSON and no Markdown. Return exactly one "
+                "materials, or pixel masks. Clothing hangers, racks, mannequins, furniture, "
+                "packaging, and other display props are not wearable accessories and must never "
+                "be returned as components. Return no JSON and no Markdown. Return exactly one "
                 "line per visible component using this contract:\n"
                 "component=<lowercase_stable_id>; category=<category>; confidence=<0..1>; "
                 "visible=<0..1>; <bbox>x1 y1 x2 y2</bbox>\n"
@@ -173,6 +175,11 @@ def _messages(
                     "text": (
                         f"Locate outfit components only inside selection_key={scope.selection_key!r}. "
                         f"The normalized closed user polygon is [{points}]. "
+                        "When selection_key='whole_capture', the user explicitly chose the "
+                        "single-garment upload flow: treat one physically connected garment as "
+                        "one component even when it has color-blocked panels, collars, straps, "
+                        "or labels; ignore its hanger and do not split construction details into "
+                        "separate garments. "
                         "Return coordinates only in the required "
                         "<bbox>x1 y1 x2 y2</bbox> tag contract."
                     ),

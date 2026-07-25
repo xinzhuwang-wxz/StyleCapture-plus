@@ -125,7 +125,7 @@ export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
             还没有形象照
             <br />
             <small style={{ fontSize: "0.68rem", color: "var(--pixel-text-dim)" }}>
-              当前试穿使用固定模特；这里的照片不会参与生成
+              在穿搭详情上传全身照，即可生成对应真人试穿
             </small>
           </p>
           <div style={{ display: "flex", gap: "var(--px-3)", justifyContent: "center" }}>
@@ -248,7 +248,7 @@ export function ProfileScreen({ itemCount, outfitCount }: ProfileScreenProps) {
             lineHeight: 1.8
           }}
         >
-          <li>当前真人效果使用固定模特，不会读取这里的照片</li>
+          <li>真人试穿需在已保存穿搭详情中单次上传全身照</li>
           <li>照片仅在当前页面内存中预览，不会上传服务器</li>
           <li>刷新页面后预览会清除；接入真实形象资产 API 后再开放保存</li>
         </ul>

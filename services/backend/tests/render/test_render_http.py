@@ -18,6 +18,7 @@ from stylecapture_backend.features.capture.domain import (
     OwnershipState,
 )
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
+from stylecapture_backend.features.capture.ports import UploadRequest
 from stylecapture_backend.features.look.application import LookNotFoundError
 from stylecapture_backend.features.look.domain import Look, LookComponent, LookDetail
 from stylecapture_backend.features.render.application import RenderApplication
@@ -26,6 +27,7 @@ from stylecapture_backend.features.render.domain import (
     RenderArtifactKind,
     RenderInputSignature,
     RenderOutput,
+    RenderProviderTrace,
 )
 from stylecapture_backend.features.render.interfaces.http import (
     RenderHttpServices,
@@ -216,3 +218,106 @@ async def test_render_http_uses_look_artifact_contract_without_provider_leak(
     assert image.status_code == 200
     assert image.headers["content-type"] == "image/png"
     assert image.content == png_bytes()
+
+
+@pytest.mark.asyncio
+async def test_user_can_delete_private_try_on_photo_without_deleting_result(
+    tmp_path: Path,
+) -> None:
+    user_id = uuid4()
+    capture = Capture.create(
+        user_id=user_id,
+        source=CaptureSource(
+            kind=CaptureSourceKind.FEED,
+            object_key="originals/feed/look.png",
+            sha256="a" * 64,
+        ),
+        ownership=OwnershipState.INSPIRATION,
+    )
+    look = Look.feed_saved(
+        user_id=user_id,
+        capture_id=capture.id,
+        source_selection_key="whole2",
+    )
+    detail = LookDetail(look=look, components=(), preference_signals=())
+    objects = LocalObjectStore(
+        root=tmp_path / "uploads",
+        signing_secret="test-render-http-signing-secret",
+    )
+    subject_body = png_bytes((20, 30, 40))
+    prepared = objects.prepare_upload(
+        UploadRequest(
+            owner_id=user_id,
+            file_name="me.png",
+            content_type="image/png",
+            byte_size=len(subject_body),
+            sha256=sha256(subject_body).hexdigest(),
+        )
+    )
+    subject = objects.accept_upload(
+        prepared.token,
+        body=subject_body,
+        content_type="image/png",
+    )
+    renders = RenderApplication(artifacts=MemoryRenderRepository())
+    app = FastAPI()
+    app.include_router(
+        build_render_router(
+            RenderHttpServices(
+                renders=renders,
+                looks=MemoryLookReader(detail),  # type: ignore[arg-type]
+                captures=MemoryCaptureReader(capture),
+                objects=objects,
+            ),
+            current_user=lambda: user_id,
+        )
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        requested = await client.post(
+            f"/v1/looks/{look.id}/renders",
+            json={"kind": "try_on", "subject_object_key": subject.object_key},
+            headers={"Idempotency-Key": "try-on-private-photo"},
+        )
+        artifact_id = UUID(requested.json()["id"])
+        await renders.mark_running(
+            user_id=user_id,
+            artifact_id=artifact_id,
+            provider_trace=RenderProviderTrace(
+                provider="litellm",
+                model="image_generation",
+                parameters={"personalization": "user_photo"},
+            ),
+        )
+        result = objects.write_derived_image(
+            image_payload(
+                png_bytes((35, 65, 120)),
+                object_key="derived/renders/personal-try-on.png",
+            ),
+            owner_id=user_id,
+            prefix="derived/renders",
+        )
+        await renders.mark_succeeded(
+            user_id=user_id,
+            artifact_id=artifact_id,
+            output=RenderOutput(
+                object_key=result.object_key,
+                content_hash=result.sha256,
+                content_type=result.content_type,
+            ),
+        )
+        deleted = await client.delete(f"/v1/render-artifacts/{requested.json()['id']}/subject")
+        listed = await client.get(f"/v1/looks/{look.id}/renders")
+
+    assert requested.status_code == 202
+    assert requested.json()["subject_attached"] is True
+    assert requested.json()["personalized"] is False
+    assert requested.json()["presentation_label"] == "我的真人试穿"
+    assert deleted.status_code == 204
+    with pytest.raises(KeyError):
+        objects.describe(subject.object_key)
+    try_on = next(render for render in listed.json()["renders"] if render["kind"] == "try_on")
+    assert try_on["subject_attached"] is False
+    assert try_on["personalized"] is True
+    assert try_on["presentation_label"] == "我的真人试穿"
+    assert try_on["output_image_url"].endswith(f"/{artifact_id}/image")

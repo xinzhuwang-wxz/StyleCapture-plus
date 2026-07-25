@@ -33,7 +33,50 @@ class SqlAlchemyRenderArtifactRepository:
     async def ensure_requested(self, artifact: RenderArtifact) -> RenderArtifact:
         try:
             async with self._sessions() as session:
-                await _raise_if_look_owner_mismatch(session, artifact.look_id, artifact.user_id)
+                await _lock_owned_look(session, artifact.look_id, artifact.user_id)
+                existing_request = (
+                    await session.execute(
+                        select(RenderArtifactRecord).where(
+                            RenderArtifactRecord.user_id == artifact.user_id,
+                            RenderArtifactRecord.request_key == artifact.request_key,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if existing_request is not None:
+                    _raise_on_idempotency_conflict(existing_request, artifact)
+                    return _artifact_from_record(existing_request)
+                equivalent = (
+                    (
+                        await session.execute(
+                            select(RenderArtifactRecord)
+                            .where(
+                                RenderArtifactRecord.user_id == artifact.user_id,
+                                RenderArtifactRecord.look_id == artifact.look_id,
+                                RenderArtifactRecord.kind == artifact.kind.value,
+                                RenderArtifactRecord.input_version
+                                == artifact.input_signature.version,
+                                RenderArtifactRecord.input_hash == artifact.input_signature.hash,
+                                RenderArtifactRecord.privacy == artifact.privacy.value,
+                                RenderArtifactRecord.source_artifact_id
+                                == artifact.source_artifact_id,
+                                RenderArtifactRecord.subject_object_key
+                                == artifact.subject_object_key,
+                                RenderArtifactRecord.status.in_(
+                                    (
+                                        RenderArtifactStatus.QUEUED.value,
+                                        RenderArtifactStatus.RUNNING.value,
+                                        RenderArtifactStatus.SUCCEEDED.value,
+                                    )
+                                ),
+                            )
+                            .order_by(RenderArtifactRecord.created_at)
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if equivalent is not None:
+                    return _artifact_from_record(equivalent)
                 await session.execute(
                     insert(RenderArtifactRecord)
                     .values(**_artifact_values(artifact))
@@ -59,7 +102,44 @@ class SqlAlchemyRenderArtifactRepository:
         try:
             async with self._sessions() as session:
                 await _raise_if_look_owner_mismatch(session, artifact.look_id, artifact.user_id)
+                current_record = (
+                    await session.execute(
+                        select(RenderArtifactRecord)
+                        .where(
+                            RenderArtifactRecord.id == artifact.id,
+                            RenderArtifactRecord.user_id == artifact.user_id,
+                        )
+                        .with_for_update()
+                    )
+                ).scalar_one_or_none()
+                if current_record is not None:
+                    current_status = RenderArtifactStatus(current_record.status)
+                    terminal = {
+                        RenderArtifactStatus.SUCCEEDED,
+                        RenderArtifactStatus.FAILED,
+                        RenderArtifactStatus.DEGRADED,
+                    }
+                    if current_status in terminal and artifact.status is not current_status:
+                        return _artifact_from_record(current_record)
                 values = _artifact_values(artifact)
+                if current_record is not None:
+                    current_record.status = artifact.status.value
+                    current_record.object_key = cast(str | None, values["object_key"])
+                    current_record.content_hash = cast(str | None, values["content_hash"])
+                    current_record.content_type = cast(str | None, values["content_type"])
+                    current_record.share_eligible = cast(bool, values["share_eligible"])
+                    current_record.source_artifact_id = artifact.source_artifact_id
+                    current_record.fallback_artifact_id = artifact.fallback_artifact_id
+                    current_record.failure_code = artifact.failure_code
+                    current_record.failure_message = artifact.failure_message
+                    current_record.provider_trace = cast(
+                        dict[str, object] | None,
+                        values["provider_trace"],
+                    )
+                    current_record.subject_object_key = artifact.subject_object_key
+                    current_record.updated_at = artifact.updated_at
+                    await session.commit()
+                    return _artifact_from_record(current_record)
                 stored = (
                     await session.execute(
                         insert(RenderArtifactRecord)
@@ -77,6 +157,7 @@ class SqlAlchemyRenderArtifactRepository:
                                 "failure_code": artifact.failure_code,
                                 "failure_message": artifact.failure_message,
                                 "provider_trace": values["provider_trace"],
+                                "subject_object_key": artifact.subject_object_key,
                                 "updated_at": artifact.updated_at,
                             },
                         )
@@ -153,6 +234,20 @@ async def _raise_if_look_owner_mismatch(
         raise ValueError("render artifact Look belongs to another user")
 
 
+async def _lock_owned_look(
+    session: AsyncSession,
+    look_id: UUID,
+    user_id: UUID,
+) -> None:
+    owner_id = (
+        await session.execute(
+            select(LookRecord.user_id).where(LookRecord.id == look_id).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if owner_id is not None and owner_id != user_id:
+        raise ValueError("render artifact Look belongs to another user")
+
+
 def _artifact_values(artifact: RenderArtifact) -> dict[str, object]:
     output = artifact.output
     return {
@@ -174,6 +269,7 @@ def _artifact_values(artifact: RenderArtifact) -> dict[str, object]:
         "failure_code": artifact.failure_code,
         "failure_message": artifact.failure_message,
         "provider_trace": _trace_to_json(artifact.provider_trace),
+        "subject_object_key": artifact.subject_object_key,
         "created_at": artifact.created_at,
         "updated_at": artifact.updated_at,
     }
@@ -209,6 +305,7 @@ def _artifact_from_record(record: RenderArtifactRecord) -> RenderArtifact:
         provider_trace=_trace_from_json(record.provider_trace),
         created_at=record.created_at,
         updated_at=record.updated_at,
+        subject_object_key=record.subject_object_key,
     )
 
 
@@ -243,6 +340,7 @@ def _raise_on_idempotency_conflict(
         or stored.input_hash != expected.input_signature.hash
         or stored.privacy != expected.privacy.value
         or stored.source_artifact_id != expected.source_artifact_id
+        or stored.subject_object_key != expected.subject_object_key
     ):
         raise RenderIdempotencyConflict(
             "render request key already represents another render request"

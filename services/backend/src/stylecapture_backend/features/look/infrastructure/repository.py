@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
 
 from stylecapture_backend.features.capture.domain import NormalizedPoint
 from stylecapture_backend.features.look.domain import (
@@ -47,18 +50,9 @@ class SqlAlchemyLookRepository:
     ) -> Look:
         try:
             async with self._sessions() as session:
-                await session.execute(
-                    insert(LookRecord)
-                    .values(**_look_values(look))
-                    .on_conflict_do_nothing(index_elements=["capture_id", "source_selection_key"])
-                )
+                await session.execute(_insert_look_do_nothing(look))
                 stored_record = (
-                    await session.execute(
-                        select(LookRecord).where(
-                            LookRecord.capture_id == look.capture_id,
-                            LookRecord.source_selection_key == look.source_selection_key,
-                        )
-                    )
+                    await session.execute(select(LookRecord).where(*_look_identity(look)))
                 ).scalar_one()
                 stored_signal = PreferenceSignal(
                     id=signal.id,
@@ -88,6 +82,81 @@ class SqlAlchemyLookRepository:
                 )
                 await session.commit()
                 return _look_from_record(stored_record)
+        except OperationalError as error:
+            raise LookPersistenceUnavailable(
+                "Look persistence is temporarily unavailable"
+            ) from error
+
+    async def save_bundle(
+        self,
+        look: Look,
+        components: tuple[LookComponent, ...],
+        signal: PreferenceSignal,
+    ) -> Look:
+        try:
+            async with self._sessions() as session:
+                await session.execute(_insert_look_do_nothing(look))
+                stored_look = (
+                    await session.execute(select(LookRecord).where(*_look_identity(look)))
+                ).scalar_one()
+                if stored_look.user_id != look.user_id:
+                    raise LookItemOwnershipMismatch("saved Look belongs to another user")
+                for component in components:
+                    stored_component = replace(
+                        component,
+                        look_id=stored_look.id,
+                    )
+                    if stored_component.item_id is not None:
+                        item_owner = (
+                            await session.execute(
+                                select(ItemRecord.user_id).where(
+                                    ItemRecord.id == stored_component.item_id
+                                )
+                            )
+                        ).scalar_one_or_none()
+                        if item_owner != look.user_id:
+                            raise LookItemOwnershipMismatch(
+                                "component Item belongs to another user"
+                            )
+                    values = _component_values(stored_component)
+                    await session.execute(
+                        insert(LookComponentRecord)
+                        .values(**values)
+                        .on_conflict_do_update(
+                            index_elements=["look_id", "component_key"],
+                            set_={
+                                "status": stored_component.status.value,
+                                "item_id": stored_component.item_id,
+                                "evidence_region": values["evidence_region"],
+                                "role": stored_component.role,
+                                "layer": stored_component.layer,
+                                "display_order": stored_component.display_order,
+                                "confidence": stored_component.confidence,
+                                "grounding_metadata": values["grounding_metadata"],
+                                "updated_at": stored_component.updated_at,
+                            },
+                        )
+                    )
+                stored_signal = replace(signal, look_id=stored_look.id)
+                await session.execute(
+                    insert(PreferenceSignalRecord)
+                    .values(**_preference_values(stored_signal))
+                    .on_conflict_do_nothing(index_elements=["user_id", "idempotency_key"])
+                )
+                preference_record = (
+                    await session.execute(
+                        select(PreferenceSignalRecord).where(
+                            PreferenceSignalRecord.user_id == stored_signal.user_id,
+                            PreferenceSignalRecord.idempotency_key == stored_signal.idempotency_key,
+                        )
+                    )
+                ).scalar_one()
+                _raise_on_preference_idempotency_conflict(
+                    preference_record,
+                    stored_signal,
+                )
+                await session.commit()
+                return _look_from_record(stored_look)
         except OperationalError as error:
             raise LookPersistenceUnavailable(
                 "Look persistence is temporarily unavailable"
@@ -190,22 +259,29 @@ class SqlAlchemyLookRepository:
     async def save(self, look: Look) -> Look:
         async with self._sessions() as session:
             values = _look_values(look)
-            stored = (
-                await session.execute(
-                    insert(LookRecord)
-                    .values(**values)
-                    .on_conflict_do_update(
-                        index_elements=["capture_id", "source_selection_key"],
-                        set_={
-                            "status": look.status.value,
-                            "analysis": values["analysis"],
-                            "display_object_key": look.display_object_key,
-                            "updated_at": look.updated_at,
-                        },
-                    )
-                    .returning(LookRecord)
+            statement = insert(LookRecord).values(**values)
+            if look.capture_id is None:
+                statement = statement.on_conflict_do_update(
+                    index_elements=["user_id", "source", "source_selection_key"],
+                    index_where=LookRecord.capture_id.is_(None),
+                    set_={
+                        "status": look.status.value,
+                        "analysis": values["analysis"],
+                        "display_object_key": look.display_object_key,
+                        "updated_at": look.updated_at,
+                    },
                 )
-            ).scalar_one()
+            else:
+                statement = statement.on_conflict_do_update(
+                    index_elements=["capture_id", "source_selection_key"],
+                    set_={
+                        "status": look.status.value,
+                        "analysis": values["analysis"],
+                        "display_object_key": look.display_object_key,
+                        "updated_at": look.updated_at,
+                    },
+                )
+            stored = (await session.execute(statement.returning(LookRecord))).scalar_one()
             await session.commit()
             return _look_from_record(stored)
 
@@ -265,6 +341,30 @@ def _look_values(look: Look) -> dict[str, object]:
         "created_at": look.created_at,
         "updated_at": look.updated_at,
     }
+
+
+def _look_identity(look: Look) -> tuple[ColumnElement[bool], ...]:
+    if look.capture_id is None:
+        return (
+            LookRecord.user_id == look.user_id,
+            LookRecord.source == look.source.value,
+            LookRecord.source_selection_key == look.source_selection_key,
+            LookRecord.capture_id.is_(None),
+        )
+    return (
+        LookRecord.capture_id == look.capture_id,
+        LookRecord.source_selection_key == look.source_selection_key,
+    )
+
+
+def _insert_look_do_nothing(look: Look) -> Insert:
+    statement = insert(LookRecord).values(**_look_values(look))
+    if look.capture_id is None:
+        return statement.on_conflict_do_nothing(
+            index_elements=["user_id", "source", "source_selection_key"],
+            index_where=LookRecord.capture_id.is_(None),
+        )
+    return statement.on_conflict_do_nothing(index_elements=["capture_id", "source_selection_key"])
 
 
 def _look_from_record(record: LookRecord) -> Look:

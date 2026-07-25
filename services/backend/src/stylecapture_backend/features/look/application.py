@@ -5,6 +5,7 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSourceKind,
     FeedCaptureIntent,
 )
@@ -31,24 +32,41 @@ class LookApplication:
         idempotency_key: str,
     ) -> Look:
         feed_context = capture.feed_context
-        if (
-            capture.source.kind is not CaptureSourceKind.FEED
-            or feed_context is None
-            or feed_context.intent is not FeedCaptureIntent.WHOLE_OUTFIT
-            or len(feed_context.selections) != 1
-        ):
+        feed_outfit = (
+            capture.source.kind is CaptureSourceKind.FEED
+            and feed_context is not None
+            and feed_context.intent is FeedCaptureIntent.WHOLE_OUTFIT
+            and len(feed_context.selections) == 1
+        )
+        uploaded_outfit = (
+            capture.source.kind in {CaptureSourceKind.UPLOAD, CaptureSourceKind.CAMERA}
+            and capture.intent is CaptureIntent.WHOLE_OUTFIT
+        )
+        if not feed_outfit and not uploaded_outfit:
             raise InvalidLookCapture(
-                "saved Look registration requires one whole-outfit Feed selection"
+                "saved Look registration requires an explicit whole-outfit capture"
             )
 
         request_key = idempotency_key.strip()
         if not request_key:
             raise ValueError("idempotency key must not be empty")
-        selection = feed_context.selections[0]
-        look = Look.feed_saved(
-            user_id=capture.user_id,
-            capture_id=capture.id,
-            source_selection_key=selection.selection_key,
+        source_selection_key = (
+            feed_context.selections[0].selection_key
+            if feed_outfit and feed_context is not None
+            else "whole_outfit"
+        )
+        look = (
+            Look.feed_saved(
+                user_id=capture.user_id,
+                capture_id=capture.id,
+                source_selection_key=source_selection_key,
+            )
+            if feed_outfit
+            else Look.user_created(
+                user_id=capture.user_id,
+                capture_id=capture.id,
+                source_selection_key=source_selection_key,
+            )
         )
         signal = PreferenceSignal.look_saved(
             user_id=capture.user_id,

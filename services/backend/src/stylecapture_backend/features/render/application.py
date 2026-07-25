@@ -38,6 +38,9 @@ class RenderArtifactView:
     share_eligible: bool
     created_at: datetime
     updated_at: datetime
+    subject_object_key: str | None
+    subject_used: bool
+    dispatch_required: bool = False
     cache_hit: bool = False
 
 
@@ -56,6 +59,7 @@ class RenderApplication:
         privacy: RenderPrivacy = RenderPrivacy.PRIVATE,
         source_artifact_id: UUID | None = None,
         provider_trace: RenderProviderTrace | None = None,
+        subject_object_key: str | None = None,
     ) -> RenderArtifactView:
         cached = await self._artifacts.find_cache_hit(
             look_id=look_id,
@@ -73,8 +77,16 @@ class RenderApplication:
             privacy=privacy,
             source_artifact_id=source_artifact_id,
             provider_trace=provider_trace,
+            subject_object_key=subject_object_key,
         )
-        return _view(await self._artifacts.ensure_requested(artifact))
+        stored = await self._artifacts.ensure_requested(artifact)
+        return _view(
+            stored,
+            cache_hit=stored.status is RenderArtifactStatus.SUCCEEDED,
+            # A queued artifact may have survived a transient broker failure. Re-dispatching
+            # the same artifact is safe because processing and state transitions are idempotent.
+            dispatch_required=stored.status is RenderArtifactStatus.QUEUED,
+        )
 
     async def list_for_look(self, *, user_id: UUID, look_id: UUID) -> list[RenderArtifactView]:
         return [
@@ -87,6 +99,18 @@ class RenderApplication:
         if artifact is None:
             raise RenderArtifactNotFound("Render artifact not found")
         return _view(artifact)
+
+    async def forget_subject_photo(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(
+            user_id=user_id,
+            artifact_id=artifact_id,
+        )
+        return _view(await self._artifacts.save(artifact.forget_subject_photo()))
 
     async def mark_running(
         self,
@@ -142,7 +166,12 @@ class RenderApplication:
         return artifact
 
 
-def _view(artifact: RenderArtifact, *, cache_hit: bool = False) -> RenderArtifactView:
+def _view(
+    artifact: RenderArtifact,
+    *,
+    cache_hit: bool = False,
+    dispatch_required: bool = False,
+) -> RenderArtifactView:
     return RenderArtifactView(
         id=artifact.id,
         user_id=artifact.user_id,
@@ -161,5 +190,11 @@ def _view(artifact: RenderArtifact, *, cache_hit: bool = False) -> RenderArtifac
         share_eligible=artifact.share_eligible,
         created_at=artifact.created_at,
         updated_at=artifact.updated_at,
+        subject_object_key=artifact.subject_object_key,
+        subject_used=bool(
+            artifact.provider_trace is not None
+            and artifact.provider_trace.parameters.get("personalization") == "user_photo"
+        ),
+        dispatch_required=dispatch_required,
         cache_hit=cache_hit,
     )

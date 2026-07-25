@@ -33,7 +33,7 @@ class BackendSettings(BaseSettings):
     grounding_model_alias: str = "visual_grounding"
     outfit_analysis_model_alias: str = "outfit_analysis"
     reasoning_model_alias: str = "reasoning"
-    outfit_reasoning_timeout_seconds: float = 30
+    outfit_reasoning_timeout_seconds: float = 60
     image_generation_model_alias: str = "image_generation"
     segmentation_mode: Literal["coarse", "sam2"] = "sam2"
     segmentation_model_alias: str = "segmentation_refinement"
@@ -101,6 +101,8 @@ class BackendSettings(BaseSettings):
     @model_validator(mode="after")
     def reject_production_placeholders(self) -> BackendSettings:
         if self.environment == "production":
+            if "demo_seed_enabled" not in self.model_fields_set:
+                self.demo_seed_enabled = False
             if self.upload_signing_secret.get_secret_value() == PLACEHOLDER_SIGNING_SECRET:
                 raise ValueError("production signing secret cannot use the documented placeholder")
             if self.session_signing_secret.get_secret_value() == PLACEHOLDER_SESSION_SECRET:

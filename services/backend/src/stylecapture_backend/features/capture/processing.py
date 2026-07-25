@@ -8,6 +8,7 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSourceKind,
     FeedCaptureIntent,
     FeedSelection,
@@ -253,6 +254,11 @@ class CaptureProcessor:
             job = await self._jobs.update(job.transition(JobState.QUEUED))
         job = await self._jobs.update(job.transition(JobState.PROCESSING))
 
+        if capture.intent is CaptureIntent.WHOLE_OUTFIT or (
+            capture.feed_context is not None
+            and capture.feed_context.intent is FeedCaptureIntent.WHOLE_OUTFIT
+        ):
+            return await self._process_whole_outfit_capture(capture, job)
         if capture.source.kind is CaptureSourceKind.FEED:
             return await self._process_feed(capture, job)
         return await self._process_whole_capture(capture, job)
@@ -447,7 +453,7 @@ class CaptureProcessor:
             return ProcessingOutcome.error(error)
 
         if context.intent is FeedCaptureIntent.WHOLE_OUTFIT:
-            return await self._process_whole_outfit_feed(capture, job)
+            return await self._process_whole_outfit_capture(capture, job)
 
         items = {
             selection.selection_key: await self._processing_item(
@@ -548,13 +554,15 @@ class CaptureProcessor:
         await self._jobs.update(job.transition(JobState.READY))
         return ProcessingOutcome.ready()
 
-    async def _process_whole_outfit_feed(
+    async def _process_whole_outfit_capture(
         self,
         capture: Capture,
         job: ProcessingJob,
     ) -> ProcessingOutcome:
         context = capture.feed_context
-        if context is None or len(context.selections) != 1:
+        if capture.source.kind is CaptureSourceKind.FEED and (
+            context is None or len(context.selections) != 1
+        ):
             error = ProviderError(
                 "whole_outfit_context_invalid",
                 "Whole-outfit processing requires exactly one Feed selection",
@@ -591,7 +599,19 @@ class CaptureProcessor:
             )
             return ProcessingOutcome.partial(error)
 
-        outfit_selection = context.selections[0]
+        outfit_selection = (
+            context.selections[0]
+            if context is not None and context.selections
+            else FeedSelection(
+                selection_key="whole_outfit",
+                polygon=(
+                    NormalizedPoint(0, 0),
+                    NormalizedPoint(1, 0),
+                    NormalizedPoint(1, 1),
+                    NormalizedPoint(0, 1),
+                ),
+            )
+        )
         look = await self._looks.get_by_capture(capture.id, outfit_selection.selection_key)
         if look is None:
             error = ProviderError(

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stylecapture_backend.features.capture.domain import (
     Capture,
+    CaptureIntent,
     CaptureSource,
     CaptureSourceKind,
     FeedCaptureIntent,
@@ -129,7 +130,7 @@ def _capture_record(capture: Capture, idempotency_key: str) -> CaptureRecord:
         object_key=capture.source.object_key,
         sha256=capture.source.sha256,
         origin_ref=capture.source.origin_ref,
-        source_metadata=_feed_context_to_json(capture.feed_context),
+        source_metadata=_source_metadata_to_json(capture),
         ownership=capture.ownership.value,
         idempotency_key=idempotency_key,
         created_at=capture.created_at,
@@ -162,6 +163,9 @@ def _capture_from_record(record: CaptureRecord) -> Capture:
         ownership=OwnershipState(record.ownership),
         created_at=record.created_at,
         feed_context=_feed_context_from_json(record.source_metadata),
+        intent=CaptureIntent(
+            str(record.source_metadata.get("capture_intent", CaptureIntent.ITEM.value))
+        ),
     )
 
 
@@ -178,25 +182,26 @@ def _job_from_record(record: ProcessingJobRecord) -> ProcessingJob:
     )
 
 
-def _feed_context_to_json(context: FeedFrameContext | None) -> dict[str, object]:
+def _source_metadata_to_json(capture: Capture) -> dict[str, object]:
+    context = capture.feed_context
+    payload: dict[str, object] = {"capture_intent": capture.intent.value}
     if context is None:
-        return {}
-    return {
-        "feed_context": {
-            "video_ref": context.video_ref,
-            "timestamp_ms": context.timestamp_ms,
-            "frame_width": context.frame_width,
-            "frame_height": context.frame_height,
-            "intent": context.intent.value,
-            "selections": [
-                {
-                    "selection_key": selection.selection_key,
-                    "polygon": [{"x": point.x, "y": point.y} for point in selection.polygon],
-                }
-                for selection in context.selections
-            ],
-        }
+        return payload
+    payload["feed_context"] = {
+        "video_ref": context.video_ref,
+        "timestamp_ms": context.timestamp_ms,
+        "frame_width": context.frame_width,
+        "frame_height": context.frame_height,
+        "intent": context.intent.value,
+        "selections": [
+            {
+                "selection_key": selection.selection_key,
+                "polygon": [{"x": point.x, "y": point.y} for point in selection.polygon],
+            }
+            for selection in context.selections
+        ],
     }
+    return payload
 
 
 def _feed_context_from_json(payload: dict[str, object]) -> FeedFrameContext | None:

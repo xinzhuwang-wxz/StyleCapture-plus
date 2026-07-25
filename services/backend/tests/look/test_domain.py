@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from stylecapture_backend.features.capture.domain import NormalizedPoint
 from stylecapture_backend.features.look.domain import (
+    COMPOSITION_ITEM_EVIDENCE,
     Look,
     LookAnalysis,
     LookAnalysisField,
@@ -16,6 +17,27 @@ from stylecapture_backend.features.look.domain import (
     PreferenceSignal,
     PreferenceSignalKind,
 )
+
+
+def analysis() -> LookAnalysis:
+    field = LookAnalysisField(value="简洁通勤", confidence=0.88)
+    return LookAnalysis(
+        color=field,
+        silhouette=field,
+        material=field,
+        layering=field,
+        focal_point=field,
+        scene=field,
+        style=field,
+        metadata=LookAnalysisMetadata(
+            capability_alias="reasoning",
+            model_version="test-model",
+            prompt_version="outfit-v1",
+            schema_version="look-analysis-v1",
+            taxonomy_version="stylecapture-v1",
+            latency_ms=12,
+        ),
+    )
 
 
 def test_feed_saved_look_starts_as_a_processing_relationship_placeholder() -> None:
@@ -50,6 +72,46 @@ def test_look_display_image_is_a_derived_asset_not_source_truth() -> None:
     assert displayed.capture_id == look.capture_id
     with pytest.raises(ValueError, match="display object key must not be empty"):
         look.with_display_object(" ")
+
+
+def test_ai_composition_has_no_single_capture_or_frame_region_claim() -> None:
+    look = Look.ai_generated(
+        user_id=uuid4(),
+        source_selection_key="ai123",
+        analysis=analysis(),
+    )
+    component = LookComponent.pending(
+        look_id=look.id,
+        component_key="slot1",
+        evidence_region=(),
+        confidence=0,
+        grounding_metadata={
+            "evidence_type": COMPOSITION_ITEM_EVIDENCE,
+            "item_id": str(uuid4()),
+            "item_version": datetime.now(UTC).isoformat(),
+        },
+    ).with_item(uuid4())
+
+    assert look.capture_id is None
+    assert look.source is LookSource.AI_GENERATED
+    assert component.evidence_region == ()
+    assert component.confidence == 0
+
+    with pytest.raises(
+        ValueError,
+        match="must not claim frame-region confidence",
+    ):
+        LookComponent.pending(
+            look_id=look.id,
+            component_key="slot2",
+            evidence_region=(
+                NormalizedPoint(0, 0),
+                NormalizedPoint(1, 0),
+                NormalizedPoint(1, 1),
+            ),
+            confidence=1,
+            grounding_metadata={"evidence_type": COMPOSITION_ITEM_EVIDENCE},
+        )
 
 
 def test_only_a_ready_component_may_reference_a_real_item() -> None:

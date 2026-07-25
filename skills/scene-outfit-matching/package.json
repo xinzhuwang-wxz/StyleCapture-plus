@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "playground": "node scripts/playground.js",
     "test": "node --test tests/*.test.js"
   }
 }

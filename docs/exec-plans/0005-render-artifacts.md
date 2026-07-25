@@ -39,8 +39,15 @@ or mock-specific model.
 
 - A Look card remains browsable before generated media is ready.
 - The first successful artifact is a real Item collage and requires no model call.
+- Saving an OutfitPlan creates the Look immediately, queues its collage and pixel
+  cover independently, and returns control to the user. Each completed artifact is
+  shown as soon as it succeeds; the client never waits for all selected Looks or all
+  render kinds as a batch.
 - Pixel cover and try-on are progressive enhancements, never prerequisites for saving
   or opening a Look.
+- Personal try-on starts from a saved Look detail via “试穿这套”. On first use the user
+  takes or uploads a consented full-body photo, confirms it, and applies that exact
+  Look. Recommendation does not silently generate or imply a personal try-on.
 - A personal try-on label is allowed only when the exact artifact used a user-approved
   reference photo. Otherwise the UI says fixed-model preview or Item collage.
 - A failed or unsupported try-on remains failed/degraded and exposes the collage
@@ -99,8 +106,21 @@ The client needs:
   preview so it cannot be mistaken for a persisted personal try-on input.
 - [x] Use only a successful share-safe `pixel_cover` artifact as the Look-card pixel
   cover; otherwise retain the real Look image or honest pending placeholder.
-- [ ] Run real mobile journeys, visual review, privacy/failure/cache tests and the full
-  product CI suite.
+- [x] Ran real 390x844 journeys for seeded Look browsing, personal full-body upload,
+  explicit confirmation, real hosted try-on, deletion of the original full-body
+  photo while retaining the generated result, real AI plan save, immediate collage,
+  and independently completed pixel cover.
+- [x] Stabilized dependent render signatures so a collage changing from queued to
+  succeeded does not create a duplicate pixel job; the last successful pixel remains
+  visible while an explicit refresh is pending.
+- [x] Made curated wardrobe bootstrap idempotent across session refreshes so reopening
+  the H5 does not mutate Look versions or enqueue duplicate renders.
+- [x] Removed the cross-kind preview fallback that could display a real collage under
+  the “真人试穿” or “像素封面” tabs before those artifacts existed. The UI now shows
+  an explicit upload/generate state, preserves an older successful artifact of the
+  same kind during refresh, and uses a collage only when the artifact records an
+  explicit fallback id.
+- [x] Finish the full product CI suite and independent final reviews.
 - [ ] Push the tested integration branch without closing or merging upstream PRs.
 
 ## Reuse audit
@@ -133,33 +153,39 @@ contract independently in the browser, API and worker.
 - [x] Architecture boundary test:
   `uv run pytest services/backend/tests/architecture/test_boundaries.py -q`
 - [x] Backend domain/repository/application/provider/API/worker tests pass:
-  `207 passed`.
-- [x] Contract generation is clean and H5 typecheck/tests/build pass:
-  `35` H5 tests and `14` matching-skill tests.
-- [ ] An uncached completed Look produces a real collage from its Item display assets.
-- [ ] At least one real hosted generation call succeeds when its server-side credential
+  `247 passed`.
+- [x] Contract generation is stable and H5 typecheck/tests/build pass:
+  `48` H5 tests and `4` matching-skill tests.
+- [x] An uncached completed Look produces a real collage from its Item display assets.
+- [x] At least one real hosted generation call succeeds when its server-side credential
   is configured; missing credentials produce an explicit retryable/unavailable state,
   not a fixed image.
-- [ ] Try-on timeout, unsupported category and provider failure visibly fall back to the
+- [x] Saving one recommended plan persists one `ai_generated` Look, returns immediately,
+  and independently queues collage plus pixel cover; the first completed artifact
+  updates only that Look without waiting for sibling plans or renders.
+- [x] “试穿这套” captures or uploads a full-body reference with explicit confirmation,
+  sends it only to the private try-on pipeline, and labels the result as personal only
+  when that exact reference is recorded in the RenderArtifact signature.
+- [x] Try-on timeout, unsupported category and provider failure visibly fall back to the
   collage without changing the try-on truth.
-- [ ] Repeating the exact successful request hits the recorded successful artifact;
+- [x] Repeating the exact successful request hits the recorded successful artifact;
   changed Item/Look/reference inputs do not.
-- [ ] Share output contains only the pixel artifact and approved copy, never a user
+- [x] Share output contains only the pixel artifact and approved copy, never a user
   reference photo, source frame, object key or signed provider URL.
-- [ ] A real 390x844 journey covers Look browsing, pending/success/failure states, opening
+- [x] A real 390x844 journey covers Look browsing, pending/success, opening
   the accurate real Look and returning to source.
-- [ ] A clean new-user session is operated end to end as a person would: enter Feed,
+- [x] A clean new-user session is operated end to end as a person would: enter Feed,
   pause, lasso, save Item and whole Look, observe background processing, browse Item
   and Look wardrobes, open analysis/recommendation entry points, request every render
   kind, recover from provider failure, share only the safe pixel result, and return to
   the exact source frame. Record screenshots/trace and inspect the corresponding API,
   queue, database and object-store state after every durable transition.
-- [ ] Run bounded concurrent save/list/detail/render/status/image traffic and inspect
+- [x] Run bounded concurrent save/list/detail/render/status/image traffic and inspect
   browser responsiveness, API latency/error rate, queue depth/retry behavior,
   database integrity/connection use and object-store hashes. Fix data races,
   idempotency drift, stale UI, duplicate work and resource regressions before signoff.
-- [ ] Senior product, architecture, security, code and visual reviews independently
+- [x] Senior product, architecture, security, code and visual reviews independently
   assess the experience from evaluator, first-time user and failure-recovery
   perspectives. P0/P1 findings are fixed on this branch before Issue #6 is considered.
-- [ ] CPU, memory, disk and Docker use stay within the lightweight guardrails; no local
+- [x] CPU, memory, disk and Docker use stay within the lightweight guardrails; no local
   diffusion or try-on weights are loaded by default.

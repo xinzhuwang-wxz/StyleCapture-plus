@@ -104,6 +104,7 @@ class RenderArtifact:
     provider_trace: RenderProviderTrace | None
     created_at: datetime
     updated_at: datetime
+    subject_object_key: str | None = None
 
     def __post_init__(self) -> None:
         request_key = self.request_key.strip()
@@ -128,6 +129,17 @@ class RenderArtifact:
             and self.kind is not RenderArtifactKind.PIXEL_COVER
         ):
             raise ValueError("only pixel cover render artifacts may be public-share eligible")
+        if self.subject_object_key is not None:
+            subject_key = self.subject_object_key.strip()
+            if (
+                self.kind is not RenderArtifactKind.TRY_ON
+                or not subject_key.startswith("originals/")
+                or len(subject_key) > 512
+                or ".." in subject_key.split("/")
+                or "\\" in subject_key
+            ):
+                raise ValueError("try-on subject must be a private original image")
+            object.__setattr__(self, "subject_object_key", subject_key)
 
     @classmethod
     def queued(
@@ -141,6 +153,7 @@ class RenderArtifact:
         privacy: RenderPrivacy = RenderPrivacy.PRIVATE,
         source_artifact_id: UUID | None = None,
         provider_trace: RenderProviderTrace | None = None,
+        subject_object_key: str | None = None,
     ) -> RenderArtifact:
         now = datetime.now(UTC)
         return cls(
@@ -160,6 +173,7 @@ class RenderArtifact:
             provider_trace=provider_trace,
             created_at=now,
             updated_at=now,
+            subject_object_key=subject_object_key,
         )
 
     @property
@@ -194,6 +208,15 @@ class RenderArtifact:
             fallback_artifact_id=None,
             failure_code=None,
             failure_message=None,
+            updated_at=datetime.now(UTC),
+        )
+
+    def forget_subject_photo(self) -> RenderArtifact:
+        if self.kind is not RenderArtifactKind.TRY_ON:
+            raise ValueError("only try-on artifacts can forget a subject photo")
+        return replace(
+            self,
+            subject_object_key=None,
             updated_at=datetime.now(UTC),
         )
 

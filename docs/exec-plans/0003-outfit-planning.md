@@ -65,6 +65,12 @@ evolve `wanted → purchased_pending → owned`. Saving the final plan creates a
 `ai_generated` Look visible in the wardrobe. The same request works through the Skill
 script and the Playground shows the full workflow trace.
 
+Plans are progressively disclosed: the client renders each structurally valid plan as
+soon as it becomes available instead of waiting for every sibling. A plan remains an
+OutfitPlan until the user explicitly chooses “保存这套”; only that action creates a
+durable Look and starts that Look's independent presentation artifacts. One Look's
+collage, pixel cover, or try-on task never gates another Look card.
+
 ## Progress
 
 - [x] 2026-07-25: Issue #4 dependencies confirmed — #1 merged (PR #7), #2 merged
@@ -88,16 +94,17 @@ script and the Playground shows the full workflow trace.
   backend source files, Ruff and architecture-boundary checks pass, and the packaged
   `.skill` archive passes integrity validation.
 - [x] Milestone 0: Seeded development wardrobe through real contracts.
-- [ ] Milestone 1: Pure outfit domain — slot taxonomy, hard-rule engine, diversity
+- [x] Milestone 1: Pure outfit domain — slot taxonomy, hard-rule engine, diversity
   metric, deterministic scoring.
-- [ ] Milestone 2: Durable request/plan/purchase-list persistence, recall adapter,
+- [x] Milestone 2: Durable request/plan/purchase-list persistence, recall adapter,
   and async plan-generation job API.
-- [ ] Milestone 3: LiteLLM `reasoning` re-rank + explanations with schema validation,
+- [x] Milestone 3: LiteLLM `reasoning` re-rank + explanations with schema validation,
   post-validation against rules, trace recording, and explicit deterministic fallback.
-- [ ] Milestone 4: H5 outfit journey — request screen, plan cards with immediate real
+- [x] Milestone 4: H5 outfit journey — request screen, plan cards with immediate real
   collage, slot replace, purchase list, save-as-Look; regenerated OpenAPI client.
-- [ ] Milestone 5: Skill/Agent entry + Playground parity, full evidence, reviews,
-  cleanup, PR, merge.
+- [x] Milestone 5 implementation: the Skill entry is a thin Product API client and its
+  duplicate mock/runtime rule engine was removed. Full evidence, final reviews,
+  cleanup and branch publication remain the integration sign-off.
 - [x] 2026-07-25: Added an idempotent judge cold start through the production
   session, Capture, Wardrobe, Look, and object-store contracts: 10 real Item records
   (5 owned, 5 inspiration) and 3 relationship-preserving Looks. Every human-authored
@@ -141,16 +148,18 @@ script and the Playground shows the full workflow trace.
 - 2026-07-25: A real Doubao Lite request through the local LiteLLM gateway completes
   in about 14.6 seconds even for a tiny two-plan payload. The earlier hard 15-second
   timeout caused valid four-plan responses to be cancelled at the boundary and shown
-  as degraded. The adapter now uses a shorter response contract and a configurable
-  30-second budget; mobile verification returned `llm_ranked` with four genuine
-  Chinese rationales.
+  as degraded. A later real four-plan request took slightly over 30 seconds, exposing
+  the same false-failure at the 30-second boundary. The adapter now uses a shorter
+  response contract and a configurable 60-second budget; plans still appear
+  immediately from the deterministic candidate pass, while mobile verification
+  returned `llm_ranked` with four genuine Chinese rationales before the final budget.
 
 ## Decision Log
 
-- Plan generation is asynchronous (`202 + job_id`, reuse existing job/SSE plumbing)
-  because it includes one `reasoning` call with a maximum 15s application timeout; slot
-  replacement is synchronous and deterministic because it only re-runs recall +
-  rules for one slot. Explanation refresh after a replace is async and flagged.
+- Plan generation progressively returns the deterministic candidates first and then
+  the refined result from the same request stream. The bounded hosted reasoning phase
+  never blocks the first usable plans; slot replacement is synchronous and
+  deterministic because it only re-runs recall + rules for one slot.
 - The LLM selects and orders from deterministic candidate combinations only; its
   output is schema-validated and re-checked by the rule engine. One retry on invalid
   output, then deterministic fallback with an explicit `rule_ranked` explanation state.
@@ -160,11 +169,11 @@ script and the Playground shows the full workflow trace.
 - Purchase list entries are `CommerceOffer`-shaped search demands (query, category,
   constraints, jump URL) because no real commerce API exists; no inventory/price
   fields are emitted at all rather than emitting fake ones.
-- The hosted reasoning timeout is configurable and defaults to 30 seconds. A measured
-  Doubao Lite baseline is already close to 15 seconds, so a 15-second hard cutoff
-  creates false failures. The product renders a processing state during the bounded
-  request and still exposes deterministic fallback as `degraded: true`; keys remain
-  server-only environment values.
+- The hosted reasoning timeout is configurable and defaults to 60 seconds. Measured
+  Doubao Lite requests range from about 15 seconds to slightly over 30 seconds, so
+  both 15- and 30-second hard cutoffs create false failures. The product exposes the
+  usable deterministic candidates immediately and still labels a genuine timeout as
+  `degraded: true`; keys remain server-only environment values.
 
 ## Context and Orientation
 
@@ -427,7 +436,35 @@ Map one automated check to each Issue #4 acceptance box:
 
 ## Outcomes & Retrospective
 
-To be filled by the implementing agent at merge time: evidence links, exit codes,
-real trace ids, screenshots, remaining non-blocking limitations, and any ADR
-created or superseded (a durable Look-schema decision shared with Issue #3 likely
-deserves one).
+Issue #4 is implemented as one real Product API workflow shared by H5 and the
+`scene-outfit-matching` Skill. Structured SQL recall filters status, ownership,
+category and exclusions; pgvector orders semantically relevant candidates when an
+embedding is present. The application validates weather, formality, season,
+required roles, one-piece conflicts and structural diversity before the LiteLLM
+adapter may re-rank the four legal plans.
+
+Saving a plan creates an `ai_generated` Look without fabricated frame provenance,
+persists each real Item reference, creates purchase demands only for missing pieces,
+and independently queues its collage and pixel cover. A purchase demand linked to a
+real inspiration Item moves that same Item to `owned` on receipt; unlinked commerce
+search demands remain honest and require later photo recognition. The public trace
+resource exposes only user-safe workflow steps, capability alias and internal
+version, never prompt, media, provider endpoint or provider model identity.
+
+Fresh evidence on 2026-07-26:
+
+- backend: `247 passed`; Ruff format/check and Mypy (`135` files) passed;
+- H5: `48 passed`, typecheck and production build passed;
+- Skill: `4 passed`; OpenAPI generation was byte-stable on a second run;
+- clean-database migration reached the single head `20260726_0014`, and Alembic
+  detected no schema drift;
+- real mobile E2E generated progressive plans through the configured LiteLLM
+  provider, saved one valid 4-or-5-piece Look, displayed its genuine collage, then
+  generated a private personal try-on in `1.6m`;
+- screenshots include
+  `artifacts/issue-4/ai-real-ranked-mobile-60s.png`,
+  `artifacts/issue-4/wardrobe-seeded-mobile.png`, and the Issue #5 personal-render
+  evidence linked below.
+
+The only deliberately deferred work is deployment under Issue #6. No GPU server or
+local heavyweight model is required for this slice.

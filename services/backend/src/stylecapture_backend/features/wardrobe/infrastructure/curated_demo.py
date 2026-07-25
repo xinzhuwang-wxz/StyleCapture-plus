@@ -47,6 +47,12 @@ class DemoWardrobeRepository(Protocol):
 
 
 class DemoLookRepository(Protocol):
+    async def get_by_capture(
+        self,
+        capture_id: UUID,
+        source_selection_key: str,
+    ) -> Look | None: ...
+
     async def save(self, look: Look) -> Look: ...
 
     async def save_component(self, component: LookComponent) -> LookComponent: ...
@@ -350,20 +356,28 @@ class CuratedDemoWardrobeBootstrapper:
         )
         now = datetime.now(UTC)
         anchor = component_items[0]
-        look = await self._looks.save(
-            Look(
-                id=UUID(int=(anchor.id.int ^ int.from_bytes(definition.key.encode())) % (1 << 128)),
-                user_id=user_id,
-                capture_id=anchor.capture_id,
-                source_selection_key=f"seed_{definition.key}",
-                source=LookSource.FEED_SAVED,
-                status=LookStatus.READY,
-                analysis=_seed_analysis(definition),
-                display_object_key=image.object_key,
-                created_at=now,
-                updated_at=now,
-            )
+        source_selection_key = f"seed_{definition.key}"
+        look = await self._looks.get_by_capture(
+            anchor.capture_id,
+            source_selection_key,
         )
+        if look is None:
+            look = await self._looks.save(
+                Look(
+                    id=UUID(
+                        int=(anchor.id.int ^ int.from_bytes(definition.key.encode())) % (1 << 128)
+                    ),
+                    user_id=user_id,
+                    capture_id=anchor.capture_id,
+                    source_selection_key=source_selection_key,
+                    source=LookSource.FEED_SAVED,
+                    status=LookStatus.READY,
+                    analysis=_seed_analysis(definition),
+                    display_object_key=image.object_key,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
         polygon = (
             NormalizedPoint(0.05, 0.05),
             NormalizedPoint(0.95, 0.05),

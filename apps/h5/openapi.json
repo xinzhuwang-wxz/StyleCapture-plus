@@ -16,6 +16,18 @@
         "title": "AddLikingReasonBody",
         "type": "object"
       },
+      "AdvancePurchaseDemandBody": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/PurchaseDemandStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdvancePurchaseDemandBody",
+        "type": "object"
+      },
       "CaptureAcceptedResponse": {
         "properties": {
           "capture_id": {
@@ -62,6 +74,14 @@
         "title": "CaptureAcceptedResponse",
         "type": "object"
       },
+      "CaptureIntent": {
+        "enum": [
+          "item",
+          "whole_outfit"
+        ],
+        "title": "CaptureIntent",
+        "type": "string"
+      },
       "CaptureSourceKind": {
         "enum": [
           "upload",
@@ -75,6 +95,17 @@
         "properties": {
           "kind": {
             "$ref": "#/components/schemas/RenderArtifactKind"
+          },
+          "subject_object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Object Key"
           }
         },
         "required": [
@@ -711,9 +742,16 @@
       "LookSummaryResponse": {
         "properties": {
           "capture_id": {
-            "format": "uuid",
-            "title": "Capture Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capture Id"
           },
           "created_at": {
             "format": "date-time",
@@ -804,6 +842,18 @@
         "title": "NormalizedPointBody",
         "type": "object"
       },
+      "OutfitCategory": {
+        "enum": [
+          "tops",
+          "bottoms",
+          "dresses",
+          "outerwear",
+          "shoes",
+          "accessories"
+        ],
+        "title": "OutfitCategory",
+        "type": "string"
+      },
       "OutfitPlanResponse": {
         "properties": {
           "id": {
@@ -817,6 +867,10 @@
           },
           "rationale": {
             "title": "Rationale",
+            "type": "string"
+          },
+          "save_token": {
+            "title": "Save Token",
             "type": "string"
           },
           "scene": {
@@ -846,7 +900,8 @@
           "slots",
           "rationale",
           "style_match_score",
-          "missing_count"
+          "missing_count",
+          "save_token"
         ],
         "title": "OutfitPlanResponse",
         "type": "object"
@@ -883,10 +938,16 @@
             "format": "uuid",
             "title": "Request Id",
             "type": "string"
+          },
+          "trace_id": {
+            "format": "uuid",
+            "title": "Trace Id",
+            "type": "string"
           }
         },
         "required": [
           "request_id",
+          "trace_id",
           "plans",
           "degraded",
           "degradation_reason",
@@ -920,6 +981,36 @@
               }
             ],
             "title": "Comfort"
+          },
+          "exclude_item_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Exclude Item Ids",
+            "type": "array"
+          },
+          "formality": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
+          },
+          "must_include_item_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Must Include Item Ids",
+            "type": "array"
           },
           "scene": {
             "maxLength": 200,
@@ -1006,8 +1097,7 @@
             "title": "Ownership"
           },
           "role": {
-            "title": "Role",
-            "type": "string"
+            "$ref": "#/components/schemas/OutfitCategory"
           },
           "search_query": {
             "anyOf": [
@@ -1019,6 +1109,17 @@
               }
             ],
             "title": "Search Query"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
           }
         },
         "required": [
@@ -1027,9 +1128,106 @@
           "item_name",
           "ownership",
           "image_url",
-          "search_query"
+          "search_query",
+          "source_kind"
         ],
         "title": "OutfitSlotResponse",
+        "type": "object"
+      },
+      "OutfitWorkflowStatus": {
+        "enum": [
+          "candidates_ready",
+          "completed",
+          "degraded"
+        ],
+        "title": "OutfitWorkflowStatus",
+        "type": "string"
+      },
+      "OutfitWorkflowStepResponse": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "status"
+        ],
+        "title": "OutfitWorkflowStepResponse",
+        "type": "object"
+      },
+      "OutfitWorkflowTraceResponse": {
+        "properties": {
+          "capability_alias": {
+            "title": "Capability Alias",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "explanation_state": {
+            "title": "Explanation State",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "plan_count": {
+            "title": "Plan Count",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutfitWorkflowStatus"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/OutfitWorkflowStepResponse"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "trace_id": {
+            "format": "uuid",
+            "title": "Trace Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trace_id",
+          "request_id",
+          "status",
+          "explanation_state",
+          "plan_count",
+          "capability_alias",
+          "model_version",
+          "steps",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OutfitWorkflowTraceResponse",
         "type": "object"
       },
       "OwnershipState": {
@@ -1142,6 +1340,87 @@
         "title": "PreparedUploadResponse",
         "type": "object"
       },
+      "PurchaseDemandListResponse": {
+        "properties": {
+          "demands": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseDemandResponse"
+            },
+            "title": "Demands",
+            "type": "array"
+          }
+        },
+        "required": [
+          "demands"
+        ],
+        "title": "PurchaseDemandListResponse",
+        "type": "object"
+      },
+      "PurchaseDemandResponse": {
+        "properties": {
+          "can_mark_owned": {
+            "title": "Can Mark Owned",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "look_id": {
+            "format": "uuid",
+            "title": "Look Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/OutfitCategory"
+          },
+          "search_query": {
+            "title": "Search Query",
+            "type": "string"
+          },
+          "search_url": {
+            "title": "Search Url",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PurchaseDemandStatus"
+          }
+        },
+        "required": [
+          "id",
+          "look_id",
+          "item_id",
+          "role",
+          "search_query",
+          "search_url",
+          "status",
+          "can_mark_owned"
+        ],
+        "title": "PurchaseDemandResponse",
+        "type": "object"
+      },
+      "PurchaseDemandStatus": {
+        "enum": [
+          "wanted",
+          "purchased_pending",
+          "owned"
+        ],
+        "title": "PurchaseDemandStatus",
+        "type": "string"
+      },
       "RenderArtifactKind": {
         "enum": [
           "collage",
@@ -1244,6 +1523,10 @@
           "status": {
             "$ref": "#/components/schemas/RenderArtifactStatus"
           },
+          "subject_attached": {
+            "title": "Subject Attached",
+            "type": "boolean"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -1256,6 +1539,7 @@
           "kind",
           "status",
           "presentation_label",
+          "subject_attached",
           "personalized",
           "output_image_url",
           "fallback_artifact_id",
@@ -1279,6 +1563,64 @@
         ],
         "title": "RenderArtifactStatus",
         "type": "string"
+      },
+      "ReplaceOutfitSlotBody": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/OutfitCategory"
+          },
+          "save_token": {
+            "maxLength": 20000,
+            "minLength": 40,
+            "title": "Save Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "save_token",
+          "role"
+        ],
+        "title": "ReplaceOutfitSlotBody",
+        "type": "object"
+      },
+      "SaveOutfitPlanBody": {
+        "properties": {
+          "save_token": {
+            "maxLength": 20000,
+            "minLength": 40,
+            "title": "Save Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "save_token"
+        ],
+        "title": "SaveOutfitPlanBody",
+        "type": "object"
+      },
+      "SavedOutfitLookResponse": {
+        "properties": {
+          "look_id": {
+            "format": "uuid",
+            "title": "Look Id",
+            "type": "string"
+          },
+          "presentation_state": {
+            "title": "Presentation State",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "look_id",
+          "status",
+          "presentation_state"
+        ],
+        "title": "SavedOutfitLookResponse",
+        "type": "object"
       },
       "StoredObjectResponse": {
         "properties": {
@@ -1329,6 +1671,10 @@
                 "type": "null"
               }
             ]
+          },
+          "intent": {
+            "$ref": "#/components/schemas/CaptureIntent",
+            "default": "item"
           },
           "object_key": {
             "maxLength": 512,
@@ -4197,6 +4543,859 @@
         "summary": "Create Outfit Plans"
       }
     },
+    "/v1/outfit-plans/purchase-demands/{demand_id}": {
+      "patch": {
+        "operationId": "advance_purchase_demand_v1_outfit_plans_purchase_demands__demand_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "demand_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Demand Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvancePurchaseDemandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseDemandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Advance Purchase Demand"
+      }
+    },
+    "/v1/outfit-plans/saved-looks/{look_id}/purchase-list": {
+      "get": {
+        "operationId": "list_purchase_demands_v1_outfit_plans_saved_looks__look_id__purchase_list_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "look_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Look Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseDemandListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "List Purchase Demands"
+      }
+    },
+    "/v1/outfit-plans/stream": {
+      "post": {
+        "operationId": "stream_outfit_plans_v1_outfit_plans_stream_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutfitRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Stream Outfit Plans"
+      }
+    },
+    "/v1/outfit-plans/traces/{trace_id}": {
+      "get": {
+        "operationId": "get_outfit_workflow_trace_v1_outfit_plans_traces__trace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutfitWorkflowTraceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Get Outfit Workflow Trace"
+      }
+    },
+    "/v1/outfit-plans/{plan_id}/replace-slot": {
+      "post": {
+        "operationId": "replace_outfit_slot_v1_outfit_plans__plan_id__replace_slot_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceOutfitSlotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutfitPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Replace Outfit Slot"
+      }
+    },
+    "/v1/outfit-plans/{plan_id}/save-look": {
+      "post": {
+        "operationId": "save_outfit_plan_v1_outfit_plans__plan_id__save_look_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOutfitPlanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedOutfitLookResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Save Outfit Plan"
+      }
+    },
     "/v1/render-artifacts/{artifact_id}": {
       "get": {
         "operationId": "get_render_artifact_v1_render_artifacts__artifact_id__get",
@@ -4465,6 +5664,135 @@
           }
         },
         "summary": "Get Render Image"
+      }
+    },
+    "/v1/render-artifacts/{artifact_id}/subject": {
+      "delete": {
+        "operationId": "delete_render_subject_v1_render_artifacts__artifact_id__subject_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Delete Render Subject"
       }
     },
     "/v1/session": {
@@ -4796,6 +6124,134 @@
           }
         },
         "summary": "Prepare Upload"
+      }
+    },
+    "/v1/uploads/{object_key}": {
+      "delete": {
+        "operationId": "discard_private_upload_v1_uploads__object_key__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "object_key",
+            "required": true,
+            "schema": {
+              "title": "Object Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "stylecapture_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stylecapture Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request cannot be processed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A valid product session is required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The requested resource was not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request conflicts with stored state"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload token has expired"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The upload exceeds the allowed size"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The media type is not supported"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request violates the API contract"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Processing is temporarily unavailable"
+          }
+        },
+        "summary": "Discard Private Upload"
       }
     }
   }

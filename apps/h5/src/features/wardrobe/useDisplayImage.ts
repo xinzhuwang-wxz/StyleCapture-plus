@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 
 import { wardrobeApi } from "../../api/client";
 
-export function useDisplayImage(itemId: string, disabled = false): string | null {
+export function useDisplayImage(
+  itemId: string,
+  refreshKey: string,
+  disabled = false
+): string | null {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,7 +29,7 @@ export function useDisplayImage(itemId: string, disabled = false): string | null
       active = false;
       if (objectUrl?.startsWith("blob:")) URL.revokeObjectURL(objectUrl);
     };
-  }, [disabled, itemId]);
+  }, [disabled, itemId, refreshKey]);
 
   return url;
 }

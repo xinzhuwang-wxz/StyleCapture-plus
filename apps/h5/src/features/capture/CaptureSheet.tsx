@@ -14,7 +14,10 @@ type CaptureSheetProps = {
   busy: boolean;
   error: string | null;
   onCancel: () => void;
-  onConfirm: (ownership: Ownership) => void;
+  onConfirm: (
+    ownership: Ownership,
+    intent: "item" | "whole_outfit"
+  ) => void;
 };
 
 export function CaptureSheet({
@@ -25,6 +28,7 @@ export function CaptureSheet({
   onConfirm
 }: CaptureSheetProps) {
   const [ownership, setOwnership] = useState<Ownership | null>(null);
+  const [intent, setIntent] = useState<"item" | "whole_outfit" | null>(null);
 
   return (
     <AnimatePresence>
@@ -124,6 +128,42 @@ export function CaptureSheet({
                 {selection.sourceKind === "camera" ? "📷 刚刚拍摄" : "🖼️ 来自相册"}
               </span>
             </div>
+
+            <fieldset
+              disabled={busy}
+              style={{ border: "none", padding: 0, margin: "0 0 var(--px-4)" }}
+            >
+              <legend
+                style={{
+                  fontFamily: "var(--font-pixel)",
+                  fontSize: "0.75rem",
+                  color: "var(--pixel-text-muted)",
+                  marginBottom: "var(--px-3)"
+                }}
+              >
+                这张图要保存成什么？
+              </legend>
+              <div className="capture-kind-options">
+                <button
+                  type="button"
+                  className={intent === "item" ? "is-selected" : ""}
+                  aria-pressed={intent === "item"}
+                  onClick={() => setIntent("item")}
+                >
+                  <strong>单件衣服</strong>
+                  <small>抠出一件实物，归入单品分类</small>
+                </button>
+                <button
+                  type="button"
+                  className={intent === "whole_outfit" ? "is-selected" : ""}
+                  aria-pressed={intent === "whole_outfit"}
+                  onClick={() => setIntent("whole_outfit")}
+                >
+                  <strong>整套穿搭</strong>
+                  <small>拆成多件单品，并生成像素小人</small>
+                </button>
+              </div>
+            </fieldset>
 
             {/* Ownership Selection */}
             <fieldset
@@ -237,11 +277,17 @@ export function CaptureSheet({
             <button
               type="button"
               className="pixel-button pixel-button--primary w-full"
-              disabled={!ownership || busy}
-              onClick={() => ownership && onConfirm(ownership)}
+              disabled={!ownership || !intent || busy}
+              onClick={() => ownership && intent && onConfirm(ownership, intent)}
               style={{ marginBottom: "var(--px-3)" }}
             >
-              {busy ? "🔄 正在入库…" : "⭐ 加入衣橱"}
+              {busy
+                ? "🔄 正在入库…"
+                : intent === "whole_outfit"
+                  ? "✦ 保存整套并生成像素小人"
+                  : intent === "item"
+                    ? "⭐ 加入单品衣橱"
+                    : "请选择保存类型"}
             </button>
             <p
               style={{

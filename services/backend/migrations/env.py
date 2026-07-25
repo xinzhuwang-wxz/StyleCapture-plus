@@ -16,6 +16,11 @@ from stylecapture_backend.features.look.infrastructure.models import (
     LookRecord,
     PreferenceSignalRecord,
 )
+from stylecapture_backend.features.outfit.infrastructure.models import (
+    OutfitWorkflowTraceRecord,
+    PurchaseDemandRecord,
+)
+from stylecapture_backend.features.render.infrastructure.models import RenderArtifactRecord
 from stylecapture_backend.features.wardrobe.infrastructure.models import ItemRecord
 from stylecapture_backend.platform.database import Base
 
@@ -31,6 +36,9 @@ _MODELS = (
     LookRecord,
     LookComponentRecord,
     PreferenceSignalRecord,
+    PurchaseDemandRecord,
+    OutfitWorkflowTraceRecord,
+    RenderArtifactRecord,
 )
 
 

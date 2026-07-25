@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   LookDetail as LookDetailData,
+  PurchaseDemand,
   RenderArtifact,
   RenderKind
 } from "../../api/client";
@@ -13,7 +14,12 @@ type LookDetailProps = {
   loading: boolean;
   renders?: RenderArtifact[];
   rendersLoading?: boolean;
+  purchaseDemands?: PurchaseDemand[];
+  purchaseDemandsLoading?: boolean;
+  updatingPurchaseDemandId?: string | null;
   generatingKind?: RenderKind | null;
+  tryOnUploading?: boolean;
+  deletingTryOnPhoto?: boolean;
   retrying: boolean;
   saving: boolean;
   onClose: () => void;
@@ -21,20 +27,34 @@ type LookDetailProps = {
   onRetry: (lookId: string) => void;
   onSaveReason: (lookId: string, reason: string) => void;
   onGenerate?: (lookId: string, kind: RenderKind) => void;
+  onTryOn?: (lookId: string, file: File) => void;
+  onDeleteTryOnPhoto?: (artifactId: string) => void;
+  onAdvancePurchaseDemand?: (
+    demandId: string,
+    status: PurchaseDemand["status"]
+  ) => void;
 };
 
 function DetailContent({
   detail,
   renders = [],
   rendersLoading = false,
+  purchaseDemands = [],
+  purchaseDemandsLoading = false,
+  updatingPurchaseDemandId = null,
   generatingKind = null,
+  tryOnUploading = false,
+  deletingTryOnPhoto = false,
   retrying,
   saving,
   onClose,
   onReturnToSource,
   onRetry,
   onSaveReason,
-  onGenerate
+  onGenerate,
+  onTryOn,
+  onDeleteTryOnPhoto,
+  onAdvancePurchaseDemand
 }: Omit<LookDetailProps, "detail" | "loading"> & {
   detail: LookDetailData;
 }) {
@@ -43,7 +63,17 @@ function DetailContent({
     useState<RenderKind>("collage");
   const [sharing, setSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [pendingTryOnFile, setPendingTryOnFile] = useState<File | null>(null);
+  const [pendingTryOnPreview, setPendingTryOnPreview] = useState<string | null>(
+    null
+  );
+  const tryOnInputRef = useRef<HTMLInputElement>(null);
   const values = detail.analysis?.values ?? {};
+  const analysisSourceLabel =
+    detail.analysis?.capability_alias === "curated_seed" ||
+    detail.analysis?.model_version === "human_reviewed"
+      ? "人工整理 · 示例搭配解析"
+      : "AI 理解";
   const heroImageUrl =
     detail.look.source_image_url ?? detail.look.display_image_url;
 
@@ -51,23 +81,59 @@ function DetailContent({
     setReason("");
     setActiveRenderKind("collage");
     setShareMessage(null);
+    setPendingTryOnFile(null);
   }, [detail.look.id]);
+
+  useEffect(() => {
+    if (!pendingTryOnFile) {
+      setPendingTryOnPreview(null);
+      return;
+    }
+    const preview = URL.createObjectURL(pendingTryOnFile);
+    setPendingTryOnPreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [pendingTryOnFile]);
 
   useEffect(() => {
     if (generatingKind) setActiveRenderKind(generatingKind);
   }, [generatingKind]);
 
+  const sortedRenders = [...renders].sort((left, right) =>
+    right.updated_at.localeCompare(left.updated_at)
+  );
   const latestByKind = new Map<RenderKind, RenderArtifact>();
-  [...renders]
-    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
-    .forEach((render) => {
-      if (!latestByKind.has(render.kind)) latestByKind.set(render.kind, render);
-    });
-  const collage = latestByKind.get("collage");
+  const completedByKind = new Map<RenderKind, RenderArtifact>();
+  sortedRenders.forEach((render) => {
+    if (!latestByKind.has(render.kind)) latestByKind.set(render.kind, render);
+    if (
+      !completedByKind.has(render.kind) &&
+      (render.status === "succeeded" || render.status === "degraded") &&
+      render.output_image_url
+    ) {
+      completedByKind.set(render.kind, render);
+    }
+  });
   const activeRender = latestByKind.get(activeRenderKind);
+  const completedActiveRender = completedByKind.get(activeRenderKind);
+  const explicitFallback = activeRender?.fallback_artifact_id
+    ? renders.find(
+        (render) => render.id === activeRender.fallback_artifact_id
+      )
+    : undefined;
   const visibleRender =
-    activeRender?.output_image_url ? activeRender : collage;
-  const pixelCover = latestByKind.get("pixel_cover");
+    activeRender?.output_image_url
+      ? activeRender
+      : completedActiveRender ??
+        (explicitFallback?.output_image_url ? explicitFallback : undefined);
+  const pixelCover = completedByKind.get("pixel_cover");
+  const sourceLabel =
+    detail.look.source === "ai_generated"
+      ? "AI 搭配保存"
+      : detail.look.source === "feed_saved"
+        ? detail.look.source_available
+          ? "真实 Feed 来源"
+          : "Feed 来源画面已删除"
+        : "用户创建";
 
   async function sharePixelCover() {
     if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
@@ -133,7 +199,11 @@ function DetailContent({
         {heroImageUrl ? (
           <img
             src={heroImageUrl}
-            alt="收藏的真实整套穿搭"
+            alt={
+              detail.look.source === "ai_generated"
+                ? "AI 搭配中的真实衣橱单品"
+                : "收藏的真实整套穿搭"
+            }
           />
         ) : (
           <div className="item-image-placeholder">
@@ -151,9 +221,7 @@ function DetailContent({
 
       <div className="detail-content">
         <div className="detail-meta">
-          <span>
-            {detail.look.source_available ? "真实 Feed 来源" : "来源画面已删除"}
-          </span>
+          <span>{sourceLabel}</span>
           <span>
             {detail.look.status === "ready" ? "搭配分析完成" : "后台处理中"}
           </span>
@@ -209,6 +277,66 @@ function DetailContent({
           </section>
         ) : null}
 
+        {purchaseDemandsLoading || purchaseDemands.length > 0 ? (
+          <section className="look-detail__section" aria-labelledby="purchase-list-title">
+            <div className="section-heading">
+              <h3 id="purchase-list-title">补齐这套</h3>
+              <span>真实搜索需求</span>
+            </div>
+            {purchaseDemandsLoading ? (
+              <p className="privacy-note">正在加载缺少的单品…</p>
+            ) : (
+              <div className="purchase-demand-list">
+                {purchaseDemands.map((demand) => (
+                  <article key={demand.id}>
+                    <div>
+                      <strong>{garmentLabel(demand.role)}</strong>
+                      <small>
+                        {demand.status === "wanted"
+                          ? "待购买"
+                          : demand.status === "purchased_pending"
+                            ? demand.can_mark_owned
+                              ? "已下单，收到后可转为我的衣服"
+                              : "已下单，收到后需拍照入库"
+                            : "已收到，关联单品已转为我的衣服"}
+                      </small>
+                    </div>
+                    <a href={demand.search_url} target="_blank" rel="noreferrer">
+                      去抖音搜索
+                    </a>
+                    {demand.status === "wanted" && onAdvancePurchaseDemand ? (
+                      <button
+                        type="button"
+                        disabled={updatingPurchaseDemandId === demand.id}
+                        onClick={() =>
+                          onAdvancePurchaseDemand(demand.id, "purchased_pending")
+                        }
+                      >
+                        {updatingPurchaseDemandId === demand.id ? "更新中…" : "标记已下单"}
+                      </button>
+                    ) : demand.status === "purchased_pending" &&
+                      demand.can_mark_owned &&
+                      onAdvancePurchaseDemand ? (
+                      <button
+                        type="button"
+                        disabled={updatingPurchaseDemandId === demand.id}
+                        onClick={() => onAdvancePurchaseDemand(demand.id, "owned")}
+                      >
+                        {updatingPurchaseDemandId === demand.id ? "更新中…" : "确认已收到"}
+                      </button>
+                    ) : demand.status === "purchased_pending" &&
+                      !demand.can_mark_owned ? (
+                      <span className="privacy-note">
+                        收到后请拍照上传；完成识别入库后才会成为“我的衣服”。
+                      </span>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
+
         {detail.components.some((component) => component.item_id !== null) ? (
           <section className="look-detail__section render-studio" aria-labelledby="look-renders-title">
             <div className="section-heading">
@@ -219,7 +347,7 @@ function DetailContent({
               {(
                 [
                   ["collage", "真实拼贴"],
-                  ["try_on", "固定模特"],
+                  ["try_on", "真人试穿"],
                   ["pixel_cover", "像素封面"]
                 ] as const
               ).map(([kind, label]) => (
@@ -242,17 +370,28 @@ function DetailContent({
                     visibleRender.updated_at
                   )}`}
                   alt={visibleRender.presentation_label}
-                  data-pixel={visibleRender.kind === "pixel_cover" ? "true" : "false"}
+                  data-pixel={
+                    visibleRender.kind === "pixel_cover" &&
+                    visibleRender.status === "succeeded"
+                      ? "true"
+                      : "false"
+                  }
                 />
               ) : (
                 <div className="render-studio__empty">
                   <span aria-hidden="true">✦</span>
                   <strong>
                     {rendersLoading || activeRender?.status === "queued" || activeRender?.status === "running"
-                      ? "正在生成穿搭成片"
+                      ? activeRenderKind === "try_on"
+                        ? "正在生成真人试穿"
+                        : activeRenderKind === "pixel_cover"
+                          ? "正在生成像素封面"
+                          : "正在准备真实单品拼贴"
                       : activeRenderKind === "collage"
                         ? "正在准备真实单品拼贴"
-                        : "选择生成后，不用停在这里等"}
+                        : activeRenderKind === "try_on"
+                          ? "上传全身照后生成真人试穿"
+                          : "生成一张像素穿搭封面"}
                   </strong>
                   <small>任务会在后台完成，退出详情也不会丢失。</small>
                 </div>
@@ -270,22 +409,104 @@ function DetailContent({
             </div>
             <p className="render-studio__truth">
               {activeRenderKind === "try_on"
-                ? "当前使用固定模特，不会冒充你的真人试穿。"
+                ? activeRender?.personalized &&
+                  activeRender.status === "succeeded"
+                  ? "这张效果图基于你刚刚上传的全身照和本套真实单品生成，仅自己可见。"
+                  : activeRender?.subject_attached &&
+                      activeRender.status === "degraded"
+                    ? "本次真人试穿暂时不可用，当前展示真实单品拼贴；可换张全身照重试。"
+                  : "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
                 : activeRenderKind === "pixel_cover"
                   ? "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"
                   : "拼贴直接来自这套穿搭里已入库的真实单品图。"}
             </p>
-            {activeRenderKind !== "collage" && onGenerate ? (
+            {activeRenderKind === "try_on" && onTryOn ? (
+              <>
+                <input
+                  ref={tryOnInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  capture="environment"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) setPendingTryOnFile(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                {pendingTryOnFile && pendingTryOnPreview ? (
+                  <div className="render-studio__photo-confirm">
+                    <img
+                      src={pendingTryOnPreview}
+                      alt="待确认的试穿全身照"
+                    />
+                    <p>
+                      确认使用这张全身照生成本套试穿。原照仅用于本次私人生成，
+                      结果完成后可随时删除原照。
+                    </p>
+                    <div>
+                      <button
+                        className="secondary-action"
+                        type="button"
+                        onClick={() => setPendingTryOnFile(null)}
+                      >
+                        重选
+                      </button>
+                      <button
+                        className="primary-action"
+                        type="button"
+                        onClick={() => {
+                          onTryOn(detail.look.id, pendingTryOnFile);
+                          setPendingTryOnFile(null);
+                        }}
+                      >
+                        确认生成
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <button
+                  className="primary-action"
+                  type="button"
+                  disabled={tryOnUploading || generatingKind !== null}
+                  onClick={() => tryOnInputRef.current?.click()}
+                >
+                  {tryOnUploading || generatingKind === "try_on"
+                    ? "照片上传并生成中…"
+                    : activeRender?.subject_attached
+                      ? "换一张全身照"
+                      : "拍照或上传全身照"}
+                </button>
+                {activeRender?.subject_attached && onDeleteTryOnPhoto ? (
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    disabled={deletingTryOnPhoto}
+                    onClick={() => onDeleteTryOnPhoto(activeRender.id)}
+                  >
+                    {deletingTryOnPhoto
+                      ? "正在删除原照…"
+                      : "删除本次全身原照"}
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+            {activeRenderKind === "pixel_cover" &&
+            onGenerate &&
+            (!activeRender ||
+              activeRender.status === "failed" ||
+              activeRender.status === "degraded") ? (
               <button
                 className="primary-action"
                 type="button"
                 disabled={generatingKind !== null}
-                onClick={() => onGenerate(detail.look.id, activeRenderKind)}
+                onClick={() => onGenerate(detail.look.id, "pixel_cover")}
               >
-                {generatingKind === activeRenderKind
+                {generatingKind === "pixel_cover"
                   ? "任务启动中…"
-                  : activeRenderKind === "try_on"
-                    ? "生成固定模特效果"
+                  : activeRender?.status === "degraded" ||
+                      activeRender?.status === "failed"
+                    ? "重新生成像素封面"
                     : "生成像素封面"}
               </button>
             ) : null}
@@ -309,7 +530,7 @@ function DetailContent({
           <section className="look-detail__section" aria-labelledby="look-analysis-title">
             <div className="section-heading">
               <h3 id="look-analysis-title">搭配关系</h3>
-              <span>AI 理解</span>
+              <span>{analysisSourceLabel}</span>
             </div>
             <div className="look-analysis">
               {Object.entries(values).map(([key, value]) => (
@@ -385,7 +606,12 @@ export function LookDetail(props: LookDetailProps) {
             detail={props.detail}
             renders={props.renders}
             rendersLoading={props.rendersLoading}
+            purchaseDemands={props.purchaseDemands}
+            purchaseDemandsLoading={props.purchaseDemandsLoading}
+            updatingPurchaseDemandId={props.updatingPurchaseDemandId}
             generatingKind={props.generatingKind}
+            tryOnUploading={props.tryOnUploading}
+            deletingTryOnPhoto={props.deletingTryOnPhoto}
             retrying={props.retrying}
             saving={props.saving}
             onClose={props.onClose}
@@ -393,6 +619,9 @@ export function LookDetail(props: LookDetailProps) {
             onRetry={props.onRetry}
             onSaveReason={props.onSaveReason}
             onGenerate={props.onGenerate}
+            onTryOn={props.onTryOn}
+            onDeleteTryOnPhoto={props.onDeleteTryOnPhoto}
+            onAdvancePurchaseDemand={props.onAdvancePurchaseDemand}
           />
         </div>
       ) : null}

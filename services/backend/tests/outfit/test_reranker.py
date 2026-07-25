@@ -11,6 +11,9 @@ from stylecapture_backend.features.outfit.domain import (
     OutfitSlot,
 )
 from stylecapture_backend.features.outfit.infrastructure.reranker import (
+    OUTFIT_RERANK_MODEL_VERSION,
+    OUTFIT_RERANK_PROMPT_VERSION,
+    OUTFIT_RERANK_SCHEMA_VERSION,
     LiteLLMOutfitReranker,
 )
 
@@ -51,6 +54,7 @@ async def test_litellm_reranker_only_reorders_closed_candidates() -> None:
     async def completion(**kwargs: object) -> object:
         calls.append(kwargs)
         return SimpleNamespace(
+            model="raw-provider-endpoint-must-not-leak",
             choices=[
                 SimpleNamespace(
                     message=SimpleNamespace(
@@ -63,7 +67,7 @@ async def test_litellm_reranker_only_reorders_closed_candidates() -> None:
                         )
                     )
                 )
-            ]
+            ],
         )
 
     reranker = LiteLLMOutfitReranker(
@@ -81,14 +85,29 @@ async def test_litellm_reranker_only_reorders_closed_candidates() -> None:
         ),
     )
 
-    assert [str(candidate.id) for candidate in result] == [
+    assert [str(candidate.id) for candidate in result.plans] == [
         "00000000-0000-0000-0000-000000000002",
         "00000000-0000-0000-0000-000000000001",
     ]
-    assert result[0].rationale == "深色层次更符合正式通勤场景"
+    assert result.plans[0].rationale == "深色层次更符合正式通勤场景"
+    assert result.trace.capability_alias == "reasoning"
+    assert result.trace.model_version == OUTFIT_RERANK_MODEL_VERSION
+    assert result.trace.prompt_version == OUTFIT_RERANK_PROMPT_VERSION
+    assert result.trace.schema_version == OUTFIT_RERANK_SCHEMA_VERSION
+    assert "raw-provider-endpoint" not in repr(result.trace)
+    assert result.trace.latency_ms >= 1
     assert calls[0]["model"] == "openai/reasoning"
     assert calls[0]["api_base"] == "http://litellm:4000/v1"
     assert "server-only-test-key" not in str(calls[0]["messages"])
+
+
+def test_litellm_reranker_requires_a_capability_alias() -> None:
+    with pytest.raises(ValueError, match="capability alias"):
+        LiteLLMOutfitReranker(
+            capability_alias=" ",
+            gateway_base_url="http://litellm:4000/v1",
+            gateway_api_key="server-only-test-key",
+        )
 
 
 @pytest.mark.asyncio

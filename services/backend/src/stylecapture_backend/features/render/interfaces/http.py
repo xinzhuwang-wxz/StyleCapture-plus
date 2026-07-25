@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from hashlib import sha256
 from typing import Annotated, Protocol
 from uuid import UUID
 
@@ -19,10 +17,13 @@ from stylecapture_backend.features.render.application import RenderApplication, 
 from stylecapture_backend.features.render.domain import (
     RenderArtifactKind,
     RenderArtifactStatus,
-    RenderInputSignature,
     RenderPrivacy,
 )
 from stylecapture_backend.features.render.ports import RenderArtifactNotFound
+from stylecapture_backend.features.render.signatures import (
+    build_render_input_signature,
+    derived_render_request_key,
+)
 from stylecapture_backend.platform.errors import STABLE_ERROR_RESPONSES
 
 
@@ -49,6 +50,7 @@ class RenderArtifactResponse(BaseModel):
     kind: RenderArtifactKind
     status: RenderArtifactStatus
     presentation_label: str
+    subject_attached: bool
     personalized: bool
     output_image_url: str | None
     fallback_artifact_id: UUID | None
@@ -67,7 +69,14 @@ class RenderArtifactResponse(BaseModel):
             kind=view.kind,
             status=view.status,
             presentation_label=_presentation_label(view),
-            personalized=False,
+            subject_attached=(
+                view.kind is RenderArtifactKind.TRY_ON and view.subject_object_key is not None
+            ),
+            personalized=(
+                view.kind is RenderArtifactKind.TRY_ON
+                and view.status is RenderArtifactStatus.SUCCEEDED
+                and view.subject_used
+            ),
             output_image_url=(
                 f"/v1/render-artifacts/{view.id}/image" if view.object_key is not None else None
             ),
@@ -87,6 +96,7 @@ class RenderArtifactListResponse(BaseModel):
 
 class CreateRenderArtifactBody(BaseModel):
     kind: RenderArtifactKind
+    subject_object_key: str | None = None
 
 
 def build_render_router(
@@ -97,12 +107,25 @@ def build_render_router(
     router = APIRouter()
     principal = Depends(current_user)
 
-    async def owned_detail(user_id: UUID, look_id: UUID) -> tuple[LookDetail, Capture]:
+    async def owned_detail(
+        user_id: UUID,
+        look_id: UUID,
+    ) -> tuple[LookDetail, Capture | None]:
         detail = await services.looks.get_look(user_id=user_id, look_id=look_id)
+        if detail.look.capture_id is None:
+            return detail, None
         capture = await services.captures.get_capture(detail.look.capture_id)
         if capture is None or capture.user_id != user_id:
             raise LookNotFoundError("Look source not found")
         return detail, capture
+
+    def look_display_hash(detail: LookDetail, user_id: UUID) -> str | None:
+        if detail.look.display_object_key is None:
+            return None
+        stored = services.objects.describe(detail.look.display_object_key)
+        if stored.owner_id != user_id:
+            raise LookNotFoundError("Look display image not found")
+        return stored.sha256
 
     @router.get(
         "/v1/looks/{look_id}/renders",
@@ -134,7 +157,20 @@ def build_render_router(
         user_id: UUID = principal,
     ) -> RenderArtifactResponse:
         detail, capture = await owned_detail(user_id, look_id)
-        base_signature = _input_signature(detail, capture, RenderArtifactKind.COLLAGE)
+        subject_source_hash: str | None = None
+        if body.subject_object_key is not None:
+            if body.kind is not RenderArtifactKind.TRY_ON:
+                raise ValueError("only try-on renders accept a subject photo")
+            subject = services.objects.describe(body.subject_object_key)
+            if subject.owner_id != user_id:
+                raise LookNotFoundError("Try-on photo not found")
+            subject_source_hash = subject.sha256
+        base_signature = build_render_input_signature(
+            detail,
+            capture,
+            RenderArtifactKind.COLLAGE,
+            look_display_hash=look_display_hash(detail, user_id),
+        )
         source_artifact: RenderArtifactView | None = None
         if body.kind is not RenderArtifactKind.COLLAGE:
             source_artifact = await services.renders.create_or_get(
@@ -142,7 +178,7 @@ def build_render_router(
                 look_id=look_id,
                 kind=RenderArtifactKind.COLLAGE,
                 input_signature=base_signature,
-                request_key=_derived_request_key(
+                request_key=derived_render_request_key(
                     idempotency_key,
                     RenderArtifactKind.COLLAGE,
                 ),
@@ -152,11 +188,13 @@ def build_render_router(
             user_id=user_id,
             look_id=look_id,
             kind=body.kind,
-            input_signature=_input_signature(
+            input_signature=build_render_input_signature(
                 detail,
                 capture,
                 body.kind,
                 source_artifact=source_artifact,
+                subject_source_hash=subject_source_hash,
+                look_display_hash=look_display_hash(detail, user_id),
             ),
             request_key=idempotency_key,
             privacy=(
@@ -165,6 +203,7 @@ def build_render_router(
                 else RenderPrivacy.PRIVATE
             ),
             source_artifact_id=(source_artifact.id if source_artifact is not None else None),
+            subject_object_key=body.subject_object_key,
         )
         _dispatch_if_queued(services, view)
         return RenderArtifactResponse.from_view(view)
@@ -207,56 +246,36 @@ def build_render_router(
             },
         )
 
-    return router
-
-
-def _input_signature(
-    detail: LookDetail,
-    capture: Capture,
-    kind: RenderArtifactKind,
-    *,
-    source_artifact: RenderArtifactView | None = None,
-) -> RenderInputSignature:
-    payload = {
-        "capture_source_hash": capture.source.sha256,
-        "components": [
-            {
-                "component_key": component.component_key,
-                "display_order": component.display_order,
-                "item_id": str(component.item_id) if component.item_id is not None else None,
-                "role": component.role,
-                "status": component.status.value,
-            }
-            for component in detail.components
-        ],
-        "display_object_key": detail.look.display_object_key,
-        "look_id": str(detail.look.id),
-        "kind": kind.value,
-        "look_status": detail.look.status.value,
-        "look_updated_at": detail.look.updated_at.isoformat(),
-        "source_artifact": (
-            {
-                "id": str(source_artifact.id),
-                "input_hash": source_artifact.input_hash,
-                "content_hash": source_artifact.content_hash,
-            }
-            if source_artifact is not None
-            else None
-        ),
-    }
-    encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
-    return RenderInputSignature(
-        version="look-render-v1",
-        hash=sha256(encoded.encode("utf-8")).hexdigest(),
+    @router.delete(
+        "/v1/render-artifacts/{artifact_id}/subject",
+        status_code=status.HTTP_204_NO_CONTENT,
+        responses=STABLE_ERROR_RESPONSES,
     )
+    async def delete_render_subject(
+        artifact_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        view = await services.renders.get(user_id=user_id, artifact_id=artifact_id)
+        if view.kind is not RenderArtifactKind.TRY_ON or view.subject_object_key is None:
+            raise RenderArtifactNotFound("Try-on subject photo does not exist")
+        try:
+            stored = services.objects.describe(view.subject_object_key)
+        except (FileNotFoundError, KeyError):
+            await services.renders.forget_subject_photo(
+                user_id=user_id,
+                artifact_id=artifact_id,
+            )
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        if stored.owner_id != user_id:
+            raise RenderArtifactNotFound("Try-on subject photo does not exist")
+        services.objects.delete(view.subject_object_key)
+        await services.renders.forget_subject_photo(
+            user_id=user_id,
+            artifact_id=artifact_id,
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-
-def _derived_request_key(
-    request_key: str,
-    kind: RenderArtifactKind,
-) -> str:
-    digest = sha256(request_key.encode("utf-8")).hexdigest()
-    return f"auto-{kind.value}:{digest}"
+    return router
 
 
 def _dispatch_if_queued(
@@ -265,7 +284,7 @@ def _dispatch_if_queued(
 ) -> None:
     if (
         services.dispatcher is not None
-        and not view.cache_hit
+        and view.dispatch_required
         and view.status is RenderArtifactStatus.QUEUED
     ):
         services.dispatcher.enqueue_render(
@@ -281,7 +300,9 @@ def _presentation_label(view: RenderArtifactView) -> str:
         return (
             "试穿生成失败。展示真实拼贴"
             if view.status is RenderArtifactStatus.DEGRADED
-            else "固定模特效果图"
+            else "我的真人试穿"
+            if view.subject_object_key is not None or view.subject_used
+            else "固定模特预览"
         )
     return (
         "像素生成失败。展示真实拼贴"

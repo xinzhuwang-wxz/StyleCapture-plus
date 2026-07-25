@@ -31,6 +31,11 @@ class LookRecord(Base):
             "status IN ('processing','partial','ready','error')",
             name="look_status",
         ),
+        CheckConstraint(
+            "(source = 'ai_generated' AND capture_id IS NULL) OR "
+            "(source <> 'ai_generated' AND capture_id IS NOT NULL)",
+            name="look_source_capture_provenance",
+        ),
         Index("ix_looks_user_created", "user_id", "created_at"),
         Index("ix_looks_user_status", "user_id", "status"),
         UniqueConstraint(
@@ -38,13 +43,21 @@ class LookRecord(Base):
             "source_selection_key",
             name="uq_looks_capture_id_source_selection_key",
         ),
+        Index(
+            "uq_looks_composition_user_source_selection",
+            "user_id",
+            "source",
+            "source_selection_key",
+            unique=True,
+            postgresql_where=text("capture_id IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     user_id: Mapped[UUID] = mapped_column(nullable=False)
-    capture_id: Mapped[UUID] = mapped_column(
+    capture_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("captures.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     source_selection_key: Mapped[str] = mapped_column(String(64), nullable=False)
     source: Mapped[str] = mapped_column(String(24), nullable=False)

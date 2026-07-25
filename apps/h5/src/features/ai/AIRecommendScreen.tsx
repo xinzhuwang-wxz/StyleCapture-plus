@@ -4,13 +4,18 @@ import { useEffect, useState } from "react";
 import {
   ProductApiError,
   type OutfitPlan,
+  type OutfitPlanSet,
   wardrobeApi
 } from "../../api/client";
 import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
 
 interface AIRecommendScreenProps {
   onGoWardrobe: () => void;
+  onSavedLook: (lookId: string) => void;
+  onOpenLook: (lookId: string) => void;
   presetPrompt?: string | null;
+  anchorItemId?: string | null;
+  onClearAnchor?: () => void;
 }
 
 const SCENE_PRESETS = [
@@ -32,9 +37,17 @@ const ROLE_LABELS: Record<string, string> = {
 const OWNERSHIP_LABELS: Record<string, string> = {
   owned: "我有",
   inspiration: "已收藏",
-  cart: "待购买",
-  purchased: "已购买"
 };
+
+const SOURCE_LABELS: Record<string, string> = {
+  camera: "拍照录入",
+  upload: "相册录入",
+  feed: "Feed 收藏"
+};
+
+const WEATHER_OPTIONS = ["炎热高温", "温和", "寒冷低温"];
+const FORMALITY_OPTIONS = ["轻松休闲", "日常得体", "正式商务"];
+const COMFORT_OPTIONS = ["方便走路", "久坐舒适", "拍照优先"];
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError) {
@@ -46,7 +59,25 @@ function errorMessage(error: unknown): string {
   return "搭配请求暂时没有完成，请稍后再试。";
 }
 
-function PlanCard({ plan, index }: { plan: OutfitPlan; index: number }) {
+function PlanCard({
+  plan,
+  index,
+  saving,
+  saved,
+  replacingRole,
+  onSave,
+  onOpen,
+  onReplace
+}: {
+  plan: OutfitPlan;
+  index: number;
+  saving: boolean;
+  saved: boolean;
+  replacingRole: string | null;
+  onSave: () => void;
+  onOpen: () => void;
+  onReplace: (role: OutfitPlan["slots"][number]["role"]) => void;
+}) {
   return (
     <article
       aria-label={`搭配方案 ${index + 1}`}
@@ -75,7 +106,7 @@ function PlanCard({ plan, index }: { plan: OutfitPlan; index: number }) {
               fontSize: "0.68rem"
             }}
           >
-            LOOK {String(index + 1).padStart(2, "0")}
+            方案 {String(index + 1).padStart(2, "0")}
           </p>
           <h3 style={{ margin: "0.25rem 0 0", fontSize: "1rem" }}>{plan.title}</h3>
         </div>
@@ -152,7 +183,32 @@ function PlanCard({ plan, index }: { plan: OutfitPlan; index: number }) {
               {slot.ownership
                 ? OWNERSHIP_LABELS[slot.ownership] ?? slot.ownership
                 : "待补齐"}
+              {slot.source_kind ? (
+                <>
+                  <br />
+                  {SOURCE_LABELS[slot.source_kind] ?? "真实来源"}
+                </>
+              ) : null}
             </p>
+            {slot.item_id ? (
+              <button
+                type="button"
+                className="ai-slot-action"
+                disabled={replacingRole !== null}
+                onClick={() => onReplace(slot.role)}
+              >
+                {replacingRole === slot.role ? "替换中…" : "换一件"}
+              </button>
+            ) : slot.search_query ? (
+              <a
+                className="ai-slot-action"
+                href={`https://www.douyin.com/search/${encodeURIComponent(slot.search_query)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                去搜同款
+              </a>
+            ) : null}
           </div>
         ))}
       </div>
@@ -179,25 +235,93 @@ function PlanCard({ plan, index }: { plan: OutfitPlan; index: number }) {
           还差 {plan.missing_count} 件，已为你生成补齐方向
         </p>
       ) : null}
+      <PixelButton
+        variant={saved ? "ghost" : "primary"}
+        disabled={saving}
+        onClick={saved ? onOpen : onSave}
+      >
+        {saving
+          ? "正在保存…"
+          : saved
+            ? "已存入衣橱 · 查看"
+            : "保存这套"}
+      </PixelButton>
     </article>
   );
 }
 
 export function AIRecommendScreen({
   onGoWardrobe,
-  presetPrompt
+  onSavedLook,
+  onOpenLook,
+  presetPrompt,
+  anchorItemId,
+  onClearAnchor
 }: AIRecommendScreenProps) {
   const [input, setInput] = useState("");
+  const [weather, setWeather] = useState("");
+  const [formality, setFormality] = useState("");
+  const [comfort, setComfort] = useState("");
+  const [savedLooks, setSavedLooks] = useState<Record<string, string>>({});
+  const [progressiveResult, setProgressiveResult] =
+    useState<OutfitPlanSet | null>(null);
+  const [reasoningComplete, setReasoningComplete] = useState(false);
   const planning = useMutation({
     mutationFn: (scene: string) =>
-      wardrobeApi.planOutfits({
-        scene,
-        style: scene.includes("利落")
-          ? "简洁利落"
-          : scene.includes("松弛")
-            ? "松弛有层次"
-            : undefined
-      })
+      wardrobeApi.planOutfitsProgressively(
+        {
+          scene,
+          style: scene.includes("利落")
+            ? "简洁利落"
+            : scene.includes("松弛")
+              ? "松弛有层次"
+              : undefined,
+          weather: weather || undefined,
+          formality: formality || undefined,
+          comfort: comfort || undefined,
+          anchorItemId: anchorItemId ?? undefined
+        },
+        (result, complete) => {
+          setProgressiveResult(result);
+          setReasoningComplete(complete);
+        }
+      ),
+    onSuccess: (result) => {
+      setProgressiveResult(result);
+      setReasoningComplete(true);
+    }
+  });
+  const saving = useMutation({
+    mutationFn: ({ plan }: { plan: OutfitPlan }) =>
+      wardrobeApi.saveOutfitPlan(plan, `save-outfit:${plan.id}`),
+    onSuccess: (result, variables) => {
+      setSavedLooks((current) => ({
+        ...current,
+        [variables.plan.id]: result.look_id
+      }));
+      onSavedLook(result.look_id);
+    }
+  });
+  const replacing = useMutation({
+    mutationFn: ({
+      plan,
+      role
+    }: {
+      plan: OutfitPlan;
+      role: OutfitPlan["slots"][number]["role"];
+    }) => wardrobeApi.replaceOutfitSlot(plan, role),
+    onSuccess: (replacement, variables) => {
+      setProgressiveResult((current) => {
+        const source = current ?? planning.data;
+        if (!source) return current;
+        return {
+          ...source,
+          plans: source.plans.map((plan) =>
+            plan.id === variables.plan.id ? replacement : plan
+          )
+        };
+      });
+    }
   });
 
   useEffect(() => {
@@ -208,8 +332,12 @@ export function AIRecommendScreen({
     const trimmed = scene.trim();
     if (!trimmed || planning.isPending) return;
     setInput(trimmed);
+    setProgressiveResult(null);
+    setReasoningComplete(false);
     planning.mutate(trimmed);
   }
+
+  const displayedResult = progressiveResult ?? planning.data ?? null;
 
   return (
     <div
@@ -280,6 +408,42 @@ export function AIRecommendScreen({
         ))}
       </div>
 
+      <section className="ai-constraints" aria-label="搭配条件">
+        {(
+          [
+            ["天气", WEATHER_OPTIONS, weather, setWeather],
+            ["正式度", FORMALITY_OPTIONS, formality, setFormality],
+            ["舒适偏好", COMFORT_OPTIONS, comfort, setComfort]
+          ] as const
+        ).map(([label, options, selected, setSelected]) => (
+          <div key={label} className="ai-constraints__row">
+            <span>{label}</span>
+            <div>
+              {options.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={selected === option ? "is-selected" : ""}
+                  onClick={() => setSelected(selected === option ? "" : option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {anchorItemId ? (
+          <p className="ai-constraints__anchor">
+            已锁定从单品详情带来的目标衣服，每套方案都会使用它。
+            {onClearAnchor ? (
+              <button type="button" onClick={onClearAnchor}>
+                取消锁定
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+      </section>
+
       <div
         aria-live="polite"
         style={{
@@ -290,7 +454,7 @@ export function AIRecommendScreen({
           paddingBottom: "7rem"
         }}
       >
-        {!planning.data && !planning.isPending && !planning.isError ? (
+        {!displayedResult && !planning.isPending && !planning.isError ? (
           <div
             style={{
               padding: "2.5rem var(--px-3)",
@@ -307,7 +471,7 @@ export function AIRecommendScreen({
           </div>
         ) : null}
 
-        {planning.isPending ? (
+        {planning.isPending && !displayedResult ? (
           <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="status">
             ◇ 正在读取真实衣橱，并从拥有、收藏和待补齐三个层次组织方案…
           </div>
@@ -324,17 +488,47 @@ export function AIRecommendScreen({
           </div>
         ) : null}
 
-        {planning.data ? (
+        {displayedResult ? (
           <>
             <div className="pixel-chat-bubble pixel-chat-bubble--ai">
-              ◇ 已根据「{input}」从你的真实衣橱生成 {planning.data.plans.length} 套方案。
-              {planning.data.degraded
+              ◇ 已根据「{input}」先生成 {displayedResult.plans.length} 套可选方案。
+              {!reasoningComplete
+                ? "新方案会逐套出现，AI 正在继续理解和细化。"
+                : displayedResult.degraded
                 ? "当前由稳定搭配规则完成排序，AI 解释暂时降级。"
                 : "AI 已结合场景理解完成重排。"}
             </div>
-            {planning.data.plans.map((plan, index) => (
-              <PlanCard key={plan.id} plan={plan} index={index} />
+            {displayedResult.plans.map((plan, index) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                index={index}
+                saving={saving.isPending && saving.variables?.plan.id === plan.id}
+                saved={Boolean(savedLooks[plan.id])}
+                replacingRole={
+                  replacing.isPending && replacing.variables?.plan.id === plan.id
+                    ? replacing.variables.role
+                    : null
+                }
+                onSave={() =>
+                  saving.mutate({
+                    plan
+                  })
+                }
+                onOpen={() => onOpenLook(savedLooks[plan.id]!)}
+                onReplace={(role) => replacing.mutate({ plan, role })}
+              />
             ))}
+            {saving.isError ? (
+              <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="alert">
+                ◇ {errorMessage(saving.error)}
+              </div>
+            ) : null}
+            {replacing.isError ? (
+              <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="alert">
+                ◇ {errorMessage(replacing.error)}
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

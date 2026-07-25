@@ -20,7 +20,7 @@ const STATUS_LABELS: Record<Item["status"], string> = {
 };
 
 function ItemImage({ item }: { item: Item }) {
-  const imageUrl = useDisplayImage(item.id);
+  const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
   return imageUrl ? (
     <img
       src={imageUrl}
