@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scene Outfit Matching"
+  short_description: "Generate wardrobe-first outfit plans with honest gaps"
+  default_prompt: "Use $scene-outfit-matching to generate 3–4 wardrobe-first outfit plans for my scene, style, or target item."
