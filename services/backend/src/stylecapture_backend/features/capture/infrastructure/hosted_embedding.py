@@ -17,6 +17,7 @@ from stylecapture_backend.features.capture.processing import (
 )
 
 DOUBAO_MULTIMODAL_EMBEDDING_DIMENSION = 2048
+HOSTED_EMBEDDING_MODEL_ALIAS = "fashion_embedding"
 
 
 class JsonGateway(Protocol):
@@ -73,6 +74,7 @@ class LiteLLMMultimodalEmbedder:
         self,
         *,
         model: str,
+        model_version_alias: str | None = None,
         gateway_base_url: str,
         gateway_api_key: str,
         gateway: JsonGateway | None = None,
@@ -84,7 +86,14 @@ class LiteLLMMultimodalEmbedder:
             raise ValueError("embedding gateway base URL must not be empty")
         if not gateway_api_key.strip():
             raise ValueError("embedding gateway API key must not be empty")
+        if model_version_alias is not None and not model_version_alias.strip():
+            raise ValueError("embedding model version alias must not be empty")
         self._model = model
+        self._model_version_alias = (
+            model_version_alias.strip()
+            if model_version_alias is not None
+            else HOSTED_EMBEDDING_MODEL_ALIAS
+        )
         self._url = f"{gateway_base_url.rstrip('/')}/embeddings/multimodal"
         self._headers = {
             "Authorization": f"Bearer {gateway_api_key}",
@@ -125,7 +134,7 @@ class LiteLLMMultimodalEmbedder:
                 raise TypeError("embedding response model must be text")
             return EmbeddingResult(
                 vector=_l2_normalize(vector),
-                model_version=provider_model,
+                model_version=self._model_version_alias,
             )
         except (KeyError, TypeError, ValueError) as error:
             raise ProviderError(

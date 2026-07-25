@@ -11,6 +11,11 @@ from stylecapture_backend.features.capture.infrastructure.repository import (
     SqlAlchemyCaptureRepository,
 )
 from stylecapture_backend.features.capture.infrastructure.tasks import CeleryJobDispatcher
+from stylecapture_backend.features.look.application import LookApplication
+from stylecapture_backend.features.look.infrastructure.repository import (
+    SqlAlchemyLookRepository,
+)
+from stylecapture_backend.features.look.interfaces.http import LookHttpServices
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.infrastructure.repository import (
     SqlAlchemyWardrobeRepository,
@@ -28,6 +33,8 @@ def build_app() -> FastAPI:
     sessions = build_session_factory(database_url)
     repository = SqlAlchemyCaptureRepository(sessions)
     wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
+    look_repository = SqlAlchemyLookRepository(sessions)
+    looks = LookApplication(looks=look_repository)
     objects = LocalObjectStore(
         root=settings.upload_root,
         signing_secret=settings.upload_signing_secret.get_secret_value(),
@@ -49,6 +56,7 @@ def build_app() -> FastAPI:
                 captures=repository,
                 objects=objects,
                 dispatcher=dispatcher,
+                whole_outfits=looks,
             ),
             jobs=repository,
             objects=objects,
@@ -57,6 +65,13 @@ def build_app() -> FastAPI:
                 wardrobe=wardrobe_repository,
                 sources=objects,
                 jobs=repository,
+                retries=retries,
+            ),
+            looks=LookHttpServices(
+                looks=looks,
+                captures=repository,
+                jobs=repository,
+                objects=objects,
                 retries=retries,
             ),
         ),

@@ -1,276 +1,233 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent,
-  type PointerEvent
-} from "react";
+import { motion } from "motion/react";
+import { useMemo, useRef, useState } from "react";
 
 import {
+  completeEntrance,
   createCommunityScene,
-  moveAvatarTo,
-  returnAvatarBackstage,
-  selectReaction,
-  sendAvatarToRunway,
-  type CommunityReaction,
-  type CommunityResident,
-  type CommunityScene,
-  type PixelDollProfile
+  defaultCommunityAvatar,
+  enterMyLook,
+  reactToSelectedLook,
+  selectPartyLook,
+  selectedPartyLook,
+  toggleSavedLook,
+  type CommunityAvatarSource,
+  type PartyLook,
+  type PartyReaction
 } from "./communityScene";
+import "./community.css";
 
-const reactionLabels: Record<CommunityReaction, { label: string; symbol: string }> = {
-  heart: { label: "心动", symbol: "♥" },
-  sparkle: { label: "闪闪", symbol: "✦" },
-  music: { label: "音乐", symbol: "♫" },
-  wave: { label: "挥挥", symbol: "⌁" }
+export type { CommunityAvatarSource } from "./communityScene";
+export { defaultCommunityAvatar } from "./communityScene";
+
+const reactionLabels: Record<
+  PartyReaction,
+  { label: string; symbol: string }
+> = {
+  palette: { label: "配色好会", symbol: "◈" },
+  layering: { label: "层次感", symbol: "✦" },
+  remix: { label: "想抄作业", symbol: "♡" }
 };
 
-type SceneStyle = CSSProperties & Record<string, string>;
-
-export type CommunityAvatarSource = {
-  assetUrl: string;
-  label: string;
-  kind: "demo-fallback" | "public-render-artifact";
-};
-
-export const defaultCommunityAvatar: CommunityAvatarSource = {
-  assetUrl: "/assets/char-default.png",
-  label: "Demo 像素形象",
-  kind: "demo-fallback"
-};
+type ShareState = "idle" | "loading" | "ready" | "error";
 
 type CommunityScreenProps = {
   avatarSource?: CommunityAvatarSource;
+  onExit?: () => void;
+  onPublishLook?: (look: PartyLook) => void;
+  onSaveInspiration?: (look: PartyLook) => void;
+  onReaction?: (look: PartyLook, reaction: PartyReaction) => void;
+  onShare?: (look: PartyLook) => void;
 };
 
-function dollStyle(doll: PixelDollProfile): SceneStyle {
-  return {
-    "--doll-hair": doll.hair,
-    "--doll-skin": doll.skin,
-    "--doll-outfit": doll.outfit,
-    "--doll-trim": doll.trim,
-    "--doll-blush": doll.blush,
-    "--doll-shoes": doll.shoes
-  };
+function waitForImage(image: HTMLImageElement): Promise<void> {
+  if (image.complete) {
+    return image.naturalWidth > 0
+      ? Promise.resolve()
+      : Promise.reject(new Error("像素 Look 图片不可用"));
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("像素 Look 加载超时"));
+    }, 5_000);
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      image.removeEventListener("load", handleLoad);
+      image.removeEventListener("error", handleError);
+    };
+    const handleLoad = () => {
+      cleanup();
+      if (image.naturalWidth > 0) resolve();
+      else reject(new Error("像素 Look 图片不可用"));
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("像素 Look 加载失败"));
+    };
+    image.addEventListener("load", handleLoad, { once: true });
+    image.addEventListener("error", handleError, { once: true });
+  });
 }
 
-function PixelDoll({ doll, className = "" }: { doll: PixelDollProfile; className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`pixel-doll ${className}`.trim()}
-      data-accessory={doll.accessory}
-      data-dress={doll.dressShape}
-      data-hair={doll.hairStyle}
-      style={dollStyle(doll)}
-    >
-      <i className="pixel-doll__hair" />
-      <i className="pixel-doll__bangs" />
-      <i className="pixel-doll__face" />
-      <i className="pixel-doll__top" />
-      <i className="pixel-doll__skirt" />
-      <i className="pixel-doll__arms" />
-      <i className="pixel-doll__legs" />
-      <i className="pixel-doll__shoes" />
-      <i className="pixel-doll__accessory" />
-    </span>
+function drawContainedImage(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  box: { x: number; y: number; width: number; height: number }
+) {
+  const imageRatio = image.naturalWidth / image.naturalHeight;
+  const boxRatio = box.width / box.height;
+  const width = imageRatio > boxRatio ? box.width : box.height * imageRatio;
+  const height = imageRatio > boxRatio ? box.width / imageRatio : box.height;
+  context.drawImage(
+    image,
+    box.x + (box.width - width) / 2,
+    box.y + (box.height - height) / 2,
+    width,
+    height
   );
 }
 
-function drawPixelDoll(
-  context: CanvasRenderingContext2D,
-  doll: PixelDollProfile,
-  x: number,
-  y: number,
-  scale: number
-) {
-  const pixel = (left: number, top: number, width: number, height: number, color: string) => {
-    context.fillStyle = color;
-    context.fillRect(x + left * scale, y + top * scale, width * scale, height * scale);
-  };
-
-  pixel(3, 0, 7, 2, doll.hair);
-  pixel(2, 2, 9, 3, doll.hair);
-  pixel(1, 4, 3, 8, doll.hair);
-  pixel(9, 4, 3, 8, doll.hair);
-  if (doll.hairStyle === "curly") {
-    pixel(0, 8, 2, 2, doll.hair);
-    pixel(10, 9, 2, 2, doll.hair);
-    pixel(1, 12, 2, 2, doll.hair);
-  }
-  if (doll.hairStyle === "bob") {
-    pixel(2, 9, 8, 2, doll.hair);
-  }
-  if (doll.hairStyle === "twin") {
-    pixel(0, 6, 2, 5, doll.hair);
-    pixel(11, 6, 2, 5, doll.hair);
-  }
-  pixel(4, 3, 5, 5, doll.skin);
-  pixel(3, 4, 1, 2, doll.skin);
-  pixel(9, 4, 1, 2, doll.skin);
-  pixel(4, 3, 5, 1, doll.hair);
-  pixel(5, 5, 1, 1, "#2d2438");
-  pixel(8, 5, 1, 1, "#2d2438");
-  pixel(5, 7, 1, 1, doll.blush);
-  pixel(8, 7, 1, 1, doll.blush);
-  pixel(6, 8, 2, 1, "#d86084");
-  pixel(4, 9, 5, 4, doll.outfit);
-  pixel(5, 9, 1, 1, doll.trim);
-  pixel(7, 9, 1, 1, doll.trim);
-  pixel(2, 10, 2, 5, doll.skin);
-  pixel(9, 10, 2, 5, doll.skin);
-  pixel(2, 10, 1, 3, doll.outfit);
-  pixel(10, 10, 1, 3, doll.outfit);
-  if (doll.dressShape === "jacket") {
-    pixel(3, 13, 7, 3, doll.outfit);
-    pixel(6, 10, 1, 6, doll.trim);
-  } else if (doll.dressShape === "two-piece") {
-    pixel(3, 14, 7, 2, doll.outfit);
-    pixel(4, 13, 5, 1, doll.trim);
-  } else {
-    pixel(3, 13, 7, 2, doll.outfit);
-    pixel(2, 15, 9, 3, doll.outfit);
-    if (doll.dressShape === "pleated") {
-      pixel(4, 14, 1, 4, doll.trim);
-      pixel(7, 14, 1, 4, doll.trim);
-    }
-  }
-  pixel(4, 18, 1, 4, doll.skin);
-  pixel(8, 18, 1, 4, doll.skin);
-  pixel(3, 22, 2, 1, doll.shoes);
-  pixel(8, 22, 2, 1, doll.shoes);
-
-  if (doll.accessory === "beret") pixel(3, -1, 5, 1, doll.outfit);
-  if (doll.accessory === "handbag") pixel(10, 14, 2, 3, doll.trim);
-  if (doll.accessory === "necklace") pixel(6, 9, 2, 1, "#fbdb83");
-  if (doll.accessory === "ribbon" || doll.accessory === "bow") {
-    pixel(0, 0, 2, 1, doll.trim);
-    pixel(1, 1, 1, 1, doll.trim);
-  }
-}
-
-function drawShareCard(
+export function drawShareCard(
   canvas: HTMLCanvasElement,
-  scene: CommunityScene,
-  avatarSource: CommunityAvatarSource,
-  avatarImage: HTMLImageElement
+  image: HTMLImageElement,
+  look: PartyLook
 ) {
   const context = canvas.getContext("2d");
-  if (!context) return;
+  if (!context) throw new Error("浏览器不支持分享卡绘制");
+  if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+    throw new Error("像素 Look 还没有加载完成");
+  }
 
   canvas.width = 720;
   canvas.height = 960;
-  context.fillStyle = "#17112a";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#2c2054";
-  context.fillRect(64, 112, 592, 624);
-  context.fillStyle = "#9d68ff";
-  context.fillRect(224, 278, 272, 272);
-  context.fillStyle = "#ed68aa";
-  context.fillRect(240, 294, 112, 112);
-  context.fillStyle = "#86e6cf";
-  context.fillRect(368, 422, 112, 112);
-  const avatarX = 224 + ((scene.avatar.x - scene.bounds.minX) / (scene.bounds.maxX - scene.bounds.minX)) * 250;
-  const avatarY = 278 + ((scene.avatar.y - scene.bounds.minY) / (scene.bounds.maxY - scene.bounds.minY)) * 250;
-  if (avatarSource.kind === "public-render-artifact" && avatarImage.complete && avatarImage.naturalWidth) {
-    context.drawImage(avatarImage, avatarX, avatarY, 92, 92);
-  } else {
-    context.imageSmoothingEnabled = false;
-    drawPixelDoll(context, scene.avatar.doll, avatarX + 2, avatarY + 6, 5);
-  }
-  context.fillStyle = "#f8f2ff";
-  context.font = "700 34px sans-serif";
-  context.fillText("STYLECAPTURE", 64, 66);
-  context.font = "700 52px sans-serif";
-  context.fillText("今晚舞会", 64, 824);
-  context.font = "30px sans-serif";
-  context.fillText(scene.avatar.isDancing ? "我的搭配正在舞池发光" : "我的搭配来到像素舞会", 64, 874);
-  context.fillText(`${scene.runway.isShowing ? "正在走秀" : "等待上台"} · 喝彩 ${scene.runway.applause}`, 64, 918);
-  context.fillText(
-    `${scene.avatar.reaction ? reactionLabels[scene.avatar.reaction].symbol : "✦"} ${avatarSource.label} · #StyleCapture`,
-    64,
-    952
-  );
+  context.fillStyle = "#fff9fb";
+  context.fillRect(0, 0, 720, 960);
+  context.fillStyle = "#eadcff";
+  context.fillRect(28, 28, 664, 904);
+  context.fillStyle = "#fff8fb";
+  context.fillRect(42, 42, 636, 876);
+
+  context.fillStyle = "#cf8daf";
+  context.fillRect(42, 42, 12, 876);
+  context.fillStyle = "#76507e";
+  context.font = "800 26px sans-serif";
+  context.fillText("STYLECAPTURE", 76, 83);
+  context.fillStyle = "#a27ba9";
+  context.font = "700 20px sans-serif";
+  context.fillText("PIXEL STYLE PARTY", 76, 116);
+
+  context.fillStyle = "#f1e6f8";
+  context.fillRect(500, 58, 142, 48);
+  context.fillStyle = "#7d5a84";
+  context.font = "700 18px sans-serif";
+  context.fillText("THEME 01", 524, 89);
+
+  context.fillStyle = "#fffdfd";
+  context.fillRect(70, 145, 580, 566);
+  context.fillStyle = "#f1d5e4";
+  context.fillRect(70, 145, 580, 8);
+  context.fillRect(70, 703, 580, 8);
+  drawContainedImage(context, image, {
+    x: 86,
+    y: 161,
+    width: 548,
+    height: 526
+  });
+
+  context.fillStyle = "#fff";
+  context.fillRect(70, 735, 580, 151);
+  context.fillStyle = "#9a6aa8";
+  context.font = "800 18px sans-serif";
+  context.fillText("本期主题 · 花房晚宴", 94, 772);
+  context.textAlign = "left";
+  context.fillStyle = "#3d2946";
+  context.font = "800 42px sans-serif";
+  context.fillText(look.title, 94, 823);
+  context.fillStyle = "#7c687f";
+  context.font = "21px sans-serif";
+  context.fillText(look.tags.slice(0, 3).map((tag) => `#${tag}`).join("  "), 94, 858);
+  context.fillStyle = "#76507e";
+  context.font = "800 20px sans-serif";
+  context.fillText("带你的像素 Look 来参加 →", 76, 906);
 }
 
-export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: CommunityScreenProps) {
-  const [scene, setScene] = useState(createCommunityScene);
-  const [selectedResident, setSelectedResident] = useState<CommunityResident | null>(null);
-  const [message, setMessage] = useState("点击舞池，让你的搭配动起来");
-  const [shareState, setShareState] = useState<"idle" | "ready" | "error">("idle");
+export function CommunityScreen({
+  avatarSource = defaultCommunityAvatar,
+  onExit,
+  onPublishLook,
+  onSaveInspiration,
+  onReaction,
+  onShare
+}: CommunityScreenProps) {
+  const initialScene = useMemo(
+    () => createCommunityScene(avatarSource),
+    [avatarSource]
+  );
+  const [scene, setScene] = useState(initialScene);
+  const [message, setMessage] = useState(
+    "先逛精选 Look，再带自己的搭配登场"
+  );
+  const [shareState, setShareState] = useState<ShareState>("idle");
   const shareCanvas = useRef<HTMLCanvasElement>(null);
-  const avatarImage = useRef<HTMLImageElement>(null);
-  const closeResidentButton = useRef<HTMLButtonElement>(null);
-  const residentTrigger = useRef<HTMLButtonElement | null>(null);
+  const stageImage = useRef<HTMLImageElement>(null);
+  const selectedLook = selectedPartyLook(scene);
 
-  useEffect(() => {
-    if (shareCanvas.current && avatarImage.current) {
-      drawShareCard(shareCanvas.current, scene, avatarSource, avatarImage.current);
+  function chooseLook(lookId: string) {
+    setScene((current) => selectPartyLook(current, lookId));
+    setShareState("idle");
+    setMessage("已切换 Look，看看它为什么适合今晚");
+  }
+
+  function enterStage() {
+    setScene((current) => completeEntrance(enterMyLook(current)));
+    const ownLook = scene.looks.find((look) => look.id === scene.myLookId);
+    if (ownLook) onPublishLook?.(ownLook);
+    setShareState("idle");
+    setMessage("你的 Look 已站上主题舞台 · 仅本次体验");
+  }
+
+  function react(reaction: PartyReaction) {
+    setScene((current) => reactToSelectedLook(current, reaction));
+    onReaction?.(selectedLook, reaction);
+    setMessage(
+      `已记录：${reactionLabels[reaction].label} · 仅本次体验`
+    );
+  }
+
+  function saveInspiration() {
+    if (selectedLook.sourceKind === "my-look") {
+      const firstCurated = scene.looks.find(
+        (look) => look.sourceKind === "curated-seed"
+      );
+      if (firstCurated) chooseLook(firstCurated.id);
+      return;
     }
-  }, [avatarSource, scene]);
-
-  useEffect(() => {
-    if (selectedResident) closeResidentButton.current?.focus();
-  }, [selectedResident]);
-
-  function move(target: { x: number; y: number }) {
-    setScene((current) => {
-      const next = moveAvatarTo(current, target);
-      setMessage(next.avatar.isDancing ? "舞步已解锁，正在舞池发光" : "已走到新的位置");
-      return next;
-    });
+    const wasSaved = scene.savedLookIds.includes(selectedLook.id);
+    setScene((current) => toggleSavedLook(current, selectedLook.id));
+    if (!wasSaved) onSaveInspiration?.(selectedLook);
+    setMessage(
+      wasSaved
+        ? `已取消收藏：${selectedLook.title}`
+        : `已收藏：${selectedLook.title} · 仅本次体验`
+    );
   }
 
-  function moveBy(delta: { x: number; y: number }) {
-    move({ x: scene.avatar.x + delta.x, y: scene.avatar.y + delta.y });
-  }
-
-  function handleStagePointerUp(event: PointerEvent<HTMLDivElement>) {
-    if (event.target instanceof Element && event.target.closest("button")) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    move({
-      x: ((event.clientX - rect.left) / rect.width) * 100,
-      y: ((event.clientY - rect.top) / rect.height) * 100
-    });
-  }
-
-  function handleStageKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const moves = {
-      ArrowUp: { x: 0, y: -8 },
-      ArrowDown: { x: 0, y: 8 },
-      ArrowLeft: { x: -8, y: 0 },
-      ArrowRight: { x: 8, y: 0 }
-    } as const;
-    const delta = moves[event.key as keyof typeof moves];
-    if (!delta) return;
-    event.preventDefault();
-    moveBy(delta);
-  }
-
-  function react(reaction: CommunityReaction) {
-    setScene((current) => selectReaction(current, reaction));
-    setMessage(`发送了 ${reactionLabels[reaction].symbol}`);
-  }
-
-  function takeRunwayTurn() {
-    setScene((current) => {
-      const next = current.runway.isShowing ? returnAvatarBackstage(current) : sendAvatarToRunway(current);
-      setMessage(next.runway.isShowing ? "正在走秀" : "已回到后台");
-      return next;
-    });
-  }
-
-  function prepareShareCard() {
+  async function prepareShareCard() {
+    if (shareState === "loading") return;
+    setShareState("loading");
+    setMessage("正在准备分享卡…");
     try {
       const canvas = shareCanvas.current;
-      if (!canvas || !avatarImage.current) throw new Error("分享卡还没有准备好");
-      drawShareCard(canvas, scene, avatarSource, avatarImage.current);
+      const image = stageImage.current;
+      if (!canvas || !image) throw new Error("分享卡还没有准备好");
+      await waitForImage(image);
+      drawShareCard(canvas, image, selectedLook);
       const link = document.createElement("a");
       link.href = canvas.toDataURL("image/png");
-      link.download = "stylecapture-pixel-ballroom.png";
+      link.download = "stylecapture-style-party.png";
       link.click();
+      onShare?.(selectedLook);
       setShareState("ready");
       setMessage("分享卡已准备好");
     } catch {
@@ -279,201 +236,234 @@ export function CommunityScreen({ avatarSource = defaultCommunityAvatar }: Commu
     }
   }
 
-  function closeResident() {
-    setSelectedResident(null);
-    setTimeout(() => residentTrigger.current?.focus(), 0);
-  }
-
   return (
-    <div className="community-shell app-shell">
-      <header className="community-header">
+    <div className="party-shell">
+      <header className="party-topbar">
+        {onExit ? (
+          <button
+            className="party-back"
+            type="button"
+            aria-label="返回数字衣橱"
+            onClick={onExit}
+          >
+            ‹
+          </button>
+        ) : (
+          <span className="party-back party-back--placeholder" />
+        )}
         <div>
-          <p className="eyebrow">STYLECAPTURE · COMMUNITY</p>
-          <h1>今晚舞会</h1>
-          <p>带着你的像素搭配，去舞池里碰见灵感。</p>
+          <span>{scene.theme.eyebrow}</span>
+          <strong>Style Party</strong>
         </div>
-        <span
-          className="community-online"
-          aria-label={`当前有 ${scene.audience.length + scene.residents.length + 1} 个像素场景角色`}
-        >
-          {scene.audience.length + scene.residents.length + 1} 个像素角色
-        </span>
+        <span className="party-demo-badge">概念验证</span>
       </header>
 
-      <section className="community-card" aria-labelledby="community-scene-title">
-        <div className="community-card__heading">
-          <div>
-            <p className="section-kicker">PIXEL BALLROOM</p>
-            <h2 id="community-scene-title">紫光舞池</h2>
+      <main className="party-content">
+        <section className="party-intro" aria-labelledby="party-theme-title">
+          <div className="party-intro__copy">
+            <p className="party-kicker">本期主题</p>
+            <h1 id="party-theme-title">{scene.theme.title}</h1>
+            <p>{scene.theme.prompt}</p>
           </div>
-          <span>Demo 场景</span>
-        </div>
+          <div className="party-intro__promise">
+            <span aria-hidden="true">✦</span>
+            <p>{scene.theme.promise}</p>
+          </div>
+          <p className="party-truth-label">
+            主题陈列室 Demo · 非实时社区
+          </p>
+        </section>
 
-        <div
-          className="pixel-ballroom"
-          aria-label="像素舞池地图"
-          aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
-          onPointerUp={handleStagePointerUp}
-          onKeyDown={handleStageKeyDown}
-          role="region"
-          tabIndex={0}
-        >
-          <canvas aria-hidden="true" className="pixel-ballroom__backdrop" />
-          <div className="pixel-ballroom__lights" aria-hidden="true">
+        <section className="party-stage" aria-label="花房主题舞台">
+          <div className="party-stage__curtain party-stage__curtain--left" />
+          <div className="party-stage__curtain party-stage__curtain--right" />
+          <div className="party-stage__window" aria-hidden="true">
             <i />
             <i />
             <i />
           </div>
-          <div className="pixel-ballroom__floor" aria-hidden="true" />
-          <div className="runway-audience" aria-label="像素观众" role="region">
-            {scene.audience.map((doll, index) => (
-              <PixelDoll key={`audience-${index}`} className="pixel-doll--audience" doll={doll} />
-            ))}
+          <div className="party-stage__lights" aria-hidden="true">
+            <i />
+            <i />
+            <i />
           </div>
-          <div className="runway-lookboard" aria-label="走秀看板" role="region">
-            <span>{scene.runway.isShowing ? "正在走秀" : "等待上台"}</span>
-            <strong>{scene.runway.isShowing ? avatarSource.label : "今晚空位"}</strong>
-            <small>喝彩 {scene.runway.applause}</small>
+          <div className="party-stage__flowers" aria-hidden="true">
+            <i>✿</i>
+            <i>❀</i>
+            <i>✿</i>
+            <i>❀</i>
           </div>
-          {scene.residents.map((resident) => (
-            <button
-              key={resident.id}
-              aria-label={`查看${resident.name}的公开穿搭`}
-              className="scene-resident"
-              style={{
-                "--resident-x": `${resident.position.x}%`,
-                "--resident-y": `${resident.position.y}%`,
-                "--resident-accent": resident.accent
-              } as SceneStyle}
-              type="button"
-              onClick={(event) => {
-                residentTrigger.current = event.currentTarget;
-                setSelectedResident(resident);
-              }}
-            >
-              <PixelDoll doll={resident.doll} />
-              <small>{resident.name}</small>
-            </button>
-          ))}
-          <div
-            aria-label={scene.avatar.isDancing ? "我的形象正在跳舞" : "我的像素形象"}
-            className={`scene-avatar ${scene.avatar.isDancing ? "is-dancing" : ""}`}
-            style={{ "--avatar-x": `${scene.avatar.x}%`, "--avatar-y": `${scene.avatar.y}%` } as SceneStyle}
+
+          <motion.div
+            key={selectedLook.id}
+            className={`party-stage__look ${
+              selectedLook.sourceKind === "my-look" ? "is-my-look" : ""
+            } ${selectedLook.presentation === "avatar" ? "is-avatar-art" : ""}`}
+            initial={{ opacity: 0, x: 42, scale: 0.94 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ duration: 0.38, ease: "easeOut" }}
           >
-            {scene.avatar.reaction ? (
-              <span className="scene-avatar__reaction" aria-hidden="true">
-                {reactionLabels[scene.avatar.reaction].symbol}
+            <span className="party-stage__source">
+              {selectedLook.sourceLabel}
+            </span>
+            <div className="party-stage__portrait">
+              <img
+                ref={stageImage}
+                src={selectedLook.assetUrl}
+                alt={selectedLook.alt}
+              />
+              {scene.selectedReaction ? (
+                <motion.span
+                  className="party-stage__reaction"
+                  initial={{ opacity: 0, y: 12, scale: 0.6 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  aria-hidden="true"
+                >
+                  {reactionLabels[scene.selectedReaction].symbol}
+                </motion.span>
+              ) : null}
+            </div>
+            <div className="party-stage__caption">
+              <span>
+                {selectedLook.sourceKind === "my-look"
+                  ? "MY LOOK"
+                  : "CURATED LOOK"}
               </span>
-            ) : null}
-            <PixelDoll doll={scene.avatar.doll} className="pixel-doll--me" />
-            <small>我</small>
-          </div>
-        </div>
+              <h2>{selectedLook.title}</h2>
+              <div>
+                {selectedLook.tags.map((tag) => (
+                  <small key={tag}>#{tag}</small>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+          <div className="party-stage__floor" aria-hidden="true" />
+        </section>
 
-        <p className="community-avatar-source">
-          {avatarSource.label}
-          {avatarSource.kind === "demo-fallback" ? " · Look 封面接入后会自动替换" : " · 公开 Look 封面"}
-        </p>
-
-        <p className="community-hint" role="status">
+        <p className="party-status" role="status">
           {message}
         </p>
 
-        <div className="community-runway-controls">
-          <button type="button" onClick={takeRunwayTurn}>
-            {scene.runway.isShowing ? "回到后台" : "轮到我上台"}
-          </button>
-          <span>当前喝彩 {scene.runway.applause}</span>
-        </div>
-
-        <div className="community-controls" aria-label="移动我的形象">
-          <button aria-label="向上移动" type="button" onClick={() => moveBy({ x: 0, y: -8 })}>
-            ↑
-          </button>
-          <button aria-label="向左移动" type="button" onClick={() => moveBy({ x: -8, y: 0 })}>
-            ←
-          </button>
-          <button aria-label="向下移动" type="button" onClick={() => moveBy({ x: 0, y: 8 })}>
-            ↓
-          </button>
-          <button aria-label="向右移动" type="button" onClick={() => moveBy({ x: 8, y: 0 })}>
-            →
-          </button>
-        </div>
-      </section>
-
-      <section className="community-actions" aria-label="舞会互动">
-        <div>
-          <p className="section-kicker">做个反应</p>
-          <h2>让搭配说话</h2>
-        </div>
-        <div className="reaction-list">
-          {scene.reactions.map((reaction) => (
-            <button key={reaction} type="button" onClick={() => react(reaction)}>
-              <span aria-hidden="true">{reactionLabels[reaction].symbol}</span>
-              {reactionLabels[reaction].label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="community-share" aria-label="分享像素搭配">
-        <div>
-          <p className="section-kicker">SHARE CARD</p>
-          <h2>带走今晚的像素瞬间</h2>
-          <p>只包含你的像素形象和公开搭配氛围，不会带出原始参考图。</p>
-        </div>
-        <button type="button" onClick={prepareShareCard}>
-          {shareState === "error" ? "重试生成分享卡" : "生成分享卡"}
-        </button>
-        <img ref={avatarImage} src={avatarSource.assetUrl} alt="" className="community-share__avatar-source" />
-        <canvas ref={shareCanvas} aria-hidden="true" className="community-share__canvas" />
-      </section>
-
-      {selectedResident ? (
-        <div
-          className="community-dialog-backdrop"
-          role="presentation"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) closeResident();
-          }}
-        >
-          <section
-            aria-describedby="community-resident-description"
-            aria-labelledby="community-resident-title"
-            aria-modal="true"
-            className="community-dialog"
-            role="dialog"
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                closeResident();
-              }
-              if (event.key === "Tab") {
-                event.preventDefault();
-                closeResidentButton.current?.focus();
-              }
-            }}
+        <div className="party-primary-actions">
+          <button
+            className="party-primary"
+            type="button"
+            aria-label="带我的 Look 登场"
+            onClick={enterStage}
           >
-            <button
-              ref={closeResidentButton}
-              aria-label={`关闭${selectedResident.name}的公开穿搭`}
-              className="community-dialog__close"
-              type="button"
-              onClick={closeResident}
-            >
-              ×
-            </button>
-            <p className="section-kicker">{selectedResident.label}</p>
-            <h2 id="community-resident-title">{selectedResident.name}的公开穿搭</h2>
-            <p id="community-resident-description">这是舞会场景中的非真人灵感角色，仅展示公开搭配标签。</p>
-            <div className="resident-tags">
-              {selectedResident.publicTags.map((tag) => (
-                <span key={tag}>#{tag}</span>
-              ))}
-            </div>
-          </section>
+            <span aria-hidden="true">✦</span>
+            <span>
+              <small>投稿到本期主题</small>
+              带我的 Look 登场
+            </span>
+          </button>
+          <button
+            className="party-secondary"
+            type="button"
+            aria-pressed={
+              selectedLook.sourceKind === "curated-seed"
+                ? scene.savedLookIds.includes(selectedLook.id)
+                : undefined
+            }
+            onClick={saveInspiration}
+          >
+            {selectedLook.sourceKind === "my-look"
+              ? "继续浏览精选 Look"
+              : scene.savedLookIds.includes(selectedLook.id)
+                ? "已收藏这个搭配灵感"
+                : "收藏这个搭配灵感"}
+          </button>
         </div>
-      ) : null}
+
+        <section className="party-reactions" aria-labelledby="party-reaction-title">
+          <div>
+            <p className="party-kicker">STYLE REACTION</p>
+            <h2 id="party-reaction-title">喜欢它哪里？</h2>
+          </div>
+          <div className="party-reactions__list">
+            {scene.reactions.map((reaction) => (
+              <button
+                key={reaction}
+                type="button"
+                aria-pressed={scene.selectedReaction === reaction}
+                onClick={() => react(reaction)}
+              >
+                <span aria-hidden="true">{reactionLabels[reaction].symbol}</span>
+                {reactionLabels[reaction].label}
+              </button>
+            ))}
+          </div>
+          <small>此 Demo 仅记录本次体验，不展示虚构点赞数。</small>
+        </section>
+
+        <section className="party-lookbook" aria-labelledby="party-lookbook-title">
+          <div className="party-section-heading">
+            <div>
+              <p className="party-kicker">LOOKBOOK</p>
+              <h2 id="party-lookbook-title">今晚的灵感角色</h2>
+            </div>
+            <span>滑动浏览</span>
+          </div>
+          <div className="party-lookbook__rail">
+            {scene.looks
+              .filter((look) => look.sourceKind === "curated-seed")
+              .map((look) => (
+                <button
+                  key={look.id}
+                  type="button"
+                  aria-label={`查看${look.title}`}
+                  aria-pressed={look.id === selectedLook.id}
+                  onClick={() => chooseLook(look.id)}
+                >
+                  <img src={look.assetUrl} alt="" />
+                  <span>{look.sourceLabel}</span>
+                  <strong>{look.title}</strong>
+                  <small>{look.tags.slice(0, 2).join(" · ")}</small>
+                </button>
+              ))}
+          </div>
+        </section>
+
+        <section className="party-look-note" aria-label="当前 Look 搭配解读">
+          <div>
+            <p className="party-kicker">WHY IT WORKS</p>
+            <h2>{selectedLook.title}</h2>
+            <p>{selectedLook.description}</p>
+          </div>
+          <ol>
+            {selectedLook.outfitFormula.map((item, index) => (
+              <li key={item}>
+                <span>0{index + 1}</span>
+                {item}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="party-share" aria-labelledby="party-share-title">
+          <div className="party-share__icon" aria-hidden="true">
+            ♡
+          </div>
+          <div>
+            <p className="party-kicker">SHARE-SAFE</p>
+            <h2 id="party-share-title">带走这张像素邀请函</h2>
+            <p>分享卡只使用当前可见像素图和公开风格标签，不包含原始穿搭照片。</p>
+          </div>
+          <button
+            type="button"
+            disabled={shareState === "loading"}
+            onClick={() => void prepareShareCard()}
+          >
+            {shareState === "loading"
+              ? "正在准备分享卡…"
+              : shareState === "error"
+                ? "重试生成分享卡"
+                : "生成像素分享卡"}
+          </button>
+          <canvas ref={shareCanvas} aria-hidden="true" />
+        </section>
+      </main>
+
     </div>
   );
 }

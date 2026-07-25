@@ -22,9 +22,9 @@
 | 项目 | 固定版本 | 许可证 | 采用级别 | 负责能力 |
 |---|---:|---|---|---|
 | [`wardrowbe`](https://github.com/Anyesh/wardrowbe) | `c63ced9` | MIT | 适配复用 | 衣物/套装数据模型、异步打标任务、AI provider 边界、迁移与测试模式 |
-| [`MobileSAM`](https://github.com/ChaoningZhang/MobileSAM) | `f706ad9` | Apache-2.0 | 默认轻量适配 | 单帧 promptable segmentation、ONNX 导出和 CPU 精修；粗圈选始终兜底 |
-| [`sam2`](https://github.com/facebookresearch/sam2) | `2b90b9f` | Apache-2.0 | 可选质量层 | SAM2.1 tiny/small 的托管或 `ai-heavy` 适配；不进入默认 core |
-| [`Grounded-SAM-2`](https://github.com/IDEA-Research/Grounded-SAM-2) | `b7a9c29` | Apache-2.0 | 组合范式/可选质量层 | 只复用 Grounding + promptable segmentation 的集成方式；默认由豆包视觉 Grounding + MobileSAM 完成，不复制其内置模型仓 |
+| [`MobileSAM`](https://github.com/ChaoningZhang/MobileSAM) | `f706ad9` | Apache-2.0 | 备选轻量适配 | 如果目标主机实测无法容纳 SAM2 Tiny 的约 1.25 GiB 进程峰值，再评测其 ONNX/CPU 精修质量；粗圈选始终兜底 |
+| [`sam2`](https://github.com/facebookresearch/sam2) | `2b90b9f` | Apache-2.0 | 默认 `ai-light` 精修 | SAM2.1 Hiera Tiny 已在真实 Feed 帧以两线程 CPU 跑通，0.974 mask，0.609 秒 warm inference；只进入独立媒体 Worker，不进入 API |
+| [`Grounded-SAM-2`](https://github.com/IDEA-Research/Grounded-SAM-2) | `b7a9c29` | Apache-2.0 | 组合范式/可选质量层 | 只复用 Grounding + promptable segmentation 的集成方式；默认由豆包视觉 Grounding + SAM2 Tiny 完成，不复制其内置模型仓 |
 | [`product-taxonomy`](https://github.com/Shopify/product-taxonomy) | `574be7a` | MIT | 数据复用 | 服装品类、属性和值的基础词表；本地为服饰与中文本地化的稀疏检出 |
 | [`marqo-FashionCLIP`](https://github.com/marqo-ai/marqo-FashionCLIP) | `d0b3bdf` | Apache-2.0 | 可选评测/批处理 | 与豆包多模态 Embedding 做固定集质量比较；不作为默认常驻模型 |
 | [`FastFit`](https://github.com/Zheng-Chong/FastFit) | `9c96fc0` | Non-Commercial | Demo 可选 `ai-heavy` | 托管试穿质量门槛不通过时才启用的多参考整套试穿 |

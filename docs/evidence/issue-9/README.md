@@ -1,49 +1,49 @@
-# Issue #9 — Pixel Dance Community Evidence
+# Issue #9 — Pixel Style Party evidence
 
-Viewport: 390 × 844 mobile browser.
-Journey: open the H5 Community tab, tap the central dance floor, send `闪闪`, inspect
-the explicitly non-human resident `紫丁香`, enter the runway with `轮到我上台`, create
-a PNG share card, and simulate a browser Canvas export failure to verify retry recovery.
+Viewport: 390 × 844 mobile Chromium.
 
-| Evidence | State |
+The journey starts from the secondary experiment entry in Digital Wardrobe, then
+browses a theme Look, collects it, publishes the user's pixel Look, leaves a
+style-specific reaction, generates a PNG share card, and verifies export recovery.
+
+| Evidence | Observable state |
 | --- | --- |
-| `01-community-initial.png` | Community tab and initial ballroom scene, with ten full fashion-pixel characters |
-| `02-community-dancing.png` | A tap on the dance floor moves the avatar and starts the dance loop |
-| `03-community-resident.png` | Resident drawer only exposes `场景居民` and public style tags |
-| `04-community-share-ready.png` | Share-card download succeeds |
-| `05-community-share-failure.png` | Browser export failure shows a retryable action |
-| `06-community-share-recovered.png` | Retrying after the simulated export failure succeeds |
-| `07-community-share-card.png` | Downloaded card includes the current fashion-pixel avatar, dance state, runway state, and reaction |
-| `08-community-runway.png` | Runway state after `轮到我上台`, with the status live region showing `正在走秀` |
+| `01-style-party-theme.png` | `花房晚宴` theme, value proposition, truthful demo label, and complete pixel Look |
+| `02-browse-pixel-looks.png` | Another curated pixel Look selected on the same stage |
+| `03-collect-inspiration.png` | Selected Look collected locally with explicit feedback |
+| `04-publish-my-look.png` | The user's actual supplied pixel avatar source on stage |
+| `05-style-reaction.png` | `层次感` response selected without fabricated counts |
+| `06-share-ready.png` | Download completion feedback |
+| `07-style-party-share-card.png` | Downloaded card drawn from the currently visible pixel Look |
+| `08-share-retry.png` | Browser export failure with a visible retry action |
 
-Fresh browser evidence: `STYLECAPTURE_E2E_BASE_URL=http://127.0.0.1:5175 pnpm exec
-playwright test e2e/community-ballroom.spec.ts` produced 2 passing tests.
+The seed Looks come from the user-provided project asset pack and are labelled
+`精选示例 · 非真人`. This validation does not claim a live community, real users,
+persistent likes, or persistent collections.
 
-Fresh H5 verification: `pnpm --filter @stylecapture/h5 test && pnpm --filter
-@stylecapture/h5 typecheck && pnpm --filter @stylecapture/h5 build` produced 9
-passing Vitest files / 37 tests, a clean TypeScript check, and a successful production
-Vite build.
+Fresh verification:
 
-RenderArtifact handoff boundary: this evidence still uses the labelled `Demo 像素形象`
-avatar source. The Community UI accepts a future public Look RenderArtifact once Issue
-#3/#5 provides it, but this Issue #9 journey does not expose original reference images
-or private Item media in the browser, screenshots, or downloaded card.
+- `pnpm --filter @stylecapture/h5 test`: 10 files / 42 tests passed.
+- `pnpm --filter @stylecapture/h5 typecheck`: passed.
+- `pnpm --filter @stylecapture/h5 build`: production Vite build passed.
+- `STYLECAPTURE_E2E_BASE_URL=http://127.0.0.1:5175 pnpm exec playwright test
+  e2e/community-ballroom.spec.ts`: 2 mobile journeys passed.
 
-Visual verdict:
+Visual verdict against the supplied fashion-pixel reference:
 
 ```json
 {
-  "score": 91,
+  "score": 94,
   "verdict": "pass",
   "category_match": true,
   "differences": [
-    "The reference is a light product poster while this surface intentionally remains an interactive dark runway.",
-    "The scene characters are purpose-built CSS pixel dolls instead of the reference's more detailed illustrated sprites."
+    "The reference is a compact four-card community grid while the demo intentionally gives one selected Look a full theme-stage hero",
+    "The demo removes reference-like heart counts because no live community data exists"
   ],
   "suggestions": [
-    "Keep the distinct hair, outfit, shoes, and accessory treatment when expanding the resident catalog.",
-    "Use public Look RenderArtifacts for the next fidelity step rather than exposing original reference images."
+    "Keep the complete fashion-paper-doll silhouette and pastel card treatment when live UGC replaces the curated seeds",
+    "Connect publish, collect, reaction, and share callbacks to real community services before showing persistent counts"
   ],
-  "reasoning": "The mobile scene reads as a fashion-pixel runway rather than a generic block-person map: every visible role has a distinct paper-doll silhouette and palette, while movement, runway state, public-only resident information, share feedback, and the downloaded card remain legible."
+  "reasoning": "The redesign now reads as the same fashion-pixel product category, with materially stronger scene identity and a coherent UGC-to-share journey. The remaining differences are intentional product-truthfulness and hierarchy decisions rather than visual defects."
 }
 ```

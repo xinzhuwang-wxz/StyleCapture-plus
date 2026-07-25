@@ -42,6 +42,21 @@ class StoredObject:
 class CaptureSubmission:
     capture: Capture
     job: ProcessingJob
+    look_id: UUID | None = None
+
+
+class LookIdentity(Protocol):
+    @property
+    def id(self) -> UUID: ...
+
+
+class WholeOutfitRegistrar(Protocol):
+    async def ensure_saved_look(
+        self,
+        capture: Capture,
+        *,
+        idempotency_key: str,
+    ) -> LookIdentity: ...
 
 
 class JobDispatchError(RuntimeError):

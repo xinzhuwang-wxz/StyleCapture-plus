@@ -1,85 +1,64 @@
 import {
+  completeEntrance,
   createCommunityScene,
-  moveAvatarTo,
-  returnAvatarBackstage,
-  sendAvatarToRunway,
-  selectReaction
+  enterMyLook,
+  reactToSelectedLook,
+  selectPartyLook,
+  toggleSavedLook
 } from "../src/features/community/communityScene";
 
-describe("pixel dance community scene", () => {
-  it("keeps the avatar inside the ballroom and starts dancing on the dance floor", () => {
-    const scene = createCommunityScene();
+describe("theme party scene", () => {
+  it("starts as a truthful curated showcase with the user's real pixel asset available", () => {
+    const scene = createCommunityScene({
+      assetUrl: "/assets/my-pixel-look.png",
+      label: "我的公开像素 Look",
+      kind: "public-render-artifact"
+    });
 
-    const dancing = moveAvatarTo(scene, { x: 52, y: 42 });
-    const bounded = moveAvatarTo(dancing, { x: 160, y: -20 });
-
-    expect(dancing.avatar).toMatchObject({ x: 52, y: 42, isDancing: true });
-    expect(bounded.avatar).toMatchObject({
-      x: scene.bounds.maxX,
-      y: scene.bounds.minY,
-      isDancing: false
+    expect(scene.theme).toMatchObject({
+      title: "花房晚宴",
+      promise: "让每套像素搭配被看见、被收藏、被分享"
+    });
+    expect(scene.looks[0]).toMatchObject({
+      sourceKind: "curated-seed",
+      sourceLabel: "精选示例 · 非真人"
+    });
+    expect(scene.looks.find((look) => look.id === scene.myLookId)).toMatchObject({
+      assetUrl: "/assets/my-pixel-look.png",
+      sourceKind: "my-look"
     });
   });
 
-  it("shows one of the four approved reactions on the current avatar", () => {
+  it("lets the user browse inspiration, then brings their own Look to the spotlight", () => {
     const scene = createCommunityScene();
+    const selected = selectPartyLook(scene, "curated-mint");
+    const entering = enterMyLook(selected);
+    const spotlight = completeEntrance(entering);
 
-    const reacted = selectReaction(scene, "sparkle");
-
-    expect(reacted.avatar.reaction).toBe("sparkle");
-    expect(reacted.reactions).toHaveLength(4);
-    expect(reacted.residents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ label: "场景居民", publicTags: expect.any(Array) })
-      ])
-    );
+    expect(selected.selectedLookId).toBe("curated-mint");
+    expect(entering).toMatchObject({
+      selectedLookId: scene.myLookId,
+      stage: "entrance",
+      selectedReaction: null
+    });
+    expect(spotlight.stage).toBe("spotlight");
   });
 
-  it("gives every visible character a complete fashion pixel profile", () => {
-    const scene = createCommunityScene();
+  it("records only meaningful style reactions in the local demo state", () => {
+    const scene = selectPartyLook(createCommunityScene(), "curated-sweet");
+    const reacted = reactToSelectedLook(scene, "layering");
 
-    expect(scene.avatar.doll).toMatchObject({
-      hair: expect.any(String),
-      outfit: expect.any(String),
-      shoes: expect.any(String),
-      accessory: expect.any(String)
-    });
-    expect(scene.residents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          doll: expect.objectContaining({
-            hair: expect.any(String),
-            outfit: expect.any(String),
-            shoes: expect.any(String),
-            accessory: expect.any(String)
-          })
-        })
-      ])
-    );
-    expect(scene.audience).toHaveLength(6);
-    expect(scene.audience).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          hair: expect.any(String),
-          outfit: expect.any(String),
-          shoes: expect.any(String),
-          accessory: expect.any(String)
-        })
-      ])
-    );
+    expect(reacted.selectedReaction).toBe("layering");
+    expect(reacted.reactions).toEqual(["palette", "layering", "remix"]);
   });
 
-  it("sends the avatar to the runway and returns backstage", () => {
+  it("collects curated pixel Looks without pretending to persist community data", () => {
     const scene = createCommunityScene();
+    const saved = toggleSavedLook(scene, "curated-mint");
+    const removed = toggleSavedLook(saved, "curated-mint");
 
-    const runwayScene = sendAvatarToRunway(scene);
-    const backstageScene = returnAvatarBackstage(runwayScene);
-
-    expect(runwayScene.runway).toMatchObject({
-      featuredAvatar: "me",
-      applause: 12,
-      isShowing: true
-    });
-    expect(backstageScene.runway.isShowing).toBe(false);
+    expect(saved.savedLookIds).toEqual(["curated-mint"]);
+    expect(removed.savedLookIds).toEqual([]);
+    expect(toggleSavedLook(scene, scene.myLookId)).toBe(scene);
   });
 });

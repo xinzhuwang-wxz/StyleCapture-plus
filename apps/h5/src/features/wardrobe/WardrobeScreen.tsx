@@ -1,29 +1,50 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import type { Item } from "../../api/client";
+import type { Item, Look } from "../../api/client";
 import { PendingItemCard, type PendingItem, WardrobeItemCard } from "./ItemCard";
+import { LookCard } from "./LookCard";
 
 type Filter = "all" | "owned" | "inspiration";
+type WardrobeView = "looks" | "items";
 
 export function WardrobeScreen({
+  looks,
   items,
   pending,
-  loading,
+  itemsLoading,
+  looksLoading,
   onOpen,
-  onRetry
+  onOpenLook,
+  onRetry,
+  onOpenParty
 }: {
+  looks: Look[];
   items: Item[];
   pending: PendingItem[];
-  loading: boolean;
+  itemsLoading: boolean;
+  looksLoading: boolean;
   onOpen: (item: Item) => void;
+  onOpenLook: (look: Look) => void;
   onRetry: (item: Item) => void;
+  onOpenParty: () => void;
 }) {
+  const [view, setView] = useState<WardrobeView>("looks");
   const [filter, setFilter] = useState<Filter>("all");
+  useEffect(() => {
+    if (view === "looks" && looks.length === 0 && items.length + pending.length > 0) {
+      setView("items");
+    }
+  }, [items.length, looks.length, pending.length, view]);
   const visible = useMemo(
     () => (filter === "all" ? items : items.filter((item) => item.ownership === filter)),
     [filter, items]
   );
-  const empty = !loading && visible.length === 0 && pending.length === 0;
+  const loading = view === "looks" ? looksLoading : itemsLoading;
+  const empty =
+    !loading &&
+    (view === "looks"
+      ? looks.length === 0
+      : visible.length === 0 && pending.length === 0);
 
   return (
     <section className="wardrobe-section" aria-labelledby="wardrobe-title">
@@ -32,10 +53,47 @@ export function WardrobeScreen({
           <p className="section-kicker">数字资产</p>
           <h2 id="wardrobe-title">我的收藏</h2>
         </div>
-        <span className="item-count">{items.length + pending.length} 件</span>
+        <span className="item-count">
+          {view === "looks" ? `${looks.length} 套` : `${items.length + pending.length} 件`}
+        </span>
       </div>
 
-      <div className="filter-tabs" aria-label="筛选衣橱">
+      <button
+        className="wardrobe-party-entry"
+        type="button"
+        aria-label="体验主题派对"
+        onClick={onOpenParty}
+      >
+        <span className="wardrobe-party-entry__art" aria-hidden="true">
+          <img src="/assets/char-default.png" alt="" />
+          <i>✦</i>
+        </span>
+        <span>
+          <small>独立概念验证 · STYLE PARTY</small>
+          <strong>带一套 Look 去花房晚宴</strong>
+          <em>逛主题灵感、登场、生成分享卡</em>
+        </span>
+        <b aria-hidden="true">›</b>
+      </button>
+
+      <div className="wardrobe-view-tabs" aria-label="选择衣橱视图">
+        <button
+          type="button"
+          className={view === "looks" ? "is-selected" : ""}
+          onClick={() => setView("looks")}
+        >
+          穿搭
+        </button>
+        <button
+          type="button"
+          className={view === "items" ? "is-selected" : ""}
+          onClick={() => setView("items")}
+        >
+          单品
+        </button>
+      </div>
+
+      {view === "items" ? <div className="filter-tabs" aria-label="筛选衣橱">
         {(
           [
             ["all", "全部"],
@@ -52,7 +110,7 @@ export function WardrobeScreen({
             {label}
           </button>
         ))}
-      </div>
+      </div> : null}
 
       {loading ? (
         <div className="wardrobe-loading" aria-label="正在加载衣橱">
@@ -66,22 +124,32 @@ export function WardrobeScreen({
           <div className="empty-avatar">
             <img src="/assets/char-default.png" alt="" />
           </div>
-          <h3>衣橱正在等第一件单品</h3>
-          <p>从相册选一张，或直接拍下衣柜里的衣服。</p>
+          <h3>{view === "looks" ? "收藏一套喜欢的穿搭" : "衣橱正在等第一件单品"}</h3>
+          <p>
+            {view === "looks"
+              ? "在 Feed 圈住整套并右滑，它会先完整保存，再在后台拆成单品。"
+              : "从相册选一张，或直接拍下衣柜里的衣服。"}
+          </p>
         </div>
       ) : (
         <div className="wardrobe-grid">
-          {pending.map((entry) => (
-            <PendingItemCard key={entry.jobId} pending={entry} />
-          ))}
-          {visible.map((item) => (
-            <WardrobeItemCard
-              key={item.id}
-              item={item}
-              onOpen={() => onOpen(item)}
-              onRetry={() => onRetry(item)}
-            />
-          ))}
+          {view === "looks"
+            ? looks.map((look) => (
+                <LookCard key={look.id} look={look} onOpen={() => onOpenLook(look)} />
+              ))
+            : <>
+                {pending.map((entry) => (
+                  <PendingItemCard key={entry.jobId} pending={entry} />
+                ))}
+                {visible.map((item) => (
+                  <WardrobeItemCard
+                    key={item.id}
+                    item={item}
+                    onOpen={() => onOpen(item)}
+                    onRetry={() => onRetry(item)}
+                  />
+                ))}
+              </>}
         </div>
       )}
     </section>

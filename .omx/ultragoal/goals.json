@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-07-24T18:54:03.586Z",
-  "updatedAt": "2026-07-24T23:21:54.531Z",
+  "updatedAt": "2026-07-25T02:20:50.000Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -11,32 +11,33 @@
       "id": "G001-issue-1",
       "title": "Issue #1 上传入库纵向链",
       "objective": "完成 GitHub Issue #1 的全部验收条件，建立可复用的分层骨架、LiteLLM 视觉理解、异步资产入库、StyleCapture 衣橱和真实用户证据。",
-      "status": "failed",
-      "attempt": 1,
+      "status": "completed",
+      "attempt": 2,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T23:21:54.531Z",
+      "updatedAt": "2026-07-25T02:20:50.000Z",
       "startedAt": "2026-07-24T21:35:27.816Z",
-      "failedAt": "2026-07-24T23:21:54.531Z",
-      "failureReason": "PR #7 merged and local acceptance evidence passed; live Doubao/FashionSigLIP smoke remains credential-gated. This failed story is intentionally deferred and must be retried before aggregate completion; Issue #2 does not depend on it."
+      "completedAt": "2026-07-25T02:20:50.000Z"
     },
     {
       "id": "G002-issue-2-feed",
       "title": "Issue #2 Feed 圈选入库",
       "objective": "完成 GitHub Issue #2 的全部验收条件，复用 Feed 容器实现多圈选、主体抬升、直接滑动、curated_seed 素材库与真实后台链路。",
-      "status": "in_progress",
+      "status": "completed",
       "attempt": 1,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T22:37:00.000Z",
-      "startedAt": "2026-07-24T22:37:00.000Z"
+      "updatedAt": "2026-07-25T02:20:50.000Z",
+      "startedAt": "2026-07-24T22:37:00.000Z",
+      "completedAt": "2026-07-25T02:20:50.000Z"
     },
     {
       "id": "G003-issue-3-look",
       "title": "Issue #3 整套 Look 拆解",
       "objective": "完成 GitHub Issue #3 的全部验收条件，把整套注册为 Look、可靠拆解 Items、保存搭配关系并保持来源可追溯。",
-      "status": "pending",
-      "attempt": 0,
+      "status": "in_progress",
+      "attempt": 1,
       "createdAt": "2026-07-24T18:54:03.586Z",
-      "updatedAt": "2026-07-24T18:54:03.586Z"
+      "updatedAt": "2026-07-25T02:20:50.000Z",
+      "startedAt": "2026-07-25T02:20:50.000Z"
     },
     {
       "id": "G004-issue-4",
@@ -67,5 +68,5 @@
     }
   ],
   "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail.",
-  "activeGoalId": "G002-issue-2-feed"
+  "activeGoalId": "G003-issue-3-look"
 }

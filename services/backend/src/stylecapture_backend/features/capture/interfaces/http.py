@@ -20,6 +20,7 @@ from stylecapture_backend.features.capture.application import (
 )
 from stylecapture_backend.features.capture.domain import (
     CaptureSourceKind,
+    FeedCaptureIntent,
     FeedFrameContext,
     FeedSelection,
     JobState,
@@ -75,6 +76,7 @@ class FeedFrameContextBody(BaseModel):
     timestamp_ms: int = Field(ge=0)
     frame_width: int = Field(gt=0)
     frame_height: int = Field(gt=0)
+    intent: FeedCaptureIntent = FeedCaptureIntent.ITEM_SELECTIONS
     selections: list[FeedSelectionBody] = Field(min_length=1, max_length=8)
 
     def to_domain(self) -> FeedFrameContext:
@@ -84,6 +86,7 @@ class FeedFrameContextBody(BaseModel):
                 timestamp_ms=self.timestamp_ms,
                 frame_width=self.frame_width,
                 frame_height=self.frame_height,
+                intent=self.intent,
                 selections=tuple(
                     FeedSelection(
                         selection_key=selection.selection_key,
@@ -113,6 +116,7 @@ class SubmitCaptureBody(BaseModel):
 class CaptureAcceptedResponse(BaseModel):
     capture_id: UUID
     job_id: UUID
+    look_id: UUID | None = None
     state: JobState
     status_url: str
     events_url: str
@@ -257,6 +261,7 @@ def build_capture_router(
         return CaptureAcceptedResponse(
             capture_id=submission.capture.id,
             job_id=submission.job.id,
+            look_id=submission.look_id,
             state=submission.job.state,
             status_url=f"/v1/jobs/{submission.job.id}",
             events_url=f"/v1/jobs/{submission.job.id}/events",

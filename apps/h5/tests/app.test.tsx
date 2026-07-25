@@ -12,6 +12,10 @@ vi.mock("../src/api/client", async (importOriginal) => {
     ...actual,
     wardrobeApi: {
       listItems: vi.fn(),
+      listLooks: vi.fn(),
+      getLook: vi.fn(),
+      addLikingReason: vi.fn(),
+      retryLook: vi.fn(),
       ingest: vi.fn(),
       ingestFeedFrame: vi.fn(),
       getJob: vi.fn(),
@@ -31,7 +35,8 @@ const wardrobeItem: Item = {
   status: "ready",
   ownership: "owned",
   source_kind: "upload",
-  source_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/image",
+  display_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/image",
+  source_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/source",
   source_available: true,
   attributes: {
     category: {
@@ -83,6 +88,7 @@ describe("StyleCapture garment ingest", () => {
       )
     );
     api.listItems.mockResolvedValue([]);
+    api.listLooks.mockResolvedValue([]);
     api.ingest.mockResolvedValue({
       capture_id: "22222222-2222-4222-8222-222222222222",
       job_id: "33333333-3333-4333-8333-333333333333",
@@ -111,14 +117,17 @@ describe("StyleCapture garment ingest", () => {
     expect(camera).toHaveAttribute("accept", expect.stringContaining("image/heic"));
   });
 
-  it("opens the community ballroom from the primary navigation", async () => {
+  it("keeps the main navigation focused and opens the theme party as a wardrobe experiment", async () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "社区" }));
+    expect(screen.queryByRole("button", { name: "社区" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
+    await user.click(screen.getByRole("button", { name: "体验主题派对" }));
 
-    expect(screen.getByRole("heading", { name: "今晚舞会" })).toBeInTheDocument();
-    expect(screen.getByLabelText("像素舞池地图")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "花房晚宴" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "返回数字衣橱" }));
+    expect(screen.getByRole("heading", { name: "我的衣橱" })).toBeInTheDocument();
   });
 
   it("requires ownership before a real upload can enter the wardrobe", async () => {
@@ -187,6 +196,6 @@ describe("StyleCapture garment ingest", () => {
         "44444444-4444-4444-8444-444444444444"
       )
     );
-    expect(screen.getByLabelText("原图不可用")).toBeInTheDocument();
+    expect(screen.queryByLabelText("原图不可用")).not.toBeInTheDocument();
   });
 });

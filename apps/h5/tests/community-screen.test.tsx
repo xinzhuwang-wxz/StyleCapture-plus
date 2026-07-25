@@ -4,110 +4,140 @@ import { vi } from "vitest";
 
 import { CommunityScreen } from "../src/features/community/CommunityScreen";
 
+function markImageReady(width = 1086, height = 1448) {
+  Object.defineProperty(HTMLImageElement.prototype, "complete", {
+    configurable: true,
+    value: true
+  });
+  Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", {
+    configurable: true,
+    value: width
+  });
+  Object.defineProperty(HTMLImageElement.prototype, "naturalHeight", {
+    configurable: true,
+    value: height
+  });
+}
+
 describe("CommunityScreen", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("lets a mobile user move, react, inspect a labelled resident, and prepare a share card", async () => {
+  it("presents a purposeful theme room and lets the user browse, collect, enter, and react", async () => {
     const user = userEvent.setup();
-    const download = vi.fn();
-    const drawImage = vi.fn();
-    const fillRect = vi.fn();
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(download);
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
-      fillStyle: "",
-      font: "",
-      fillRect,
-      fillText: vi.fn(),
-      drawImage
-    } as unknown as CanvasRenderingContext2D);
-
     render(<CommunityScreen />);
 
-    expect(screen.getByRole("heading", { name: "今晚舞会" })).toBeInTheDocument();
-    expect(screen.getByText(/Demo 像素形象/)).toBeInTheDocument();
-    const map = screen.getByRole("region", { name: "像素舞池地图" });
-    expect(map).toBeInTheDocument();
-
-    map.focus();
-    fireEvent.keyDown(map, { key: "ArrowRight" });
-    expect(screen.getByRole("status")).toHaveTextContent("已走到新的位置");
-
-    await user.click(screen.getByRole("button", { name: "向右移动" }));
-    await user.click(screen.getByRole("button", { name: "闪闪" }));
-    expect(screen.getByRole("status")).toHaveTextContent("发送了 ✦");
-
-    const residentButton = screen.getByRole("button", { name: "查看紫丁香的公开穿搭" });
-    await user.click(residentButton);
-    const dialog = screen.getByRole("dialog", { name: "紫丁香的公开穿搭" });
-    expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(dialog).toHaveTextContent(
-      "场景居民"
+    expect(
+      screen.getByRole("heading", { name: "花房晚宴" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("主题陈列室 Demo · 非实时社区")).toBeInTheDocument();
+    expect(screen.getAllByText("精选示例 · 非真人").length).toBeGreaterThan(0);
+    expect(screen.getByRole("img", { name: "暖棕复古 Look 像素形象" })).toHaveAttribute(
+      "src",
+      "/assets/community/pixel-look-1.png"
     );
-    expect(screen.getByRole("button", { name: "关闭紫丁香的公开穿搭" })).toHaveFocus();
 
-    const paintCountBeforeShare = fillRect.mock.calls.length;
-    await user.click(screen.getByRole("button", { name: "生成分享卡" }));
-    expect(download).toHaveBeenCalledTimes(1);
-    expect(fillRect.mock.calls.length).toBeGreaterThan(paintCountBeforeShare);
-    expect(drawImage).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好");
+    await user.click(screen.getByRole("button", { name: /查看薄荷花园/ }));
+    expect(
+      screen.getAllByRole("heading", { name: "薄荷花园" })
+    ).toHaveLength(2);
+    expect(screen.getAllByText(/轻柔层次/)).toHaveLength(2);
 
-    fireEvent.keyDown(dialog, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await waitFor(() => expect(residentButton).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "收藏这个搭配灵感" }));
+    expect(screen.getByRole("status")).toHaveTextContent("已收藏：薄荷花园");
+
+    await user.click(screen.getByRole("button", { name: "带我的 Look 登场" }));
+    expect(screen.getByRole("status")).toHaveTextContent("你的 Look 已站上主题舞台");
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "我的像素 Look" })).toHaveAttribute(
+        "src",
+        "/assets/char-default.png"
+      )
+    );
+
+    await user.click(screen.getByRole("button", { name: "层次感" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "已记录：层次感 · 仅本次体验"
+    );
+
   });
 
-  it("sends the user to a pixel-only runway with applause and a return control", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<CommunityScreen />);
-
-    await user.click(screen.getByRole("button", { name: "轮到我上台" }));
-
-    expect(screen.getByRole("status")).toHaveTextContent("正在走秀");
-    expect(screen.getByText("喝彩 12")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "像素观众" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "走秀看板" })).toHaveTextContent("Demo 像素形象");
-    expect(screen.getByRole("button", { name: "回到后台" })).toBeInTheDocument();
-    expect(container.querySelector(".scene-avatar img")).not.toBeInTheDocument();
-  });
-
-  it("draws the current runway applause and reaction onto the share card", async () => {
+  it("waits for the selected pixel Look before exporting and prevents duplicate requests", async () => {
     const user = userEvent.setup();
     const download = vi.fn();
-    const fillRect = vi.fn();
-    const fillText = vi.fn();
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
+    const toDataURL = vi
+      .spyOn(HTMLCanvasElement.prototype, "toDataURL")
+      .mockReturnValue("data:image/png;base64,card");
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(download);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       fillStyle: "",
       font: "",
-      fillRect,
-      fillText,
+      textAlign: "left",
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
       drawImage: vi.fn()
     } as unknown as CanvasRenderingContext2D);
 
     render(<CommunityScreen />);
+    const selectedImage = screen.getByRole("img", {
+      name: "暖棕复古 Look 像素形象"
+    });
+    Object.defineProperty(selectedImage, "complete", {
+      configurable: true,
+      value: false
+    });
+    Object.defineProperty(selectedImage, "naturalWidth", {
+      configurable: true,
+      value: 0
+    });
 
-    await user.click(screen.getByRole("button", { name: "闪闪" }));
-    await user.click(screen.getByRole("button", { name: "轮到我上台" }));
-    await user.click(screen.getByRole("button", { name: "生成分享卡" }));
+    await user.click(screen.getByRole("button", { name: "生成像素分享卡" }));
+    expect(screen.getByRole("button", { name: "正在准备分享卡…" })).toBeDisabled();
+    expect(toDataURL).not.toHaveBeenCalled();
 
+    Object.defineProperty(selectedImage, "naturalWidth", {
+      configurable: true,
+      value: 1086
+    });
+    Object.defineProperty(selectedImage, "naturalHeight", {
+      configurable: true,
+      value: 1448
+    });
+    fireEvent.load(selectedImage);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好")
+    );
     expect(download).toHaveBeenCalledTimes(1);
-    expect(fillRect).toHaveBeenCalled();
-    expect(fillText).toHaveBeenCalledWith("正在走秀 · 喝彩 12", 64, 918);
-    expect(fillText).toHaveBeenCalledWith("✦ Demo 像素形象 · #StyleCapture", 64, 952);
-    expect(screen.getByRole("status")).toHaveTextContent("分享卡已准备好");
   });
 
-  it("uses a public Look render when one is supplied for sharing", async () => {
+  it("shows a retry state when Canvas is unavailable instead of reporting success", async () => {
+    const user = userEvent.setup();
+    markImageReady();
+    const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, "toDataURL");
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+
+    render(<CommunityScreen />);
+    await user.click(screen.getByRole("button", { name: "生成像素分享卡" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "分享卡生成失败，请重试"
+    );
+    expect(screen.getByRole("button", { name: "重试生成分享卡" })).toBeInTheDocument();
+    expect(toDataURL).not.toHaveBeenCalled();
+  });
+
+  it("exports the supplied public RenderArtifact from the same visible image", async () => {
     const user = userEvent.setup();
     const drawImage = vi.fn();
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,card");
+    markImageReady(512, 512);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      "data:image/png;base64,card"
+    );
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       fillStyle: "",
       font: "",
+      textAlign: "left",
       fillRect: vi.fn(),
       fillText: vi.fn(),
       drawImage
@@ -117,16 +147,20 @@ describe("CommunityScreen", () => {
       <CommunityScreen
         avatarSource={{
           assetUrl: "/assets/public-look.png",
-          label: "公开 Look",
+          label: "我的公开 Look",
           kind: "public-render-artifact"
         }}
       />
     );
+    await user.click(screen.getByRole("button", { name: "带我的 Look 登场" }));
+    await user.click(screen.getByRole("button", { name: "生成像素分享卡" }));
 
-    Object.defineProperty(HTMLImageElement.prototype, "complete", { configurable: true, value: true });
-    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", { configurable: true, value: 120 });
-    await user.click(screen.getByRole("button", { name: "生成分享卡" }));
-
-    expect(drawImage).toHaveBeenCalled();
+    await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "我的像素 Look" })).toHaveAttribute(
+        "src",
+        "/assets/public-look.png"
+      )
+    );
   });
 });

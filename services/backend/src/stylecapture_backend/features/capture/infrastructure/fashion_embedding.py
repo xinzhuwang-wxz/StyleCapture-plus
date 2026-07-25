@@ -82,8 +82,11 @@ class DisabledImageEmbedder:
 
 class TransformersFashionSiglipBackend:
     def __init__(self, *, device: str) -> None:
-        import torch  # type: ignore[import-not-found]
-        from transformers import AutoModel, AutoProcessor  # type: ignore[import-not-found]
+        import torch  # type: ignore[import-not-found,unused-ignore]
+        from transformers import (  # type: ignore[import-not-found,unused-ignore]
+            AutoModel,
+            AutoProcessor,
+        )
 
         self._torch = torch
         self._device = device

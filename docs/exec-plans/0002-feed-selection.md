@@ -76,9 +76,9 @@ the stored mask asynchronously but is not the source of the user's save decision
 - [x] Route the lightweight default through hosted Doubao vision and multimodal
   embedding behind LiteLLM; keep FashionSigLIP and disabled embedding explicit
   non-default modes.
-- [ ] Generate OpenAPI client types and complete automated, real-user, visual, resource,
+- [x] Generate OpenAPI client types and complete automated, real-user, visual, resource,
   architecture, security, and trace evidence.
-- [ ] Merge the reviewed Issue #2 pull request and immediately advance the Goal.
+- [x] Merge the reviewed Issue #2 pull request and immediately advance the Goal.
 
 ## Surprises & Discoveries
 

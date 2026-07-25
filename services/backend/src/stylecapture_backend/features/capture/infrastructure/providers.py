@@ -158,7 +158,7 @@ class LiteLLMVisionTagger:
             ) from error
 
         return VisionAnalysis(
-            fields=_model_fields(parsed, provider_model),
+            fields=_model_fields(parsed, self._alias),
             metadata=ModelMetadata(
                 capability_alias=self._alias,
                 provider_model=provider_model,
@@ -223,7 +223,7 @@ def _vision_data_url(image: ImagePayload) -> str:
 
 def _model_fields(
     parsed: GarmentVisionSchema,
-    model_version: str,
+    model_version_alias: str,
 ) -> dict[str, ModelField]:
     values: dict[str, ConfidentText | ConfidentValues | ConfidentCategory] = {
         "category": parsed.category,
@@ -250,6 +250,6 @@ def _model_fields(
         fields[name] = ModelField(
             value=value,
             confidence=field.confidence,
-            model_version=model_version,
+            model_version=model_version_alias,
         )
     return fields
