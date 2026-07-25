@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# This file intentionally keeps natural Chinese punctuation inside model prompts.
+# ruff: noqa: RUF001
 import argparse
 import asyncio
 import json
