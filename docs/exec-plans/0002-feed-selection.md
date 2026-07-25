@@ -63,6 +63,12 @@ the stored mask asynchronously but is not the source of the user's save decision
 - [x] 2026-07-25: Added a reuse-audited corpus verifier for minimum size, fixed
   regression coverage, category balance, item-level rights evidence, `curated_seed`
   provenance, unique identity, path containment, SHA-256, and FFprobe playability.
+- [x] 2026-07-25: Added sequential, resumable FFmpeg review transcoding with atomic
+  publication, plus a real local-HTTP integration test.
+- [x] 2026-07-25: Reused audited Video Branch viewport semantics for deterministic
+  normalized lasso paths and same-frame multi-selection settling after 700 ms.
+- [x] 2026-07-25: Added the real Feed signed-upload client path and truthful
+  FFmpeg/coarse-polygon provider boundaries without loading a segmentation model.
 - [ ] Add provenance-recorded Feed corpus manifest and at least 30 local review clips.
 - [ ] Integrate Feed browsing, pause, multi-lasso, lifted subject, and direct swipe.
 - [ ] Connect right-swipe to the real upload/capture/job API with idempotent batching.
@@ -104,6 +110,10 @@ the stored mask asynchronously but is not the source of the user's save decision
   8/8/4/4/4/2 category distribution. Its non-canonical `accessories`, `boutique`, and
   `mannequin` labels would also fail the Pydantic contract. No candidate was downloaded
   or relabeled to manufacture coverage; a source-verified replacement pass is required.
+- 2026-07-25: A user-supplied Ark credential is available in the ignored local
+  environment. Fresh LiteLLM calls through `vision_understanding` returned HTTP 200
+  for both text and real PNG multimodal input; the Feed remains independent of this
+  provider and curated corpus labels remain explicitly manual.
 
 ## Decision Log
 
