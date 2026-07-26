@@ -202,7 +202,7 @@ class RenderProcessor:
             generated = await self._pixel_generator.generate(
                 prompt=PIXEL_COVER_PROMPT,
                 images=source_images,
-                size="2K",
+                size="1024x1365",
             )
             await self._record_provider_and_store(
                 artifact,
@@ -255,7 +255,7 @@ class RenderProcessor:
                 generated = await self._pixel_generator.generate(
                     prompt=TRY_ON_PROMPT,
                     images=(model_image, *all_references),
-                    size="2K",
+                    size="1024x1365",
                 )
                 trace = generated.provider_trace.with_parameters(
                     capability_id=TRY_ON_CAPABILITY_ID,

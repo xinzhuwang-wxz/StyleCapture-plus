@@ -16,7 +16,7 @@ The output is a presentation derivative, not a new source of truth: it cannot ad
 
 ## Rendering contract
 
-- Canvas: 768×1024 pixels, portrait 3:4. H5 must reserve a 3:4 `contain` viewport for `collage` and `try_on`; `pixel_cover` remains square.
+- Canvas: 768×1024 pixels, portrait 3:4. H5 must reserve a 3:4 `contain` viewport for every render kind: `collage`, `try_on`, and `pixel_cover`.
 - Background: opaque pure white `#FFFFFF`.
 - Layout: the existing one-to-six independent Item grid, padded and with consistent gaps.
 - Source: only ready Item `display_object_key` assets (falling back to an available source asset as the existing processor permits).

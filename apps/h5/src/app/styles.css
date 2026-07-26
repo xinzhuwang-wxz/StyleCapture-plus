@@ -1130,9 +1130,6 @@ p {
   background: #fff;
 }
 
-.render-studio__preview[data-render-kind="pixel_cover"] {
-  aspect-ratio: 1;
-}
 
 .render-studio__preview > img {
   display: block;
