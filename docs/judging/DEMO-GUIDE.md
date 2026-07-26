@@ -40,9 +40,12 @@ H5 会自动创建匿名体验会话，并预置一组已经标明 `curated_seed
 ```bash
 cd skills/scene-outfit-matching
 npm test
-STYLECAPTURE_API_URL=https://119.45.216.38 \
 node scripts/match.js --request '{"scene":"周五面试","style":"简洁正式"}'
 ```
+
+下载包默认调用当前比赛云服务；迁移部署或本地开发时才需要通过
+`STYLECAPTURE_API_URL` / `--api-base-url` 覆盖地址。Skill 是云端 Product API
+的薄客户端，不复制衣橱、规则、Prompt 或模型调用逻辑。
 
 API 端点、请求结构与响应结构以 OpenAPI 为准。所有运行时模型请求均通过服务端 LiteLLM 能力别名路由，浏览器端不持有模型密钥或供应商配置。
 
@@ -52,7 +55,8 @@ API 端点、请求结构与响应结构以 OpenAPI 为准。所有运行时模�
 - Feed 暂停/恢复、圈选引导、微小圈选拦截、左划取消、右划整套入库并自动完成分析。
 - Try 像素形象真实上传、生成、删除，且不污染数字衣橱。
 - 中文 AI 需求、渐进式多套搭配、保存穿搭、真实全身照试穿、失败恢复。
-- 真实衣服上传、后台理解、详情与标签、刷新持久化；原图删除与数字资产保留由 API 集成测试覆盖。
+- 真实衣服上传、后台理解、标准化单品图、像素封面、详情与标签、刷新持久化；原图删除与数字资产保留由 API 集成测试覆盖。
+- 从公网下载 Skill 后零配置调用云端，真实返回 4 套中文方案与 `llm_ranked` 追踪结果。
 - PostgreSQL、Redis、LiteLLM 就绪检查；HTTPS、安全头、成本/并发护栏、备份恢复和 30 Mbps 公网性能。
 
 生成式能力通常需要几十秒；Seedream 暂时繁忙时任务会自动重试。系统不会用 mock 或固定图片冒充本次生成结果。
