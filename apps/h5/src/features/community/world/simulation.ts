@@ -138,9 +138,14 @@ function guestActor(
 
 export function createPartyWorld(
   scene: SceneMap,
-  playerLookId: string
+  playerLookId: string,
+  /** Which guests to place. Omitted means everyone the cast has. */
+  activeGuestIds?: readonly string[]
 ): PartyWorld {
-  const guests = guestPersonas.map((persona, index) =>
+  const cast = activeGuestIds
+    ? guestPersonas.filter((persona) => activeGuestIds.includes(persona.id))
+    : guestPersonas;
+  const guests = cast.map((persona, index) =>
     guestActor(
       persona,
       scene.guestSpots[index % scene.guestSpots.length],
@@ -553,6 +558,7 @@ function startGuestChat(world: PartyWorld) {
       return actor && world.conversation?.guestId !== id;
     })
   );
+  // With a small cast, most scripted pairs are simply not both present.
   if (!available.length) return;
 
   const script =

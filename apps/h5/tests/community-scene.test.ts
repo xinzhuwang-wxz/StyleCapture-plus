@@ -30,7 +30,7 @@ describe("theme party scene", () => {
     // Each authored pose set is worn by a guest, so the player starts in a Look
     // nobody else is wearing.
     expect(wornLook(scene).poseRoot).toBeUndefined();
-    expect(scene.looks.filter((look) => look.poseRoot)).toHaveLength(4);
+    expect(scene.looks.filter((look) => look.poseRoot).length).toBeGreaterThanOrEqual(4);
     expect(lookById(scene, MY_LOOK_ID)).toBeUndefined();
     expect(wornLook(scene).sourceKind).toBe("curated-seed");
   });

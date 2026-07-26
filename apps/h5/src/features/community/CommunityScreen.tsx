@@ -19,7 +19,7 @@ import {
   type PartyLook,
   type PartyReaction
 } from "./communityScene";
-import { personaById } from "./world/guests";
+import { guestPersonas, personaById } from "./world/guests";
 import { sceneMaps } from "./world/sceneMap";
 import {
   CARD_HEIGHT,
@@ -93,6 +93,10 @@ export function CommunityScreen({
   const [immersive, setImmersive] = useState(false);
   const [draft, setDraft] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  // Everyone would crowd the room, so the cast is a deliberate choice.
+  const [castIds, setCastIds] = useState<readonly string[]>(() =>
+    guestPersonas.slice(0, 4).map((persona) => persona.id)
+  );
   const uploadedObjectUrl = useRef<string | null>(null);
   const worldHandle = useRef<PixelWorldHandle>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -108,7 +112,12 @@ export function CommunityScreen({
     [scene.looks]
   );
 
-  const party = useParty(sceneMaps[0].id, scene.wornLookId, spriteSources);
+  const party = useParty(
+    sceneMaps[0].id,
+    scene.wornLookId,
+    spriteSources,
+    castIds
+  );
   const selectedLook = selectedPartyLook(scene);
   const worn = wornLook(scene);
   const selectedGuest = selectedGuestId ? personaById(selectedGuestId) : null;
@@ -161,6 +170,23 @@ export function CommunityScreen({
       // Layout-only immersive mode still applies.
     }
     announce(next ? "已进入全屏世界，再点一次退出" : "已退出全屏");
+  }
+
+  /** Guest spots are limited, so inviting a fifth person retires the oldest. */
+  function toggleCast(personaId: string) {
+    const persona = personaById(personaId);
+    if (!persona) return;
+    setCastIds((current) => {
+      if (current.includes(personaId)) {
+        if (current.length === 1) return current;
+        announce(`${persona.name} 先离开了`);
+        return current.filter((id) => id !== personaId);
+      }
+      const next = [...current, personaId].slice(-4);
+      announce(`${persona.name} 来了`);
+      return next;
+    });
+    setSelectedGuestId(null);
   }
 
   function dressIn(lookId: string) {
@@ -565,6 +591,32 @@ export function CommunityScreen({
               <span aria-hidden="true">＋</span>
               <span>上传</span>
             </label>
+          </div>
+        </div>
+
+        <div className="party-cast" aria-label="选择在场的人">
+          <div className="party-section-heading">
+            <p className="party-kicker">今晚在场 · {castIds.length} 人</p>
+            <small>最多 4 人同时在场</small>
+          </div>
+          <div className="party-cast__list">
+            {guestPersonas.map((persona) => {
+              const look = lookById(scene, persona.lookId);
+              const active = castIds.includes(persona.id);
+              return (
+                <button
+                  key={persona.id}
+                  type="button"
+                  className="party-cast__item"
+                  aria-pressed={active}
+                  aria-label={`${active ? "请走" : "邀请"}${persona.name}`}
+                  onClick={() => toggleCast(persona.id)}
+                >
+                  <img src={look?.assetUrl} alt="" aria-hidden="true" />
+                  <span>{persona.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

@@ -22,7 +22,7 @@ function advance(world: ReturnType<typeof createPartyWorld>, seconds: number) {
 
 describe("party simulation", () => {
   it("gives every guest a distinct character and art set", () => {
-    expect(guestPersonas).toHaveLength(4);
+    expect(guestPersonas.length).toBeGreaterThanOrEqual(4);
     const looks = guestPersonas.map((persona) => persona.lookId);
     expect(new Set(looks).size).toBe(looks.length);
     const names = guestPersonas.map((persona) => persona.name);
@@ -45,6 +45,22 @@ describe("party simulation", () => {
     guest.y = player.y;
     // Same ground line means same drawn height; no privileged main character.
     expect(actorHeight(world, player)).toBeCloseTo(actorHeight(world, guest), 6);
+  });
+
+  it("places only the guests that were invited", () => {
+    const invited = ["guest-lion", "guest-nana"];
+    const world = createPartyWorld(sceneMaps[0], "curated-vintage", invited);
+    const present = world.actors
+      .filter((actor) => actor.kind === "guest")
+      .map((actor) => actor.id);
+    expect(present.sort()).toEqual([...invited].sort());
+    // Each invited guest gets their own spot rather than stacking up.
+    const spots = new Set(
+      world.actors
+        .filter((actor) => actor.kind === "guest")
+        .map((actor) => `${actor.x},${actor.y}`)
+    );
+    expect(spots.size).toBe(invited.length);
   });
 
   it("lets guests pair off and talk without the player", () => {

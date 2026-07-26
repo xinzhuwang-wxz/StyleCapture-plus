@@ -154,6 +154,96 @@ export const guestPersonas: readonly GuestPersona[] = [
     },
     roam: 26,
     talkInterval: 7.5
+  },
+  {
+    id: "guest-taozi",
+    name: "小桃",
+    lookId: "pose-crew-wide",
+    bio: "现场志愿者，胸前挂着工牌，负责把每个路过的人拉来试一次产品。",
+    smallTalk: [
+      "要不要试一下？三十秒就好",
+      "工牌别摘，等下还要检票",
+      "今天已经带了四十多个人",
+      "阔腿裤站一天也不累",
+      "这个真的可以自己换装"
+    ],
+    runwayCheers: ["好看！", "这套我记下了", "再来一次！"],
+    conversation: [
+      { speaker: "guest", text: "你好，要不要试一下我们的产品？" },
+      { speaker: "player", text: "我已经在里面了。" },
+      { speaker: "guest", text: "……对哦，那你已经通关了。" },
+      { speaker: "guest", text: "我是今天的志愿者，负责拉人来体验。" },
+      { speaker: "player", text: "带了多少个了？" },
+      { speaker: "guest", text: "四十多个吧，嗓子有点哑。" },
+      { speaker: "guest", text: "但看到有人上台的时候还是会激动。" }
+    ],
+    reasons: {
+      "greenhouse-ball": "她在门口站了一天，散场前终于自己进来玩一次。",
+      "rooftop-garden": "收摊后被拉上天台，说要补一张合影。",
+      "coffee-house": "轮班间隙躲进来喝口水，顺便看看别人怎么搭。"
+    },
+    roam: 30,
+    talkInterval: 7
+  },
+  {
+    id: "guest-tongge",
+    name: "桐哥",
+    lookId: "pose-crew-glasses",
+    bio: "今天黑客松现场的老大。从早上布场站到现在，什么都管，什么都问一句。",
+    smallTalk: [
+      "网络还稳吗？有问题喊我",
+      "从早上七点站到现在",
+      "各位加把劲，还有时间",
+      "这个交互我要记一下",
+      "谁的插线板？先别拔"
+    ],
+    runwayCheers: ["可以啊！", "完成度不错", "这个细节做到了"],
+    conversation: [
+      { speaker: "guest", text: "同学，这个是你们做的？" },
+      { speaker: "player", text: "是的桐哥。" },
+      { speaker: "guest", text: "我本来只打算看两分钟。" },
+      { speaker: "guest", text: "结果自己在里面走了二十分钟。" },
+      { speaker: "player", text: "那算过关了吗？" },
+      { speaker: "guest", text: "我不评分，我只负责让大家做得出来。" },
+      { speaker: "guest", text: "去台上再走一次，我看看运镜。" }
+    ],
+    reasons: {
+      "greenhouse-ball": "他是今天现场的组织者，正一个个展位试过来。",
+      "rooftop-garden": "布场间隙上来透口气，顺手又打开了这个页面。",
+      "coffee-house": "他说咖啡馆这版最像真实使用场景，坐下来慢慢试。"
+    },
+    roam: 24,
+    talkInterval: 9.5
+  },
+  {
+    id: "guest-nana",
+    name: "Nana",
+    lookId: "pose-visitor-skirt",
+    bio: "隔壁展位跑来的同学，墨镜不摘，主要目的是拍一张能发的图。",
+    smallTalk: [
+      "我就是来拍照的",
+      "墨镜是造型的一部分",
+      "这张能发朋友圈",
+      "隔壁展位没这个好玩",
+      "百褶裙转起来好看"
+    ],
+    runwayCheers: ["拍到了！", "这张能发", "姐妹好会"],
+    conversation: [
+      { speaker: "guest", text: "等一下，别动——我拍一张。" },
+      { speaker: "player", text: "……好。" },
+      { speaker: "guest", text: "可以，这张能发。" },
+      { speaker: "guest", text: "我是隔壁展位的，偷偷跑过来的。" },
+      { speaker: "player", text: "那边不好玩吗？" },
+      { speaker: "guest", text: "那边不能合影。" },
+      { speaker: "guest", text: "等下你上台，我帮你拍全场那张。" }
+    ],
+    reasons: {
+      "greenhouse-ball": "隔壁展位跑来的，冲着能拍合影这件事来的。",
+      "rooftop-garden": "天台的光最好，她说这里出片率最高。",
+      "coffee-house": "她把咖啡馆当背景板，已经拍了十几张。"
+    },
+    roam: 36,
+    talkInterval: 6
   }
 ];
 
@@ -218,6 +308,51 @@ export const guestChats: readonly GuestChat[] = [
       { speaker: 0, text: "你这条迷彩短裤版型不错。" },
       { speaker: 1, text: "球市淘的，两百块。" },
       { speaker: 0, text: "……你带我去。" }
+    ]
+  },
+  {
+    between: ["guest-taozi", "guest-tongge"],
+    lines: [
+      { speaker: 0, text: "桐哥，这是第几个展位了？" },
+      { speaker: 1, text: "第十一个。腿有点酸。" },
+      { speaker: 0, text: "那你坐会儿，我给你拿瓶水。" },
+      { speaker: 1, text: "不用，我想先把这个走完。" }
+    ]
+  },
+  {
+    between: ["guest-nana", "guest-shuyi"],
+    lines: [
+      { speaker: 0, text: "你这条裙子哪买的？" },
+      { speaker: 1, text: "终于有人问到点子上了。" },
+      { speaker: 1, text: "等降价等了三个月。" },
+      { speaker: 0, text: "……链接。" },
+      { speaker: 1, text: "等下私发你。" }
+    ]
+  },
+  {
+    between: ["guest-taozi", "guest-huanxi"],
+    lines: [
+      { speaker: 0, text: "你也是学生吧？" },
+      { speaker: 1, text: "大一，传播学。" },
+      { speaker: 0, text: "那你肯定懂怎么让人愿意转发。" },
+      { speaker: 1, text: "我正在学……不过合影这个我会发。" }
+    ]
+  },
+  {
+    between: ["guest-tongge", "guest-fantuan"],
+    lines: [
+      { speaker: 0, text: "你这身……是队服吗？" },
+      { speaker: 1, text: "是巴萨主场球衣。" },
+      { speaker: 0, text: "行，那也算主题的一种。" },
+      { speaker: 1, text: "桐哥懂球！" }
+    ]
+  },
+  {
+    between: ["guest-nana", "guest-lion"],
+    lines: [
+      { speaker: 0, text: "这个灯是你调的？" },
+      { speaker: 1, text: "是，暖了两度。" },
+      { speaker: 0, text: "难怪出片。" }
     ]
   },
   {
