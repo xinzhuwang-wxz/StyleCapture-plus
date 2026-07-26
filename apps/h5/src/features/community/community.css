@@ -349,7 +349,7 @@
 
 .party-world__note {
   position: absolute;
-  right: 0.6rem;
+  left: 0.6rem;
   bottom: 0.5rem;
   margin: 0;
   padding: 0.22rem 0.5rem;
@@ -522,44 +522,9 @@
 .party-shell--immersive .party-wardrobe,
 .party-shell--immersive .party-scenes,
 .party-shell--immersive .party-social,
+.party-shell--immersive .party-share,
 .party-shell--immersive .party-credit {
   display: none;
-}
-
-/*
- * Freezing and taking the photo stay reachable in immersive mode — leaving
- * fullscreen to take a group shot defeats the point of being in the world.
- * Only the explanatory copy is dropped.
- */
-.party-shell--immersive .party-share {
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-}
-
-.party-shell--immersive .party-share .party-kicker,
-.party-shell--immersive .party-share h2,
-.party-shell--immersive .party-share > small,
-.party-shell--immersive .party-share__primary small {
-  display: none;
-}
-
-.party-shell--immersive .party-share .party-section-heading {
-  display: contents;
-}
-
-.party-shell--immersive .party-share__actions {
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.party-shell--immersive .party-share__freeze {
-  width: 100%;
-}
-
-.party-shell--immersive .party-share__primary {
-  padding: 0.5rem 0.6rem;
-  text-align: center;
 }
 
 .party-shell--immersive .party-world {
@@ -660,7 +625,85 @@
 }
 
 .party-shell--immersive .party-world__note {
-  bottom: auto;
+  bottom: 5.8rem;
+}
+
+
+/*
+ * Shutter. Photography is a persistent affordance in the world itself rather
+ * than a row of buttons under it, so the controls do not eat the frame.
+ */
+.party-camera {
+  position: absolute;
   top: 3.4rem;
   right: 0.6rem;
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  background: rgba(28, 14, 44, 0.68);
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.3);
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.party-camera[aria-expanded="true"] {
+  border-color: #f0cf86;
+  background: rgba(60, 30, 80, 0.88);
+}
+
+.party-camera__sheet {
+  position: absolute;
+  top: 6.4rem;
+  right: 0.6rem;
+  z-index: 5;
+  display: grid;
+  width: min(12.5rem, 62%);
+  gap: 0.35rem;
+  padding: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(30, 16, 48, 0.94);
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(12px);
+}
+
+.party-camera__sheet p {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0 0 0.15rem;
+}
+
+.party-camera__sheet strong {
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.party-camera__sheet small {
+  color: #bda8ca;
+  font-size: 0.48rem;
+}
+
+.party-camera__sheet button {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4e9f8;
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.party-camera__primary {
+  border-color: transparent !important;
+  background: linear-gradient(140deg, #a2559a, #6d4390) !important;
+  color: #fff !important;
+}
+
+.party-camera__sheet button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }

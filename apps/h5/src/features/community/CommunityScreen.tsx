@@ -92,6 +92,7 @@ export function CommunityScreen({
   const [phaseLabel, setPhaseLabel] = useState("mingling");
   const [immersive, setImmersive] = useState(false);
   const [draft, setDraft] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const uploadedObjectUrl = useRef<string | null>(null);
   const worldHandle = useRef<PixelWorldHandle>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -205,13 +206,17 @@ export function CommunityScreen({
     announce("走秀开始：从后台走向舞池中央");
   }
 
-  function freeze() {
+  /** The shutter freezes the frame first, so you choose from a held moment. */
+  function openCamera() {
     freezeParty(party.world);
-    announce("画面已定格，可以生成同框合影");
+    setCameraOpen(true);
+    setShareState("idle");
+    announce("画面已定格，选择要带走的合影");
   }
 
-  function resume() {
+  function closeCamera() {
     resumeParty(party.world);
+    setCameraOpen(false);
     announce("已回到舞台");
   }
 
@@ -335,6 +340,7 @@ export function CommunityScreen({
       downloadBlob(blob, "stylecapture-style-party.png");
       onShare?.(worn);
       setShareState("idle");
+      setCameraOpen(false);
       announce("同框合影已保存");
     } catch {
       setShareState("error");
@@ -364,6 +370,7 @@ export function CommunityScreen({
       downloadBlob(blob, "stylecapture-style-party.gif");
       onShare?.(worn);
       setShareState("idle");
+      setCameraOpen(false);
       announce("合影动图已保存");
     } catch {
       setShareState("error");
@@ -420,6 +427,46 @@ export function CommunityScreen({
         >
           {immersive ? "⤡" : "⤢"}
         </button>
+        <button
+          className="party-camera"
+          type="button"
+          aria-expanded={cameraOpen}
+          aria-label="拍合影"
+          onClick={openCamera}
+        >
+          <span aria-hidden="true">📷</span>
+        </button>
+        {cameraOpen ? (
+          <div className="party-camera__sheet" role="group" aria-label="合影选项">
+            <p>
+              <strong>画面已定格</strong>
+              <small>合影只含像素形象和风格标签</small>
+            </p>
+            <button
+              type="button"
+              className="party-camera__primary"
+              disabled={busy}
+              onClick={() => void exportAnimatedCard()}
+            >
+              {shareState === "gif" ? "正在录制…" : "合影动图 · 2.6 秒"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void exportCard()}
+            >
+              {shareState === "card" ? "正在生成…" : "静态合影卡"}
+            </button>
+            <button type="button" disabled={busy} onClick={closeCamera}>
+              继续舞会
+            </button>
+            {shareState === "error" ? (
+              <p className="party-error" role="alert">
+                生成失败，请重试
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <p className="party-world__note">
           {party.scene.occasion} · 预设角色非真人 · 非实时社区
         </p>
@@ -436,49 +483,6 @@ export function CommunityScreen({
       ) : null}
 
       <section className="party-dock" aria-label="舞会控制">
-        <section className="party-share" aria-labelledby="party-share-title">
-          <div className="party-section-heading">
-            <div>
-              <p className="party-kicker">SHARE THE MOMENT</p>
-              <h2 id="party-share-title">和大家拍一张同框合影</h2>
-            </div>
-          </div>
-          <div className="party-share__actions">
-            <button
-              type="button"
-              className="party-share__freeze"
-              disabled={busy}
-              onClick={() => (phaseLabel === "frozen" ? resume() : freeze())}
-            >
-              {phaseLabel === "frozen" ? "继续舞会" : "定格画面"}
-            </button>
-            <button
-              type="button"
-              className="party-share__primary"
-              disabled={busy}
-              onClick={() => void exportAnimatedCard()}
-            >
-              <strong>
-                {shareState === "gif" ? "正在录制…" : "生成合影动图"}
-              </strong>
-              <small>底部信息不动，画面里动 2.6 秒</small>
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void exportCard()}
-            >
-              {shareState === "card" ? "正在生成…" : "静态合影卡"}
-            </button>
-          </div>
-          <small>合影只包含像素形象和公开风格标签，不含原始穿搭照片。</small>
-          {shareState === "error" ? (
-            <p className="party-error" role="alert">
-              生成失败，请重试
-            </p>
-          ) : null}
-        </section>
-
         <div className="party-actions">
           <button
             className="party-primary"

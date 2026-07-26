@@ -447,8 +447,10 @@ function ProductApp() {
 }
 
 export function App() {
-  const query = new URLSearchParams(window.location.search);
-  const directStyleParty = query.get("demo") === "style-party";
+  // The standalone build ships the party on its own, with no product API to
+  // talk to, so it must not depend on a query string to find the right screen.
+  if (import.meta.env.VITE_PARTY_ONLY === "1") return <CommunityScreen />;
 
-  return directStyleParty ? <CommunityScreen /> : <ProductApp />;
+  const query = new URLSearchParams(window.location.search);
+  return query.get("demo") === "style-party" ? <CommunityScreen /> : <ProductApp />;
 }

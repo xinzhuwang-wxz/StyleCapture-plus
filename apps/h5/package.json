@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b && tsc -p tsconfig.node.json && vite build",
+    "build:party": "VITE_PARTY_ONLY=1 vite build --outDir dist-party && node scripts/trim-party-build.mjs",
     "e2e": "playwright test",
     "dev": "vite --host 0.0.0.0",
     "dev:party": "vite --host 127.0.0.1 --port 5175 --open '/?demo=style-party'",

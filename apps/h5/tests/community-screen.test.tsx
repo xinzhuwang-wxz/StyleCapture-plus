@@ -151,6 +151,8 @@ describe("CommunityScreen", () => {
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(download);
 
     render(<CommunityScreen onShare={onShare} />);
+    // The shutter freezes the frame, then offers the two formats.
+    await user.click(screen.getByRole("button", { name: "拍合影" }));
     await user.click(screen.getByRole("button", { name: "静态合影卡" }));
 
     await waitFor(
@@ -168,6 +170,7 @@ describe("CommunityScreen", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 
     render(<CommunityScreen />);
+    await user.click(screen.getByRole("button", { name: "拍合影" }));
     await user.click(screen.getByRole("button", { name: "静态合影卡" }));
 
     await waitFor(
@@ -200,6 +203,30 @@ describe("CommunityScreen", () => {
     render(<CommunityScreen />);
     expect(
       screen.queryByRole("button", { name: "加入舞会" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps photo options behind the shutter so the dock stays small", async () => {
+    const user = userEvent.setup();
+    render(<CommunityScreen />);
+
+    expect(
+      screen.queryByRole("button", { name: "静态合影卡" })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "拍合影" }));
+    expect(screen.getByRole("button", { name: "拍合影" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("画面已定格");
+    expect(
+      screen.getByRole("button", { name: /合影动图/ })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "继续舞会" }));
+    expect(
+      screen.queryByRole("button", { name: "静态合影卡" })
     ).not.toBeInTheDocument();
   });
 
