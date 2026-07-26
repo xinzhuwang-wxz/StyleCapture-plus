@@ -33,6 +33,8 @@ function PixelItemImage({
       <img
         src={`${item.pixel_image_url}?v=${encodeURIComponent(item.updated_at)}`}
         alt={`${category}的像素展示图`}
+        loading="lazy"
+        decoding="async"
         data-image-kind="wardrobe-pixel"
         data-pixel="true"
       />
@@ -45,6 +47,8 @@ function PixelItemImage({
         owned: item.ownership === "owned"
       })}
       alt={`${category}的像素图标`}
+      loading="lazy"
+      decoding="async"
       data-image-kind="wardrobe-pixel-fallback"
       data-pixel="true"
     />
@@ -141,7 +145,12 @@ export function PendingItemCard({
     >
       <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">
         {pending.previewUrl ? (
-          <img src={pending.previewUrl} alt="正在入库的衣服" />
+          <img
+            src={pending.previewUrl}
+            alt="正在入库的衣服"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="pending-heic-preview" role="status">
             <strong>正在转换 iPhone 照片</strong>

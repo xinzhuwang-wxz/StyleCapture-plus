@@ -1,6 +1,7 @@
 name: stylecapture
 
 x-backend-environment: &backend-environment
+  LITELLM_LOCAL_MODEL_COST_MAP: "true"
   STYLECAPTURE_DATABASE_URL: postgresql+asyncpg://stylecapture:stylecapture@postgres:5432/stylecapture
   STYLECAPTURE_LITELLM_API_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
   STYLECAPTURE_LITELLM_BASE_URL: http://litellm:4000/v1
@@ -105,6 +106,7 @@ services:
     environment:
       ARK_API_KEY: ${ARK_API_KEY:-}
       ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      LITELLM_LOCAL_MODEL_COST_MAP: "true"
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
     healthcheck:
       test:
