@@ -420,8 +420,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
   background: transparent;
   color: var(--pixel-text-dim);
   font-family: var(--font-pixel);
-  font-size: 0.62rem;
+  font-size: 0.75rem;
+  line-height: 1.1;
   transition: all 0.12s ease;
+}
+
+.pixel-nav button small {
+  font-size: 0.75rem;
+  line-height: 1.1;
 }
 
 .pixel-nav button.is-active {
@@ -430,7 +436,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
   color: var(--pixel-primary-dark);
 }
 
-.pixel-nav button .nav-icon { font-size: 1.2rem; line-height: 1; }
+.pixel-nav button .nav-icon {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+  font-size: 1.35rem;
+  line-height: 1;
+}
 
 /* 中间 ＋ 新增单品按钮：用 SVG 描边保证加号正落在圆心 */
 .pixel-nav__add {

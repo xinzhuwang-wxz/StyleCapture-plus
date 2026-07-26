@@ -52,6 +52,61 @@ type FeedRestoreTarget = {
 const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
 const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
 
+type NavIconName = "wardrobe" | "analysis" | "ai";
+
+function NavIcon({ name }: { name: NavIconName }) {
+  if (name === "wardrobe") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="nav-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <path d="m9.5 4-2 3L4 8.4 5.7 13l3.1-1.3V20h6.4v-8.3l3.1 1.3L20 8.4 16.5 7l-2-3h-5Z" />
+      </svg>
+    );
+  }
+
+  if (name === "analysis") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="nav-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <path d="M4 19V5m0 14h16M8 15l3-4 3 2 4-6" />
+        <path d="m16 7 2-1 1 2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="nav-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 3v4.5M12 16.5V21M3 12h4.5M16.5 12H21M6.5 6.5l3.2 3.2m4.6 4.6 3.2 3.2m0-11-3.2 3.2M9.7 14.3l-3.2 3.2" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 function restoreSelectedLookId(): string | null {
   if (typeof window === "undefined") return null;
   const stored = window.sessionStorage.getItem(SELECTED_LOOK_STORAGE_KEY);
@@ -941,7 +996,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("wardrobe")}
         >
-          <span className="nav-icon" aria-hidden="true">✦</span>
+          <NavIcon name="wardrobe" />
           <small>数字衣橱</small>
           {pending.length > 0 ? (
             <b aria-label={`${pending.length} 个处理中`}>
@@ -955,7 +1010,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("analysis")}
         >
-          <span className="nav-icon" aria-hidden="true">◈</span>
+          <NavIcon name="analysis" />
           <small>分析</small>
         </button>
         <button
@@ -974,7 +1029,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("ai")}
         >
-          <span className="nav-icon" aria-hidden="true">◇</span>
+          <NavIcon name="ai" />
           <small>AI</small>
         </button>
         <button

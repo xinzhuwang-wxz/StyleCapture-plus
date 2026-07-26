@@ -837,12 +837,13 @@ p {
 }
 
 .detail-layer {
+  position: absolute;
   background: #faf5ff;
 }
 
 .detail-sheet {
   width: min(100%, 32rem);
-  height: 100dvh;
+  height: 100%;
   margin: 0 auto;
   overflow-y: auto;
   background: #faf5ff;
