@@ -46,6 +46,8 @@ export interface FeedSelectionDecision {
 
 const SWIPE_DECISION_THRESHOLD_PX = 88;
 const EMPTY_TAP_MAX_DISTANCE_PX = 12;
+const MIN_LASSO_EDGE_PX = 48;
+const MIN_LASSO_AREA_PX = 1_200;
 const WHOLE_FRAME_SELECTION: ClosedFeedSelection = {
   id: "whole-outfit-full-frame",
   path: [
@@ -68,6 +70,36 @@ function isEmptyTap(points: readonly ViewportPoint[]) {
   );
 }
 
+function lassoBounds(points: readonly ViewportPoint[]) {
+  const xValues = points.map((point) => point.x);
+  const yValues = points.map((point) => point.y);
+  return {
+    width: Math.max(...xValues) - Math.min(...xValues),
+    height: Math.max(...yValues) - Math.min(...yValues)
+  };
+}
+
+function lassoArea(points: readonly ViewportPoint[]) {
+  if (points.length < 3) {
+    return 0;
+  }
+  return Math.abs(
+    points.reduce((sum, point, index) => {
+      const next = points[(index + 1) % points.length];
+      return sum + point.x * next.y - next.x * point.y;
+    }, 0) / 2
+  );
+}
+
+function isTooSmallLasso(points: readonly ViewportPoint[]) {
+  const bounds = lassoBounds(points);
+  return (
+    bounds.width < MIN_LASSO_EDGE_PX ||
+    bounds.height < MIN_LASSO_EDGE_PX ||
+    lassoArea(points) < MIN_LASSO_AREA_PX
+  );
+}
+
 export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
   const [session, setSession] = useState(createSelectionSession);
   const [activePoints, setActivePoints] = useState<ViewportPoint[]>([]);
@@ -77,6 +109,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     Boolean(props.gestureGuideToken)
   );
   const [decisionGuideVisible, setDecisionGuideVisible] = useState(false);
+  const [selectionHint, setSelectionHint] = useState<string | null>(null);
   const [intent, setIntent] =
     useState<FeedSelectionDecision["intent"]>("item_selections");
   const pointsRef = useRef<ViewportPoint[]>([]);
@@ -153,6 +186,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     }
     const start = pointFor(event);
     setGuideVisible(false);
+    setSelectionHint(null);
     pointsRef.current = [start];
     setActivePoints([start]);
     setContentBox(measuredContentBox);
@@ -187,6 +221,8 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
       setSession((current) => cancelSelectionLoop(current, Date.now()));
       if (session.selections.length === 0 && isEmptyTap(rawPoints)) {
         props.onEmptyTap();
+      } else if (isTooSmallLasso(rawPoints)) {
+        setSelectionHint("圈大一点，沿着衣服或整套穿搭外轮廓画一圈");
       }
       return;
     }
@@ -233,6 +269,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     pointsRef.current = [];
     setActivePoints([]);
     setDragOffsetX(0);
+    setSelectionHint(null);
     setIntent("item_selections");
     setSession(createSelectionSession());
   };
@@ -254,6 +291,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     const measuredContentBox = contentBoxFor(overlayRef.current);
     if (!measuredContentBox) return;
     setGuideVisible(false);
+    setSelectionHint(null);
     setContentBox(measuredContentBox);
     setIntent("whole_outfit");
     setSession({
@@ -272,6 +310,7 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
       phase: "collecting",
       settleAtMs: null
     }));
+    setSelectionHint(null);
   };
 
   const dismissSelection = () => {
@@ -395,6 +434,16 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
           </motion.span>
           <strong>沿衣服边缘画一圈</strong>
           <small>轻点画面可继续播放</small>
+        </div>
+      ) : null}
+
+      {selectionHint ? (
+        <div
+          aria-label="圈选太小"
+          className="feed-selection-hint"
+          role="status"
+        >
+          {selectionHint}
         </div>
       ) : null}
 
