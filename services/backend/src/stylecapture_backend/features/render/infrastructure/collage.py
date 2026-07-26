@@ -13,6 +13,7 @@ from stylecapture_backend.features.render.ports import CollageRenderError
 
 @dataclass(frozen=True, slots=True)
 class PillowLookCollageRenderer:
+    canvas_size: int | None = None
     canvas_width: int = 768
     canvas_height: int = 1024
     gap: int = 32
@@ -24,17 +25,19 @@ class PillowLookCollageRenderer:
             raise CollageRenderError("collage requires at least one image")
         if len(images) > 6:
             raise CollageRenderError("collage supports at most six images")
-        if self.canvas_width < 256 or self.canvas_height < 256:
+        canvas_width = self.canvas_size or self.canvas_width
+        canvas_height = self.canvas_size or self.canvas_height
+        if canvas_width < 256 or canvas_height < 256:
             raise CollageRenderError("collage canvas dimensions must be at least 256 pixels")
         if self.padding < 0 or self.gap < 0:
             raise CollageRenderError("collage spacing must not be negative")
         mode = "RGBA"
         background = (255, 255, 255, 0) if self.transparent_background else (255, 255, 255, 255)
-        canvas = Image.new(mode, (self.canvas_width, self.canvas_height), background)
+        canvas = Image.new(mode, (canvas_width, canvas_height), background)
         cells = _cells_for_count(
             len(images),
-            canvas_width=self.canvas_width,
-            canvas_height=self.canvas_height,
+            canvas_width=canvas_width,
+            canvas_height=canvas_height,
             padding=self.padding,
             gap=self.gap,
         )
