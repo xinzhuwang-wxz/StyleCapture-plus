@@ -187,11 +187,11 @@ p {
 }
 
 .wardrobe-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.5rem 0.25rem 1.1rem;
+  gap: 0.65rem;
+  padding: 0.7rem 0.25rem 1.1rem;
 }
 
 .eyebrow,
@@ -203,11 +203,16 @@ p {
   letter-spacing: 0.14em;
 }
 
-.wardrobe-header h1 {
-  margin-bottom: 0.38rem;
-  font-size: clamp(1.72rem, 8vw, 2.15rem);
+.wardrobe-header__title {
+  margin: 0;
+  font-size: clamp(1.45rem, 6.4vw, 1.85rem);
   line-height: 1.06;
   letter-spacing: -0.035em;
+}
+
+.pixel-title.wardrobe-header__title--profile {
+  width: 85px;
+  font-size: 32px;
 }
 
 .subtitle {
@@ -218,35 +223,10 @@ p {
   line-height: 1.5;
 }
 
-.avatar-orbit {
-  position: relative;
-  display: grid;
-  width: 4.15rem;
-  height: 4.15rem;
-  flex: 0 0 auto;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(125, 76, 224, 0.15);
-  border-radius: 1.45rem;
-  background: linear-gradient(145deg, #fff, #eadcff);
-  box-shadow:
-    0 0 0 0.42rem rgba(125, 76, 224, 0.06),
-    0 0.75rem 1.8rem rgba(73, 43, 123, 0.16);
-}
-
-.avatar-orbit img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-}
-
-.avatar-orbit span {
-  position: absolute;
-  top: 0.18rem;
-  right: 0.3rem;
-  color: var(--pink-500);
-  filter: drop-shadow(0 0 0.25rem white);
+.wardrobe-header__summary {
+  max-width: none;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .notice {
@@ -314,30 +294,6 @@ p {
   font-size: 0.68rem;
 }
 
-.capture-panel {
-  position: relative;
-  overflow: hidden;
-  padding: 1.02rem;
-  border: 1px solid rgba(125, 76, 224, 0.13);
-  border-radius: 1.45rem;
-  background: var(--paper);
-  box-shadow: 0 1rem 2.8rem rgba(67, 43, 103, 0.1);
-  backdrop-filter: blur(1.1rem);
-}
-
-.capture-panel::before {
-  position: absolute;
-  top: -4rem;
-  right: -4rem;
-  width: 9rem;
-  height: 9rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(237, 104, 170, 0.24), transparent 67%);
-  content: "";
-  pointer-events: none;
-}
-
-.capture-panel__heading,
 .section-heading,
 .sheet-heading {
   display: flex;
@@ -346,94 +302,10 @@ p {
   gap: 1rem;
 }
 
-.capture-panel h2,
 .section-heading h2,
 .sheet-heading h2 {
   margin-bottom: 0;
   font-size: 1.08rem;
-}
-
-.capture-panel__sparkle {
-  display: grid;
-  width: 2.1rem;
-  height: 2.1rem;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--pink-100);
-  color: var(--pink-500);
-}
-
-.capture-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
-  margin-top: 0.9rem;
-}
-
-.capture-button {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  min-height: 5.25rem;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.45rem;
-  padding: 0.78rem;
-  border: 0;
-  border-radius: 1.05rem;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.capture-button:active {
-  transform: scale(0.98);
-}
-
-.capture-button--primary {
-  background: linear-gradient(145deg, var(--purple-700), var(--purple-500));
-  box-shadow: 0 0.65rem 1.4rem rgba(102, 53, 199, 0.24);
-  color: white;
-}
-
-.capture-button--secondary {
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, #fff, #fff6fb);
-  color: var(--ink);
-}
-
-.capture-button__icon {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 0.72rem;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.capture-button--secondary .capture-button__icon {
-  background: var(--pink-100);
-  color: var(--pink-500);
-}
-
-.capture-button strong,
-.capture-button small {
-  display: block;
-}
-
-.capture-button strong {
-  margin-bottom: 0.18rem;
-  font-size: 0.9rem;
-}
-
-.capture-button small {
-  color: inherit;
-  font-size: 0.65rem;
-  line-height: 1.35;
-  opacity: 0.73;
 }
 
 .wardrobe-section {
@@ -535,7 +407,7 @@ p {
 }
 
 .look-card__image {
-  aspect-ratio: 0.72;
+  aspect-ratio: 3 / 4;
 }
 
 .look-card__image > img {
@@ -945,12 +817,13 @@ p {
 }
 
 .detail-layer {
+  position: absolute;
   background: #faf5ff;
 }
 
 .detail-sheet {
   width: min(100%, 32rem);
-  height: 100dvh;
+  height: 100%;
   margin: 0 auto;
   overflow-y: auto;
   background: #faf5ff;
@@ -972,7 +845,7 @@ p {
 }
 
 .detail-image {
-  height: min(50dvh, 25rem);
+  aspect-ratio: 3 / 4;
   margin: 0 1rem;
   overflow: hidden;
   border-radius: 1.45rem;

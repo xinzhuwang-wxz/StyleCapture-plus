@@ -568,5 +568,66 @@
       "style": "明亮度假约会风",
       "layering": "柔和蓝黄印花作为视觉焦点, 黑色鞋履压住甜度并增加日常感"
     }
+    ,
+    {
+      "seed_key": "curated_mustard_skirt",
+      "product_image": "look-curated-01.png",
+      "pixel_asset": "pixel-looks/look-curated-01.png",
+      "title": "姜黄复古通勤",
+      "item_keys": ["user_yellow_scoop_neck_top", "user_brown_pencil_skirt", "user_brown_structured_tote", "user_yellow_pointed_heels"],
+      "scene": "通勤、约会与轻正式聚会",
+      "style": "复古暖调通勤",
+      "layering": "姜黄上衣提亮棕色半裙，手提包与高跟鞋呼应暖色细节"
+    },
+    {
+      "seed_key": "curated_pink_garden",
+      "product_image": "look-curated-02.png",
+      "pixel_asset": "pixel-looks/look-curated-02.png",
+      "title": "薄荷粉纱花园",
+      "item_keys": ["user_pale_green_cardigan", "user_pink_tiered_dress", "user_floral_scrunchie", "user_tan_pointed_flats"],
+      "scene": "周末约会、下午茶与旅行拍照",
+      "style": "清新甜美度假",
+      "layering": "薄荷绿针织开衫平衡粉色纱裙，花朵发圈延续轻盈的花园感"
+    },
+    {
+      "seed_key": "curated_red_cargo",
+      "product_image": "look-curated-03.png",
+      "pixel_asset": "pixel-looks/look-curated-03.png",
+      "title": "红灰机能街头",
+      "item_keys": ["user_red_button_short_sleeve_top", "user_gray_cargo_pants", "user_white_sneakers"],
+      "scene": "日常上课、逛展与城市步行",
+      "style": "轻机能街头",
+      "layering": "红色短袖成为视觉焦点，灰色工装裤和白色运动鞋保持干净利落"
+    },
+    {
+      "seed_key": "curated_neutral_lounge",
+      "product_image": "look-curated-04.png",
+      "pixel_asset": "pixel-looks/look-curated-04.png",
+      "title": "奶油灰舒适日常",
+      "item_keys": ["user_beige_long_sleeve_top", "user_gray_midi_skirt", "user_beige_clogs"],
+      "scene": "居家、周末与轻松出行",
+      "style": "松弛舒适休闲",
+      "layering": "修身长袖配柔软灰色半裙，以浅色洞洞鞋收住整体的轻盈感"
+    },
+    {
+      "seed_key": "curated_football_street",
+      "product_image": "look-curated-05.png",
+      "pixel_asset": "pixel-looks/look-curated-05.png",
+      "title": "球衣工装街头",
+      "item_keys": ["user_red_blue_football_jersey", "user_camouflage_cargo_shorts", "user_black_sneakers"],
+      "scene": "看球、音乐节与夏日街头",
+      "style": "运动机能街头",
+      "layering": "红蓝球衣与迷彩工装短裤形成强对比，黑色运动鞋压住整体色彩"
+    },
+    {
+      "seed_key": "curated_blue_yellow_evening",
+      "product_image": "look-curated-06.png",
+      "pixel_asset": "pixel-looks/look-curated-06.png",
+      "title": "蓝黄印花晚风",
+      "item_keys": ["user_blue_yellow_print_dress", "user_black_sneakers"],
+      "scene": "旅行晚餐、约会与拍照",
+      "style": "明亮浪漫度假",
+      "layering": "蓝黄印花吊带裙作为主角，用深色鞋履增加日常穿着的平衡感"
+    }
   ]
 }

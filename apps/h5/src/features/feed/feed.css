@@ -643,14 +643,14 @@
 }
 
 .feed-topbar__brand strong {
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 1.05rem;
 }
 
 .feed-topbar__mini {
   pointer-events: auto;
   padding: 0.5rem 0.9rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.78rem;
   color: #3d2c5e;
   background: linear-gradient(135deg, #f5edfb, #fdeef5);
@@ -681,7 +681,7 @@
 
 .feed-tags__title {
   margin: 0 0 0.15rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.72rem;
   color: #f4d9ff;
   text-shadow: 0 2px 8px rgb(0 0 0 / 80%);
@@ -689,7 +689,7 @@
 
 .feed-tag {
   padding: 0.45rem 0.85rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.8rem;
   color: #fff;
   background: rgb(167 139 250 / 88%);
@@ -737,7 +737,7 @@
   z-index: 21;
   transform: translateY(-50%);
   padding: 0.6rem 0.8rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.9rem;
   border-radius: 999px;
   background: rgb(255 255 255 / 92%);
@@ -784,7 +784,7 @@
   top: 0.75rem;
   left: 0.75rem;
   padding: 0.25rem 0.7rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.75rem;
   color: #fff;
   background: rgb(139 92 246 / 92%);
@@ -805,7 +805,7 @@
 
 .feed-capture-card__title {
   margin: 0 0 0.3rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 1.05rem;
   color: #3d2c5e;
 }
@@ -825,7 +825,7 @@
 
 .feed-capture-btn {
   padding: 0.6rem 0.8rem;
-  font-family: 'ZCOOL KuaiLe', 'PingFang SC', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.85rem;
   border-radius: 999px;
   border: 2px solid #e9e2f6;

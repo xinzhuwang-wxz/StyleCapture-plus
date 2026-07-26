@@ -240,20 +240,9 @@ export function AnalysisScreen({
           textAlign: "center"
         }}
       >
-        <p
-          style={{
-            fontFamily: "var(--font-pixel)",
-            fontSize: "0.72rem",
-            color: "var(--pixel-text)",
-            lineHeight: 1.6,
-            margin: "0 0 var(--px-2)"
-          }}
-        >
-          分析只来自真实衣橱和真实 Feed 收藏，不展示模拟搭配。
-        </p>
         <div style={{ display: "flex", gap: "var(--px-2)", justifyContent: "center" }}>
           <PixelButton variant="primary" onClick={onGoAI}>
-            ◇ AI 状态
+            ◇ AI 推荐
           </PixelButton>
           <PixelButton variant="ghost" onClick={onGoWardrobe}>
             👕 打开衣橱
