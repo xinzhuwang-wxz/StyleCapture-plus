@@ -58,3 +58,16 @@ async def test_readyz_returns_503_when_a_dependency_is_unavailable() -> None:
         "status": "not_ready",
         "checks": {"database": True, "redis": False, "litellm": True},
     }
+
+
+@pytest.mark.asyncio
+async def test_docs_use_same_origin_swagger_assets() -> None:
+    app = _app_with_readiness({"database": True, "redis": True, "litellm": True})
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/docs")
+
+    assert response.status_code == 200
+    assert "/docs-assets/swagger-ui-bundle.js" in response.text
+    assert "/docs-assets/swagger-ui.css" in response.text
+    assert "cdn.jsdelivr.net" not in response.text

@@ -5,6 +5,7 @@
 - 可交互 H5：<https://119.45.216.38/>
 - API 文档：<https://119.45.216.38/docs>
 - 服务就绪检查：<https://119.45.216.38/readyz>
+- Skill 下载：<https://119.45.216.38/downloads/scene-outfit-matching-skill.tar.gz>
 
 H5 会自动创建匿名体验会话，并预置一组已经标明 `curated_seed` 来源的真实单品、像素封面与穿搭，评委无需注册即可直接体验。
 
