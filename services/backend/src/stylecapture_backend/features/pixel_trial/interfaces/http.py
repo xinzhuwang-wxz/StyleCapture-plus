@@ -93,6 +93,7 @@ def build_pixel_trial_router(
             subject_object_key=body.subject_object_key,
             request_key=idempotency_key,
         )
+        services.objects.mark_attached(body.subject_object_key, user_id)
         if (
             services.dispatcher is not None
             and view.dispatch_required
@@ -151,6 +152,8 @@ def build_pixel_trial_router(
         view = await services.trials.delete(user_id=user_id, trial_id=trial_id)
         if view.object_key is not None:
             services.objects.delete(view.object_key)
+        if view.subject_object_key is not None and view.subject_object_key != view.object_key:
+            services.objects.delete(view.subject_object_key)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

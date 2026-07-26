@@ -18,6 +18,7 @@ import sys
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 from PIL import Image
 
@@ -45,14 +46,18 @@ def _median_color(
     samples: list[tuple[int, int, int]],
 ) -> tuple[int, int, int]:
     channels = tuple(
-        sorted(sample[channel] for sample in samples)[len(samples) // 2]
-        for channel in range(3)
+        sorted(sample[channel] for sample in samples)[len(samples) // 2] for channel in range(3)
     )
     return channels  # type: ignore[return-value]
 
 
 def _distance(left: tuple[int, int, int], right: tuple[int, int, int]) -> int:
     return sum(abs(left[channel] - right[channel]) for channel in range(3))
+
+
+def _rgb_at(pixels: Any, x: int, y: int) -> tuple[int, int, int]:
+    value = pixels[x, y]
+    return (int(value[0]), int(value[1]), int(value[2]))
 
 
 def _backdrop_palette(
@@ -66,16 +71,16 @@ def _backdrop_palette(
     and right of the subject recovers the inner backdrop and gives the flood a
     seed inside the frame.
     """
-    pixels = image.load()
+    pixels = cast(Any, image.load())
     width, height = image.size
 
     border: list[tuple[int, int, int]] = []
     for x in range(inset, width - inset, 4):
-        border.append(pixels[x, inset][:3])
-        border.append(pixels[x, height - inset - 1][:3])
+        border.append(_rgb_at(pixels, x, inset))
+        border.append(_rgb_at(pixels, x, height - inset - 1))
     for y in range(inset, height - inset, 4):
-        border.append(pixels[inset, y][:3])
-        border.append(pixels[width - inset - 1, y][:3])
+        border.append(_rgb_at(pixels, inset, y))
+        border.append(_rgb_at(pixels, width - inset - 1, y))
 
     # Characters occupy the middle of the card, so these columns stay clear.
     probes = [
@@ -83,7 +88,7 @@ def _backdrop_palette(
         for fraction_x in (0.15, 0.85)
         for fraction_y in (0.25, 0.5, 0.75)
     ]
-    probe_colors = [pixels[x, y][:3] for x, y in probes]
+    probe_colors = [_rgb_at(pixels, x, y) for x, y in probes]
     interior = _median_color(probe_colors)
     # Drop any probe that landed on artwork rather than the flat backdrop.
     seeds = [
@@ -95,9 +100,7 @@ def _backdrop_palette(
     return [_median_color(border), interior], seeds
 
 
-def _is_backdrop(
-    pixel: tuple[int, int, int], palette: list[tuple[int, int, int]]
-) -> bool:
+def _is_backdrop(pixel: tuple[int, int, int], palette: list[tuple[int, int, int]]) -> bool:
     if any(_distance(pixel, backdrop) <= BACKDROP_TOLERANCE for backdrop in palette):
         return True
     return min(pixel) >= SPARKLE_MINIMUM_CHANNEL
@@ -115,7 +118,7 @@ def _flood_backdrop(
     the flood never reaches it.
     """
     width, height = image.size
-    pixels = image.load()
+    pixels = cast(Any, image.load())
     is_backdrop = bytearray(width * height)
     queue: deque[int] = deque()
 
@@ -123,7 +126,7 @@ def _flood_backdrop(
         index = y * width + x
         if is_backdrop[index]:
             return
-        if not _is_backdrop(pixels[x, y][:3], palette):
+        if not _is_backdrop(_rgb_at(pixels, x, y), palette):
             return
         is_backdrop[index] = 1
         queue.append(index)
@@ -201,7 +204,7 @@ def cut_out(source: Path, destination: Path) -> tuple[int, int]:
     subject = _largest_component(subject, width, height)
 
     result = image.copy()
-    result_pixels = result.load()
+    result_pixels = cast(Any, result.load())
     min_x, min_y, max_x, max_y = width, height, -1, -1
     for index, keep in enumerate(subject):
         x = index % width
@@ -232,7 +235,7 @@ def cut_out(source: Path, destination: Path) -> tuple[int, int]:
     scale = TARGET_HEIGHT / cropped.height
     resized = cropped.resize(
         (max(1, round(cropped.width * scale)), TARGET_HEIGHT),
-        Image.LANCZOS,
+        Image.Resampling.LANCZOS,
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     resized.save(destination, optimize=True)
@@ -248,7 +251,9 @@ def main() -> int:
         destination = OUTPUT_DIR / source.name
         size = cut_out(source, destination)
         kilobytes = destination.stat().st_size / 1024
-        print(f"{source.name} -> {destination.relative_to(REPO_ROOT)}  {size[0]}x{size[1]}  {kilobytes:.0f} KB")
+        print(
+            f"{source.name} -> {destination.relative_to(REPO_ROOT)}  {size[0]}x{size[1]}  {kilobytes:.0f} KB"
+        )
     return 0
 
 

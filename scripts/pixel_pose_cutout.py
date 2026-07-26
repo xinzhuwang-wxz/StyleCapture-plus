@@ -73,7 +73,8 @@ def build(character: str, pose: str, stem: str) -> tuple[int, int, float]:
     cropped = trim_to_subject(image)
     scale = TARGET_HEIGHT / cropped.height
     resized = cropped.resize(
-        (max(1, round(cropped.width * scale)), TARGET_HEIGHT), Image.LANCZOS
+        (max(1, round(cropped.width * scale)), TARGET_HEIGHT),
+        Image.Resampling.LANCZOS,
     )
 
     destination = OUTPUT_DIR / character / f"{pose}.png"
