@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 from io import BytesIO
+from typing import cast
 
 from PIL import Image
 from stylecapture_backend.platform.image_normalization import optimize_browser_image
@@ -30,8 +31,9 @@ def test_large_transparent_png_is_compacted_for_browser_delivery() -> None:
         assert rendered.mode == "RGBA"
         pixel = rendered.getpixel((0, 0))
         assert isinstance(pixel, tuple)
-        assert len(pixel) == 4
-        assert pixel[3] == 0
+        rgba_pixel = cast(tuple[int, int, int, int], pixel)
+        assert len(rgba_pixel) == 4
+        assert rgba_pixel[3] == 0
 
 
 def test_small_png_is_returned_without_reencoding() -> None:
