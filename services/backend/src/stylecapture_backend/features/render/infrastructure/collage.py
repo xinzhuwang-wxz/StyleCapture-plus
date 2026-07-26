@@ -13,7 +13,8 @@ from stylecapture_backend.features.render.ports import CollageRenderError
 
 @dataclass(frozen=True, slots=True)
 class PillowLookCollageRenderer:
-    canvas_size: int = 1024
+    canvas_width: int = 768
+    canvas_height: int = 1024
     gap: int = 32
     padding: int = 48
     transparent_background: bool = False
@@ -23,17 +24,17 @@ class PillowLookCollageRenderer:
             raise CollageRenderError("collage requires at least one image")
         if len(images) > 6:
             raise CollageRenderError("collage supports at most six images")
-        if self.canvas_size < 256:
-            raise CollageRenderError("collage canvas must be at least 256 pixels")
+        if self.canvas_width < 256 or self.canvas_height < 256:
+            raise CollageRenderError("collage canvas dimensions must be at least 256 pixels")
         if self.padding < 0 or self.gap < 0:
             raise CollageRenderError("collage spacing must not be negative")
-
         mode = "RGBA"
-        background = (255, 255, 255, 0) if self.transparent_background else (255, 250, 252, 255)
-        canvas = Image.new(mode, (self.canvas_size, self.canvas_size), background)
+        background = (255, 255, 255, 0) if self.transparent_background else (255, 255, 255, 255)
+        canvas = Image.new(mode, (self.canvas_width, self.canvas_height), background)
         cells = _cells_for_count(
             len(images),
-            canvas_size=self.canvas_size,
+            canvas_width=self.canvas_width,
+            canvas_height=self.canvas_height,
             padding=self.padding,
             gap=self.gap,
         )
@@ -51,7 +52,6 @@ class PillowLookCollageRenderer:
                 cell.y + (cell.height - fitted.height) // 2,
             )
             canvas.alpha_composite(fitted, dest=position)
-
         buffer = BytesIO()
         canvas.save(buffer, format="PNG", optimize=False)
         body = buffer.getvalue()
@@ -84,10 +84,17 @@ def _decode_image(payload: ImagePayload) -> Image.Image:
     return decoded
 
 
-def _cells_for_count(count: int, *, canvas_size: int, padding: int, gap: int) -> tuple[_Cell, ...]:
+def _cells_for_count(
+    count: int,
+    *,
+    canvas_width: int,
+    canvas_height: int,
+    padding: int,
+    gap: int,
+) -> tuple[_Cell, ...]:
     columns, rows = _grid_for_count(count)
-    available_width = canvas_size - padding * 2 - gap * (columns - 1)
-    available_height = canvas_size - padding * 2 - gap * (rows - 1)
+    available_width = canvas_width - padding * 2 - gap * (columns - 1)
+    available_height = canvas_height - padding * 2 - gap * (rows - 1)
     if available_width <= 0 or available_height <= 0:
         raise CollageRenderError("collage spacing leaves no drawable area")
     cell_width = available_width // columns
