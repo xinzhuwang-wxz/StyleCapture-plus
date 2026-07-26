@@ -51,6 +51,8 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
 | Model routing | Direct Ark calls; existing LiteLLM gateway | Directly reuse LiteLLM aliases | H5, Skill and domain code remain provider-neutral and keys stay server-only | LiteLLM in current backend image, MIT |
 | Recommendation Skill | New Skill server; current `scene-outfit-matching` | Directly reuse current thin Skill facade | It already calls the generated Product API and trace contracts; a second implementation would drift | This repository |
 | Image/try-on generation | Local GPU stack; FASHN; current Seedream image edit | Reuse Seedream through `image_generation`, keep FASHN optional | Full multi-reference result without GPU capacity or a second public contract | Volcengine Ark API; current adapter |
+| Feed fast start | Service Worker/Workbox; preload ten MP4s; existing Nginx cache and FFmpeg corpus pipeline | Adapt existing HTTP cache and FFmpeg, mount only the active media window | Preloading ten videos competes for mobile bandwidth; 30 lightweight first-frame JPEGs plus active/neighbor mounting improve perceived and actual start without a new runtime | Existing Nginx; local FFmpeg 8.0.1, LGPL/GPL build terms retained |
+| Scene-aware candidate diversity | Let the model invent plans; vector search for every text prompt; existing deterministic candidate builder plus LiteLLM reranker | Adapt the current closed-candidate builder with Chinese concept normalization and deterministic rotation | Keeps hard ownership/category constraints while ensuring the real candidates passed to AI change with scene and do not repeat candidate zero | This repository; LiteLLM MIT |
 
 ## Decision log
 
@@ -95,6 +97,15 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
   now preserves that source while serving a browser-optimized 274 KiB WebP derivative;
   the item detail uses native image streaming over HTTP/2 instead of buffering the
   entire object in browser JavaScript.
+- Public reproduction confirmed recommendation requests were genuinely `llm_ranked`
+  through capability alias `reasoning`, but LiteLLM was intentionally forbidden from
+  changing items. Chinese preset phrases were not tokenized into the seed tag vocabulary,
+  so different scenes shared most closed candidates. Candidate concept normalization
+  and per-plan rotation now make scene and option changes visible before AI reranking.
+- Public Feed measurements showed the first MP4 was only 435 KiB with a roughly 180 ms
+  first byte; caching ten MP4s eagerly would have made contention worse. Release-stable
+  manifest/media caching, 11–39 KiB first-frame posters and a three-component active
+  window are the bounded mobile fix.
 
 ## Final verification evidence
 

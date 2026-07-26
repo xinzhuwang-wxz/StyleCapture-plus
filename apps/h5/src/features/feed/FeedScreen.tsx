@@ -16,6 +16,10 @@ export interface FeedScreenProps {
   } | null;
 }
 
+export function shouldMountFeedAsset(index: number, activeIndex: number): boolean {
+  return Math.abs(index - activeIndex) <= 1;
+}
+
 export function FeedScreen({
   active = true,
   onAccepted,
@@ -93,24 +97,32 @@ export function FeedScreen({
         );
       }}
     >
-      {manifestQuery.data.map((asset, index) => (
-        <FeedVideo
-          active={active && index === activeIndex}
-          asset={asset}
-          gestureGuideEnabled={index < 2}
-          key={asset.assetId}
-          mediaLoaded={active && Math.abs(index - activeIndex) <= 1}
-          onAccepted={onAccepted}
-          restoreRequest={
-            restoreTarget && restoreTarget.videoRef === asset.assetId
-              ? {
-                  requestId: restoreTarget.requestId,
-                  timestampMs: restoreTarget.timestampMs
-                }
-              : null
-          }
-        />
-      ))}
+      {manifestQuery.data.map((asset, index) =>
+        shouldMountFeedAsset(index, activeIndex) ? (
+          <FeedVideo
+            active={active && index === activeIndex}
+            asset={asset}
+            gestureGuideEnabled={index < 2}
+            key={asset.assetId}
+            mediaLoaded={active}
+            onAccepted={onAccepted}
+            restoreRequest={
+              restoreTarget && restoreTarget.videoRef === asset.assetId
+                ? {
+                    requestId: restoreTarget.requestId,
+                    timestampMs: restoreTarget.timestampMs
+                  }
+                : null
+            }
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="feed-video feed-video--placeholder"
+            key={asset.assetId}
+          />
+        )
+      )}
     </div>
   );
 }

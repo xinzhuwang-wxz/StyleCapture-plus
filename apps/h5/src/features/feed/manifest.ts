@@ -50,6 +50,10 @@ export function feedMediaUrl(localPath: string): string {
   return `/feed/${segments.map(encodeURIComponent).join("/")}`;
 }
 
+export function feedPosterUrl(assetId: string): string {
+  return feedMediaUrl(`posters/${assetId}.jpg`);
+}
+
 function parseAsset(value: unknown): FeedAsset | null {
   if (!value || typeof value !== "object") {
     throw new Error("Feed manifest 包含无效素材");
@@ -82,7 +86,7 @@ export async function loadFeedManifest(
 ): Promise<FeedAsset[]> {
   const response = await fetch(FEED_MANIFEST_URL, {
     credentials: "same-origin",
-    cache: "no-store",
+    cache: "default",
     signal
   });
   if (!response.ok) {

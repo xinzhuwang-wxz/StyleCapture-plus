@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -44,6 +45,24 @@ from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeIt
 PLAN_NAMESPACE = UUID("7fb45e4c-8de2-48d2-9652-ec5463a42e65")
 TRACE_NAMESPACE = UUID("91459d67-5cf8-4b33-aee9-b7b24b7dd183")
 logger = logging.getLogger(__name__)
+
+# The recommender keeps hard constraints deterministic, but Chinese scene prompts
+# rarely contain whitespace. Expand those phrases before scoring so the
+# closed candidates handed to LiteLLM actually respond to the user's intent.
+QUERY_CONCEPTS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("旅行", ("旅行", "度假", "轻便", "户外")),
+    ("拍照", ("拍照", "明亮", "明快", "亮色", "浪漫", "显眼")),
+    ("通勤", ("通勤", "利落", "知性", "实用", "耐穿")),
+    ("面试", ("面试", "通勤", "正式", "利落", "简洁", "得体")),
+    ("约会", ("约会", "浪漫", "温柔", "甜美", "松弛")),
+    ("上课", ("上课", "学院", "日常", "休闲", "舒适", "耐穿")),
+    ("炎热", ("炎热", "夏日", "夏季", "轻便", "清爽")),
+    ("寒冷", ("寒冷", "秋冬", "冬季", "保暖", "叠穿")),
+    ("正式", ("正式", "商务", "通勤", "利落", "优雅")),
+    ("休闲", ("休闲", "松弛", "日常", "舒适")),
+    ("走路", ("走路", "轻便", "运动", "耐穿", "舒适")),
+    ("久坐", ("久坐", "舒适", "松弛", "柔软")),
+)
 
 TEMPLATES: tuple[tuple[OutfitCategory, ...], ...] = (
     (
@@ -648,7 +667,10 @@ def _build_plans(
                 grouped=grouped,
                 required_by_category=required_by_category,
                 request=request,
-                variant_index=variant_index,
+                # Do not let the first four templates all reuse candidate zero.
+                # Rotating by the number of accepted plans makes the progressive
+                # cards visibly different while preserving deterministic output.
+                variant_index=variant_index + len(plans),
             )
             structure = _structure_signature(slots)
             if structure in seen_structures:
@@ -741,19 +763,36 @@ def _relevance(item: WardrobeItem, request: OutfitRequest) -> int:
     text = " ".join(
         str(field.value) for field in item.attributes.fields.values() if field.value is not None
     ).lower()
-    for token in (
+    for term in _query_terms(request):
+        if term in text:
+            score += 3
+    if request.anchor_item_id == item.id:
+        score += 100
+    return score
+
+
+def _query_terms(request: OutfitRequest) -> tuple[str, ...]:
+    values = (
         request.scene,
         request.style or "",
         request.weather or "",
         request.formality or "",
         request.comfort or "",
-    ):
-        for part in token.lower().split():
-            if part and part in text:
-                score += 3
-    if request.anchor_item_id == item.id:
-        score += 100
-    return score
+    )
+    terms: list[str] = []
+    for raw_value in values:
+        normalized = raw_value.strip().lower()
+        if not normalized:
+            continue
+        terms.extend(
+            part
+            for part in re.split(r"[\s,，、;；。.!！？/]+", normalized)  # noqa: RUF001
+            if part
+        )
+        for trigger, related in QUERY_CONCEPTS:
+            if trigger in normalized:
+                terms.extend(related)
+    return tuple(dict.fromkeys(terms))
 
 
 def _category(item: WardrobeItem) -> OutfitCategory | None:
