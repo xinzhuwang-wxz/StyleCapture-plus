@@ -1,0 +1,4 @@
+interface:
+  display_name: "豆包真人穿搭试穿"
+  short_description: "Identity-locked try-on for one or many outfits"
+  default_prompt: "Use $doubao-virtual-try-on to generate identity-consistent try-on images from my person photo and outfit boards."

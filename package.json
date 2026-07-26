@@ -8,7 +8,8 @@
     "contracts:generate": "pnpm --filter @stylecapture/h5 generate:api",
     "lint": "pnpm -r --if-present lint",
     "playground:scene-outfit": "node skills/scene-outfit-matching/scripts/match.js --request '{\"scene\":\"通勤面试\",\"formality\":\"正式商务\",\"comfort\":\"久坐舒适\"}'",
-    "test": "pnpm -r --if-present test && pnpm test:scene-outfit",
+    "test": "pnpm -r --if-present test && pnpm test:scene-outfit && pnpm test:doubao-skill",
+    "test:doubao-skill": "python3 -B -m unittest tests/test_doubao_skill.py",
     "test:scene-outfit": "node --test skills/scene-outfit-matching/tests/*.test.js",
     "typecheck": "pnpm -r --if-present typecheck"
   },
