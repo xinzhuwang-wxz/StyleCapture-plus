@@ -268,23 +268,28 @@ describe("Feed runtime", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("captures the decoded video frame as a real PNG File", async () => {
+  it("captures a high-quality bounded JPEG frame for responsive public upload", async () => {
     const { drawImage } = installMediaAndCanvasDoubles();
     const video = document.createElement("video");
     prepareVideo(video, 1.275);
 
     const frame = await captureVideoFrame(video, "look-01");
 
-    expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 1080, 2160);
+    expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 720, 1440);
+    expect(HTMLCanvasElement.prototype.toBlob).toHaveBeenCalledWith(
+      expect.any(Function),
+      "image/jpeg",
+      0.92
+    );
     expect(frame.file).toEqual(
       expect.objectContaining({
-        name: "look-01-1275.png",
-        type: "image/png"
+        name: "look-01-1275.jpg",
+        type: "image/jpeg"
       })
     );
     expect(frame).toMatchObject({
-      width: 1080,
-      height: 2160,
+      width: 720,
+      height: 1440,
       timestampMs: 1275
     });
   });
