@@ -447,8 +447,8 @@ function ProductApp() {
 }
 
 export function App() {
-  const directStyleParty =
-    new URLSearchParams(window.location.search).get("demo") === "style-party";
+  const query = new URLSearchParams(window.location.search);
+  const directStyleParty = query.get("demo") === "style-party";
 
   return directStyleParty ? <CommunityScreen /> : <ProductApp />;
 }

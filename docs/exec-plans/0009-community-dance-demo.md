@@ -4,15 +4,18 @@
 
 **Issue:** [#9](https://github.com/xinzhuwang-wxz/StyleCapture-plus/issues/9)
 **PR:** [#10](https://github.com/xinzhuwang-wxz/StyleCapture-plus/pull/10)
-**Status:** Independent concept validation. This branch may be closed without merging.
+**Status:** Independent concept validation, rebuilt as a walkable pixel world.
+This branch may be closed without merging.
 
 ## Observable outcome
 
-Turn the old free-roaming pixel mini-game into a mobile-first theme runway ball. A
-user can open a standalone local URL, browse complete fashion-pixel Looks, collect an
-inspiration, preview their own pixel Look backstage, explicitly publish it, watch it
-walk into the spotlight, join the dance floor, leave a style-specific reaction, and
-download a share card.
+A mobile-first pixel world you can walk around in. A user opens a standalone local
+URL, taps to move, walks up to preset guests and has a real back-and-forth with
+them, changes their whole Look without leaving the page, walks the runway (or just
+steps onto the stage), watches the room gather and applaud with floating pixel
+reactions, and takes away a group photo — either a still card or an animated one
+whose caption holds still while the scene keeps moving. Three locations, each with
+its own occasion.
 
 The experiment tests one product hypothesis:
 
@@ -125,3 +128,56 @@ It does not add a live community backend, primary navigation destination, real-t
   route, avoiding new persistence, backend, routing, or deployment dependencies.
 - 2026-07-25 — Reuse Pixel Agents only at the scene boundary (assets and frame-loop
   pattern); do not import its VS Code, terminal, editor, or pathfinding architecture.
+
+
+## 2026-07-26 rebuild
+
+The first version drew the room on a canvas and the characters as CSS-positioned
+DOM images. They shared no coordinate space, so nobody ever looked like they were
+standing in the room, and a second backdrop would have meant a second renderer.
+
+### What changed
+
+- **One world.** Tile maps are data (`world/sceneMap.ts`), with a camera, y-sorted
+  drawing, depth scaling, contact shadows and tap-to-move. Adding a location is
+  now content, not code — which is how the third scene got added in an afternoon.
+- **Animation without sprite sheets.** The supplied art is full-body portraits, so
+  `world/characterRig.ts` splits each portrait into head / torso / lower bands and
+  animates them procedurally. When the owner supplied a 4-character × 4-pose pack,
+  authored poses took over the discrete states (idle / walk / cheer / wave) and the
+  rig kept them alive in between.
+- **A room that is social without the player.** Guests pair off, walk to each
+  other and run their own scripted exchanges; the player can walk over and join, or
+  type a line that appears as their own bubble.
+- **The share unit is the group shot.** The card names only guests actually inside
+  the captured frame, and waits for the crowd to arrive before the shutter fires.
+
+### Asset pipeline
+
+| Script | Input | Output |
+| --- | --- | --- |
+| `scripts/pixel_look_cutout.py` | illustration cards with frames and backdrops | clean transparent Look sprites |
+| `scripts/pixel_pose_cutout.py` | the 4×4 pose pack | `poses/<character>/<pose>.png` |
+
+The ~36 MB source pose pack is not committed; the ~930 KB of derived sprites is,
+with source hashes recorded in `apps/h5/public/assets/community/poses/README.md`.
+
+### Verification (2026-07-26)
+
+- 75 unit tests across 12 files; TypeScript and production build clean.
+- Real 390×844 Chromium runs: opening state, guest conversation, guest-to-guest
+  conversation, player speech, runway, applause, freeze, still card, animated card,
+  all three locations, immersive mode enter/exit.
+- No horizontal overflow (`scrollWidth === clientWidth === 390`) in either mode.
+- Animated card verified mechanically: footer pixels identical across frames,
+  scene pixels differing.
+- Dev-only helpers (`/device` preview frame, `__styleParty` handle) confirmed
+  absent from the production bundle.
+
+### Known gaps
+
+- The coffee house reuses the pink Pixel Agents sofa rather than a purpose-drawn
+  one; it is the weakest scene visually.
+- Dialogue is authored, not model-driven. That is deliberate for this slice.
+- Still no live multiplayer. `sayAsPlayer` is the seam a real second person would
+  speak through.

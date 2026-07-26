@@ -1,48 +1,64 @@
-import { motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { validateImage } from "../../api/client";
-import { PixelBallroomCanvas } from "./PixelBallroomCanvas";
-import { PixelGuest } from "./PixelGuest";
+import { PixelWorldCanvas, type PixelWorldHandle } from "./PixelWorldCanvas";
+import { useParty, type LookSpriteSource } from "./useParty";
 import {
-  completeEntrance,
   createCommunityScene,
-  defaultCommunityAvatar,
-  enterMyLook,
+  lookById,
+  randomOtherLook,
   reactToSelectedLook,
   replaceMyLook,
   selectPartyLook,
   selectedPartyLook,
-  startDance,
   toggleSavedLook,
+  wearLook,
+  wornLook,
   type CommunityAvatarSource,
+  type CommunityScene,
   type PartyLook,
-  type PartyReaction,
-  type PartyStage
+  type PartyReaction
 } from "./communityScene";
+import { personaById } from "./world/guests";
+import { sceneMaps } from "./world/sceneMap";
+import {
+  CARD_HEIGHT,
+  CARD_WIDTH,
+  downloadBlob,
+  drawShareCard,
+  encodeAnimatedCard,
+  SCENE_RECT
+} from "./world/shareMoment";
+import {
+  actorById,
+  freezeParty,
+  gatherForPhoto,
+  playerOf,
+  resumeParty,
+  STAGE_GATHER_RADIUS,
+  sayAsPlayer,
+  startRunway
+} from "./world/simulation";
 import "./community.css";
 
 export type { CommunityAvatarSource } from "./communityScene";
 export { defaultCommunityAvatar } from "./communityScene";
 
-const reactionLabels: Record<
-  PartyReaction,
-  { label: string; symbol: string }
-> = {
+const reactionLabels: Record<PartyReaction, { label: string; symbol: string }> = {
   palette: { label: "配色好会", symbol: "◈" },
   layering: { label: "层次感", symbol: "✦" },
   remix: { label: "想抄作业", symbol: "♡" }
 };
 
-const stageCopy: Record<PartyStage, { eyebrow: string; title: string }> = {
-  gallery: { eyebrow: "正在逛场", title: "先看看今晚的 Look" },
-  backstage: { eyebrow: "后台准备", title: "你的 Look 等待登场" },
-  runway: { eyebrow: "RUNWAY LIVE", title: "沿星光走到舞池中央" },
-  spotlight: { eyebrow: "POSE TIME", title: "定格今晚的主角时刻" },
-  dance: { eyebrow: "DANCE MODE", title: "和灵感角色一起动起来" }
+const phaseCopy: Record<string, { eyebrow: string; title: string }> = {
+  mingling: { eyebrow: "自由走动", title: "点地面走动，点角色去打招呼" },
+  greeting: { eyebrow: "正在聊天", title: "走开就可以结束这段对话" },
+  walking: { eyebrow: "RUNWAY LIVE", title: "沿星光走到舞池中央" },
+  posing: { eyebrow: "POSE TIME", title: "定格今晚的主角时刻" },
+  frozen: { eyebrow: "FREEZE", title: "画面已定格，可以带走这一刻" }
 };
 
-type ShareState = "idle" | "loading" | "ready" | "error";
+type ShareState = "idle" | "card" | "gif" | "error";
 
 type CommunityScreenProps = {
   avatarSource?: CommunityAvatarSource;
@@ -53,167 +69,106 @@ type CommunityScreenProps = {
   onShare?: (look: PartyLook) => void;
 };
 
-function waitForImage(image: HTMLImageElement): Promise<void> {
-  if (image.complete) {
-    return image.naturalWidth > 0
-      ? Promise.resolve()
-      : Promise.reject(new Error("像素 Look 图片不可用"));
-  }
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("像素 Look 加载超时"));
-    }, 5_000);
-    const cleanup = () => {
-      window.clearTimeout(timeout);
-      image.removeEventListener("load", handleLoad);
-      image.removeEventListener("error", handleError);
-    };
-    const handleLoad = () => {
-      cleanup();
-      image.naturalWidth > 0
-        ? resolve()
-        : reject(new Error("像素 Look 图片不可用"));
-    };
-    const handleError = () => {
-      cleanup();
-      reject(new Error("像素 Look 加载失败"));
-    };
-    image.addEventListener("load", handleLoad, { once: true });
-    image.addEventListener("error", handleError, { once: true });
-  });
-}
-
-function drawContainedImage(
-  context: CanvasRenderingContext2D,
-  image: HTMLImageElement,
-  box: { x: number; y: number; width: number; height: number }
-) {
-  const imageRatio = image.naturalWidth / image.naturalHeight;
-  const boxRatio = box.width / box.height;
-  const width = imageRatio > boxRatio ? box.width : box.height * imageRatio;
-  const height = imageRatio > boxRatio ? box.width / imageRatio : box.height;
-  context.drawImage(
-    image,
-    box.x + (box.width - width) / 2,
-    box.y + (box.height - height) / 2,
-    width,
-    height
-  );
-}
-
-export function drawShareCard(
-  canvas: HTMLCanvasElement,
-  image: HTMLImageElement,
-  look: PartyLook
-) {
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("浏览器不支持分享卡绘制");
-  if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
-    throw new Error("像素 Look 还没有加载完成");
-  }
-
-  canvas.width = 720;
-  canvas.height = 960;
-  context.fillStyle = "#251c3c";
-  context.fillRect(0, 0, 720, 960);
-  context.fillStyle = "#f5c3d8";
-  context.fillRect(28, 28, 664, 904);
-  context.fillStyle = "#fff8fb";
-  context.fillRect(42, 42, 636, 876);
-  context.fillStyle = "#6e4b88";
-  context.font = "800 26px sans-serif";
-  context.fillText("STYLECAPTURE", 76, 83);
-  context.fillStyle = "#b06f9b";
-  context.font = "700 20px sans-serif";
-  context.fillText("PIXEL RUNWAY BALL", 76, 116);
-  context.fillStyle = "#eee4fa";
-  context.fillRect(70, 145, 580, 566);
-  drawContainedImage(context, image, {
-    x: 86,
-    y: 161,
-    width: 548,
-    height: 526
-  });
-  context.fillStyle = "#fff";
-  context.fillRect(70, 735, 580, 151);
-  context.fillStyle = "#9a6aa8";
-  context.font = "800 18px sans-serif";
-  context.fillText("本期主题 · 花房夜宴", 94, 772);
-  context.fillStyle = "#3d2946";
-  context.font = "800 42px sans-serif";
-  context.fillText(look.title, 94, 823);
-  context.fillStyle = "#7c687f";
-  context.font = "21px sans-serif";
-  context.fillText(
-    look.tags.slice(0, 3).map((tag) => `#${tag}`).join("  "),
-    94,
-    858
-  );
-  context.fillStyle = "#76507e";
-  context.font = "800 20px sans-serif";
-  context.fillText("带你的像素 Look 来走秀 →", 76, 906);
-}
-
-function performerAnimation(stage: PartyStage, danceStep: number) {
-  if (stage === "runway") {
-    return {
-      x: [-112, -52, 0],
-      y: [82, 20, -34],
-      scale: [0.72, 0.9, 1.08],
-      rotate: [0, -2, 0]
-    };
-  }
-  if (stage === "spotlight") {
-    return { x: 0, y: -34, scale: 1.08, rotate: danceStep % 2 ? -3 : 3 };
-  }
-  if (stage === "dance") {
-    return {
-      x: [0, -18, 18, 0],
-      y: [-34, -54, -34, -48, -34],
-      scale: [1.08, 1.12, 1.08],
-      rotate: danceStep % 2 ? [0, -7, 7, 0] : [0, 7, -7, 0]
-    };
-  }
-  return { x: -112, y: 82, scale: 0.72, rotate: 0 };
-}
+/** ~2.6 seconds of motion inside the card frame. */
+const CARD_FRAMES = 20;
+const CARD_DELAY = 130;
 
 export function CommunityScreen({
-  avatarSource = defaultCommunityAvatar,
+  avatarSource,
   onExit,
   onPublishLook,
   onSaveInspiration,
   onReaction,
   onShare
 }: CommunityScreenProps) {
-  const initialScene = useMemo(
-    () => createCommunityScene(avatarSource),
-    [avatarSource]
+  const [scene, setScene] = useState<CommunityScene>(() =>
+    createCommunityScene(avatarSource)
   );
-  const [scene, setScene] = useState(initialScene);
-  const [message, setMessage] = useState("先逛灵感，再让自己的像素 Look 上台");
+  const [message, setMessage] = useState(
+    "主题走秀舞会：先逛逛，和大家聊两句，再让你的 Look 上台"
+  );
   const [shareState, setShareState] = useState<ShareState>("idle");
-  const [danceStep, setDanceStep] = useState(0);
-  const shareCanvas = useRef<HTMLCanvasElement>(null);
-  const shareImage = useRef<HTMLImageElement>(null);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
+  const [phaseLabel, setPhaseLabel] = useState("mingling");
+  const [immersive, setImmersive] = useState(false);
+  const [draft, setDraft] = useState("");
   const uploadedObjectUrl = useRef<string | null>(null);
-  const runwayTimer = useRef<number | null>(null);
-  const selectedLook = selectedPartyLook(scene);
-  const ownLook =
-    scene.looks.find((look) => look.id === scene.myLookId) ?? selectedLook;
-  const curatedLooks = scene.looks.filter(
-    (look) => look.sourceKind === "curated-seed"
+  const worldHandle = useRef<PixelWorldHandle>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  const spriteSources = useMemo<LookSpriteSource[]>(
+    () =>
+      scene.looks.map((look) => ({
+        lookId: look.id,
+        url: look.assetUrl,
+        removeBackdrop: look.needsBackdropRemoval,
+        poseRoot: look.poseRoot
+      })),
+    [scene.looks]
   );
 
-  useEffect(
-    () => () => {
-      if (uploadedObjectUrl.current) {
-        URL.revokeObjectURL(uploadedObjectUrl.current);
+  const party = useParty(sceneMaps[0].id, scene.wornLookId, spriteSources);
+  const selectedLook = selectedPartyLook(scene);
+  const worn = wornLook(scene);
+  const selectedGuest = selectedGuestId ? personaById(selectedGuestId) : null;
+
+  const syncPhase = useCallback(() => {
+    setPhaseLabel(party.world.phase);
+  }, [party.world]);
+
+  // Leaving fullscreen with Esc or a system gesture must not leave the layout
+  // stuck in immersive mode.
+  useEffect(() => {
+    const sync = () => {
+      if (!document.fullscreenElement) setImmersive(false);
+    };
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  // The world changes phase on its own — walking onto the runway, finishing a
+  // conversation — so the HUD polls rather than waiting for a button press.
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setPhaseLabel(party.world.phase),
+      200
+    );
+    return () => window.clearInterval(timer);
+  }, [party.world]);
+
+  function announce(text: string) {
+    setMessage(text);
+    syncPhase();
+  }
+
+  /**
+   * Full-screen the world. The browser Fullscreen API is unavailable on iOS
+   * Safari, so the layout class is what actually enlarges the world and the
+   * native call is a bonus when it exists.
+   */
+  async function toggleImmersive() {
+    const next = !immersive;
+    setImmersive(next);
+    const shell = shellRef.current;
+    try {
+      if (next && shell?.requestFullscreen) {
+        await shell.requestFullscreen();
+      } else if (!next && document.fullscreenElement) {
+        await document.exitFullscreen();
       }
-      if (runwayTimer.current) window.clearTimeout(runwayTimer.current);
-    },
-    []
-  );
+    } catch {
+      // Layout-only immersive mode still applies.
+    }
+    announce(next ? "已进入全屏世界，再点一次退出" : "已退出全屏");
+  }
+
+  function dressIn(lookId: string) {
+    const next = wearLook(scene, lookId);
+    setScene(next);
+    party.updatePlayerLook(lookId);
+    const look = lookById(next, lookId);
+    announce(`已换上：${look?.title ?? "新的 Look"}`);
+  }
 
   function uploadPixelLook(file: File | undefined) {
     if (!file) return;
@@ -230,46 +185,49 @@ export function CommunityScreen({
       return;
     }
     const nextUrl = URL.createObjectURL(file);
-    if (uploadedObjectUrl.current) {
-      URL.revokeObjectURL(uploadedObjectUrl.current);
-    }
+    if (uploadedObjectUrl.current) URL.revokeObjectURL(uploadedObjectUrl.current);
     uploadedObjectUrl.current = nextUrl;
-    setScene((current) =>
-      replaceMyLook(current, {
-        assetUrl: nextUrl,
-        label: file.name,
-        kind: "local-upload",
-        presentation: "avatar"
-      })
-    );
+    const next = replaceMyLook(scene, {
+      assetUrl: nextUrl,
+      label: file.name,
+      kind: "local-upload"
+    });
+    setScene(next);
     setShareState("idle");
-    setMessage("已在后台预览；点击“上台走秀”才会登场");
-  }
-
-  function chooseLook(lookId: string) {
-    setScene((current) => selectPartyLook(current, lookId));
-    setShareState("idle");
-    setMessage("已切换灵感 Look，可以收藏或送出风格回应");
+    setMessage("已加入衣橱；点它换上，再点「上台走秀」登场");
   }
 
   function enterStage() {
-    if (runwayTimer.current) window.clearTimeout(runwayTimer.current);
-    setScene((current) => enterMyLook(current));
-    onPublishLook?.(ownLook);
+    startRunway(party.world);
+    onPublishLook?.(worn);
+    setSelectedGuestId(null);
     setShareState("idle");
-    setMessage("走秀开始：从后台走向舞池中央");
-    runwayTimer.current = window.setTimeout(() => {
-      setScene((current) => completeEntrance(current));
-      setMessage("已到达主舞台：摆个 Pose，或者加入舞会");
-    }, 1_650);
+    announce("走秀开始：从后台走向舞池中央");
   }
 
-  function dance() {
-    setDanceStep((step) => step + 1);
-    setScene((current) => startDance(current));
-    setMessage(
-      scene.stage === "dance" ? "换了一个舞步 ✦" : "舞会模式已开启 ✦"
-    );
+  function freeze() {
+    freezeParty(party.world);
+    announce("画面已定格，可以生成同框合影");
+  }
+
+  function resume() {
+    resumeParty(party.world);
+    announce("已回到舞台");
+  }
+
+  function inspectActor(actorId: string | null) {
+    party.world.selectedActorId = actorId;
+    if (!actorId) {
+      setSelectedGuestId(null);
+      return;
+    }
+    const actor = actorById(party.world, actorId);
+    const persona = personaById(actorId);
+    if (!actor || !persona) return;
+    setSelectedGuestId(actorId);
+    setScene((current) => selectPartyLook(current, actor.lookId));
+    const reason = persona.reasons[party.sceneId];
+    announce(`${persona.name}：${reason ?? persona.bio}`);
   }
 
   function react(reaction: PartyReaction) {
@@ -280,7 +238,7 @@ export function CommunityScreen({
 
   function saveInspiration() {
     if (selectedLook.sourceKind === "my-look") {
-      chooseLook(curatedLooks[0]?.id ?? scene.myLookId);
+      dressIn(selectedLook.id);
       return;
     }
     const wasSaved = scene.savedLookIds.includes(selectedLook.id);
@@ -293,31 +251,133 @@ export function CommunityScreen({
     );
   }
 
-  async function prepareShareCard() {
-    if (shareState === "loading") return;
-    setShareState("loading");
-    setMessage("正在准备分享卡…");
-    try {
-      const canvas = shareCanvas.current;
-      const image = shareImage.current;
-      if (!canvas || !image) throw new Error("分享卡还没有准备好");
-      await waitForImage(image);
-      drawShareCard(canvas, image, selectedLook);
-      const link = document.createElement("a");
-      link.href = canvas.toDataURL("image/png");
-      link.download = "stylecapture-pixel-runway.png";
-      link.click();
-      onShare?.(selectedLook);
-      setShareState("ready");
-      setMessage("分享卡已准备好");
-    } catch {
-      setShareState("error");
-      setMessage("分享卡生成失败，请重试");
+  /**
+   * Only guests actually inside the captured frame may be named. The card must
+   * never claim company that is not in the picture.
+   */
+  function coStars(): string[] {
+    const player = playerOf(party.world);
+    const halfWidth = (STAGE_GATHER_RADIUS * 3.4) / 2;
+    const halfHeight = halfWidth * (CARD_HEIGHT - 360) / (CARD_WIDTH - 48);
+    return party.world.actors
+      .filter((actor) => actor.kind === "guest")
+      .filter(
+        (actor) =>
+          Math.abs(actor.x - player.x) < halfWidth &&
+          Math.abs(actor.y - (player.y - 26)) < halfHeight
+      )
+      .map((actor) => actor.name)
+      .slice(0, 3);
+  }
+
+  const settle = () => new Promise((resolve) => window.setTimeout(resolve, 120));
+
+  /**
+   * Gets everyone in position before the shutter fires.
+   *
+   * The runway walk clears guest targets every frame so nobody wanders across
+   * the entrance, so the crowd can only be called in once the walk has landed.
+   * Bounded, so a stalled canvas fails visibly instead of hanging the button.
+   */
+  async function settleForPhoto(timeoutMs = 4000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline && party.world.phase === "walking") {
+      await settle();
+    }
+    gatherForPhoto(party.world);
+    while (Date.now() < deadline) {
+      const stillArriving = party.world.actors.some(
+        (actor) => actor.kind === "guest" && actor.target
+      );
+      if (!stillArriving) return;
+      await settle();
     }
   }
 
+  const busy = shareState === "card" || shareState === "gif";
+
+  function shareSubject() {
+    return {
+      theme: scene.theme.title,
+      eyebrow: scene.theme.eyebrow,
+      lookTitle: worn.title,
+      withNames: coStars(),
+      tags: worn.tags,
+      disclaimer: "像素合影 · 预设角色非真人 · 非实时社区"
+    };
+  }
+
+  function renderCard(): HTMLCanvasElement | null {
+    const frame = worldHandle.current?.captureFrame(
+      SCENE_RECT.width,
+      SCENE_RECT.height
+    );
+    if (!frame) return null;
+    const canvas = document.createElement("canvas");
+    drawShareCard(canvas, frame, shareSubject());
+    return canvas;
+  }
+
+  async function exportCard() {
+    if (busy) return;
+    setShareState("card");
+    setMessage("正在等大家入镜…");
+    try {
+      await settleForPhoto();
+      setMessage("正在生成同框合影…");
+      freezeParty(party.world);
+      const canvas = renderCard();
+      if (!canvas) throw new Error("画面还没有准备好");
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvas.toBlob((result) => resolve(result), "image/png")
+      );
+      if (!blob) throw new Error("分享卡导出失败");
+      downloadBlob(blob, "stylecapture-style-party.png");
+      onShare?.(worn);
+      setShareState("idle");
+      announce("同框合影已保存");
+    } catch {
+      setShareState("error");
+      setMessage("合影生成失败，请重试");
+    }
+  }
+
+  /** The caption holds still while the scene inside the frame keeps moving. */
+  async function exportAnimatedCard() {
+    if (busy) return;
+    setShareState("gif");
+    setMessage("正在等大家入镜…");
+    try {
+      resumeParty(party.world);
+      await settleForPhoto();
+      setMessage("正在录制合影动图…");
+      const cards: HTMLCanvasElement[] = [];
+      for (let index = 0; index < CARD_FRAMES; index += 1) {
+        const canvas = renderCard();
+        if (!canvas) throw new Error("画面还没有准备好");
+        cards.push(canvas);
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, CARD_DELAY / 2)
+        );
+      }
+      const blob = encodeAnimatedCard(cards, { delay: CARD_DELAY });
+      downloadBlob(blob, "stylecapture-style-party.gif");
+      onShare?.(worn);
+      setShareState("idle");
+      announce("合影动图已保存");
+    } catch {
+      setShareState("error");
+      setMessage("动图生成失败，请重试");
+    }
+  }
+
+  const copy = phaseCopy[phaseLabel] ?? phaseCopy.mingling;
+
   return (
-    <div className="party-shell">
+    <div
+      ref={shellRef}
+      className={`party-shell${immersive ? " party-shell--immersive" : ""}`}
+    >
       <header className="party-topbar">
         {onExit ? (
           <button
@@ -332,119 +392,205 @@ export function CommunityScreen({
           <span className="party-back party-back--placeholder" />
         )}
         <div>
-          <span>{scene.theme.eyebrow}</span>
-          <strong>{scene.theme.title}</strong>
+          <span>{party.scene.eyebrow}</span>
+          <strong>{party.scene.title}</strong>
         </div>
         <span className="party-live-badge">互动 Demo</span>
       </header>
 
-      <main className="party-content">
-        <section className="party-intro" aria-labelledby="party-theme-title">
-          <p className="party-kicker">PIXEL RUNWAY BALL</p>
-          <h1 id="party-theme-title">穿上今晚的 Look，走进舞会</h1>
-          <p>
-            你的像素搭配不再只是封面：上台走秀、和别人的 Look 互动，
-            再把主角时刻分享出去。
-          </p>
-          <span>精选示例 · 非实时真人社区</span>
-        </section>
-
-        <section
-          className={`pixel-ballroom is-${scene.stage}`}
-          aria-label="花房夜宴像素走秀舞会"
+      <div className="party-world">
+        <PixelWorldCanvas
+          key={party.worldVersion}
+          world={party.world}
+          sprites={party.sprites}
+          handleRef={worldHandle}
+          onSelectActor={inspectActor}
+          onWalk={syncPhase}
+        />
+        <div className="party-world__hud">
+          <span>{copy.eyebrow}</span>
+          <strong>{copy.title}</strong>
+        </div>
+        <button
+          className="party-world__fullscreen"
+          type="button"
+          aria-pressed={immersive}
+          aria-label={immersive ? "退出全屏世界" : "进入全屏世界"}
+          onClick={() => void toggleImmersive()}
         >
-          <PixelBallroomCanvas stage={scene.stage} />
-          <div className="pixel-ballroom__hud">
-            <span>{stageCopy[scene.stage].eyebrow}</span>
-            <strong>{stageCopy[scene.stage].title}</strong>
+          {immersive ? "⤡" : "⤢"}
+        </button>
+        <p className="party-world__note">
+          {party.scene.occasion} · 预设角色非真人 · 非实时社区
+        </p>
+      </div>
+
+      <p className="party-status" role="status">
+        {message}
+      </p>
+
+      {party.failedLookIds.length ? (
+        <p className="party-error" role="alert">
+          有 {party.failedLookIds.length} 套 Look 没能加载，换一张图片再试
+        </p>
+      ) : null}
+
+      <section className="party-dock" aria-label="舞会控制">
+        <section className="party-share" aria-labelledby="party-share-title">
+          <div className="party-section-heading">
+            <div>
+              <p className="party-kicker">SHARE THE MOMENT</p>
+              <h2 id="party-share-title">和大家拍一张同框合影</h2>
+            </div>
           </div>
-          <div className="pixel-ballroom__audience" aria-label="今晚的灵感角色">
-            {curatedLooks.map((look, index) => (
-              <button
-                key={look.id}
-                type="button"
-                className={`audience-look audience-look--${index + 1}`}
-                aria-label={`查看${look.title}`}
-                aria-pressed={look.id === selectedLook.id}
-                onClick={() => chooseLook(look.id)}
-              >
-                <PixelGuest source={look.assetUrl} />
-                <span>{look.title}</span>
-              </button>
-            ))}
+          <div className="party-share__actions">
+            <button
+              type="button"
+              className="party-share__freeze"
+              disabled={busy}
+              onClick={() => (phaseLabel === "frozen" ? resume() : freeze())}
+            >
+              {phaseLabel === "frozen" ? "继续舞会" : "定格画面"}
+            </button>
+            <button
+              type="button"
+              className="party-share__primary"
+              disabled={busy}
+              onClick={() => void exportAnimatedCard()}
+            >
+              <strong>
+                {shareState === "gif" ? "正在录制…" : "生成合影动图"}
+              </strong>
+              <small>底部信息不动，画面里动 2.6 秒</small>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void exportCard()}
+            >
+              {shareState === "card" ? "正在生成…" : "静态合影卡"}
+            </button>
           </div>
-          <motion.div
-            className="pixel-ballroom__performer"
-            data-stage={scene.stage}
-            animate={performerAnimation(scene.stage, danceStep)}
-            transition={
-              scene.stage === "dance"
-                ? { duration: 1.45, repeat: Infinity, ease: "easeInOut" }
-                : scene.stage === "runway"
-                  ? { duration: 1.55, times: [0, 0.55, 1], ease: "easeInOut" }
-                  : { duration: 0.42, ease: "easeOut" }
-            }
-          >
-            <span>MY LOOK</span>
-            <img src={ownLook.assetUrl} alt="我的像素 Look" />
-          </motion.div>
-          <div className="pixel-ballroom__stage-label">
-            <span>{ownLook.sourceLabel}</span>
-            <strong>{ownLook.title}</strong>
-          </div>
+          <small>合影只包含像素形象和公开风格标签，不含原始穿搭照片。</small>
+          {shareState === "error" ? (
+            <p className="party-error" role="alert">
+              生成失败，请重试
+            </p>
+          ) : null}
         </section>
 
-        <p className="party-status" role="status">
-          {message}
-        </p>
-
-        <section className="party-controls" aria-label="走秀控制">
-          <input
-            id="party-pixel-look-upload"
-            className="party-upload__input"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            aria-label="上传我的像素 Look"
-            onChange={(event) => {
-              uploadPixelLook(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-          <label className="party-upload" htmlFor="party-pixel-look-upload">
-            <span aria-hidden="true">＋</span>
-            <strong>换成我的像素 Look</strong>
-            <small>PNG / JPG / WebP · 只在本机预览</small>
-          </label>
+        <div className="party-actions">
           <button
             className="party-primary"
             type="button"
             aria-label="上台走秀"
             onClick={enterStage}
           >
-            <span aria-hidden="true">✦</span>
             <strong>
-              {scene.stage === "spotlight" || scene.stage === "dance"
-                ? "再走一遍"
-                : "上台走秀"}
+              {phaseLabel === "posing" ? "再走一遍" : "上台走秀"}
             </strong>
             <small>从后台走到舞池中央</small>
           </button>
-          <button
-            className="party-dance"
-            type="button"
-            aria-pressed={scene.stage === "dance"}
-            disabled={scene.stage !== "spotlight" && scene.stage !== "dance"}
-            onClick={dance}
+          <form
+            className="party-say"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!sayAsPlayer(party.world, draft)) return;
+              setDraft("");
+              announce(`你说：${draft.trim()}`);
+            }}
           >
-            {scene.stage === "dance" ? "换一个舞步" : "加入舞会"}
-          </button>
-        </section>
+            <input
+              value={draft}
+              maxLength={40}
+              placeholder="说点什么…"
+              aria-label="说一句话"
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <button type="submit" disabled={!draft.trim()}>
+              说
+            </button>
+          </form>
+        </div>
+
+        <div className="party-wardrobe" aria-label="我今晚的 Look">
+          <div className="party-section-heading">
+            <p className="party-kicker">我今晚的 LOOK</p>
+            <button
+              type="button"
+              onClick={() => {
+                const next = randomOtherLook(scene, Math.random());
+                setScene(next);
+                party.updatePlayerLook(next.wornLookId);
+                announce(
+                  `随机换上：${lookById(next, next.wornLookId)?.title ?? ""}`
+                );
+              }}
+            >
+              随机一套
+            </button>
+          </div>
+          <div className="party-rail">
+            {scene.looks.map((look) => (
+              <button
+                key={look.id}
+                type="button"
+                className="party-rail__item"
+                aria-label={`换上${look.title}`}
+                aria-pressed={look.id === scene.wornLookId}
+                onClick={() => dressIn(look.id)}
+              >
+                <img src={look.assetUrl} alt="" aria-hidden="true" />
+                <span>{look.title}</span>
+                {look.poseRoot ? (
+                  <b className="party-rail__badge">会动</b>
+                ) : null}
+              </button>
+            ))}
+            <label className="party-rail__item party-rail__upload">
+              <input
+                id="party-pixel-look-upload"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                aria-label="上传我的像素 Look"
+                onChange={(event) => {
+                  uploadPixelLook(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+              <span aria-hidden="true">＋</span>
+              <span>上传</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="party-scenes" aria-label="切换场景">
+          {sceneMaps.map((map) => (
+            <button
+              key={map.id}
+              type="button"
+              aria-pressed={map.id === party.sceneId}
+              onClick={() => {
+                party.setSceneId(map.id);
+                announce(`${map.occasion}：${map.premise}`);
+              }}
+            >
+              {map.title}
+            </button>
+          ))}
+        </div>
 
         <section className="party-social" aria-labelledby="party-social-title">
           <div className="party-section-heading">
             <div>
-              <p className="party-kicker">LOOK SOCIAL</p>
-              <h2 id="party-social-title">{selectedLook.title}</h2>
+              <p className="party-kicker">
+                {selectedGuest ? "客人的 LOOK" : "LOOK SOCIAL"}
+              </p>
+              <h2 id="party-social-title">
+                {selectedGuest
+                  ? `${selectedGuest.name} · ${selectedLook.title}`
+                  : selectedLook.title}
+              </h2>
               <small>{selectedLook.sourceLabel}</small>
             </div>
             <button
@@ -457,13 +603,18 @@ export function CommunityScreen({
               onClick={saveInspiration}
             >
               {selectedLook.sourceKind === "my-look"
-                ? "逛精选"
+                ? "换上这套"
                 : scene.savedLookIds.includes(selectedLook.id)
                   ? "已收藏"
                   : "收藏灵感"}
             </button>
           </div>
-          <p>{selectedLook.description}</p>
+          <p>{selectedGuest ? selectedGuest.bio : selectedLook.description}</p>
+          {selectedGuest ? (
+            <p className="party-social__reason">
+              {selectedGuest.reasons[party.sceneId] ?? party.scene.premise}
+            </p>
+          ) : null}
           <div className="party-reactions__list">
             {scene.reactions.map((reaction) => (
               <button
@@ -480,37 +631,10 @@ export function CommunityScreen({
           <small>只记录本次体验，不展示虚构点赞数。</small>
         </section>
 
-        <section className="party-share" aria-labelledby="party-share-title">
-          <div>
-            <p className="party-kicker">SHARE THE MOMENT</p>
-            <h2 id="party-share-title">带走你的像素主角时刻</h2>
-            <p>分享卡只使用当前像素图和公开风格标签，不包含原始穿搭照片。</p>
-          </div>
-          <button
-            type="button"
-            disabled={shareState === "loading"}
-            onClick={() => void prepareShareCard()}
-          >
-            {shareState === "loading"
-              ? "正在准备分享卡…"
-              : shareState === "error"
-                ? "重试生成分享卡"
-                : "生成像素分享卡"}
-          </button>
-          <img
-            ref={shareImage}
-            className="party-share__source"
-            src={selectedLook.assetUrl}
-            alt=""
-            aria-hidden="true"
-          />
-          <canvas ref={shareCanvas} aria-hidden="true" />
-        </section>
-
         <footer className="party-credit">
           场景复用 Pixel Agents 开源素材与 Canvas 循环 · MIT
         </footer>
-      </main>
+      </section>
     </div>
   );
 }

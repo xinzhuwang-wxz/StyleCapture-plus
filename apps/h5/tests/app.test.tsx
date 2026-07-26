@@ -127,7 +127,9 @@ describe("StyleCapture garment ingest", () => {
     await user.click(screen.getByRole("button", { name: "体验主题派对" }));
 
     expect(
-      screen.getByRole("heading", { name: "穿上今晚的 Look，走进舞会" })
+      screen.getByLabelText(
+        "花房夜宴像素世界，点击地面走动，点击角色查看他的 Look"
+      )
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "返回数字衣橱" }));
     expect(screen.getByRole("heading", { name: "我的衣橱" })).toBeInTheDocument();
@@ -139,7 +141,9 @@ describe("StyleCapture garment ingest", () => {
     renderApp();
 
     expect(
-      screen.getByRole("heading", { name: "穿上今晚的 Look，走进舞会" })
+      screen.getByLabelText(
+        "花房夜宴像素世界，点击地面走动，点击角色查看他的 Look"
+      )
     ).toBeInTheDocument();
     expect(screen.getByLabelText("上传我的像素 Look")).toBeInTheDocument();
     expect(api.listItems).not.toHaveBeenCalled();

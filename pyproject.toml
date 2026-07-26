@@ -7,6 +7,11 @@ dependencies = []
 
 [tool.uv]
 package = false
+# cryptography 47+ publishes an aarch64 wheel whose Rust extension executes an
+# instruction the Docker Desktop linux/arm64 VM does not implement, so importing
+# litellm inside the gateway image aborts with SIGILL before it can serve. 46.x is
+# the last release that boots on both arm64 and x86_64 hosts.
+constraint-dependencies = ["cryptography<47"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>码上搭 · 390 × 844 预览</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --device-width: 390px;
+        --device-height: 844px;
+        --device-scale: 1;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background:
+          radial-gradient(circle at 15% 10%, rgba(125, 76, 224, 0.28), transparent 28rem),
+          radial-gradient(circle at 85% 90%, rgba(237, 104, 170, 0.22), transparent 26rem),
+          #14101c;
+        color: rgba(255, 255, 255, 0.72);
+        font:
+          13px/1.4 "PingFang SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          sans-serif;
+      }
+
+      .stage {
+        /* Reserve exactly the scaled footprint so the frame stays centred. */
+        width: calc(var(--device-width) * var(--device-scale));
+        height: calc(var(--device-height) * var(--device-scale));
+        flex: none;
+      }
+
+      .device {
+        width: var(--device-width);
+        height: var(--device-height);
+        transform: scale(var(--device-scale));
+        transform-origin: top left;
+        position: relative;
+        border-radius: 2.75rem;
+        padding: 0.75rem;
+        background: #05030a;
+        box-shadow:
+          0 0 0 2px rgba(255, 255, 255, 0.08),
+          0 2.5rem 5rem rgba(0, 0, 0, 0.55);
+      }
+
+      iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 2.1rem;
+        background: #f8f2ff;
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .bar strong {
+        color: #fff;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      .bar span {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .bar a,
+      .bar button {
+        font: inherit;
+        color: rgba(255, 255, 255, 0.86);
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        padding: 0.25rem 0.8rem;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .bar a[aria-current="page"] {
+        background: rgba(147, 105, 238, 0.55);
+        border-color: rgba(147, 105, 238, 0.7);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <strong>码上搭 H5</strong>
+      <span>390 × 844 · <span id="scale">100</span>%</span>
+      <a id="route-app" href="/device">主应用</a>
+      <a id="route-party" href="/device?demo=style-party">花房夜宴</a>
+      <button id="reload" type="button">重新载入</button>
+      <a href="/" target="_blank" rel="noreferrer">全屏打开</a>
+    </div>
+    <div class="stage">
+      <div class="device">
+        <iframe
+          id="app"
+          title="码上搭 H5 预览"
+          allow="camera; fullscreen; clipboard-write"
+        ></iframe>
+      </div>
+    </div>
+
+    <script type="module">
+      const DEVICE_WIDTH = 390;
+      const DEVICE_HEIGHT = 844;
+      const frame = document.getElementById("app");
+      const scaleLabel = document.getElementById("scale");
+
+      // `/device?demo=style-party` forwards its query string to the app itself.
+      const search = window.location.search;
+      frame.src = `/${search}`;
+      document
+        .getElementById(search.includes("style-party") ? "route-party" : "route-app")
+        .setAttribute("aria-current", "page");
+
+      function fit() {
+        const available = {
+          width: window.innerWidth - 32,
+          height: window.innerHeight - 96
+        };
+        const scale = Math.min(
+          1,
+          available.width / DEVICE_WIDTH,
+          available.height / DEVICE_HEIGHT
+        );
+        document.documentElement.style.setProperty("--device-scale", String(scale));
+        scaleLabel.textContent = String(Math.round(scale * 100));
+      }
+
+      document.getElementById("reload").addEventListener("click", () => {
+        frame.contentWindow?.location.reload();
+      });
+
+      window.addEventListener("resize", fit);
+      fit();
+    </script>
+  </body>
+</html>
