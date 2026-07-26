@@ -34,12 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=(
-            repo_root
-            / "dist"
-            / "skills"
-            / f"doubao-virtual-try-on-v{VERSION}.zip"
-        ),
+        default=(repo_root / "dist" / "skills" / f"doubao-virtual-try-on-v{VERSION}.zip"),
     )
     return parser.parse_args()
 
@@ -55,10 +50,7 @@ def validate(skill_dir: Path) -> list[Path]:
             raise ValueError(f"Required skill file missing: {relative}")
 
     skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
-    if (
-        not skill_text.startswith("---\n")
-        or "name: doubao-virtual-try-on" not in skill_text
-    ):
+    if not skill_text.startswith("---\n") or "name: doubao-virtual-try-on" not in skill_text:
         raise ValueError("SKILL.md frontmatter is missing the expected skill name")
 
     files: list[Path] = []
@@ -107,4 +99,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc

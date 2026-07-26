@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: RUF001
 """Create and audit a Doubao Seedream virtual try-on from two local images."""
 
 from __future__ import annotations
@@ -37,9 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--size", default="2K")
     parser.add_argument("--watermark", action="store_true")
     parser.add_argument("--api-base", default=DEFAULT_BASE_URL)
-    parser.add_argument(
-        "--understanding-model", default=DEFAULT_UNDERSTANDING_MODEL
-    )
+    parser.add_argument("--understanding-model", default=DEFAULT_UNDERSTANDING_MODEL)
     parser.add_argument("--image-model", default=DEFAULT_IMAGE_MODEL)
     return parser.parse_args()
 
@@ -148,8 +147,7 @@ def chat(
         text = response["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError(
-            "Unexpected Ark chat response: "
-            + json.dumps(response, ensure_ascii=False)[:2000]
+            "Unexpected Ark chat response: " + json.dumps(response, ensure_ascii=False)[:2000]
         ) from exc
     return extract_json_object(text)
 
@@ -248,8 +246,7 @@ def download_result(response: dict[str, Any], target: Path) -> None:
         item = response["data"][0]
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError(
-            "Unexpected Ark image response: "
-            + json.dumps(response, ensure_ascii=False)[:2000]
+            "Unexpected Ark image response: " + json.dumps(response, ensure_ascii=False)[:2000]
         ) from exc
     if item.get("b64_json"):
         target.write_bytes(base64.b64decode(item["b64_json"]))
@@ -338,10 +335,7 @@ def audit_passes(audit: dict[str, Any]) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
     return (
-        audit.get("pass") is True
-        and overall_score(audit) >= 75
-        and identity >= 75
-        and outfit >= 80
+        audit.get("pass") is True and overall_score(audit) >= 75 and identity >= 75 and outfit >= 80
     )
 
 
@@ -350,9 +344,7 @@ def main() -> int:
     person_path = require_image(args.person_image, "Person image")
     outfit_path = require_image(args.outfit_board, "Outfit board")
     style_path = (
-        require_image(args.style_reference, "Style reference")
-        if args.style_reference
-        else None
+        require_image(args.style_reference, "Style reference") if args.style_reference else None
     )
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -379,9 +371,7 @@ def main() -> int:
         style_url=style_url,
     )
     analysis_path = output_dir / "analysis.json"
-    analysis_path.write_text(
-        json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    analysis_path.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
     base_prompt = str(analysis.get("generation_prompt", "")).strip()
     if not base_prompt:
         raise ValueError("Analysis JSON contains no generation_prompt")
@@ -425,9 +415,7 @@ def main() -> int:
             result_url=result_url,
         )
         audit_path = output_dir / f"audit-attempt-{number}.json"
-        audit_path.write_text(
-            json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
         attempts.append(
             {
                 "attempt": number,
@@ -465,9 +453,7 @@ def main() -> int:
         "result": result_path.name,
     }
     manifest_path = output_dir / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     print(f"RESULT={result_path}")
@@ -478,7 +464,7 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc

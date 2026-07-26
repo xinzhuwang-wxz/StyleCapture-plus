@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: RUF001
 """Generate multiple outfits for one person with a shared identity/body anchor."""
 
 from __future__ import annotations
@@ -23,9 +24,7 @@ def parse_args() -> argparse.Namespace:
             "All looks share one canonical full-body identity anchor."
         )
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {core.VERSION}"
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {core.VERSION}")
     parser.add_argument("person_image", type=Path)
     parser.add_argument("outfit_boards", nargs="+", type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
@@ -35,17 +34,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--size", default="2K")
     parser.add_argument("--watermark", action="store_true")
     parser.add_argument("--api-base", default=core.DEFAULT_BASE_URL)
-    parser.add_argument(
-        "--understanding-model", default=core.DEFAULT_UNDERSTANDING_MODEL
-    )
+    parser.add_argument("--understanding-model", default=core.DEFAULT_UNDERSTANDING_MODEL)
     parser.add_argument("--image-model", default=core.DEFAULT_IMAGE_MODEL)
     return parser.parse_args()
 
 
 def save_json(path: Path, value: Any) -> None:
-    path.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def generate_from_references(
@@ -109,8 +104,7 @@ person, not merely a similar East Asian woman.""",
 
 def anchor_prompt(identity: dict[str, Any], corrections: list[Any]) -> str:
     correction_text = (
-        "\n上一次身份锚点存在以下问题，必须逐项修正：\n- "
-        + "\n- ".join(map(str, corrections))
+        "\n上一次身份锚点存在以下问题，必须逐项修正：\n- " + "\n- ".join(map(str, corrections))
         if corrections
         else ""
     )
@@ -282,8 +276,7 @@ location. Describe visible logos or text conservatively; never invent extra acce
 
 def look_prompt(outfit: dict[str, Any], corrections: list[Any]) -> str:
     correction_text = (
-        "\n上一次结果存在以下问题，必须逐项修正：\n- "
-        + "\n- ".join(map(str, corrections))
+        "\n上一次结果存在以下问题，必须逐项修正：\n- " + "\n- ".join(map(str, corrections))
         if corrections
         else ""
     )
@@ -506,8 +499,7 @@ def cross_passes(audit: dict[str, Any]) -> bool:
             and not has_outliers
             and float(audit["face_consistency"]["score"]) >= 90
             and float(audit["head_scale_consistency"]["score"]) >= 94
-            and float(audit["head_scale_consistency"]["estimated_max_spread_percent"])
-            <= 3
+            and float(audit["head_scale_consistency"]["estimated_max_spread_percent"]) <= 3
             and float(audit["body_proportion_consistency"]["score"]) >= 94
             and float(audit["camera_composition_consistency"]["score"]) >= 94
             and float(audit["overall_score"]) >= 92
@@ -538,9 +530,7 @@ def main() -> int:
 
     person_url = core.image_data_url(person_path)
     print("Analyzing strict identity geometry...", flush=True)
-    identity = analyze_identity(
-        api_key=api_key, args=args, person_url=person_url
-    )
+    identity = analyze_identity(api_key=api_key, args=args, person_url=person_url)
     save_json(output_dir / "identity-analysis.json", identity)
 
     anchor_path, anchor_manifest = create_anchor(
@@ -588,9 +578,7 @@ def main() -> int:
         "person_image": str(person_path),
         "outfit_boards": [str(path) for path in outfit_paths],
         "anchor": anchor_manifest,
-        "looks": [
-            look["manifest"] for look in sorted(looks, key=lambda item: item["index"])
-        ],
+        "looks": [look["manifest"] for look in sorted(looks, key=lambda item: item["index"])],
         "cross_look_pass": cross_passes(batch_audit),
         "cross_look_audit": "cross-look-audit.json",
     }
@@ -603,7 +591,7 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc

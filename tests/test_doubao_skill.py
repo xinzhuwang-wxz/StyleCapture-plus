@@ -54,9 +54,7 @@ class DoubaoSkillContractTest(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 names = set(archive.namelist())
             self.assertIn("doubao-virtual-try-on/SKILL.md", names)
-            self.assertIn(
-                "doubao-virtual-try-on/scripts/virtual_try_on.py", names
-            )
+            self.assertIn("doubao-virtual-try-on/scripts/virtual_try_on.py", names)
             self.assertFalse(any("__pycache__" in name for name in names))
             self.assertFalse(any(name.endswith(".pyc") for name in names))
 
