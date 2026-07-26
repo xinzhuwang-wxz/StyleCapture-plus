@@ -11,13 +11,15 @@ description: 通过 StyleCapture Product API，从用户真实数字衣橱生成
 
 ## 使用
 
-先启动 StyleCapture 核心服务，然后执行：
+下载后可直接调用已部署的 StyleCapture Product API：
 
 ```bash
-STYLECAPTURE_API_URL=http://127.0.0.1:8000 \
 node scripts/match.js \
   --request '{"scene":"周五面试","style":"简洁正式"}'
 ```
+
+默认服务为 `https://119.45.216.38`。本地开发或迁移部署时，可通过
+`STYLECAPTURE_API_URL` 或 `--api-base-url` 覆盖，不需要修改 Skill 代码。
 
 可选传入：
 

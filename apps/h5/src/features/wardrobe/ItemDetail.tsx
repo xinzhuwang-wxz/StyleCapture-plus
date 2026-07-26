@@ -51,7 +51,7 @@ function DetailContent({
 
   const displayImageNote =
     item.display_image_kind === "derived_garment"
-      ? "当前展示已抠出的单品实物图；像素图只用于衣橱封面。"
+      ? "当前展示已标准化的单品实物图；像素图只用于衣橱封面。"
       : item.display_image_issue === "multiple_garments"
         ? "照片里识别到多件衣服。为避免抠错，当前保留原图；录入单品请重新上传只包含一件衣服的正面照片，保存全身搭配请选择“整套穿搭”。"
         : item.display_image_issue === "no_reliable_garment"
@@ -246,12 +246,12 @@ function DetailContent({
         </button>
         {!item.source_available ? (
           <p className="privacy-note">
-            原始上传图已删除；抠出的单品图、标签和描述仍保留并可继续使用。
+            原始上传图已删除；标准化单品图、标签和描述仍保留并可继续使用。
           </p>
         ) : confirmingDelete ? (
           <div className="delete-confirmation" role="alert">
             <p>
-              删除后原始上传图无法恢复；抠出的单品图、分类、描述和归属仍会保留。
+              删除后原始上传图无法恢复；标准化单品图、分类、描述和归属仍会保留。
             </p>
             <div>
               <button type="button" onClick={() => setConfirmingDelete(false)}>

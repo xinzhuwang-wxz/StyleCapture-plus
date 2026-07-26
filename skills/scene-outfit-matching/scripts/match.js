@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-const DEFAULT_API_URL = "http://127.0.0.1:8000";
+const DEFAULT_API_URL = "https://119.45.216.38";
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 function normalizeBaseUrl(value) {
@@ -186,6 +186,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DEFAULT_API_URL,
   DEFAULT_TIMEOUT_MS,
   matchOutfits,
   normalizeRequest,

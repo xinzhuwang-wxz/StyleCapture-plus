@@ -206,7 +206,7 @@ test("uploads a real garment, normalizes its display image, and preserves the as
     /is-selected/
   );
   await expect(detail).toContainText(
-    "当前展示已抠出的单品实物图；像素图只用于衣橱封面。"
+    "当前展示已标准化的单品实物图；像素图只用于衣橱封面。"
   );
   const displayImage = detail.locator('img[data-image-kind="wardrobe-display"]');
   await expect(displayImage).toBeVisible({ timeout: 20_000 });
@@ -263,14 +263,14 @@ test("uploads a real garment, normalizes its display image, and preserves the as
   expect((await sourceDeletion).status()).toBe(204);
 
   await expect(
-    page.getByText(/原始上传图已删除，(?:抠出的单品图和)?文字资产仍保留/)
+    page.getByText(/原始上传图已删除，(?:标准化单品图和)?文字资产仍保留/)
   ).toBeVisible({ timeout: 20_000 });
   await expect(persistedDetail).toHaveCount(0);
   await expect(persistedItem).toBeVisible();
   await persistedItem.locator(".item-card__open").click();
   const reopenedDetail = page.getByRole("dialog", { name: "单品详情" });
   await expect(reopenedDetail).toContainText(
-    "原始上传图已删除；抠出的单品图、标签和描述仍保留并可继续使用。"
+    "原始上传图已删除；标准化单品图、标签和描述仍保留并可继续使用。"
   );
   const sourceDeletedDisplayVisible = await reopenedDetail
     .locator('img[data-image-kind="wardrobe-display"]')

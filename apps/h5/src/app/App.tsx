@@ -427,7 +427,7 @@ export function App() {
       setSelectedItem(null);
       setNotice(
         deletedItem?.display_image_kind === "derived_garment"
-          ? "原始上传图已删除，抠出的单品图和文字资产仍保留"
+          ? "原始上传图已删除，标准化单品图和文字资产仍保留"
           : "原始上传图已删除，文字资产仍保留在衣橱中"
       );
     },

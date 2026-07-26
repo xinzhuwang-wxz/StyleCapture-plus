@@ -544,7 +544,7 @@ describe("StyleCapture garment ingest", () => {
       await screen.findByRole("img", { name: "米白色针织上衣" })
     ).toHaveAttribute("data-image-kind", "wardrobe-display");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "当前展示已抠出的单品实物图；像素图只用于衣橱封面。"
+      "当前展示已标准化的单品实物图；像素图只用于衣橱封面。"
     );
   });
 
