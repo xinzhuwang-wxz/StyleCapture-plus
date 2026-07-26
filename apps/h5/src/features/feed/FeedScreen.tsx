@@ -17,6 +17,9 @@ export interface FeedScreenProps {
 }
 
 export function shouldMountFeedAsset(index: number, activeIndex: number): boolean {
+  if (activeIndex === 0) {
+    return index >= 0 && index <= 2;
+  }
   return Math.abs(index - activeIndex) <= 1;
 }
 
