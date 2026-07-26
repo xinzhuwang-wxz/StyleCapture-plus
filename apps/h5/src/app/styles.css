@@ -187,11 +187,11 @@ p {
 }
 
 .wardrobe-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.5rem 0.25rem 1.1rem;
+  gap: 0.65rem;
+  padding: 0.7rem 0.25rem 1.1rem;
 }
 
 .eyebrow,
@@ -203,9 +203,9 @@ p {
   letter-spacing: 0.14em;
 }
 
-.wardrobe-header h1 {
-  margin-bottom: 0.38rem;
-  font-size: clamp(1.72rem, 8vw, 2.15rem);
+.wardrobe-header__title {
+  margin: 0;
+  font-size: clamp(1.45rem, 6.4vw, 1.85rem);
   line-height: 1.06;
   letter-spacing: -0.035em;
 }
@@ -218,35 +218,10 @@ p {
   line-height: 1.5;
 }
 
-.avatar-orbit {
-  position: relative;
-  display: grid;
-  width: 4.15rem;
-  height: 4.15rem;
-  flex: 0 0 auto;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(125, 76, 224, 0.15);
-  border-radius: 1.45rem;
-  background: linear-gradient(145deg, #fff, #eadcff);
-  box-shadow:
-    0 0 0 0.42rem rgba(125, 76, 224, 0.06),
-    0 0.75rem 1.8rem rgba(73, 43, 123, 0.16);
-}
-
-.avatar-orbit img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-}
-
-.avatar-orbit span {
-  position: absolute;
-  top: 0.18rem;
-  right: 0.3rem;
-  color: var(--pink-500);
-  filter: drop-shadow(0 0 0.25rem white);
+.wardrobe-header__summary {
+  max-width: none;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .notice {

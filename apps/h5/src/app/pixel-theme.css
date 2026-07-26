@@ -476,8 +476,9 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .pixel-nav__add:active { transform: scale(0.9) rotate(90deg); }
 
 .wardrobe-header__feed {
-  grid-column: 1 / -1;
-  justify-self: start;
+  grid-column: auto;
+  justify-self: end;
+  white-space: nowrap;
   padding: 0.45rem 0.85rem;
   color: var(--pixel-primary-dark);
   font-family: var(--font-pixel);

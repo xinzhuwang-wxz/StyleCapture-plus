@@ -116,6 +116,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
   }
 
   const imageUrl = trialPreviewUrl(trial);
+  const profilePortraitUrl = "/assets/stylecapture-profile-portrait.png";
   const statusCopy =
     trialStatusUnavailable
       ? "状态暂时无法更新，照片没有丢失"
@@ -131,9 +132,8 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
     <div className="profile-page">
       <section className="profile__card" aria-label="我的资料">
         <img
-          src={imageUrl}
-          alt={trial?.status === "succeeded" ? "生成的像素形象" : "默认像素形象"}
-          data-pixel="true"
+          src={profilePortraitUrl}
+          alt="我的 StyleCapture 形象"
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="pixel-title profile__name">我的 StyleCapture</h1>

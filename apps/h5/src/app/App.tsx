@@ -799,26 +799,19 @@ export function App() {
       >
         {destination !== "feed" ? (
           <header className="wardrobe-header">
-            <div>
-              <p className="pixel-label">STYLECAPTURE</p>
-              <h1 className="pixel-title">
-                {destination === "wardrobe"
-                  ? "我的衣橱"
-                  : destination === "analysis"
-                    ? "穿搭分析"
-                    : destination === "ai"
-                      ? "AI 推荐"
-                      : "我的"}
-              </h1>
-              <p className="subtitle">
-                拥有的和喜欢的，<br />
-                都是可搭配的数字资产
-              </p>
-            </div>
-            <div className="avatar-orbit">
-              <img src="/assets/stylecapture-avatar.png" alt="我的 StyleCapture 形象" />
-              <span aria-hidden="true">✦</span>
-            </div>
+            <h1 className="pixel-title wardrobe-header__title">
+              {destination === "wardrobe"
+                ? "我的衣橱"
+                : destination === "analysis"
+                  ? "穿搭分析"
+                  : destination === "ai"
+                    ? "AI 推荐"
+                    : "我的"}
+            </h1>
+            <p className="subtitle wardrobe-header__summary">
+              拥有的和喜欢的，<br />
+              都是可搭配的数字资产
+            </p>
             <button
               type="button"
               className="wardrobe-header__feed"
