@@ -359,6 +359,7 @@ describe("Feed runtime", () => {
 
     expect(initialVideos).toHaveLength(1);
     fireEvent.canPlay(initialVideos[0]);
+    fireEvent.playing(initialVideos[0]);
 
     const videos = await waitFor(() => {
       const mounted = screen.getAllByLabelText(
@@ -584,6 +585,7 @@ describe("Feed runtime", () => {
     )) as HTMLVideoElement[];
     videos.forEach((video) => prepareVideo(video));
     videos.forEach((video) => fireEvent.canPlay(video));
+    fireEvent.playing(videos[0]!);
 
     const warmedVideos = await waitFor(() => {
       const mounted = screen.getAllByLabelText(

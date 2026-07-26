@@ -19,12 +19,9 @@ import {
   validateImage,
   wardrobeApi
 } from "../api/client";
-import { CaptureSheet } from "../features/capture/CaptureSheet";
 import { PhoneFrame } from "../components/PhoneFrame";
 import type { CommunityAvatarSource } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
-import { ItemDetail } from "../features/wardrobe/ItemDetail";
-import { LookDetail } from "../features/wardrobe/LookDetail";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import {
   createBrowserImagePreview,
@@ -57,6 +54,21 @@ const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
 const CommunityScreen = lazy(() =>
   import("../features/community/CommunityScreen").then((module) => ({
     default: module.CommunityScreen
+  }))
+);
+const CaptureSheet = lazy(() =>
+  import("../features/capture/CaptureSheet").then((module) => ({
+    default: module.CaptureSheet
+  }))
+);
+const ItemDetail = lazy(() =>
+  import("../features/wardrobe/ItemDetail").then((module) => ({
+    default: module.ItemDetail
+  }))
+);
+const LookDetail = lazy(() =>
+  import("../features/wardrobe/LookDetail").then((module) => ({
+    default: module.LookDetail
   }))
 );
 const AIRecommendScreen = lazy(() =>
@@ -1035,94 +1047,102 @@ export function App() {
           }}
         />
 
-        <CaptureSheet
-          key={selection ? `${selection.file.name}:${selection.file.size}` : "closed"}
-          selection={selection}
-          busy={uploading}
-          error={sheetError}
-          onCancel={cancelSelection}
-          onConfirm={(ownership, intent) =>
-            void confirmSelection(ownership, intent)
-          }
-        />
-        <ItemDetail
-          item={selectedItem}
-          saving={updateMutation.isPending}
-          onClose={() => setSelectedItem(null)}
-          onSave={(itemId, changes) =>
-            updateMutation.mutate({ itemId, changes })
-          }
-          onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
-          onBuildOutfit={(itemId) => {
-            setAiAnchorItemId(itemId);
-            setSelectedItem(null);
-            setDestination("ai");
-          }}
-          onReturnToFeed={(videoRef, timestampMs) => {
-            setSelectedItem(null);
-            setFeedRestoreTarget({
-              videoRef,
-              timestampMs,
-              requestId: crypto.randomUUID()
-            });
-            setDestination("feed");
-          }}
-        />
-        <LookDetail
-          detail={lookQuery.data ?? null}
-          loading={lookQuery.isLoading}
-          renders={rendersQuery.data ?? []}
-          rendersLoading={rendersQuery.isLoading}
-          purchaseDemands={purchaseDemandsQuery.data ?? []}
-          purchaseDemandsLoading={purchaseDemandsQuery.isLoading}
-          updatingPurchaseDemandId={
-            purchaseDemandMutation.isPending
-              ? purchaseDemandMutation.variables.demandId
-              : null
-          }
-          generatingKind={
-            tryOnMutation.isPending
-              ? "try_on"
-              : renderMutation.isPending
-                ? renderMutation.variables.kind
-                : null
-          }
-          tryOnUploading={tryOnMutation.isPending}
-          deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
-          deletingSource={false}
-          retrying={lookRetryMutation.isPending}
-          saving={lookReasonMutation.isPending}
-          onClose={() => setSelectedLookId(null)}
-          onReturnToSource={(videoRef, timestampMs) => {
-            setSelectedLookId(null);
-            setFeedRestoreTarget({
-              videoRef,
-              timestampMs,
-              requestId: crypto.randomUUID()
-            });
-            setDestination("feed");
-          }}
-          onRetry={(lookId) => lookRetryMutation.mutate(lookId)}
-          onSaveReason={(lookId, reason) =>
-            lookReasonMutation.mutate({ lookId, reason })
-          }
-          onGenerate={(lookId, kind) =>
-            renderMutation.mutate({
-              lookId,
-              kind,
-              idempotencyKey: `manual-${kind}:${crypto.randomUUID()}`
-            })
-          }
-          onTryOn={(lookId, file) =>
-            tryOnMutation.mutate({ lookId, file })
-          }
-          onDeleteTryOnPhoto={(artifactId) =>
-            deleteTryOnPhotoMutation.mutate(artifactId)
-          }
-          onAdvancePurchaseDemand={(demandId, status) =>
-            purchaseDemandMutation.mutate({ demandId, status })
-          }
-        />
+        <Suspense fallback={null}>
+          {selection ? (
+            <CaptureSheet
+              key={`${selection.file.name}:${selection.file.size}`}
+              selection={selection}
+              busy={uploading}
+              error={sheetError}
+              onCancel={cancelSelection}
+              onConfirm={(ownership, intent) =>
+                void confirmSelection(ownership, intent)
+              }
+            />
+          ) : null}
+          {selectedItem ? (
+            <ItemDetail
+            item={selectedItem}
+            saving={updateMutation.isPending}
+            onClose={() => setSelectedItem(null)}
+            onSave={(itemId, changes) =>
+              updateMutation.mutate({ itemId, changes })
+            }
+            onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+            onBuildOutfit={(itemId) => {
+              setAiAnchorItemId(itemId);
+              setSelectedItem(null);
+              setDestination("ai");
+            }}
+            onReturnToFeed={(videoRef, timestampMs) => {
+              setSelectedItem(null);
+              setFeedRestoreTarget({
+                videoRef,
+                timestampMs,
+                requestId: crypto.randomUUID()
+              });
+              setDestination("feed");
+            }}
+          />
+          ) : null}
+          {selectedLookId ? (
+            <LookDetail
+              detail={lookQuery.data ?? null}
+              loading={lookQuery.isLoading}
+              renders={rendersQuery.data ?? []}
+              rendersLoading={rendersQuery.isLoading}
+              purchaseDemands={purchaseDemandsQuery.data ?? []}
+              purchaseDemandsLoading={purchaseDemandsQuery.isLoading}
+              updatingPurchaseDemandId={
+                purchaseDemandMutation.isPending
+                  ? purchaseDemandMutation.variables.demandId
+                  : null
+              }
+              generatingKind={
+                tryOnMutation.isPending
+                  ? "try_on"
+                  : renderMutation.isPending
+                    ? renderMutation.variables.kind
+                    : null
+              }
+              tryOnUploading={tryOnMutation.isPending}
+              deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
+              deletingSource={false}
+              retrying={lookRetryMutation.isPending}
+              saving={lookReasonMutation.isPending}
+              onClose={() => setSelectedLookId(null)}
+              onReturnToSource={(videoRef, timestampMs) => {
+                setSelectedLookId(null);
+                setFeedRestoreTarget({
+                  videoRef,
+                  timestampMs,
+                  requestId: crypto.randomUUID()
+                });
+                setDestination("feed");
+              }}
+              onRetry={(lookId) => lookRetryMutation.mutate(lookId)}
+              onSaveReason={(lookId, reason) =>
+                lookReasonMutation.mutate({ lookId, reason })
+              }
+              onGenerate={(lookId, kind) =>
+                renderMutation.mutate({
+                  lookId,
+                  kind,
+                  idempotencyKey: `manual-${kind}:${crypto.randomUUID()}`
+                })
+              }
+              onTryOn={(lookId, file) =>
+                tryOnMutation.mutate({ lookId, file })
+              }
+              onDeleteTryOnPhoto={(artifactId) =>
+                deleteTryOnPhotoMutation.mutate(artifactId)
+              }
+              onAdvancePurchaseDemand={(demandId, status) =>
+                purchaseDemandMutation.mutate({ demandId, status })
+              }
+            />
+          ) : null}
+        </Suspense>
       </div>
 
       {destination !== "feed" && destination !== "world" ? (

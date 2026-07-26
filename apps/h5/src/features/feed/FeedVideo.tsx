@@ -1,15 +1,11 @@
-import { useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import {
   type CaptureAccepted,
   type FeedFrameContext,
   wardrobeApi
 } from "../../api/client";
-import {
-  FeedSelectionOverlay,
-  type FeedSelectionDecision
-} from "./FeedSelectionOverlay";
+import type { FeedSelectionDecision } from "./FeedSelectionOverlay";
 import { captureVideoFrame, type CapturedVideoFrame } from "./frameCapture";
 import { type FeedAsset, feedMediaUrl, feedPosterUrl } from "./manifest";
 
@@ -19,7 +15,7 @@ interface FeedVideoProps {
   gestureGuideEnabled: boolean;
   mediaLoaded: boolean;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
-  onMediaReady?: () => void;
+  onPlaybackStarted?: () => void;
   restoreRequest: {
     requestId: string;
     timestampMs: number;
@@ -34,6 +30,20 @@ type SaveAttempt = {
   decision: FeedSelectionDecision;
   idempotencyKey: string;
 };
+
+const FeedSelectionOverlay = lazy(() =>
+  import("./FeedSelectionOverlay").then((module) => ({
+    default: module.FeedSelectionOverlay
+  }))
+);
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 function feedContext(
   asset: FeedAsset,
@@ -59,7 +69,7 @@ export function FeedVideo({
   gestureGuideEnabled,
   mediaLoaded,
   onAccepted,
-  onMediaReady,
+  onPlaybackStarted,
   restoreRequest
 }: FeedVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -68,7 +78,7 @@ export function FeedVideo({
   const mountedRef = useRef(true);
   const savedTimerRef = useRef<number | null>(null);
   const restoredRequestRef = useRef<string | null>(null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = prefersReducedMotion();
   const [frame, setFrame] = useState<FrameState | null>(null);
   const [attempt, setAttempt] = useState<SaveAttempt | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -285,8 +295,8 @@ export function FeedVideo({
         onCanPlay={() => {
           setMediaReady(true);
           setMediaError(false);
-          onMediaReady?.();
         }}
+        onPlaying={onPlaybackStarted}
         onClick={
           reduceMotion ? undefined : () => void pauseAndCapture()
         }
@@ -328,17 +338,26 @@ export function FeedVideo({
       </div>
 
       {frame && !attempt ? (
-        <FeedSelectionOverlay
-          frame={{ videoId: asset.assetId, timestampMs: frame.timestampMs }}
-          frameImageUrl={frame.previewUrl}
-          gestureGuideToken={
-            gestureGuideEnabled ? gestureGuideToken : undefined
+        <Suspense
+          fallback={
+            <div className="feed-save-state" role="status">
+              <span className="feed-spinner" aria-hidden="true" />
+              正在打开圈选…
+            </div>
           }
-          videoSize={{ width: frame.width, height: frame.height }}
-          onConfirm={confirm}
-          onDismiss={dismiss}
-          onEmptyTap={dismiss}
-        />
+        >
+          <FeedSelectionOverlay
+            frame={{ videoId: asset.assetId, timestampMs: frame.timestampMs }}
+            frameImageUrl={frame.previewUrl}
+            gestureGuideToken={
+              gestureGuideEnabled ? gestureGuideToken : undefined
+            }
+            videoSize={{ width: frame.width, height: frame.height }}
+            onConfirm={confirm}
+            onDismiss={dismiss}
+            onEmptyTap={dismiss}
+          />
+        </Suspense>
       ) : null}
 
       {submitting ? (

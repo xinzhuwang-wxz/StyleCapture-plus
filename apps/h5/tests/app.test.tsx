@@ -367,7 +367,9 @@ describe("StyleCapture garment ingest", () => {
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
 
-    const confirmation = screen.getByRole("dialog", { name: "确认加入衣橱" });
+    const confirmation = await screen.findByRole("dialog", {
+      name: "确认加入衣橱"
+    });
     expect(within(confirmation).getByRole("heading", { name: "确认加入衣橱" })).toBeInTheDocument();
     const submit = within(confirmation).getByRole("button", {
       name: "请选择保存类型"
@@ -403,7 +405,9 @@ describe("StyleCapture garment ingest", () => {
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
 
-    const confirmation = screen.getByRole("dialog", { name: "确认加入衣橱" });
+    const confirmation = await screen.findByRole("dialog", {
+      name: "确认加入衣橱"
+    });
     expect(within(confirmation).getByRole("status")).toHaveTextContent(
       "iPhone 照片已选中"
     );
@@ -436,7 +440,9 @@ describe("StyleCapture garment ingest", () => {
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
 
-    const confirmation = screen.getByRole("dialog", { name: "确认加入衣橱" });
+    const confirmation = await screen.findByRole("dialog", {
+      name: "确认加入衣橱"
+    });
     await user.click(within(confirmation).getByRole("button", { name: /整套穿搭/ }));
     await user.click(within(confirmation).getByRole("button", { name: /我的衣服/ }));
     await user.click(
@@ -485,7 +491,9 @@ describe("StyleCapture garment ingest", () => {
         name: "米白色针织上衣 可搭配 上装 我的衣服"
       })
     );
-    await user.click(screen.getByRole("button", { name: "删除原图" }));
+    await user.click(
+      await screen.findByRole("button", { name: "删除原图" })
+    );
 
     expect(api.deleteSource).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent(

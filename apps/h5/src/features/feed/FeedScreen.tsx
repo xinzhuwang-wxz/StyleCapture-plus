@@ -114,7 +114,7 @@ export function FeedScreen({
             key={asset.assetId}
             mediaLoaded={active}
             onAccepted={onAccepted}
-            onMediaReady={
+            onPlaybackStarted={
               index === 0 ? () => setColdStartReady(true) : undefined
             }
             restoreRequest={
