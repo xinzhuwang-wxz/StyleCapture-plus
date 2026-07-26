@@ -20,7 +20,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from PIL import Image
+
+from pixel_sprite import TARGET_HEIGHT, normalise
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIRS = (
@@ -29,7 +33,6 @@ SOURCE_DIRS = (
 )
 OUTPUT_DIR = REPO_ROOT / "apps/h5/public/assets/community/poses"
 
-TARGET_HEIGHT = 360
 
 # character -> pose -> source stem
 POSE_PACK: dict[str, dict[str, str]] = {
@@ -79,13 +82,6 @@ POSE_PACK: dict[str, dict[str, str]] = {
 }
 
 
-def trim_to_subject(image: Image.Image) -> Image.Image:
-    box = image.getbbox()
-    if box is None:
-        raise SystemExit("empty image")
-    return image.crop(box)
-
-
 def find_source(stem: str) -> Path | None:
     for directory in SOURCE_DIRS:
         candidate = directory / f"{stem}.png"
@@ -100,11 +96,7 @@ def build(character: str, pose: str, stem: str) -> tuple[int, int, float]:
         raise SystemExit(f"missing source for {character}/{pose}: {stem}.png")
 
     image = Image.open(source).convert("RGBA")
-    cropped = trim_to_subject(image)
-    scale = TARGET_HEIGHT / cropped.height
-    resized = cropped.resize(
-        (max(1, round(cropped.width * scale)), TARGET_HEIGHT), Image.LANCZOS
-    )
+    resized = normalise(image)
 
     destination = OUTPUT_DIR / character / f"{pose}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)

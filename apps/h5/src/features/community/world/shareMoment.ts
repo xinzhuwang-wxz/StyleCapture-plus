@@ -3,11 +3,9 @@
  *
  * The share unit is deliberately the group shot, not a solo portrait: the
  * player's Look surrounded by the guests who reacted to it, with the night's
- * theme on the card. A still is always produced; the animated version is a
- * short loop of the same moment.
+ * theme on the card. A still is always produced here; the moving version is
+ * recorded as a short video by `recordMoment.ts`.
  */
-
-import { applyPalette, GIFEncoder, quantize } from "gifenc";
 
 export type ShareSubject = {
   theme: string;
@@ -103,133 +101,12 @@ export function drawShareCard(
   context.fillText(subject.disclaimer, 44, CARD_HEIGHT - 34);
 }
 
-export type GifFrameSource = (index: number) => CanvasImageSource | null;
-
-export type GifOptions = {
-  frames: number;
-  /** Milliseconds per frame. */
-  delay: number;
-  width: number;
-  height: number;
-};
-
-/**
- * Encodes captured scene frames into a looping GIF.
- *
- * A GIF rather than WebM because it is the format that survives being pasted
- * into a chat app, which is the whole point of the share.
- */
-export function encodeGif(
-  sources: readonly CanvasImageSource[],
-  options: GifOptions
-): Blob {
-  if (!sources.length) throw new Error("没有可用的画面帧");
-
-  const canvas = document.createElement("canvas");
-  canvas.width = options.width;
-  canvas.height = options.height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("浏览器不支持动图导出");
-
-  const encoder = GIFEncoder();
-  let palette: number[][] | null = null;
-
-  sources.forEach((source) => {
-    context.clearRect(0, 0, options.width, options.height);
-    context.drawImage(source, 0, 0, options.width, options.height);
-    const { data } = context.getImageData(0, 0, options.width, options.height);
-    // One palette for the whole loop keeps the file small and avoids flicker.
-    if (!palette) palette = quantize(data, 256);
-    const indexed = applyPalette(data, palette);
-    encoder.writeFrame(indexed, options.width, options.height, {
-      palette: palette ?? undefined,
-      delay: options.delay
-    });
-  });
-
-  encoder.finish();
-  return new Blob([encoder.bytesView()], { type: "image/gif" });
-}
-
 export const SCENE_RECT = {
   x: 24,
   y: 24,
   width: CARD_WIDTH - 48,
   height: SCENE_HEIGHT
 };
-
-/**
- * Encodes a share card whose caption holds still while the scene inside the
- * frame moves.
- *
- * GIF frames cannot be offset with this encoder, so every frame is card-sized.
- * Instead, everything outside the scene rectangle is written as the transparent
- * index with `dispose: 1` (leave the previous frame in place). Those regions
- * become one long run of a single index, which costs almost nothing once
- * compressed, so the file stays close to the size of the moving part alone.
- */
-export function encodeAnimatedCard(
-  cards: readonly CanvasImageSource[],
-  options: { delay: number; scale?: number }
-): Blob {
-  if (!cards.length) throw new Error("没有可用的画面帧");
-
-  const scale = options.scale ?? 0.6;
-  const width = Math.round(CARD_WIDTH * scale);
-  const height = Math.round(CARD_HEIGHT * scale);
-  const scene = {
-    x: Math.floor(SCENE_RECT.x * scale),
-    y: Math.floor(SCENE_RECT.y * scale),
-    width: Math.ceil(SCENE_RECT.width * scale),
-    height: Math.ceil(SCENE_RECT.height * scale)
-  };
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("浏览器不支持动图导出");
-
-  const encoder = GIFEncoder();
-  // 255 quantised colours leaves index 255 free to mean "unchanged".
-  const transparentIndex = 255;
-  let palette: number[][] | null = null;
-
-  cards.forEach((card, frame) => {
-    context.clearRect(0, 0, width, height);
-    context.drawImage(card, 0, 0, width, height);
-    const { data } = context.getImageData(0, 0, width, height);
-    if (!palette) palette = quantize(data, transparentIndex);
-    const indexed = applyPalette(data, palette);
-
-    if (frame === 0) {
-      encoder.writeFrame(indexed, width, height, {
-        palette: [...palette, [0, 0, 0]],
-        delay: options.delay
-      });
-      return;
-    }
-
-    // Keep only the moving rectangle; the caption is inherited from frame 0.
-    for (let y = 0; y < height; y += 1) {
-      const insideRow = y >= scene.y && y < scene.y + scene.height;
-      for (let x = 0; x < width; x += 1) {
-        const inside =
-          insideRow && x >= scene.x && x < scene.x + scene.width;
-        if (!inside) indexed[y * width + x] = transparentIndex;
-      }
-    }
-    encoder.writeFrame(indexed, width, height, {
-      delay: options.delay,
-      transparent: true,
-      transparentIndex,
-      dispose: 1
-    });
-  });
-
-  encoder.finish();
-  return new Blob([encoder.bytesView()], { type: "image/gif" });
-}
 
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);

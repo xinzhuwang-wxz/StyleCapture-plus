@@ -17,9 +17,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.20
         version: 5.101.4(react@18.3.1)
-      gifenc:
-        specifier: ^1.0.3
-        version: 1.0.3
       motion:
         specifier: ^12.23.24
         version: 12.42.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -813,9 +810,6 @@ packages:
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
-
-  gifenc@1.0.3:
-    resolution: {integrity: sha512-xdr6AdrfGBcfzncONUOlXMBuc5wJDtOueE3c5rdG0oNgtINLD+f2iFZltrBRZYzACRbKr+mSVU/x98zv2u3jmw==}
 
   html-encoding-sniffer@4.0.0:
     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
@@ -1903,8 +1897,6 @@ snapshots:
     optional: true
 
   gensync@1.0.0-beta.2: {}
-
-  gifenc@1.0.3: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:

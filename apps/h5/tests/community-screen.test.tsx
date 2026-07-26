@@ -220,9 +220,11 @@ describe("CommunityScreen", () => {
       "true"
     );
     expect(screen.getByRole("status")).toHaveTextContent("画面已定格");
+    // jsdom has no MediaRecorder, so the video option offers an honest reason
+    // rather than a button that would fail.
     expect(
-      screen.getByRole("button", { name: /合影动图/ })
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: /此浏览器不支持录像/ })
+    ).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "继续舞会" }));
     expect(
