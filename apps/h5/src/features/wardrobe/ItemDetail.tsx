@@ -69,6 +69,12 @@ function DetailContent({
   }, [item]);
 
   useEffect(() => {
+    if (imageUrl) {
+      setImageFailed(false);
+    }
+  }, [imageUrl]);
+
+  useEffect(() => {
     const previouslyFocused = document.activeElement;
     closeButtonRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {

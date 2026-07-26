@@ -40,6 +40,12 @@
     linear-gradient(180deg, #fbf7ff, #fff);
 }
 
+.wardrobe-card__deferred-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .wardrobe-card__cover--item img[data-pixel="true"] {
   image-rendering: pixelated;
 }

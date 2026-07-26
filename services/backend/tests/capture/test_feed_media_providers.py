@@ -135,6 +135,41 @@ def test_pillow_renderer_isolates_the_coarse_selection_as_a_real_png() -> None:
         assert rendered.getchannel("A").getextrema() == (0, 255)
 
 
+def test_pillow_renderer_expands_tiny_selection_to_provider_safe_png() -> None:
+    source = BytesIO()
+    Image.new("RGB", (320, 240), color=(120, 80, 200)).save(source, format="PNG")
+    frame_body = source.getvalue()
+    frame = ImagePayload(
+        object_key="originals/feed/frame.png",
+        content_type="image/png",
+        body=frame_body,
+        sha256=sha256(frame_body).hexdigest(),
+    )
+    selection = FeedSelection(
+        selection_key="tiny",
+        polygon=(
+            NormalizedPoint(0.49, 0.49),
+            NormalizedPoint(0.51, 0.49),
+            NormalizedPoint(0.50, 0.51),
+        ),
+    )
+    segmentation = CoarsePolygonSegmentationProvider().segment(
+        SegmentationPrompt(
+            frame=frame,
+            selection=selection,
+            fallback_reason="refinement_unavailable",
+        )
+    )
+
+    selected = PillowSelectionImageRenderer().render(frame, segmentation)
+
+    with Image.open(BytesIO(selected.body)) as rendered:
+        assert rendered.mode == "RGBA"
+        assert rendered.width >= 64
+        assert rendered.height >= 64
+        assert rendered.getchannel("A").getextrema() == (0, 255)
+
+
 def test_sam2_provider_converts_prompt_polygon_to_pixel_box_and_full_frame_mask() -> None:
     # Catches: using normalized box values or returning a cropped mask instead of a full-frame PNG.
     mask = Image.new("L", (10, 8), 0)

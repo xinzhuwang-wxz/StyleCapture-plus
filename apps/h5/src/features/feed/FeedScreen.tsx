@@ -99,6 +99,7 @@ export function FeedScreen({
           asset={asset}
           gestureGuideEnabled={index < 2}
           key={asset.assetId}
+          mediaLoaded={active && Math.abs(index - activeIndex) <= 1}
           onAccepted={onAccepted}
           restoreRequest={
             restoreTarget && restoreTarget.videoRef === asset.assetId

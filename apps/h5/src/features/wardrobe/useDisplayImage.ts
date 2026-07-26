@@ -19,8 +19,11 @@ export function useDisplayImage(
     wardrobeApi
       .displayImage(itemId)
       .then((nextUrl) => {
-        objectUrl = nextUrl;
-        if (active) setUrl(nextUrl);
+        const browserUrl = nextUrl.startsWith("blob:")
+          ? nextUrl
+          : `${nextUrl}?v=${encodeURIComponent(refreshKey)}`;
+        objectUrl = browserUrl;
+        if (active) setUrl(browserUrl);
       })
       .catch(() => {
         if (active) setUrl(null);

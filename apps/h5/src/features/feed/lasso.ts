@@ -4,6 +4,8 @@ import {
   type ViewportPoint
 } from "./viewport";
 
+const MIN_LASSO_EXTENT_RATIO = 0.04;
+
 export function closeNormalizedLasso(
   elementPoints: readonly ViewportPoint[],
   contentBox: VideoContentBox
@@ -16,6 +18,14 @@ export function closeNormalizedLasso(
     normalized.map((point) => `${point.x}:${point.y}`)
   );
   if (uniquePoints.size < 3) {
+    return null;
+  }
+
+  const xs = normalized.map((point) => point.x);
+  const ys = normalized.map((point) => point.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  if (width < MIN_LASSO_EXTENT_RATIO || height < MIN_LASSO_EXTENT_RATIO) {
     return null;
   }
 

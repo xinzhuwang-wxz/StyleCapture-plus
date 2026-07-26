@@ -1,0 +1,234 @@
+{
+  "request_id": "4dd2484e-8a17-5dd2-a15e-9fa7830041cd",
+  "trace_id": "e1f6c3df-0d00-5c8e-99c5-0fd01caffb77",
+  "plans": [
+    {
+      "id": "9d2e7b54-0724-594a-a8e2-fee2b750b7a2",
+      "title": "衣橱优先方案 1",
+      "scene": "周五面试",
+      "slots": [
+        {
+          "role": "tops",
+          "item_id": "14a005e7-8d9f-484e-97f9-a63aef3aafe2",
+          "item_name": "红色纽扣短袖上衣",
+          "ownership": "owned",
+          "image_url": "/v1/items/14a005e7-8d9f-484e-97f9-a63aef3aafe2/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "bottoms",
+          "item_id": "5e75912e-1e57-48fa-8557-fd507b3b9ec0",
+          "item_name": "灰色多口袋工装裤",
+          "ownership": "owned",
+          "image_url": "/v1/items/5e75912e-1e57-48fa-8557-fd507b3b9ec0/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "outerwear",
+          "item_id": "d1175197-3f5a-44bd-b0ea-9b46d74533d9",
+          "item_name": "浅绿圆领针织开衫",
+          "ownership": "owned",
+          "image_url": "/v1/items/d1175197-3f5a-44bd-b0ea-9b46d74533d9/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "shoes",
+          "item_id": "e14a7c85-0be3-43e1-bfd3-c9c1ad28f443",
+          "item_name": "白色厚底运动鞋",
+          "ownership": "owned",
+          "image_url": "/v1/items/e14a7c85-0be3-43e1-bfd3-c9c1ad28f443/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "accessories",
+          "item_id": "23c0fb93-1218-407e-bd59-2a21519f8140",
+          "item_name": "浅绿花朵发圈",
+          "ownership": "owned",
+          "image_url": "/v1/items/23c0fb93-1218-407e-bd59-2a21519f8140/image",
+          "search_query": null,
+          "source_kind": "upload"
+        }
+      ],
+      "rationale": "单品配置齐全，层次协调，契合周五面试简洁正式要求",
+      "style_match_score": 92,
+      "missing_count": 0,
+      "save_token": "eyJleHBpcmVzX2F0IjoxNzg1MDM0NDg3LCJleHBsYW5hdGlvbl9zdGF0ZSI6ImxsbV9yYW5rZWQiLCJwbGFuIjp7ImlkIjoiOWQyZTdiNTQtMDcyNC01OTRhLWE4ZTItZmVlMmI3NTBiN2EyIiwicmF0aW9uYWxlIjoi5Y2V5ZOB6YWN572u6b2Q5YWo77yM5bGC5qyh5Y2P6LCD77yM5aWR5ZCI5ZGo5LqU6Z2i6K-V566A5rSB5q2j5byP6KaB5rGCIiwic2NlbmUiOiLlkajkupTpnaLor5UiLCJzbG90cyI6W3siaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzE0YTAwNWU3LThkOWYtNDg0ZS05N2Y5LWE2M2FlZjNhYWZlMi9pbWFnZSIsIml0ZW1faWQiOiIxNGEwMDVlNy04ZDlmLTQ4NGUtOTdmOS1hNjNhZWYzYWFmZTIiLCJpdGVtX25hbWUiOiLnuqLoibLnur3miaPnn63oopbkuIrooaMiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJ0b3BzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzVlNzU5MTJlLTFlNTctNDhmYS04NTU3LWZkNTA3YjNiOWVjMC9pbWFnZSIsIml0ZW1faWQiOiI1ZTc1OTEyZS0xZTU3LTQ4ZmEtODU1Ny1mZDUwN2IzYjllYzAiLCJpdGVtX25hbWUiOiLngbDoibLlpJrlj6Pooovlt6Xoo4Xoo6QiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJib3R0b21zIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zL2QxMTc1MTk3LTNmNWEtNDRiZC1iMGVhLTliNDZkNzQ1MzNkOS9pbWFnZSIsIml0ZW1faWQiOiJkMTE3NTE5Ny0zZjVhLTQ0YmQtYjBlYS05YjQ2ZDc0NTMzZDkiLCJpdGVtX25hbWUiOiLmtYXnu7_lnIbpoobpkojnu4flvIDooasiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJvdXRlcndlYXIiLCJzZWFyY2hfcXVlcnkiOm51bGwsInNvdXJjZV9raW5kIjoidXBsb2FkIn0seyJpbWFnZV91cmwiOiIvdjEvaXRlbXMvZTE0YTdjODUtMGJlMy00M2UxLWJmZDMtYzljMWFkMjhmNDQzL2ltYWdlIiwiaXRlbV9pZCI6ImUxNGE3Yzg1LTBiZTMtNDNlMS1iZmQzLWM5YzFhZDI4ZjQ0MyIsIml0ZW1fbmFtZSI6IueZveiJsuWOmuW6lei_kOWKqOmeiyIsIm93bmVyc2hpcCI6Im93bmVkIiwicm9sZSI6InNob2VzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzIzYzBmYjkzLTEyMTgtNDA3ZS1iZDU5LTJhMjE1MTlmODE0MC9pbWFnZSIsIml0ZW1faWQiOiIyM2MwZmI5My0xMjE4LTQwN2UtYmQ1OS0yYTIxNTE5ZjgxNDAiLCJpdGVtX25hbWUiOiLmtYXnu7_oirHmnLXlj5HlnIgiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJhY2Nlc3NvcmllcyIsInNlYXJjaF9xdWVyeSI6bnVsbCwic291cmNlX2tpbmQiOiJ1cGxvYWQifV0sInN0eWxlX21hdGNoX3Njb3JlIjo5MiwidGl0bGUiOiLooaPmqbHkvJjlhYjmlrnmoYggMSJ9LCJyZWFzb25pbmdfdHJhY2UiOnsiY2FwYWJpbGl0eV9hbGlhcyI6InJlYXNvbmluZyIsImxhdGVuY3lfbXMiOjIyNjUyLCJtb2RlbF92ZXJzaW9uIjoib3V0Zml0LXJlcmFuay1tb2RlbC12MSIsInByb21wdF92ZXJzaW9uIjoib3V0Zml0LXJlcmFuay12MSIsInNjaGVtYV92ZXJzaW9uIjoib3V0Zml0LXJlcmFuay1qc29uLXYxIn0sInJlcXVlc3QiOnsiYW5jaG9yX2l0ZW1faWQiOm51bGwsImNvbWZvcnQiOm51bGwsImV4Y2x1ZGVfaXRlbV9pZHMiOltdLCJmb3JtYWxpdHkiOm51bGwsIm11c3RfaW5jbHVkZV9pdGVtX2lkcyI6W10sInNjZW5lIjoi5ZGo5LqU6Z2i6K-VIiwic3R5bGUiOiLnroDmtIHmraPlvI8iLCJ3ZWF0aGVyIjpudWxsfSwidXNlcl9pZCI6IjVmMmVlNmE2LWU0NjEtNGIwNC04NGRlLWMwNjRlYjkzYjFlMyIsInZlcnNpb24iOjN9.WzuUE43kycAuT8Uoru-T8Ty4ogE9RV4tFhJo2oICa7c"
+    },
+    {
+      "id": "0a17c8ba-6e37-5efe-aeec-2cc56ac15615",
+      "title": "衣橱优先方案 4",
+      "scene": "周五面试",
+      "slots": [
+        {
+          "role": "tops",
+          "item_id": "14a005e7-8d9f-484e-97f9-a63aef3aafe2",
+          "item_name": "红色纽扣短袖上衣",
+          "ownership": "owned",
+          "image_url": "/v1/items/14a005e7-8d9f-484e-97f9-a63aef3aafe2/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "bottoms",
+          "item_id": "5e75912e-1e57-48fa-8557-fd507b3b9ec0",
+          "item_name": "灰色多口袋工装裤",
+          "ownership": "owned",
+          "image_url": "/v1/items/5e75912e-1e57-48fa-8557-fd507b3b9ec0/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "outerwear",
+          "item_id": "d1175197-3f5a-44bd-b0ea-9b46d74533d9",
+          "item_name": "浅绿圆领针织开衫",
+          "ownership": "owned",
+          "image_url": "/v1/items/d1175197-3f5a-44bd-b0ea-9b46d74533d9/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "shoes",
+          "item_id": "e14a7c85-0be3-43e1-bfd3-c9c1ad28f443",
+          "item_name": "白色厚底运动鞋",
+          "ownership": "owned",
+          "image_url": "/v1/items/e14a7c85-0be3-43e1-bfd3-c9c1ad28f443/image",
+          "search_query": null,
+          "source_kind": "upload"
+        }
+      ],
+      "rationale": "鞋服搭配完整，仅缺配饰，整体正式感足适配面试",
+      "style_match_score": 88,
+      "missing_count": 0,
+      "save_token": "eyJleHBpcmVzX2F0IjoxNzg1MDM0NDg3LCJleHBsYW5hdGlvbl9zdGF0ZSI6ImxsbV9yYW5rZWQiLCJwbGFuIjp7ImlkIjoiMGExN2M4YmEtNmUzNy01ZWZlLWFlZWMtMmNjNTZhYzE1NjE1IiwicmF0aW9uYWxlIjoi6Z6L5pyN5pCt6YWN5a6M5pW077yM5LuF57y66YWN6aWw77yM5pW05L2T5q2j5byP5oSf6Laz6YCC6YWN6Z2i6K-VIiwic2NlbmUiOiLlkajkupTpnaLor5UiLCJzbG90cyI6W3siaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzE0YTAwNWU3LThkOWYtNDg0ZS05N2Y5LWE2M2FlZjNhYWZlMi9pbWFnZSIsIml0ZW1faWQiOiIxNGEwMDVlNy04ZDlmLTQ4NGUtOTdmOS1hNjNhZWYzYWFmZTIiLCJpdGVtX25hbWUiOiLnuqLoibLnur3miaPnn63oopbkuIrooaMiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJ0b3BzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzVlNzU5MTJlLTFlNTctNDhmYS04NTU3LWZkNTA3YjNiOWVjMC9pbWFnZSIsIml0ZW1faWQiOiI1ZTc1OTEyZS0xZTU3LTQ4ZmEtODU1Ny1mZDUwN2IzYjllYzAiLCJpdGVtX25hbWUiOiLngbDoibLlpJrlj6Pooovlt6Xoo4Xoo6QiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJib3R0b21zIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zL2QxMTc1MTk3LTNmNWEtNDRiZC1iMGVhLTliNDZkNzQ1MzNkOS9pbWFnZSIsIml0ZW1faWQiOiJkMTE3NTE5Ny0zZjVhLTQ0YmQtYjBlYS05YjQ2ZDc0NTMzZDkiLCJpdGVtX25hbWUiOiLmtYXnu7_lnIbpoobpkojnu4flvIDooasiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJvdXRlcndlYXIiLCJzZWFyY2hfcXVlcnkiOm51bGwsInNvdXJjZV9raW5kIjoidXBsb2FkIn0seyJpbWFnZV91cmwiOiIvdjEvaXRlbXMvZTE0YTdjODUtMGJlMy00M2UxLWJmZDMtYzljMWFkMjhmNDQzL2ltYWdlIiwiaXRlbV9pZCI6ImUxNGE3Yzg1LTBiZTMtNDNlMS1iZmQzLWM5YzFhZDI4ZjQ0MyIsIml0ZW1fbmFtZSI6IueZveiJsuWOmuW6lei_kOWKqOmeiyIsIm93bmVyc2hpcCI6Im93bmVkIiwicm9sZSI6InNob2VzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9XSwic3R5bGVfbWF0Y2hfc2NvcmUiOjg4LCJ0aXRsZSI6Iuiho-apseS8mOWFiOaWueahiCA0In0sInJlYXNvbmluZ190cmFjZSI6eyJjYXBhYmlsaXR5X2FsaWFzIjoicmVhc29uaW5nIiwibGF0ZW5jeV9tcyI6MjI2NTIsIm1vZGVsX3ZlcnNpb24iOiJvdXRmaXQtcmVyYW5rLW1vZGVsLXYxIiwicHJvbXB0X3ZlcnNpb24iOiJvdXRmaXQtcmVyYW5rLXYxIiwic2NoZW1hX3ZlcnNpb24iOiJvdXRmaXQtcmVyYW5rLWpzb24tdjEifSwicmVxdWVzdCI6eyJhbmNob3JfaXRlbV9pZCI6bnVsbCwiY29tZm9ydCI6bnVsbCwiZXhjbHVkZV9pdGVtX2lkcyI6W10sImZvcm1hbGl0eSI6bnVsbCwibXVzdF9pbmNsdWRlX2l0ZW1faWRzIjpbXSwic2NlbmUiOiLlkajkupTpnaLor5UiLCJzdHlsZSI6IueugOa0geato-W8jyIsIndlYXRoZXIiOm51bGx9LCJ1c2VyX2lkIjoiNWYyZWU2YTYtZTQ2MS00YjA0LTg0ZGUtYzA2NGViOTNiMWUzIiwidmVyc2lvbiI6M30.CeD70n-kIX3jIcgdmjduH0WkCENLy4vT8g2JFFRkdus"
+    },
+    {
+      "id": "1a8a68b4-fa10-56ad-b9a2-c4f792a6564e",
+      "title": "衣橱优先方案 3",
+      "scene": "周五面试",
+      "slots": [
+        {
+          "role": "tops",
+          "item_id": "14a005e7-8d9f-484e-97f9-a63aef3aafe2",
+          "item_name": "红色纽扣短袖上衣",
+          "ownership": "owned",
+          "image_url": "/v1/items/14a005e7-8d9f-484e-97f9-a63aef3aafe2/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "bottoms",
+          "item_id": "5e75912e-1e57-48fa-8557-fd507b3b9ec0",
+          "item_name": "灰色多口袋工装裤",
+          "ownership": "owned",
+          "image_url": "/v1/items/5e75912e-1e57-48fa-8557-fd507b3b9ec0/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "outerwear",
+          "item_id": "d1175197-3f5a-44bd-b0ea-9b46d74533d9",
+          "item_name": "浅绿圆领针织开衫",
+          "ownership": "owned",
+          "image_url": "/v1/items/d1175197-3f5a-44bd-b0ea-9b46d74533d9/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "accessories",
+          "item_id": "23c0fb93-1218-407e-bd59-2a21519f8140",
+          "item_name": "浅绿花朵发圈",
+          "ownership": "owned",
+          "image_url": "/v1/items/23c0fb93-1218-407e-bd59-2a21519f8140/image",
+          "search_query": null,
+          "source_kind": "upload"
+        }
+      ],
+      "rationale": "缺少鞋履实用性不足，正式感尚可，适配度一般",
+      "style_match_score": 84,
+      "missing_count": 0,
+      "save_token": "eyJleHBpcmVzX2F0IjoxNzg1MDM0NDg3LCJleHBsYW5hdGlvbl9zdGF0ZSI6ImxsbV9yYW5rZWQiLCJwbGFuIjp7ImlkIjoiMWE4YTY4YjQtZmExMC01NmFkLWI5YTItYzRmNzkyYTY1NjRlIiwicmF0aW9uYWxlIjoi57y65bCR6Z6L5bGl5a6e55So5oCn5LiN6Laz77yM5q2j5byP5oSf5bCa5Y-v77yM6YCC6YWN5bqm5LiA6IisIiwic2NlbmUiOiLlkajkupTpnaLor5UiLCJzbG90cyI6W3siaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzE0YTAwNWU3LThkOWYtNDg0ZS05N2Y5LWE2M2FlZjNhYWZlMi9pbWFnZSIsIml0ZW1faWQiOiIxNGEwMDVlNy04ZDlmLTQ4NGUtOTdmOS1hNjNhZWYzYWFmZTIiLCJpdGVtX25hbWUiOiLnuqLoibLnur3miaPnn63oopbkuIrooaMiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJ0b3BzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzVlNzU5MTJlLTFlNTctNDhmYS04NTU3LWZkNTA3YjNiOWVjMC9pbWFnZSIsIml0ZW1faWQiOiI1ZTc1OTEyZS0xZTU3LTQ4ZmEtODU1Ny1mZDUwN2IzYjllYzAiLCJpdGVtX25hbWUiOiLngbDoibLlpJrlj6Pooovlt6Xoo4Xoo6QiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJib3R0b21zIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zL2QxMTc1MTk3LTNmNWEtNDRiZC1iMGVhLTliNDZkNzQ1MzNkOS9pbWFnZSIsIml0ZW1faWQiOiJkMTE3NTE5Ny0zZjVhLTQ0YmQtYjBlYS05YjQ2ZDc0NTMzZDkiLCJpdGVtX25hbWUiOiLmtYXnu7_lnIbpoobpkojnu4flvIDooasiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJvdXRlcndlYXIiLCJzZWFyY2hfcXVlcnkiOm51bGwsInNvdXJjZV9raW5kIjoidXBsb2FkIn0seyJpbWFnZV91cmwiOiIvdjEvaXRlbXMvMjNjMGZiOTMtMTIxOC00MDdlLWJkNTktMmEyMTUxOWY4MTQwL2ltYWdlIiwiaXRlbV9pZCI6IjIzYzBmYjkzLTEyMTgtNDA3ZS1iZDU5LTJhMjE1MTlmODE0MCIsIml0ZW1fbmFtZSI6Iua1hee7v-iKseacteWPkeWciCIsIm93bmVyc2hpcCI6Im93bmVkIiwicm9sZSI6ImFjY2Vzc29yaWVzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9XSwic3R5bGVfbWF0Y2hfc2NvcmUiOjg0LCJ0aXRsZSI6Iuiho-apseS8mOWFiOaWueahiCAzIn0sInJlYXNvbmluZ190cmFjZSI6eyJjYXBhYmlsaXR5X2FsaWFzIjoicmVhc29uaW5nIiwibGF0ZW5jeV9tcyI6MjI2NTIsIm1vZGVsX3ZlcnNpb24iOiJvdXRmaXQtcmVyYW5rLW1vZGVsLXYxIiwicHJvbXB0X3ZlcnNpb24iOiJvdXRmaXQtcmVyYW5rLXYxIiwic2NoZW1hX3ZlcnNpb24iOiJvdXRmaXQtcmVyYW5rLWpzb24tdjEifSwicmVxdWVzdCI6eyJhbmNob3JfaXRlbV9pZCI6bnVsbCwiY29tZm9ydCI6bnVsbCwiZXhjbHVkZV9pdGVtX2lkcyI6W10sImZvcm1hbGl0eSI6bnVsbCwibXVzdF9pbmNsdWRlX2l0ZW1faWRzIjpbXSwic2NlbmUiOiLlkajkupTpnaLor5UiLCJzdHlsZSI6IueugOa0geato-W8jyIsIndlYXRoZXIiOm51bGx9LCJ1c2VyX2lkIjoiNWYyZWU2YTYtZTQ2MS00YjA0LTg0ZGUtYzA2NGViOTNiMWUzIiwidmVyc2lvbiI6M30.bzBL0kooMCXmr5aVQbxWFJJPgRFUSkHWQBz2Hx1JpdE"
+    },
+    {
+      "id": "e5a1fba8-5363-5521-b73c-4831a0a6bb10",
+      "title": "衣橱优先方案 2",
+      "scene": "周五面试",
+      "slots": [
+        {
+          "role": "dresses",
+          "item_id": "577d8e31-67db-4988-a8a5-8b9e83e77469",
+          "item_name": "粉色吊带蛋糕连衣裙",
+          "ownership": "owned",
+          "image_url": "/v1/items/577d8e31-67db-4988-a8a5-8b9e83e77469/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "outerwear",
+          "item_id": "d1175197-3f5a-44bd-b0ea-9b46d74533d9",
+          "item_name": "浅绿圆领针织开衫",
+          "ownership": "owned",
+          "image_url": "/v1/items/d1175197-3f5a-44bd-b0ea-9b46d74533d9/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "shoes",
+          "item_id": "e14a7c85-0be3-43e1-bfd3-c9c1ad28f443",
+          "item_name": "白色厚底运动鞋",
+          "ownership": "owned",
+          "image_url": "/v1/items/e14a7c85-0be3-43e1-bfd3-c9c1ad28f443/image",
+          "search_query": null,
+          "source_kind": "upload"
+        },
+        {
+          "role": "accessories",
+          "item_id": "23c0fb93-1218-407e-bd59-2a21519f8140",
+          "item_name": "浅绿花朵发圈",
+          "ownership": "owned",
+          "image_url": "/v1/items/23c0fb93-1218-407e-bd59-2a21519f8140/image",
+          "search_query": null,
+          "source_kind": "upload"
+        }
+      ],
+      "rationale": "吊带蛋糕裙偏休闲，正式感弱，面试适配度低",
+      "style_match_score": 80,
+      "missing_count": 0,
+      "save_token": "eyJleHBpcmVzX2F0IjoxNzg1MDM0NDg3LCJleHBsYW5hdGlvbl9zdGF0ZSI6ImxsbV9yYW5rZWQiLCJwbGFuIjp7ImlkIjoiZTVhMWZiYTgtNTM2My01NTIxLWI3M2MtNDgzMWEwYTZiYjEwIiwicmF0aW9uYWxlIjoi5ZCK5bim6JuL57OV6KOZ5YGP5LyR6Zey77yM5q2j5byP5oSf5byx77yM6Z2i6K-V6YCC6YWN5bqm5L2OIiwic2NlbmUiOiLlkajkupTpnaLor5UiLCJzbG90cyI6W3siaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzU3N2Q4ZTMxLTY3ZGItNDk4OC1hOGE1LThiOWU4M2U3NzQ2OS9pbWFnZSIsIml0ZW1faWQiOiI1NzdkOGUzMS02N2RiLTQ5ODgtYThhNS04YjllODNlNzc0NjkiLCJpdGVtX25hbWUiOiLnsonoibLlkIrluKbom4vns5Xov57ooaPoo5kiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJkcmVzc2VzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zL2QxMTc1MTk3LTNmNWEtNDRiZC1iMGVhLTliNDZkNzQ1MzNkOS9pbWFnZSIsIml0ZW1faWQiOiJkMTE3NTE5Ny0zZjVhLTQ0YmQtYjBlYS05YjQ2ZDc0NTMzZDkiLCJpdGVtX25hbWUiOiLmtYXnu7_lnIbpoobpkojnu4flvIDooasiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJvdXRlcndlYXIiLCJzZWFyY2hfcXVlcnkiOm51bGwsInNvdXJjZV9raW5kIjoidXBsb2FkIn0seyJpbWFnZV91cmwiOiIvdjEvaXRlbXMvZTE0YTdjODUtMGJlMy00M2UxLWJmZDMtYzljMWFkMjhmNDQzL2ltYWdlIiwiaXRlbV9pZCI6ImUxNGE3Yzg1LTBiZTMtNDNlMS1iZmQzLWM5YzFhZDI4ZjQ0MyIsIml0ZW1fbmFtZSI6IueZveiJsuWOmuW6lei_kOWKqOmeiyIsIm93bmVyc2hpcCI6Im93bmVkIiwicm9sZSI6InNob2VzIiwic2VhcmNoX3F1ZXJ5IjpudWxsLCJzb3VyY2Vfa2luZCI6InVwbG9hZCJ9LHsiaW1hZ2VfdXJsIjoiL3YxL2l0ZW1zLzIzYzBmYjkzLTEyMTgtNDA3ZS1iZDU5LTJhMjE1MTlmODE0MC9pbWFnZSIsIml0ZW1faWQiOiIyM2MwZmI5My0xMjE4LTQwN2UtYmQ1OS0yYTIxNTE5ZjgxNDAiLCJpdGVtX25hbWUiOiLmtYXnu7_oirHmnLXlj5HlnIgiLCJvd25lcnNoaXAiOiJvd25lZCIsInJvbGUiOiJhY2Nlc3NvcmllcyIsInNlYXJjaF9xdWVyeSI6bnVsbCwic291cmNlX2tpbmQiOiJ1cGxvYWQifV0sInN0eWxlX21hdGNoX3Njb3JlIjo4MCwidGl0bGUiOiLooaPmqbHkvJjlhYjmlrnmoYggMiJ9LCJyZWFzb25pbmdfdHJhY2UiOnsiY2FwYWJpbGl0eV9hbGlhcyI6InJlYXNvbmluZyIsImxhdGVuY3lfbXMiOjIyNjUyLCJtb2RlbF92ZXJzaW9uIjoib3V0Zml0LXJlcmFuay1tb2RlbC12MSIsInByb21wdF92ZXJzaW9uIjoib3V0Zml0LXJlcmFuay12MSIsInNjaGVtYV92ZXJzaW9uIjoib3V0Zml0LXJlcmFuay1qc29uLXYxIn0sInJlcXVlc3QiOnsiYW5jaG9yX2l0ZW1faWQiOm51bGwsImNvbWZvcnQiOm51bGwsImV4Y2x1ZGVfaXRlbV9pZHMiOltdLCJmb3JtYWxpdHkiOm51bGwsIm11c3RfaW5jbHVkZV9pdGVtX2lkcyI6W10sInNjZW5lIjoi5ZGo5LqU6Z2i6K-VIiwic3R5bGUiOiLnroDmtIHmraPlvI8iLCJ3ZWF0aGVyIjpudWxsfSwidXNlcl9pZCI6IjVmMmVlNmE2LWU0NjEtNGIwNC04NGRlLWMwNjRlYjkzYjFlMyIsInZlcnNpb24iOjN9.zHiMjmJaonup9Ot0XY9lUq45oQaD3jVWcANOzitOxK0"
+    }
+  ],
+  "degraded": false,
+  "degradation_reason": null,
+  "explanation_state": "llm_ranked",
+  "workflow_trace": {
+    "trace_id": "e1f6c3df-0d00-5c8e-99c5-0fd01caffb77",
+    "request_id": "4dd2484e-8a17-5dd2-a15e-9fa7830041cd",
+    "status": "completed",
+    "explanation_state": "llm_ranked",
+    "plan_count": 4,
+    "capability_alias": "reasoning",
+    "model_version": "outfit-rerank-model-v1",
+    "steps": [
+      {
+        "name": "wardrobe_recall",
+        "label": "读取真实数字衣橱",
+        "status": "completed"
+      },
+      {
+        "name": "candidate_planning",
+        "label": "生成封闭穿搭候选",
+        "status": "completed"
+      },
+      {
+        "name": "reasoning_rerank",
+        "label": "搭配理解与重排",
+        "status": "completed"
+      }
+    ],
+    "created_at": "2026-07-26T02:24:24.374353Z",
+    "updated_at": "2026-07-26T02:24:47.033587Z"
+  }
+}

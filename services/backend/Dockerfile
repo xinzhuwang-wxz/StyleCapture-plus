@@ -8,9 +8,21 @@ WORKDIR /app
 
 ARG INSTALL_AI_LIGHT=false
 ARG INSTALL_GATEWAY=false
+ARG UV_DEFAULT_INDEX=https://pypi.org/simple
+ARG UV_INSECURE_HOST=
+ARG UV_LOCK_MIRROR_BASE=
+
+ENV UV_DEFAULT_INDEX=${UV_DEFAULT_INDEX} \
+    UV_INSECURE_HOST=${UV_INSECURE_HOST}
 
 COPY .python-version pyproject.toml uv.lock ./
 COPY services/backend/pyproject.toml services/backend/pyproject.toml
+RUN if [ -n "$UV_LOCK_MIRROR_BASE" ]; then \
+      sed -i \
+        -e "s#https://files.pythonhosted.org#$UV_LOCK_MIRROR_BASE#g" \
+        -e "s#https://pypi.org#$UV_LOCK_MIRROR_BASE#g" \
+        uv.lock; \
+    fi
 RUN if [ "$INSTALL_GATEWAY" = "true" ]; then \
       uv sync --frozen --no-dev --package stylecapture-backend --extra gateway --no-install-workspace; \
     elif [ "$INSTALL_AI_LIGHT" = "true" ]; then \

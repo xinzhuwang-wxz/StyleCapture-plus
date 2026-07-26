@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
@@ -69,7 +76,39 @@ from stylecapture_backend.features.wardrobe.infrastructure.repository import (
 from stylecapture_backend.main import BackendServices, create_app
 from stylecapture_backend.platform.celery import build_celery
 from stylecapture_backend.platform.config import BackendSettings
+from stylecapture_backend.platform.cost_guard import CostGuardLimits, RedisCostGuard
 from stylecapture_backend.platform.database import build_session_factory
+
+
+async def _readiness_check(
+    *,
+    database_sessions: async_sessionmaker[AsyncSession],
+    redis_url: str,
+    litellm_base_url: str,
+) -> Mapping[str, bool]:
+    checks: dict[str, bool] = {"database": False, "redis": False, "litellm": False}
+    try:
+        async with database_sessions() as session:
+            await session.execute(text("select 1"))
+        checks["database"] = True
+    except SQLAlchemyError:
+        checks["database"] = False
+    try:
+        redis = Redis.from_url(redis_url, decode_responses=True)
+        try:
+            checks["redis"] = bool(await redis.ping())
+        finally:
+            await redis.aclose()
+    except RedisError:
+        checks["redis"] = False
+    liveliness_base_url = litellm_base_url.rsplit("/v1", 1)[0]
+    try:
+        async with httpx.AsyncClient(base_url=liveliness_base_url, timeout=2.0) as client:
+            response = await client.get("/health/liveliness")
+        checks["litellm"] = response.status_code < 500
+    except httpx.HTTPError:
+        checks["litellm"] = False
+    return checks
 
 
 def build_app() -> FastAPI:
@@ -209,4 +248,21 @@ def build_app() -> FastAPI:
         session_signing_secret=settings.session_signing_secret.get_secret_value(),
         session_cookie_secure=settings.session_cookie_secure,
         demo_seed_new_session_quota=settings.demo_seed_new_session_quota,
+        readiness_check=lambda: _readiness_check(
+            database_sessions=sessions,
+            redis_url=redis_url,
+            litellm_base_url=settings.litellm_base_url,
+        ),
+        cost_guard=RedisCostGuard(
+            redis_url,
+            limits=CostGuardLimits(
+                window_seconds=settings.ai_cost_window_seconds,
+                per_actor_requests=settings.ai_cost_actor_requests,
+                per_client_requests=settings.ai_cost_client_requests,
+                global_requests=settings.ai_cost_global_requests,
+                per_actor_concurrency=settings.ai_cost_actor_concurrency,
+                per_client_concurrency=settings.ai_cost_client_concurrency,
+                global_concurrency=settings.ai_cost_global_concurrency,
+            ),
+        ),
     )

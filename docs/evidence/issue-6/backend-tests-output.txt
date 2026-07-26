@@ -1,0 +1,10 @@
+   Building stylecapture-backend @ file:///Users/bamboo/Githubs/StyleCapture-plus/services/backend
+      Built stylecapture-backend @ file:///Users/bamboo/Githubs/StyleCapture-plus/services/backend
+Uninstalled 1 package in 0.80ms
+Installed 1 package in 0.98ms
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 73%]
+........................................................................ [ 97%]
+.......                                                                  [100%]
+295 passed in 9.30s

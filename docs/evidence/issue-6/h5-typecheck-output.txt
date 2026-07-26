@@ -1,0 +1,4 @@
+
+> @stylecapture/h5@0.1.0 typecheck /Users/bamboo/Githubs/StyleCapture-plus/apps/h5
+> tsc -b --noEmit
+

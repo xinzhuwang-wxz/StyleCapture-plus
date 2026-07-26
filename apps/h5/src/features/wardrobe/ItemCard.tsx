@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Item, Job, Ownership } from "../../api/client";
 import { pixelGarmentIcon } from "../../utils/pixelAvatar";
@@ -30,11 +31,9 @@ function PixelItemImage({
 }) {
   if (item.pixel_image_url) {
     return (
-      <img
+      <DeferredPixelImage
         src={`${item.pixel_image_url}?v=${encodeURIComponent(item.updated_at)}`}
         alt={`${category}的像素展示图`}
-        data-image-kind="wardrobe-pixel"
-        data-pixel="true"
       />
     );
   }
@@ -45,9 +44,47 @@ function PixelItemImage({
         owned: item.ownership === "owned"
       })}
       alt={`${category}的像素图标`}
+      loading="lazy"
+      decoding="async"
       data-image-kind="wardrobe-pixel-fallback"
       data-pixel="true"
     />
+  );
+}
+
+function DeferredPixelImage({ src, alt }: { src: string; alt: string }) {
+  const markerRef = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker || visible) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "320px 0px" }
+    );
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  return (
+    <span ref={markerRef} className="wardrobe-card__deferred-image">
+      {visible ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          fetchPriority="low"
+          data-image-kind="wardrobe-pixel"
+          data-pixel="true"
+        />
+      ) : null}
+    </span>
   );
 }
 
@@ -70,6 +107,7 @@ export function WardrobeItemCard({
   return (
     <motion.article
       className="item-card pixel-card wardrobe-card"
+      data-item-id={item.id}
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -141,7 +179,12 @@ export function PendingItemCard({
     >
       <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">
         {pending.previewUrl ? (
-          <img src={pending.previewUrl} alt="正在入库的衣服" />
+          <img
+            src={pending.previewUrl}
+            alt="正在入库的衣服"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="pending-heic-preview" role="status">
             <strong>正在转换 iPhone 照片</strong>

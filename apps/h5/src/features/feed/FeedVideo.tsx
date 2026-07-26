@@ -17,6 +17,7 @@ interface FeedVideoProps {
   active: boolean;
   asset: FeedAsset;
   gestureGuideEnabled: boolean;
+  mediaLoaded: boolean;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
   restoreRequest: {
     requestId: string;
@@ -55,6 +56,7 @@ export function FeedVideo({
   active,
   asset,
   gestureGuideEnabled,
+  mediaLoaded,
   onAccepted,
   restoreRequest
 }: FeedVideoProps) {
@@ -140,6 +142,12 @@ export function FeedVideo({
     sourceRestored,
     submitting
   ]);
+
+  useEffect(() => {
+    if (mediaLoaded) return;
+    setMediaReady(false);
+    setMediaError(false);
+  }, [mediaLoaded]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -267,10 +275,10 @@ export function FeedVideo({
         loop
         muted
         playsInline
-        preload={active ? "auto" : "metadata"}
+        preload={active ? "auto" : mediaLoaded ? "metadata" : "none"}
         tabIndex={active ? 0 : -1}
         ref={videoRef}
-        src={feedMediaUrl(asset.localPath)}
+        src={mediaLoaded ? feedMediaUrl(asset.localPath) : undefined}
         onCanPlay={() => {
           setMediaReady(true);
           setMediaError(false);

@@ -1,0 +1,1 @@
+{"plans":4,"degraded":false,"state":"llm_ranked","trace":3}
