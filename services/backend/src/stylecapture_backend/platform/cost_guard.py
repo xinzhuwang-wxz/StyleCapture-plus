@@ -129,9 +129,7 @@ class RedisCostGuard:
             limits.per_actor_requests if actor_key is not None else limits.per_client_requests
         )
         actor_concurrency = (
-            limits.per_actor_concurrency
-            if actor_key is not None
-            else limits.per_client_concurrency
+            limits.per_actor_concurrency if actor_key is not None else limits.per_client_concurrency
         )
         try:
             result = await self._redis.eval(
