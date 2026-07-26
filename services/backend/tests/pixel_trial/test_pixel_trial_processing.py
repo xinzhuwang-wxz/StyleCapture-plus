@@ -66,6 +66,8 @@ class MemoryObjects:
 class SuccessfulGenerator:
     def __init__(self) -> None:
         self.images: tuple[ImagePayload, ...] = ()
+        self.prompt = ""
+        self.size = ""
 
     async def generate(
         self,
@@ -77,7 +79,9 @@ class SuccessfulGenerator:
         assert "6-10px" in prompt
         assert "不默认使用粉色" in prompt
         assert len(images) == 1
+        self.prompt = prompt
         self.images = tuple(images)
+        self.size = size
         body = b"real-provider-pixel-output"
         return GeneratedImage(
             body=body,
@@ -121,8 +125,11 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "photo.pixel_trial"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v2"
+    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v3"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
+    assert generator.size == "1536x2048"
+    assert "3:4" in generator.prompt
+    assert "1:1" in generator.prompt
 
 
 @pytest.mark.asyncio
@@ -150,6 +157,8 @@ async def test_pixel_trial_converts_heic_subject_before_render_provider() -> Non
 
 
 def test_pixel_trial_prompt_preserves_the_subject_without_fixed_decoration() -> None:
+    assert "3:4" in PIXEL_TRIAL_PROMPT
+    assert "1:1" in PIXEL_TRIAL_PROMPT
     assert "身份线索" in PIXEL_TRIAL_PROMPT
     assert "鞋履、配饰" in PIXEL_TRIAL_PROMPT
     assert "与原场景有关" in PIXEL_TRIAL_PROMPT

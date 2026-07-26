@@ -186,8 +186,12 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 260px;
+  width: min(100%, 18rem);
+  aspect-ratio: 3 / 4;
+  min-height: 0;
+  margin-inline: auto;
   margin-bottom: var(--px-3);
+  padding: var(--px-2);
   overflow: hidden;
   background: linear-gradient(180deg, #fbf7ff, #fff);
   border: 2px dashed var(--pixel-secondary);
@@ -195,8 +199,8 @@
 }
 
 .profile__trial-preview img {
-  max-width: 86%;
-  max-height: 250px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 

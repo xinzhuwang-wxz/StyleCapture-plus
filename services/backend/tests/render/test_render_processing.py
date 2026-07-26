@@ -132,6 +132,7 @@ class SuccessfulPixelGenerator:
     def __init__(self) -> None:
         self.images: tuple[ImagePayload, ...] = ()
         self.prompt = ""
+        self.size = ""
 
     async def generate(
         self,
@@ -142,6 +143,7 @@ class SuccessfulPixelGenerator:
     ) -> GeneratedImage:
         self.prompt = prompt
         self.images = images
+        self.size = size
         body = png((180, 90, 255))
         return GeneratedImage(
             body=body,
@@ -391,11 +393,14 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.provider == "test-private"
     assert stored_pixel.provider_trace.parameters["capability_id"] == "look.pixel_cover"
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v3"
+    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v4"
     assert "6-10px" in pixel_generator.prompt
+    assert "3:4" in pixel_generator.prompt
+    assert "1:1" in pixel_generator.prompt
     assert "不要复刻完整房间" in pixel_generator.prompt
     assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert len(pixel_generator.images) == 2
+    assert pixel_generator.size == "1536x2048"
     assert pixel_generator.images[0].object_key == look_source.object_key
 
 
