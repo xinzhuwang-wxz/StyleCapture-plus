@@ -454,7 +454,7 @@ function DetailContent({
                 </button>
               ))}
             </div>
-            <div className="render-studio__preview">
+            <div className="render-studio__preview" data-render-kind={activeRenderKind}>
               {visibleRender?.output_image_url ? (
                 <img
                   src={`${visibleRender.output_image_url}?v=${encodeURIComponent(

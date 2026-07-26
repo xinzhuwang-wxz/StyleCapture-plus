@@ -1124,22 +1124,26 @@ p {
 .render-studio__preview {
   position: relative;
   overflow: hidden;
-  min-height: 15rem;
+  aspect-ratio: 3 / 4;
   border: 1px solid rgb(125 76 224 / 14%);
   border-radius: 0.9rem;
-  background: #fffafd;
+  background: #fff;
+}
+
+.render-studio__preview[data-render-kind="pixel_cover"] {
+  aspect-ratio: 1;
 }
 
 .render-studio__preview > img {
   display: block;
   width: 100%;
-  aspect-ratio: 1;
+  height: 100%;
   object-fit: contain;
 }
 
 .render-studio__empty {
   display: grid;
-  min-height: 15rem;
+  min-height: 100%;
   place-items: center;
   align-content: center;
   gap: 0.35rem;
