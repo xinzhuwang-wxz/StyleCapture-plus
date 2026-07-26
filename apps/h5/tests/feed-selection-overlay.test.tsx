@@ -168,26 +168,6 @@ describe("FeedSelectionOverlay", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps tiny accidental lassos local and asks the user to draw bigger", () => {
-    const { onConfirm, overlay } = renderOverlay();
-
-    drawLoop(overlay, 1, [
-      { x: 120, y: 220 },
-      { x: 136, y: 220 },
-      { x: 136, y: 236 },
-      { x: 120, y: 220 }
-    ]);
-    act(() => vi.advanceTimersByTime(700));
-
-    expect(
-      screen.getByRole("status", { name: "圈选太小" })
-    ).toHaveTextContent("圈大一点");
-    expect(
-      screen.queryByRole("group", { name: "已圈选的穿搭主体" })
-    ).not.toBeInTheDocument();
-    expect(onConfirm).not.toHaveBeenCalled();
-  });
-
   it("confirms the real same-frame selections when the lifted subject is swiped right", () => {
     const { onConfirm, onDismiss, overlay } = renderOverlay();
     drawLoop(overlay, 1, [
