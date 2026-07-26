@@ -3,10 +3,15 @@ const { createServer } = require("node:http");
 const test = require("node:test");
 
 const {
+  DEFAULT_API_URL,
   matchOutfits,
   normalizeRequest,
   validateWorkflowTrace,
 } = require("../scripts/match.js");
+
+test("defaults to the deployed Product API", () => {
+  assert.equal(DEFAULT_API_URL, "https://119.45.216.38");
+});
 
 test("normalizes only the Product API request contract", () => {
   assert.deepEqual(

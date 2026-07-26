@@ -2086,6 +2086,22 @@
         "summary": "Healthz"
       }
     },
+    "/readyz": {
+      "get": {
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readyz"
+      }
+    },
     "/v1/captures": {
       "post": {
         "operationId": "submit_capture_v1_captures_post",
