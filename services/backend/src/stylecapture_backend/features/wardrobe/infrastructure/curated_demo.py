@@ -424,7 +424,7 @@ class CuratedDemoWardrobeBootstrapper:
         image = self._objects.write_derived_image(
             ImagePayload(
                 object_key=f"curated-seed/{definition.file_name}",
-                content_type="image/jpeg",
+                content_type=_seed_content_type(self._assets_root / definition.file_name),
                 body=body,
                 sha256=digest,
             ),

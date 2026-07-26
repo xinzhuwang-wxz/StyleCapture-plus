@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from PIL import Image
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
+    CaptureError,
     JobRetryApplication,
 )
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
@@ -171,6 +172,15 @@ async def test_pixel_trial_http_creates_private_queued_task(tmp_path: Path) -> N
         not_ready = await client.get(f"/v1/pixel-trials/{payload['id']}/image")
         assert not_ready.status_code == 404
         assert not_ready.json()["error"]["code"] == "pixel_trial_not_found"
+
+        with pytest.raises(CaptureError) as attached_error:
+            objects.discard_unattached_upload(object_key, user_id)
+        assert attached_error.value.code == "upload_already_attached"
+
+        deleted = await client.delete(f"/v1/pixel-trials/{payload['id']}")
+        assert deleted.status_code == 204
+        with pytest.raises(KeyError):
+            objects.describe(object_key)
 
 
 @pytest.mark.asyncio

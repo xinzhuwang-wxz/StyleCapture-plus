@@ -62,7 +62,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 80px;
+  bottom: calc(var(--px-3) + 3.7rem);
   z-index: 30;
   display: flex;
   flex-direction: column;

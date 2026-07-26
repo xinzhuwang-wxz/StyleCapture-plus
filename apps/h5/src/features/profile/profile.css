@@ -28,7 +28,7 @@
   width: 70px;
   height: 70px;
   object-fit: cover;
-  object-position: 50% 12%;
+  object-position: 50% 20%;
   border: 3px solid #fff;
   border-radius: 50%;
   box-shadow:
@@ -55,41 +55,6 @@
   line-height: 1.55;
   color: var(--pixel-primary-dark);
   white-space: normal;
-}
-
-/* ─── 四格数据 ─── */
-.profile__stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--px-2);
-  width: 100%;
-  padding: 0;
-  margin-bottom: var(--px-4);
-  background: none;
-  border: none;
-}
-
-.profile__stats span {
-  display: block;
-  padding: 11px 6px;
-  text-align: center;
-  background: #fff;
-  border: 2px solid var(--pixel-border);
-  border-radius: 12px;
-}
-
-.profile__stats b {
-  display: block;
-  font-family: var(--font-pixel);
-  font-size: 1.05rem;
-  font-weight: normal;
-}
-
-.profile__stats small {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.62rem;
-  color: var(--pixel-text-dim);
 }
 
 /* ─── 形象照 ─── */

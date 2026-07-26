@@ -49,7 +49,10 @@ class BackendSettings(BaseSettings):
     capture_queue: str = "capture"
     render_queue: str = "render"
     worker_max_retries: int = 2
-    render_request_timeout_seconds: float = 45
+    # Seedream commonly completes just beyond 45s. A 75s request window avoids
+    # two full provider retries and cuts observed pixel-trial latency from
+    # roughly 135s to one generation request.
+    render_request_timeout_seconds: float = 75
     render_poll_interval_seconds: float = 1
     render_poll_timeout_seconds: float = 90
     render_download_max_bytes: int = 20 * 1024 * 1024

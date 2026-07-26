@@ -202,6 +202,25 @@ describe("StyleCapture garment ingest", () => {
     expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
   });
 
+  it("opens the pixel world from the first-level navigation and returns to the wardrobe", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
+    await user.click(await screen.findByRole("button", { name: "像素世界" }));
+
+    expect(screen.getByLabelText("像素世界")).toBeVisible();
+    expect(
+      await screen.findByText(/预设角色非真人 · 非实时社区/)
+    ).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "主要功能" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "返回数字衣橱" }));
+
+    expect(await screen.findByRole("heading", { name: "我的衣橱" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
+  });
+
   it("keeps optional Look feedback visible in Feed and dismisses it after saving", async () => {
     const user = userEvent.setup();
     renderApp();

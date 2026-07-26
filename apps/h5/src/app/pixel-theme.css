@@ -4,8 +4,6 @@
    浅紫 + 粉色 + 白底，圆角卡片，像素字体点缀
    ═══════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-
 /* ─── CSS Variables ─── */
 :root {
   /* Light Pixel Palette */
@@ -44,8 +42,8 @@
   --px-10: 40px;
 
   /* Typography */
-  --font-pixel: 'ZCOOL KuaiLe', 'PingFang SC', 'Courier New', monospace;
-  --font-body: 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-pixel: var(--font-body);
 
   /* Shape — 圆角卡片 */
   --pixel-border-width: 2px;
@@ -408,9 +406,9 @@ h1, h2, h3, h4, p { margin-top: 0; }
   bottom: max(var(--px-3), env(safe-area-inset-bottom));
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   padding: var(--px-2);
-  gap: 6px;
+  gap: 2px;
   border: var(--pixel-border-width) solid var(--pixel-border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
@@ -430,8 +428,48 @@ h1, h2, h3, h4, p { margin-top: 0; }
   background: transparent;
   color: var(--pixel-text-dim);
   font-family: var(--font-pixel);
-  font-size: 0.62rem;
+  min-width: 0;
+  font-size: 0.68rem;
+  line-height: 1.1;
   transition: all 0.12s ease;
+}
+
+.pixel-nav button small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-view--world {
+  position: absolute;
+  z-index: 70;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #f8f0fc;
+}
+
+.product-shell--world {
+  background: #f8f0fc;
+}
+
+.pixel-world-loading {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
+  gap: 0.6rem;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(242, 181, 217, 0.28), transparent 32%),
+    linear-gradient(180deg, #fff8fd 0%, #f5ebff 100%);
+  color: #563168;
+  text-align: center;
+}
+
+.pixel-world-loading span {
+  font-size: 1.8rem;
 }
 
 .pixel-nav button.is-active {
@@ -440,7 +478,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
   color: var(--pixel-primary-dark);
 }
 
-.pixel-nav button .nav-icon { font-size: 1.2rem; line-height: 1; }
+.pixel-nav button .nav-icon {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+  font-size: 1.35rem;
+  line-height: 1;
+}
 
 /* 中间 ＋ 新增单品按钮：用 SVG 描边保证加号正落在圆心 */
 .pixel-nav__add {
@@ -465,8 +510,9 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .pixel-nav__add:active { transform: scale(0.9) rotate(90deg); }
 
 .wardrobe-header__feed {
-  grid-column: 1 / -1;
-  justify-self: start;
+  grid-column: auto;
+  justify-self: end;
+  white-space: nowrap;
   padding: 0.45rem 0.85rem;
   color: var(--pixel-primary-dark);
   font-family: var(--font-pixel);

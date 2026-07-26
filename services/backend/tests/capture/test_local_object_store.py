@@ -19,6 +19,12 @@ def png_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def jpeg_bytes() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (32, 24), color=(244, 114, 182)).save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
 OWNER_ID = UUID("11111111-1111-4111-8111-111111111111")
 
 
@@ -310,3 +316,38 @@ def test_mismatched_magic_bytes_are_rejected_before_image_parser(tmp_path: Path)
         store.accept_upload(prepared.token, body=body, content_type="image/png")
 
     assert error.value.code == "image_format_mismatch"
+
+
+def test_ios_mpo_gallery_export_is_accepted_as_jpeg(tmp_path: Path) -> None:
+    class MpoImage:
+        format = "MPO"
+        size = (32, 24)
+
+        def __enter__(self) -> "MpoImage":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def verify(self) -> None:
+            return None
+
+    body = jpeg_bytes()
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    prepared = store.prepare_upload(request_for(body, content_type="image/jpeg"))
+
+    with patch(
+        "stylecapture_backend.features.capture.infrastructure.object_store.Image.open",
+        return_value=MpoImage(),
+    ):
+        stored = store.accept_upload(
+            prepared.token,
+            body=body,
+            content_type="image/jpeg",
+        )
+
+    assert stored.width == 32
+    assert stored.height == 24

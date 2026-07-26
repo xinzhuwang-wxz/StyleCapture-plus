@@ -386,7 +386,7 @@ export function buildShareCard(opts: {
   // 文案
   ctx.textAlign = "center";
   ctx.fillStyle = "#3d2c5e";
-  ctx.font = "bold 34px 'ZCOOL KuaiLe', 'PingFang SC', sans-serif";
+  ctx.font = "bold 34px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
   ctx.fillText(opts.title, 240, 420);
   ctx.fillStyle = "#8b7bb0";
   ctx.font = "22px 'PingFang SC', sans-serif";
@@ -396,7 +396,7 @@ export function buildShareCard(opts: {
   ctx.fillStyle = "#a78bfa";
   ctx.fillRect(60, 512, 360, 52);
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 24px 'ZCOOL KuaiLe', 'PingFang SC', sans-serif";
+  ctx.font = "bold 24px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
   ctx.fillText("👾 码上搭 · 我的数字衣橱", 240, 546);
 
   return canvas.toDataURL("image/png");

@@ -20,6 +20,8 @@ export type RenderKind = components["schemas"]["RenderArtifactKind"];
 export type SourceKind = components["schemas"]["CaptureSourceKind"];
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const NORMALIZED_UPLOAD_MAX_EDGE = 1600;
+const NORMALIZED_UPLOAD_QUALITY = 0.86;
 const SUPPORTED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -49,6 +51,13 @@ const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
   pixel_trial_idempotency_conflict: "这张全身照已经重新提交，请刷新后再试",
   pixel_trial_dispatch_unavailable: "像素形象任务已保存，后台服务恢复后会继续",
   pixel_trial_not_found: "这次像素形象生成暂时不可用",
+  image_format_mismatch: "手机相册返回了不一致的图片格式，请重新选择；我们会自动识别 HEIC",
+  image_decode_failed: "这张照片暂时无法读取，请换一张原图再试",
+  image_dimensions_invalid: "照片分辨率过高，请选择普通清晰度的全身照",
+  upload_content_type_mismatch: "照片格式在上传中发生变化，请重新选择照片",
+  upload_hash_mismatch: "照片上传中断，请重新选择照片",
+  upload_size_mismatch: "照片上传不完整，请重新选择照片",
+  upload_unattached_quota_exceeded: "待处理照片较多，请删除旧草稿后再试",
   item_presentation_dispatch_unavailable: "像素展示图任务已保存，后台服务恢复后会继续",
   item_presentation_not_found: "这张像素展示图暂时不可用",
   job_not_retryable: "当前任务正在处理或已经完成，无需重试",
@@ -109,6 +118,179 @@ function contentTypeFor(file: File): string {
   return "";
 }
 
+type UploadImage = {
+  file: File;
+  contentType: string;
+};
+
+function withContentType(file: File, contentType: string): File {
+  if (file.type.toLowerCase() === contentType) {
+    return file;
+  }
+  return new File([file], file.name, {
+    type: contentType,
+    lastModified: file.lastModified
+  });
+}
+
+export async function detectedContentTypeFor(file: File): Promise<string> {
+  const source = file.slice(0, 16);
+  const buffer =
+    typeof source.arrayBuffer === "function"
+      ? await source.arrayBuffer()
+      : await new Promise<ArrayBuffer>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as ArrayBuffer);
+          reader.onerror = () => reject(reader.error ?? new Error("image signature read failed"));
+          reader.readAsArrayBuffer(source);
+        });
+  const signature = new Uint8Array(buffer);
+  if (signature.length >= 3 && signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    signature.length >= 8 &&
+    signature[0] === 0x89 &&
+    signature[1] === 0x50 &&
+    signature[2] === 0x4e &&
+    signature[3] === 0x47 &&
+    signature[4] === 0x0d &&
+    signature[5] === 0x0a &&
+    signature[6] === 0x1a &&
+    signature[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    signature.length >= 12 &&
+    String.fromCharCode(...signature.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...signature.slice(8, 12)) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  if (
+    signature.length >= 12 &&
+    String.fromCharCode(...signature.slice(4, 8)) === "ftyp"
+  ) {
+    const brand = String.fromCharCode(...signature.slice(8, 12));
+    if (["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"].includes(brand)) {
+      return brand === "mif1" || brand === "msf1" ? "image/heif" : "image/heic";
+    }
+  }
+  return contentTypeFor(file);
+}
+
+function normalizedFileName(fileName: string): string {
+  const base = fileName.replace(/\.[^.]+$/, "");
+  return `${base || "stylecapture-upload"}.jpg`;
+}
+
+async function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error("image normalization produced an empty blob"));
+        }
+      },
+      type,
+      quality
+    );
+  });
+}
+
+async function decodeImageFile(file: File): Promise<ImageBitmap | HTMLImageElement> {
+  if (typeof createImageBitmap === "function") {
+    return createImageBitmap(file);
+  }
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    const timeout = window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      reject(new Error("image decode timed out"));
+    }, 4_000);
+    image.onload = () => {
+      window.clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      window.clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      reject(new Error("image decode failed"));
+    };
+    image.src = url;
+  });
+}
+
+async function normalizeImageForUpload(file: File): Promise<UploadImage> {
+  // iOS photo pickers can report a JPEG MIME type for HEIC bytes. Sniff the
+  // immutable source before preparing the signed upload so the server sees a
+  // content type that matches the actual payload.
+  const contentType = await detectedContentTypeFor(file);
+  if (!SUPPORTED_TYPES.has(contentType)) {
+    return { file, contentType };
+  }
+  const sourceFile = withContentType(file, contentType);
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    typeof HTMLCanvasElement === "undefined" ||
+    (typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("jsdom"))
+  ) {
+    return { file: sourceFile, contentType };
+  }
+
+  try {
+    const decoded = await decodeImageFile(sourceFile);
+    const width = decoded.width;
+    const height = decoded.height;
+    if (width <= 0 || height <= 0) {
+      return { file: sourceFile, contentType };
+    }
+
+    const scale = Math.min(1, NORMALIZED_UPLOAD_MAX_EDGE / Math.max(width, height));
+    const outputWidth = Math.max(1, Math.round(width * scale));
+    const outputHeight = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return { file: sourceFile, contentType };
+    }
+    context.drawImage(decoded, 0, 0, outputWidth, outputHeight);
+    if ("close" in decoded && typeof decoded.close === "function") {
+      decoded.close();
+    }
+
+    const blob = await canvasToBlob(
+      canvas,
+      "image/jpeg",
+      NORMALIZED_UPLOAD_QUALITY
+    );
+    if (blob.size <= 0 || blob.size > MAX_UPLOAD_BYTES) {
+      return { file: sourceFile, contentType };
+    }
+    return {
+      file: new File([blob], normalizedFileName(file.name), {
+        type: "image/jpeg",
+        lastModified: file.lastModified
+      }),
+      contentType: "image/jpeg"
+    };
+  } catch {
+    return { file: sourceFile, contentType };
+  }
+}
+
 async function sha256(file: File): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return Array.from(new Uint8Array(digest))
@@ -128,18 +310,18 @@ function throwApiError(error: unknown, fallback: string): never {
 async function uploadPrivateImageWithDigest(
   file: File
 ): Promise<{ objectKey: string; digest: string }> {
-  const validationError = validateImage(file);
+  const { file: uploadFile, contentType } = await normalizeImageForUpload(file);
+  const validationError = validateImage(uploadFile);
   if (validationError) {
     throw new ProductApiError("image_invalid", validationError);
   }
   await ensureSession();
-  const digest = await sha256(file);
-  const contentType = contentTypeFor(file);
+  const digest = await sha256(uploadFile);
   const prepared = await client.POST("/v1/uploads/prepare", {
     body: {
-      file_name: file.name,
+      file_name: uploadFile.name,
       content_type: contentType,
-      byte_size: file.size,
+      byte_size: uploadFile.size,
       sha256: digest
     }
   });
@@ -152,7 +334,7 @@ async function uploadPrivateImageWithDigest(
       "Content-Type": contentType,
       "X-Upload-Token": prepared.data.upload_token
     },
-    body: file
+    body: uploadFile
   });
   if (!uploadResponse.ok) {
     throwApiError(await uploadResponse.json().catch(() => undefined), "图片上传失败");

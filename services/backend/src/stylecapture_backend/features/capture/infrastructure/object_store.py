@@ -37,6 +37,9 @@ ALLOWED_MIME_EXTENSIONS = {
 FORMAT_MIME_TYPES = {
     "HEIF": frozenset({"image/heic", "image/heif"}),
     "JPEG": frozenset({"image/jpeg"}),
+    # iPhone portrait/gallery exports may be decoded by Pillow as MPO while
+    # retaining a valid JPEG byte signature and browser MIME type.
+    "MPO": frozenset({"image/jpeg"}),
     "PNG": frozenset({"image/png"}),
     "WEBP": frozenset({"image/webp"}),
 }

@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient
 } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type CaptureAccepted,
@@ -23,6 +23,7 @@ import { CaptureSheet } from "../features/capture/CaptureSheet";
 import { PhoneFrame } from "../components/PhoneFrame";
 import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
 import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
+import type { CommunityAvatarSource } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
 import { ProfileScreen } from "../features/profile/ProfileScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
@@ -42,7 +43,13 @@ type Selection = {
   sourceKind: SourceKind;
 };
 
-type Destination = "feed" | "wardrobe" | "analysis" | "ai" | "profile";
+type Destination =
+  | "feed"
+  | "wardrobe"
+  | "analysis"
+  | "ai"
+  | "world"
+  | "profile";
 type FeedRestoreTarget = {
   videoRef: string;
   timestampMs: number;
@@ -51,6 +58,66 @@ type FeedRestoreTarget = {
 
 const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
 const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
+const CommunityScreen = lazy(() =>
+  import("../features/community/CommunityScreen").then((module) => ({
+    default: module.CommunityScreen
+  }))
+);
+
+type NavIconName = "wardrobe" | "analysis" | "ai";
+
+function NavIcon({ name }: { name: NavIconName }) {
+  if (name === "wardrobe") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="nav-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <path d="m9.5 4-2 3L4 8.4 5.7 13l3.1-1.3V20h6.4v-8.3l3.1 1.3L20 8.4 16.5 7l-2-3h-5Z" />
+      </svg>
+    );
+  }
+
+  if (name === "analysis") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="nav-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <path d="M4 19V5m0 14h16M8 15l3-4 3 2 4-6" />
+        <path d="m16 7 2-1 1 2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="nav-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 3v4.5M12 16.5V21M3 12h4.5M16.5 12H21M6.5 6.5l3.2 3.2m4.6 4.6 3.2 3.2m0-11-3.2 3.2M9.7 14.3l-3.2 3.2" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
 
 function restoreSelectedLookId(): string | null {
   if (typeof window === "undefined") return null;
@@ -243,13 +310,40 @@ export function App() {
           : false
     }))
   });
-  const pixelCovers = Object.fromEntries(
-    looks.flatMap((look, index) => {
-      const cover = lookRenderQueries[index]?.data?.find(
-        (render) => render.kind === "pixel_cover"
-      );
-      return cover ? [[look.id, cover] as const] : [];
-    })
+  const pixelCovers = useMemo(
+    () =>
+      Object.fromEntries(
+        looks.flatMap((look, index) => {
+          const cover = lookRenderQueries[index]?.data?.find(
+            (render) => render.kind === "pixel_cover"
+          );
+          return cover ? [[look.id, cover] as const] : [];
+        })
+      ),
+    [lookRenderQueries, looks]
+  );
+  const communityLooks = useMemo<CommunityAvatarSource[]>(
+    () =>
+      looks.flatMap((look, index) => {
+        const cover = pixelCovers[look.id];
+        if (cover?.status !== "succeeded" || !cover.output_image_url) return [];
+        return [
+          {
+            lookId: look.id,
+            assetUrl: cover.output_image_url,
+            label:
+              look.source === "feed_saved"
+                ? `Feed 穿搭 ${index + 1}`
+                : `我的穿搭 ${index + 1}`,
+            kind: "public-render-artifact" as const,
+            tags: [
+              look.source === "feed_saved" ? "Feed 灵感" : "我的搭配",
+              "像素封面"
+            ]
+          }
+        ];
+      }),
+    [looks, pixelCovers]
   );
   const lookQuery = useQuery({
     queryKey: ["wardrobe-look", selectedLookId],
@@ -687,9 +781,35 @@ export function App() {
     <PhoneFrame>
       <main
         className={`product-shell pixel-shell ${
-          destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
+          destination === "feed"
+            ? "product-shell--feed"
+            : destination === "world"
+              ? "product-shell--world"
+              : "product-shell--wardrobe"
         }`}
       >
+      <section
+        aria-label="像素世界"
+        className="product-view product-view--world"
+        hidden={destination !== "world"}
+      >
+        {destination === "world" ? (
+          <Suspense
+            fallback={
+              <div className="pixel-world-loading" role="status">
+                <span aria-hidden="true">✦</span>
+                <strong>正在打开像素世界</strong>
+              </div>
+            }
+          >
+            <CommunityScreen
+              avatarSources={communityLooks}
+              onExit={() => setDestination("wardrobe")}
+            />
+          </Suspense>
+        ) : null}
+      </section>
+
       <section
         aria-label="穿搭灵感"
         className="product-view product-view--feed feed-standalone"
@@ -740,27 +860,27 @@ export function App() {
       <div
         ref={wardrobeView}
         className="product-view product-view--wardrobe pixel-app"
-        hidden={destination === "feed"}
+        hidden={destination === "feed" || destination === "world"}
       >
         {destination !== "feed" ? (
           <header className="wardrobe-header">
-            <div>
-              <p className="pixel-label">STYLECAPTURE</p>
-              <h1 className="pixel-title">
-                {destination === "wardrobe"
-                  ? "我的衣橱"
-                  : destination === "analysis"
-                    ? "穿搭分析"
-                    : destination === "ai"
-                      ? "AI 推荐"
-                      : "我的"}
-              </h1>
-              <p className="subtitle">把拥有和喜欢的，都变成可搭配的数字资产。</p>
-            </div>
-            <div className="avatar-orbit">
-              <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
-              <span aria-hidden="true">✦</span>
-            </div>
+            <h1
+              className={`pixel-title wardrobe-header__title${
+                destination === "profile" ? " wardrobe-header__title--profile" : ""
+              }`}
+            >
+              {destination === "wardrobe"
+                ? "我的衣橱"
+                : destination === "analysis"
+                  ? "穿搭分析"
+                  : destination === "ai"
+                    ? "AI 推荐"
+                    : "我的"}
+            </h1>
+            <p className="subtitle wardrobe-header__summary">
+              拥有的和喜欢的，<br />
+              都是可搭配的数字资产
+            </p>
             <button
               type="button"
               className="wardrobe-header__feed"
@@ -785,68 +905,24 @@ export function App() {
         ) : null}
 
         {destination === "wardrobe" ? (
-          <div>
-            <section className="capture-panel" aria-labelledby="capture-title">
-              <div className="capture-panel__heading">
-                <div>
-                  <p className="section-kicker">新增单品</p>
-                  <h2 id="capture-title">今天想存哪一件？</h2>
-                </div>
-                <span className="capture-panel__sparkle" aria-hidden="true">
-                  ✦
-                </span>
-              </div>
-              <div className="capture-actions">
-                <button
-                  className="capture-button capture-button--primary"
-                  type="button"
-                  aria-label="拍一件"
-                  onClick={() => cameraInput.current?.click()}
-                >
-                  <span className="capture-button__icon" aria-hidden="true">
-                    ◉
-                  </span>
-                  <span>
-                    <strong>拍一件</strong>
-                    <small>记录衣柜里的真实衣服</small>
-                  </span>
-                </button>
-                <button
-                  className="capture-button capture-button--secondary"
-                  type="button"
-                  aria-label="从相册选"
-                  onClick={() => galleryInput.current?.click()}
-                >
-                  <span className="capture-button__icon" aria-hidden="true">
-                    ✦
-                  </span>
-                  <span>
-                    <strong>从相册选</strong>
-                    <small>导入单品或穿搭灵感</small>
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <WardrobeScreen
-              looks={looks}
-              pixelCovers={pixelCovers}
-              items={items}
-              pending={pending}
-              itemsLoading={itemsQuery.isLoading}
-              looksLoading={looksQuery.isLoading}
-              itemsError={itemsQuery.isError}
-              looksError={looksQuery.isError}
-              onRetryItems={() => void itemsQuery.refetch()}
-              onRetryLooks={() => void looksQuery.refetch()}
-              onOpen={setSelectedItem}
-              onOpenLook={(look: Look) => setSelectedLookId(look.id)}
-              onRetry={(item) => retryMutation.mutate(item)}
-              onRetryPixel={(item) => retryPixelMutation.mutate(item)}
-              onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
-              onDismissPending={dismissPending}
-            />
-          </div>
+          <WardrobeScreen
+            looks={looks}
+            pixelCovers={pixelCovers}
+            items={items}
+            pending={pending}
+            itemsLoading={itemsQuery.isLoading}
+            looksLoading={looksQuery.isLoading}
+            itemsError={itemsQuery.isError}
+            looksError={looksQuery.isError}
+            onRetryItems={() => void itemsQuery.refetch()}
+            onRetryLooks={() => void looksQuery.refetch()}
+            onOpen={setSelectedItem}
+            onOpenLook={(look: Look) => setSelectedLookId(look.id)}
+            onRetry={(item) => retryMutation.mutate(item)}
+            onRetryPixel={(item) => retryPixelMutation.mutate(item)}
+            onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
+            onDismissPending={dismissPending}
+          />
         ) : null}
 
         {destination === "analysis" ? (
@@ -893,7 +969,6 @@ export function App() {
         <div hidden={destination !== "profile"}>
           <ProfileScreen
             itemCount={items.length + pending.length}
-            outfitCount={looks.length}
             onNotice={setNotice}
           />
         </div>
@@ -1012,7 +1087,7 @@ export function App() {
         />
       </div>
 
-      {destination !== "feed" ? (
+      {destination !== "feed" && destination !== "world" ? (
       <nav aria-label="主要功能" className="pixel-nav">
         <button
           aria-current={destination === "wardrobe" ? "page" : undefined}
@@ -1020,7 +1095,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("wardrobe")}
         >
-          <span className="nav-icon" aria-hidden="true">✦</span>
+          <NavIcon name="wardrobe" />
           <small>数字衣橱</small>
           {pending.length > 0 ? (
             <b aria-label={`${pending.length} 个处理中`}>
@@ -1034,7 +1109,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("analysis")}
         >
-          <span className="nav-icon" aria-hidden="true">◈</span>
+          <NavIcon name="analysis" />
           <small>分析</small>
         </button>
         <button
@@ -1053,8 +1128,15 @@ export function App() {
           type="button"
           onClick={() => setDestination("ai")}
         >
-          <span className="nav-icon" aria-hidden="true">◇</span>
+          <NavIcon name="ai" />
           <small>AI</small>
+        </button>
+        <button
+          type="button"
+          onClick={() => setDestination("world")}
+        >
+          <span className="nav-icon" aria-hidden="true">▦</span>
+          <small>像素世界</small>
         </button>
         <button
           aria-current={destination === "profile" ? "page" : undefined}
