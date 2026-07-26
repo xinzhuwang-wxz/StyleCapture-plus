@@ -799,7 +799,11 @@ export function App() {
       >
         {destination !== "feed" ? (
           <header className="wardrobe-header">
-            <h1 className="pixel-title wardrobe-header__title">
+            <h1
+              className={`pixel-title wardrobe-header__title${
+                destination === "profile" ? " wardrobe-header__title--profile" : ""
+              }`}
+            >
               {destination === "wardrobe"
                 ? "我的衣橱"
                 : destination === "analysis"

@@ -210,6 +210,11 @@ p {
   letter-spacing: -0.035em;
 }
 
+.wardrobe-header__title--profile {
+  width: 85px;
+  font-size: 2rem;
+}
+
 .subtitle {
   max-width: 18rem;
   margin-bottom: 0;
