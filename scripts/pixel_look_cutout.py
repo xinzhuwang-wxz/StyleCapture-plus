@@ -88,7 +88,7 @@ def _backdrop_palette(
     # Drop any probe that landed on artwork rather than the flat backdrop.
     seeds = [
         point
-        for point, color in zip(probes, probe_colors)
+        for point, color in zip(probes, probe_colors, strict=False)
         if _distance(color, interior) <= BACKDROP_TOLERANCE
     ]
 
