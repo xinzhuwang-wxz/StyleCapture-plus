@@ -88,7 +88,7 @@ function DetailContent({
       ? "人工整理 · 示例搭配解析"
       : "AI 理解";
   const heroImageUrl =
-    detail.look.source_image_url ?? detail.look.display_image_url;
+    detail.look.display_image_url ?? detail.look.source_image_url;
 
   useEffect(() => {
     setReason("");
@@ -340,7 +340,7 @@ function DetailContent({
         {detail.components.length > 0 ? (
           <section className="look-detail__section" aria-labelledby="look-components-title">
             <div className="section-heading">
-              <h3 id="look-components-title">这套里的单品</h3>
+              <h3 id="look-components-title">套装所含单品</h3>
               <span>{detail.components.length} 件</span>
             </div>
             <div className="look-component-strip">

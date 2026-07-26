@@ -451,23 +451,6 @@ export function AIRecommendScreen({
           paddingBottom: "7rem"
         }}
       >
-        {!displayedResult && !planning.isPending && !planning.isError ? (
-          <div
-            style={{
-              padding: "2.5rem var(--px-3)",
-              textAlign: "center",
-              border: "2px dashed var(--pixel-border-light)",
-              borderRadius: "var(--pixel-border-radius)",
-              color: "var(--pixel-text-muted)"
-            }}
-          >
-            <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>✦</div>
-            <p style={{ margin: 0, fontSize: "0.78rem", lineHeight: 1.7 }}>
-              选择一个场景，或写下你的穿搭需求
-            </p>
-          </div>
-        ) : null}
-
         {planning.isPending && !displayedResult ? (
           <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="status">
             ◇ 正在读取真实衣橱，并从拥有、收藏和待补齐三个层次组织方案…
@@ -540,7 +523,7 @@ export function AIRecommendScreen({
       <div
         style={{
           position: "sticky",
-          bottom: "5.4rem",
+          bottom: "-1.4rem",
           zIndex: 2,
           display: "flex",
           gap: "var(--px-2)",

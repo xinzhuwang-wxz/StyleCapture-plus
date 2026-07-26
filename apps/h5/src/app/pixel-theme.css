@@ -4,8 +4,6 @@
    浅紫 + 粉色 + 白底，圆角卡片，像素字体点缀
    ═══════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-
 /* ─── CSS Variables ─── */
 :root {
   /* Light Pixel Palette */
@@ -44,8 +42,8 @@
   --px-10: 40px;
 
   /* Typography */
-  --font-pixel: 'ZCOOL KuaiLe', 'PingFang SC', 'Courier New', monospace;
-  --font-body: 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-pixel: var(--font-body);
 
   /* Shape — 圆角卡片 */
   --pixel-border-width: 2px;

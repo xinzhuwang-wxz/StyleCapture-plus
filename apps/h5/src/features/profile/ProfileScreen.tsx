@@ -12,7 +12,6 @@ import "./profile.css";
 
 interface ProfileScreenProps {
   itemCount: number;
-  outfitCount: number;
   onNotice?: (message: string) => void;
 }
 
@@ -38,7 +37,7 @@ function trialPreviewUrl(trial: PixelTrial | null): string {
   return pixelAvatarDataUrl("user-profile", { size: 180, hat: false });
 }
 
-export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScreenProps) {
+export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
   const queryClient = useQueryClient();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -145,29 +144,6 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
         <span className="profile__edit">{statusCopy}</span>
       </section>
 
-      <div className="profile__stats" aria-label="衣橱统计">
-        <span>
-          <b style={{ color: "var(--pixel-primary-dark)" }}>{itemCount}</b>
-          <small>单品</small>
-        </span>
-        <span>
-          <b style={{ color: "var(--pixel-pink-dark)" }}>{outfitCount}</b>
-          <small>穿搭</small>
-        </span>
-        <span>
-          <b style={{ color: "var(--pixel-accent-glow)" }}>
-            {trial?.status === "succeeded" ? 1 : 0}
-          </b>
-          <small>像素形象</small>
-        </span>
-        <span>
-          <b style={{ color: "var(--pixel-primary-dark)" }}>
-            {generating ? "…" : "0"}
-          </b>
-          <small>处理中</small>
-        </span>
-      </div>
-
       <PixelSectionHeader
         kicker="像素试验室"
         title="拍自己，生成像素风格图"
@@ -204,9 +180,7 @@ export function ProfileScreen({ itemCount, outfitCount, onNotice }: ProfileScree
                 : "未上传"}
           </span>
         </div>
-        <p>
-          这条链路只用于快速体验“真人照片 → 像素形象”，不会新增单品或套装；真正入库仍从拍照/相册/Feed 入口完成。
-        </p>
+        <p>由此入口快速体验生成像素形象</p>
         {error ? <div className="profile__error" role="alert">{error}</div> : null}
         {trialStatusUnavailable ? (
           <div className="profile__error" role="alert">

@@ -718,10 +718,13 @@ export function App() {
                       ? "AI 推荐"
                       : "我的"}
               </h1>
-              <p className="subtitle">把拥有和喜欢的，都变成可搭配的数字资产。</p>
+              <p className="subtitle">
+                拥有的和喜欢的，<br />
+                都是可搭配的数字资产
+              </p>
             </div>
             <div className="avatar-orbit">
-              <img src="/assets/char-default.png" alt="我的 StyleCapture 形象" />
+              <img src="/assets/stylecapture-avatar.png" alt="我的 StyleCapture 形象" />
               <span aria-hidden="true">✦</span>
             </div>
             <button
@@ -748,68 +751,24 @@ export function App() {
         ) : null}
 
         {destination === "wardrobe" ? (
-          <div>
-            <section className="capture-panel" aria-labelledby="capture-title">
-              <div className="capture-panel__heading">
-                <div>
-                  <p className="section-kicker">新增单品</p>
-                  <h2 id="capture-title">今天想存哪一件？</h2>
-                </div>
-                <span className="capture-panel__sparkle" aria-hidden="true">
-                  ✦
-                </span>
-              </div>
-              <div className="capture-actions">
-                <button
-                  className="capture-button capture-button--primary"
-                  type="button"
-                  aria-label="拍一件"
-                  onClick={() => cameraInput.current?.click()}
-                >
-                  <span className="capture-button__icon" aria-hidden="true">
-                    ◉
-                  </span>
-                  <span>
-                    <strong>拍一件</strong>
-                    <small>记录衣柜里的真实衣服</small>
-                  </span>
-                </button>
-                <button
-                  className="capture-button capture-button--secondary"
-                  type="button"
-                  aria-label="从相册选"
-                  onClick={() => galleryInput.current?.click()}
-                >
-                  <span className="capture-button__icon" aria-hidden="true">
-                    ✦
-                  </span>
-                  <span>
-                    <strong>从相册选</strong>
-                    <small>导入单品或穿搭灵感</small>
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <WardrobeScreen
-              looks={looks}
-              pixelCovers={pixelCovers}
-              items={items}
-              pending={pending}
-              itemsLoading={itemsQuery.isLoading}
-              looksLoading={looksQuery.isLoading}
-              itemsError={itemsQuery.isError}
-              looksError={looksQuery.isError}
-              onRetryItems={() => void itemsQuery.refetch()}
-              onRetryLooks={() => void looksQuery.refetch()}
-              onOpen={setSelectedItem}
-              onOpenLook={(look: Look) => setSelectedLookId(look.id)}
-              onRetry={(item) => retryMutation.mutate(item)}
-              onRetryPixel={(item) => retryPixelMutation.mutate(item)}
-              onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
-              onDismissPending={dismissPending}
-            />
-          </div>
+          <WardrobeScreen
+            looks={looks}
+            pixelCovers={pixelCovers}
+            items={items}
+            pending={pending}
+            itemsLoading={itemsQuery.isLoading}
+            looksLoading={looksQuery.isLoading}
+            itemsError={itemsQuery.isError}
+            looksError={looksQuery.isError}
+            onRetryItems={() => void itemsQuery.refetch()}
+            onRetryLooks={() => void looksQuery.refetch()}
+            onOpen={setSelectedItem}
+            onOpenLook={(look: Look) => setSelectedLookId(look.id)}
+            onRetry={(item) => retryMutation.mutate(item)}
+            onRetryPixel={(item) => retryPixelMutation.mutate(item)}
+            onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
+            onDismissPending={dismissPending}
+          />
         ) : null}
 
         {destination === "analysis" ? (
@@ -856,7 +815,6 @@ export function App() {
         <div hidden={destination !== "profile"}>
           <ProfileScreen
             itemCount={items.length + pending.length}
-            outfitCount={looks.length}
             onNotice={setNotice}
           />
         </div>

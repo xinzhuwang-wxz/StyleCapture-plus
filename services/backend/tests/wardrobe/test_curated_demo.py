@@ -181,7 +181,7 @@ def test_curated_manifest_tracks_real_and_pixel_assets() -> None:
     assets_root = Path(curated_demo.__file__).resolve().parents[3] / "demo_assets"
 
     assert len(curated_demo.SEED_ITEMS) == 28
-    assert len(curated_demo.SEED_LOOKS) == 3
+    assert len(curated_demo.SEED_LOOKS) == 9
     for item in curated_demo.SEED_ITEMS:
         assert (assets_root / item.file_name).is_file()
         assert item.pixel_file_name is not None
