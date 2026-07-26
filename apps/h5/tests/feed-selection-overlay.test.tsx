@@ -530,6 +530,32 @@ describe("FeedSelectionOverlay", () => {
     expect(onEmptyTap).toHaveBeenCalledOnce();
   });
 
+  it("treats normal finger jitter as a tap instead of trapping the paused guide", () => {
+    const { onEmptyTap, overlay } = renderOverlay();
+    firePointer(overlay, "pointerdown", {
+      pointerId: 1,
+      clientX: 120,
+      clientY: 240
+    });
+    firePointer(overlay, "pointermove", {
+      pointerId: 1,
+      clientX: 130,
+      clientY: 246
+    });
+    firePointer(overlay, "pointermove", {
+      pointerId: 1,
+      clientX: 137,
+      clientY: 251
+    });
+    firePointer(overlay, "pointerup", {
+      pointerId: 1,
+      clientX: 135,
+      clientY: 249
+    });
+
+    expect(onEmptyTap).toHaveBeenCalledOnce();
+  });
+
   it("keeps tiny accidental loops out of the save flow and asks for a larger lasso", () => {
     const { onConfirm, onDismiss, onEmptyTap, overlay } = renderOverlay();
     drawLoop(overlay, 1, [

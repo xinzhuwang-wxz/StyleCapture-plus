@@ -45,7 +45,7 @@ export interface FeedSelectionDecision {
 }
 
 const SWIPE_DECISION_THRESHOLD_PX = 88;
-const EMPTY_TAP_MAX_DISTANCE_PX = 12;
+const EMPTY_TAP_MAX_DISTANCE_PX = 24;
 const MIN_LASSO_EDGE_PX = 48;
 const MIN_LASSO_AREA_PX = 1_200;
 const WHOLE_FRAME_SELECTION: ClosedFeedSelection = {
@@ -60,7 +60,7 @@ const WHOLE_FRAME_SELECTION: ClosedFeedSelection = {
 
 function isEmptyTap(points: readonly ViewportPoint[]) {
   const first = points[0];
-  if (!first || points.length > 2) {
+  if (!first) {
     return false;
   }
   return points.every(
