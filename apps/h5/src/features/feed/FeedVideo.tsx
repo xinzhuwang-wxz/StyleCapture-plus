@@ -19,6 +19,7 @@ interface FeedVideoProps {
   gestureGuideEnabled: boolean;
   mediaLoaded: boolean;
   onAccepted: (accepted: CaptureAccepted, file: File) => void;
+  onMediaReady?: () => void;
   restoreRequest: {
     requestId: string;
     timestampMs: number;
@@ -58,6 +59,7 @@ export function FeedVideo({
   gestureGuideEnabled,
   mediaLoaded,
   onAccepted,
+  onMediaReady,
   restoreRequest
 }: FeedVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -283,6 +285,7 @@ export function FeedVideo({
         onCanPlay={() => {
           setMediaReady(true);
           setMediaError(false);
+          onMediaReady?.();
         }}
         onClick={
           reduceMotion ? undefined : () => void pauseAndCapture()

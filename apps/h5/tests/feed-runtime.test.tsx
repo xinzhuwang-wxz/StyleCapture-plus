@@ -315,10 +315,10 @@ describe("Feed runtime", () => {
     const { pause, play } = installMediaAndCanvasDoubles();
     renderFeed();
 
-    const videos = (await screen.findAllByLabelText(
+    const initialVideos = (await screen.findAllByLabelText(
       /的穿搭视频$/
     )) as HTMLVideoElement[];
-    videos.forEach((video) => {
+    initialVideos.forEach((video) => {
       prepareVideo(video);
       fireEvent.canPlay(video);
     });
@@ -333,6 +333,16 @@ describe("Feed runtime", () => {
     });
     fireEvent.scroll(feed);
 
+    const videos = await waitFor(() => {
+      const mounted = screen.getAllByLabelText(
+        /的穿搭视频$/
+      ) as HTMLVideoElement[];
+      expect(mounted).toHaveLength(3);
+      return mounted;
+    });
+    videos.forEach((video) => prepareVideo(video));
+    fireEvent.canPlay(videos[1]!);
+
     await waitFor(() => {
       expect(pause.mock.instances).toContain(videos[0]);
       expect(play.mock.instances).toContain(videos[1]);
@@ -343,9 +353,20 @@ describe("Feed runtime", () => {
     installMediaAndCanvasDoubles();
     renderFeed();
 
-    const videos = (await screen.findAllByLabelText(
+    const initialVideos = (await screen.findAllByLabelText(
       /的穿搭视频$/
     )) as HTMLVideoElement[];
+
+    expect(initialVideos).toHaveLength(1);
+    fireEvent.canPlay(initialVideos[0]);
+
+    const videos = await waitFor(() => {
+      const mounted = screen.getAllByLabelText(
+        /的穿搭视频$/
+      ) as HTMLVideoElement[];
+      expect(mounted).toHaveLength(3);
+      return mounted;
+    });
 
     expect(videos[0]).toHaveAttribute("src", "/feed/media/look-01.mp4");
     expect(videos[1]).toHaveAttribute("src", "/feed/media/look-02.mp4");
@@ -381,9 +402,16 @@ describe("Feed runtime", () => {
       requestId: "return-1"
     });
 
-    const videos = (await screen.findAllByLabelText(
-      /的穿搭视频$/
-    )) as HTMLVideoElement[];
+    const firstVideo = await screen.findByLabelText(/的穿搭视频$/);
+    prepareVideo(firstVideo as HTMLVideoElement);
+    fireEvent.canPlay(firstVideo);
+    const videos = await waitFor(() => {
+      const mounted = screen.getAllByLabelText(
+        /的穿搭视频$/
+      ) as HTMLVideoElement[];
+      expect(mounted).toHaveLength(3);
+      return mounted;
+    });
     videos.forEach((video) => prepareVideo(video));
     videos.forEach((video) => fireEvent.canPlay(video));
 
@@ -557,8 +585,16 @@ describe("Feed runtime", () => {
     videos.forEach((video) => prepareVideo(video));
     videos.forEach((video) => fireEvent.canPlay(video));
 
-    expect(videos[0]).toHaveAttribute("tabindex", "0");
-    expect(videos[1]).toHaveAttribute("tabindex", "-1");
+    const warmedVideos = await waitFor(() => {
+      const mounted = screen.getAllByLabelText(
+        /的穿搭视频$/
+      ) as HTMLVideoElement[];
+      expect(mounted).toHaveLength(3);
+      return mounted;
+    });
+
+    expect(warmedVideos[0]).toHaveAttribute("tabindex", "0");
+    expect(warmedVideos[1]).toHaveAttribute("tabindex", "-1");
     const circleButtons = screen.getAllByRole(
       "button",
       { name: "暂停并圈选", hidden: true }

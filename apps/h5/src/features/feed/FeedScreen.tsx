@@ -16,9 +16,13 @@ export interface FeedScreenProps {
   } | null;
 }
 
-export function shouldMountFeedAsset(index: number, activeIndex: number): boolean {
+export function shouldMountFeedAsset(
+  index: number,
+  activeIndex: number,
+  coldStartReady = false
+): boolean {
   if (activeIndex === 0) {
-    return index >= 0 && index <= 2;
+    return index === 0 || (coldStartReady && index <= 2);
   }
   return Math.abs(index - activeIndex) <= 1;
 }
@@ -30,6 +34,7 @@ export function FeedScreen({
 }: FeedScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [coldStartReady, setColdStartReady] = useState(false);
   const manifestQuery = useQuery({
     queryKey: ["feed-manifest"],
     queryFn: ({ signal }) => loadFeedManifest(signal),
@@ -101,7 +106,7 @@ export function FeedScreen({
       }}
     >
       {manifestQuery.data.map((asset, index) =>
-        shouldMountFeedAsset(index, activeIndex) ? (
+        shouldMountFeedAsset(index, activeIndex, coldStartReady) ? (
           <FeedVideo
             active={active && index === activeIndex}
             asset={asset}
@@ -109,6 +114,9 @@ export function FeedScreen({
             key={asset.assetId}
             mediaLoaded={active}
             onAccepted={onAccepted}
+            onMediaReady={
+              index === 0 ? () => setColdStartReady(true) : undefined
+            }
             restoreRequest={
               restoreTarget && restoreTarget.videoRef === asset.assetId
                 ? {
