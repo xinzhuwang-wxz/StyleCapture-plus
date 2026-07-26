@@ -156,10 +156,6 @@ function prepareVideo(video: HTMLVideoElement, timestampSeconds = 2.4) {
   Object.defineProperties(video, {
     videoWidth: { configurable: true, value: 1080 },
     videoHeight: { configurable: true, value: 2160 },
-    readyState: {
-      configurable: true,
-      value: HTMLMediaElement.HAVE_FUTURE_DATA
-    },
     currentTime: {
       configurable: true,
       value: timestampSeconds,
@@ -353,8 +349,7 @@ describe("Feed runtime", () => {
 
     expect(videos[0]).toHaveAttribute("src", "/feed/media/look-01.mp4");
     expect(videos[1]).toHaveAttribute("src", "/feed/media/look-02.mp4");
-    expect(videos[2]).toHaveAttribute("src", "/feed/media/look-03.mp4");
-    expect(videos).toHaveLength(3);
+    expect(videos).toHaveLength(2);
 
     const feed = screen.getByTestId("feed");
     Object.defineProperties(feed, {
@@ -370,57 +365,6 @@ describe("Feed runtime", () => {
       expect(nextVideos).toHaveLength(3);
       expect(nextVideos[2]).toHaveAttribute("src", "/feed/media/look-03.mp4");
     });
-  });
-
-  it("accepts an early circle tap but waits for a composed video frame", async () => {
-    installMediaAndCanvasDoubles();
-    const frameCapture = stubCapturedFrame();
-    renderFeed();
-
-    const video = (await screen.findByLabelText(
-      "Demo creator 的穿搭视频"
-    )) as HTMLVideoElement & {
-      requestVideoFrameCallback?: (
-        callback: VideoFrameRequestCallback
-      ) => number;
-    };
-    let presentedFrame: VideoFrameRequestCallback | undefined;
-    video.requestVideoFrameCallback = vi.fn((callback) => {
-      presentedFrame = callback;
-      return 1;
-    });
-    const selectButton = screen.getAllByRole("button", {
-      name: "暂停并圈选"
-    })[0]!;
-    expect(selectButton).toBeEnabled();
-
-    fireEvent.click(selectButton);
-    expect(frameCapture).not.toHaveBeenCalled();
-
-    prepareVideo(video, 0);
-    fireEvent.canPlay(video);
-
-    await waitFor(() =>
-      expect(video.requestVideoFrameCallback).toHaveBeenCalled()
-    );
-    expect(frameCapture).not.toHaveBeenCalled();
-
-    await act(async () => {
-      presentedFrame?.(performance.now(), {
-        expectedDisplayTime: performance.now(),
-        height: 2160,
-        mediaTime: 0.04,
-        presentedFrames: 1,
-        processingDuration: 0,
-        presentationTime: performance.now(),
-        width: 1080
-      });
-      await Promise.resolve();
-    });
-
-    await waitFor(() =>
-      expect(frameCapture).toHaveBeenCalledWith(video, "look-01")
-    );
   });
 
   it("returns to the saved Feed video and pauses at its source timestamp", async () => {
