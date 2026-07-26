@@ -209,7 +209,7 @@ export function CaptureSheet({
                   onClick={() => setIntent("item")}
                 >
                   <strong>单件衣服</strong>
-                  <small>抠出一件实物，归入单品分类</small>
+                  <small>提取并标准化单品实物图，归入单品分类</small>
                 </button>
                 <button
                   type="button"

@@ -28,6 +28,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^26.1.0",
     "openapi-typescript": "^7.10.1",
+    "swagger-ui-dist": "5.32.11",
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
     "vitest": "^3.2.4"

@@ -49,6 +49,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
     queryKey: ["pixel-trial", trialId],
     queryFn: () => wardrobeApi.getPixelTrial(trialId!),
     enabled: trialId !== null,
+    refetchIntervalInBackground: true,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "queued" || status === "running" ? 1_500 : false;
@@ -78,6 +79,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
     onSuccess: (created) => {
       setTrialId(created.id);
       setError(null);
+      queryClient.setQueryData(["pixel-trial", created.id], created);
       onNotice?.("全身照已上传，像素形象正在后台生成；不会加入数字衣橱");
       void queryClient.invalidateQueries({ queryKey: ["pixel-trial", created.id] });
     },

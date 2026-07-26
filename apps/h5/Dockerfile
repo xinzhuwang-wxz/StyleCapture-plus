@@ -12,7 +12,15 @@ COPY apps/h5/package.json apps/h5/package.json
 RUN pnpm install --frozen-lockfile --filter @stylecapture/h5...
 
 COPY apps/h5 apps/h5
-RUN pnpm --filter @stylecapture/h5 build
+COPY skills/scene-outfit-matching skills/scene-outfit-matching
+RUN pnpm --filter @stylecapture/h5 build \
+    && mkdir -p apps/h5/dist/docs-assets \
+    && cp apps/h5/node_modules/swagger-ui-dist/swagger-ui-bundle.js apps/h5/dist/docs-assets/ \
+    && cp apps/h5/node_modules/swagger-ui-dist/swagger-ui.css apps/h5/dist/docs-assets/ \
+    && cp apps/h5/node_modules/swagger-ui-dist/LICENSE apps/h5/dist/docs-assets/LICENSE \
+    && mkdir -p apps/h5/dist/downloads \
+    && tar -czf apps/h5/dist/downloads/scene-outfit-matching-skill.tar.gz \
+        -C skills scene-outfit-matching
 
 FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
 

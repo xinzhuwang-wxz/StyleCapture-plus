@@ -28,9 +28,10 @@ def test_large_transparent_png_is_compacted_for_browser_delivery() -> None:
     assert len(optimized.body) < len(payload.body)
     with Image.open(BytesIO(optimized.body)) as rendered:
         assert rendered.mode == "RGBA"
-        transparent_pixel = rendered.getpixel((0, 0))
-        assert isinstance(transparent_pixel, tuple)
-        assert transparent_pixel[3] == 0
+        pixel = rendered.getpixel((0, 0))
+        assert isinstance(pixel, tuple)
+        assert len(pixel) == 4
+        assert pixel[3] == 0
 
 
 def test_small_png_is_returned_without_reencoding() -> None:
