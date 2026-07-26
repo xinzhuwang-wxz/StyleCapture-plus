@@ -10,11 +10,7 @@ import {
   FeedSelectionOverlay,
   type FeedSelectionDecision
 } from "./FeedSelectionOverlay";
-import {
-  captureVideoFrame,
-  type CapturedVideoFrame,
-  waitForPresentedVideoFrame
-} from "./frameCapture";
+import { captureVideoFrame, type CapturedVideoFrame } from "./frameCapture";
 import { type FeedAsset, feedMediaUrl, feedPosterUrl } from "./manifest";
 
 interface FeedVideoProps {
@@ -186,16 +182,15 @@ export function FeedVideo({
 
   const pauseAndCapture = async () => {
     const video = videoRef.current;
-    if (!video || !active || capturing || submitting) return;
+    if (!video || !mediaReady || capturing || submitting) return;
     if (frameRef.current) {
       replayGestureGuide();
       return;
     }
+    video.pause();
     setCapturing(true);
     setCaptureError(null);
     try {
-      await waitForPresentedVideoFrame(video);
-      video.pause();
       const captured = await captureVideoFrame(video, asset.assetId);
       const nextFrame = {
         ...captured,
@@ -319,7 +314,7 @@ export function FeedVideo({
         <button
           aria-label="暂停并圈选"
           className="feed-video__circle-button"
-          disabled={!active || capturing || submitting}
+          disabled={!active || !mediaReady || capturing || submitting}
           tabIndex={active ? 0 : -1}
           type="button"
           onClick={() => void pauseAndCapture()}
