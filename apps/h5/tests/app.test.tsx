@@ -170,9 +170,14 @@ describe("StyleCapture garment ingest", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not continuously redownload the full wardrobe while idle", async () => {
+  it("defers wardrobe loading until the user leaves the Feed", async () => {
     vi.useFakeTimers();
     renderApp();
+
+    expect(api.listItems).not.toHaveBeenCalled();
+    expect(api.listLooks).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     await vi.waitFor(() => {
       expect(api.listItems).toHaveBeenCalledTimes(1);

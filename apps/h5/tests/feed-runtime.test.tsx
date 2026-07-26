@@ -339,7 +339,7 @@ describe("Feed runtime", () => {
     });
   });
 
-  it("loads media only for the current Feed video and its neighbors", async () => {
+  it("warms the first three videos, then keeps later media to the active window", async () => {
     installMediaAndCanvasDoubles();
     renderFeed();
 
@@ -349,7 +349,8 @@ describe("Feed runtime", () => {
 
     expect(videos[0]).toHaveAttribute("src", "/feed/media/look-01.mp4");
     expect(videos[1]).toHaveAttribute("src", "/feed/media/look-02.mp4");
-    expect(videos).toHaveLength(2);
+    expect(videos[2]).toHaveAttribute("src", "/feed/media/look-03.mp4");
+    expect(videos).toHaveLength(3);
 
     const feed = screen.getByTestId("feed");
     Object.defineProperties(feed, {

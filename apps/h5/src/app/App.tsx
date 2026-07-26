@@ -21,15 +21,11 @@ import {
 } from "../api/client";
 import { CaptureSheet } from "../features/capture/CaptureSheet";
 import { PhoneFrame } from "../components/PhoneFrame";
-import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
-import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
 import type { CommunityAvatarSource } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
-import { ProfileScreen } from "../features/profile/ProfileScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
 import { LookDetail } from "../features/wardrobe/LookDetail";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
-import { WardrobeScreen } from "../features/wardrobe/WardrobeScreen";
 import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
@@ -61,6 +57,26 @@ const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
 const CommunityScreen = lazy(() =>
   import("../features/community/CommunityScreen").then((module) => ({
     default: module.CommunityScreen
+  }))
+);
+const AIRecommendScreen = lazy(() =>
+  import("../features/ai/AIRecommendScreen").then((module) => ({
+    default: module.AIRecommendScreen
+  }))
+);
+const AnalysisScreen = lazy(() =>
+  import("../features/analysis/AnalysisScreen").then((module) => ({
+    default: module.AnalysisScreen
+  }))
+);
+const ProfileScreen = lazy(() =>
+  import("../features/profile/ProfileScreen").then((module) => ({
+    default: module.ProfileScreen
+  }))
+);
+const WardrobeScreen = lazy(() =>
+  import("../features/wardrobe/WardrobeScreen").then((module) => ({
+    default: module.WardrobeScreen
   }))
 );
 
@@ -178,6 +194,14 @@ function errorMessage(error: unknown): string {
   return "刚刚没有完成，请稍后再试";
 }
 
+function DeferredScreenFallback() {
+  return (
+    <div className="wardrobe-loading" role="status">
+      正在打开数字衣橱…
+    </div>
+  );
+}
+
 export function App() {
   const queryClient = useQueryClient();
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -269,6 +293,7 @@ export function App() {
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
     queryFn: wardrobeApi.listItems,
+    enabled: destination !== "feed",
     refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       pending.length > 0 ||
@@ -286,6 +311,7 @@ export function App() {
   const looksQuery = useQuery({
     queryKey: ["wardrobe-looks"],
     queryFn: wardrobeApi.listLooks,
+    enabled: destination !== "feed",
     refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       query.state.data?.some(
@@ -299,7 +325,9 @@ export function App() {
     queries: looks.map((look) => ({
       queryKey: ["look-renders", look.id],
       queryFn: () => wardrobeApi.listRenders(look.id),
-      enabled: look.status === "ready" || look.status === "partial",
+      enabled:
+        destination !== "feed" &&
+        (look.status === "ready" || look.status === "partial"),
       refetchInterval: (query: {
         state: { data?: RenderArtifact[] };
       }) =>
@@ -905,72 +933,82 @@ export function App() {
         ) : null}
 
         {destination === "wardrobe" ? (
-          <WardrobeScreen
-            looks={looks}
-            pixelCovers={pixelCovers}
-            items={items}
-            pending={pending}
-            itemsLoading={itemsQuery.isLoading}
-            looksLoading={looksQuery.isLoading}
-            itemsError={itemsQuery.isError}
-            looksError={looksQuery.isError}
-            onRetryItems={() => void itemsQuery.refetch()}
-            onRetryLooks={() => void looksQuery.refetch()}
-            onOpen={setSelectedItem}
-            onOpenLook={(look: Look) => setSelectedLookId(look.id)}
-            onRetry={(item) => retryMutation.mutate(item)}
-            onRetryPixel={(item) => retryPixelMutation.mutate(item)}
-            onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
-            onDismissPending={dismissPending}
-          />
+          <Suspense fallback={<DeferredScreenFallback />}>
+            <WardrobeScreen
+              looks={looks}
+              pixelCovers={pixelCovers}
+              items={items}
+              pending={pending}
+              itemsLoading={itemsQuery.isLoading}
+              looksLoading={looksQuery.isLoading}
+              itemsError={itemsQuery.isError}
+              looksError={looksQuery.isError}
+              onRetryItems={() => void itemsQuery.refetch()}
+              onRetryLooks={() => void looksQuery.refetch()}
+              onOpen={setSelectedItem}
+              onOpenLook={(look: Look) => setSelectedLookId(look.id)}
+              onRetry={(item) => retryMutation.mutate(item)}
+              onRetryPixel={(item) => retryPixelMutation.mutate(item)}
+              onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
+              onDismissPending={dismissPending}
+            />
+          </Suspense>
         ) : null}
 
         {destination === "analysis" ? (
-          <AnalysisScreen
-            items={items}
-            looks={looks}
-            pixelCovers={pixelCovers}
-            onGoAI={() => setDestination("ai")}
-            onGoWardrobe={() => setDestination("wardrobe")}
-            onOpenLook={(lookId) => setSelectedLookId(lookId)}
-          />
+          <Suspense fallback={<DeferredScreenFallback />}>
+            <AnalysisScreen
+              items={items}
+              looks={looks}
+              pixelCovers={pixelCovers}
+              onGoAI={() => setDestination("ai")}
+              onGoWardrobe={() => setDestination("wardrobe")}
+              onOpenLook={(lookId) => setSelectedLookId(lookId)}
+            />
+          </Suspense>
         ) : null}
 
         {destination === "ai" ? (
-          <AIRecommendScreen
-            onGoWardrobe={() => setDestination("wardrobe")}
-            onSavedLook={(result) => {
-              const lookId = result.look_id;
-              setNotice(
-                result.presentation_state === "queued"
-                  ? "穿搭已保存；真实拼贴和像素封面正在后台生成"
-                  : result.presentation_state === "pending_retry"
-                    ? "穿搭已保存；展示生成排队失败，可进入详情重试"
-                    : "穿搭已保存；当前未配置展示生成，可先查看真实单品"
-              );
-              void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
-              void queryClient.invalidateQueries({ queryKey: ["look-renders", lookId] });
-              if (selectedLookId === lookId) {
+          <Suspense fallback={<DeferredScreenFallback />}>
+            <AIRecommendScreen
+              onGoWardrobe={() => setDestination("wardrobe")}
+              onSavedLook={(result) => {
+                const lookId = result.look_id;
+                setNotice(
+                  result.presentation_state === "queued"
+                    ? "穿搭已保存；真实拼贴和像素封面正在后台生成"
+                    : result.presentation_state === "pending_retry"
+                      ? "穿搭已保存；展示生成排队失败，可进入详情重试"
+                      : "穿搭已保存；当前未配置展示生成，可先查看真实单品"
+                );
+                void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
                 void queryClient.invalidateQueries({
-                  queryKey: ["wardrobe-look", lookId]
+                  queryKey: ["look-renders", lookId]
                 });
-              }
-            }}
-            onOpenLook={(lookId) => {
-              setSelectedLookId(lookId);
-              setDestination("wardrobe");
-            }}
-            presetPrompt={null}
-            anchorItemId={aiAnchorItemId}
-            onClearAnchor={() => setAiAnchorItemId(null)}
-          />
+                if (selectedLookId === lookId) {
+                  void queryClient.invalidateQueries({
+                    queryKey: ["wardrobe-look", lookId]
+                  });
+                }
+              }}
+              onOpenLook={(lookId) => {
+                setSelectedLookId(lookId);
+                setDestination("wardrobe");
+              }}
+              presetPrompt={null}
+              anchorItemId={aiAnchorItemId}
+              onClearAnchor={() => setAiAnchorItemId(null)}
+            />
+          </Suspense>
         ) : null}
 
         {destination === "profile" ? (
-          <ProfileScreen
-            itemCount={items.length + pending.length}
-            onNotice={setNotice}
-          />
+          <Suspense fallback={<DeferredScreenFallback />}>
+            <ProfileScreen
+              itemCount={items.length + pending.length}
+              onNotice={setNotice}
+            />
+          </Suspense>
         ) : null}
 
         <input
