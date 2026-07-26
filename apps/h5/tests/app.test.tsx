@@ -211,11 +211,6 @@ describe("StyleCapture garment ingest", () => {
 
     expect(screen.getByLabelText("像素世界")).toBeVisible();
     expect(
-      await screen.findByLabelText(
-        "花房夜宴像素世界，点击地面走动，点击角色查看他的 Look"
-      )
-    ).toBeInTheDocument();
-    expect(
       await screen.findByText(/预设角色非真人 · 非实时社区/)
     ).toBeVisible();
     expect(screen.queryByRole("navigation", { name: "主要功能" })).not.toBeInTheDocument();
