@@ -257,13 +257,30 @@ export function App() {
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
     queryFn: wardrobeApi.listItems,
-    refetchInterval: 2_000
+    refetchIntervalInBackground: true,
+    refetchInterval: (query) =>
+      pending.length > 0 ||
+      query.state.data?.some(
+        (item) =>
+          item.status === "processing" ||
+          item.status === "partial" ||
+          item.pixel_image_status === "queued" ||
+          item.pixel_image_status === "running"
+      )
+        ? 1_500
+        : false
   });
   const items = itemsQuery.data ?? [];
   const looksQuery = useQuery({
     queryKey: ["wardrobe-looks"],
     queryFn: wardrobeApi.listLooks,
-    refetchInterval: 2_000
+    refetchIntervalInBackground: true,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (look) => look.status === "processing" || look.status === "partial"
+      )
+        ? 1_500
+        : false
   });
   const looks = looksQuery.data ?? [];
   const lookRenderQueries = useQueries({
@@ -293,6 +310,7 @@ export function App() {
     queryKey: ["wardrobe-look", selectedLookId],
     queryFn: () => wardrobeApi.getLook(selectedLookId!),
     enabled: selectedLookId !== null,
+    refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       query.state.data?.look.status === "processing" ||
       query.state.data?.look.status === "partial"
@@ -334,12 +352,31 @@ export function App() {
   }, [items]);
 
   useEffect(() => {
-    if (!pending.length) return;
+    const active = pending.filter(
+      (entry) => entry.state === "queued" || entry.state === "processing"
+    );
+    if (!active.length) return;
     const timer = window.setInterval(() => {
       void Promise.all(
-        pending.map(async (entry) => {
+        active.map(async (entry) => {
           try {
             const job = await wardrobeApi.getJob(entry.jobId);
+            if (job.state === "ready" || job.state === "partial") {
+              const [refreshedItems, refreshedLooks] = await Promise.all([
+                wardrobeApi.listItems(),
+                wardrobeApi.listLooks()
+              ]);
+              queryClient.setQueryData(["wardrobe-items"], refreshedItems);
+              queryClient.setQueryData(["wardrobe-looks"], refreshedLooks);
+              if (!refreshedItems.some((item) => item.capture_id === entry.captureId)) {
+                return;
+              }
+              releaseBrowserImagePreview(entry.previewUrl);
+              setPending((current) =>
+                current.filter((candidate) => candidate.jobId !== entry.jobId)
+              );
+              return;
+            }
             setPending((current) =>
               current.map((candidate) =>
                 candidate.jobId === entry.jobId
@@ -366,7 +403,7 @@ export function App() {
       );
     }, 1_500);
     return () => window.clearInterval(timer);
-  }, [pending]);
+  }, [pending, queryClient]);
 
   const updateMutation = useMutation({
     mutationFn: ({

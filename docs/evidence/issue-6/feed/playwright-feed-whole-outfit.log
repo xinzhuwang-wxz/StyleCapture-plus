@@ -1,0 +1,11 @@
+
+Running 4 tests using 1 worker
+
+(node:20317) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/feed-whole-outfit.spec.ts:139:3 › Issue 6 public Feed lasso › shows lasso guides on the first two feed cards and resumes playback after dismissing the overlay (12.8s)
+  ✓  2 e2e/feed-whole-outfit.spec.ts:174:3 › Issue 6 public Feed lasso › keeps a completed lasso visible until the user makes a decision and lets left swipe cancel it (7.5s)
+  ✓  3 e2e/feed-whole-outfit.spec.ts:193:3 › Issue 6 public Feed lasso › blocks tiny lassos in the browser instead of sending them to the model (6.6s)
+  ✓  4 e2e/feed-whole-outfit.spec.ts:218:3 › Issue 6 public Feed lasso › saves a whole outfit by right swipe and opens the recovered look in wardrobe (1.2m)
+
+  4 passed (1.7m)

@@ -1,0 +1,81 @@
+{
+  "observed_at_utc": "2026-07-26T01:14:13Z",
+  "primary_endpoint": "https://119.45.216.38",
+  "client_limit_bps": 3750000,
+  "sequential": {
+    "root": {
+      "status": 200,
+      "bytes": 467,
+      "ttfb_ms": 129.508,
+      "total_ms": 129.691
+    },
+    "javascript": {
+      "status": 200,
+      "bytes": 439142,
+      "ttfb_ms": 116.38,
+      "total_ms": 379.033
+    },
+    "css": {
+      "status": 200,
+      "bytes": 72184,
+      "ttfb_ms": 122.785,
+      "total_ms": 200.457
+    },
+    "feed_manifest": {
+      "status": 200,
+      "bytes": 25367,
+      "ttfb_ms": 121.697,
+      "total_ms": 158.919
+    },
+    "first_feed_video": {
+      "status": 200,
+      "bytes": 445116,
+      "ttfb_ms": 174.805,
+      "total_ms": 368.313
+    },
+    "first_feed_video_256k_range": {
+      "status": 206,
+      "bytes": 262144,
+      "ttfb_ms": 118.082,
+      "total_ms": 357.37
+    }
+  },
+  "concurrency_2": {
+    "health": {
+      "requests": 20,
+      "status_200": 20,
+      "min_ms": 114,
+      "p50_ms": 119,
+      "p95_ms": 185,
+      "max_ms": 185
+    },
+    "javascript": {
+      "requests": 6,
+      "status_200": 6,
+      "min_ms": 301,
+      "p50_ms": 361,
+      "p95_ms": 396,
+      "max_ms": 396
+    },
+    "first_feed_video": {
+      "requests": 6,
+      "status_200": 6,
+      "min_ms": 302,
+      "p50_ms": 359,
+      "p95_ms": 405,
+      "max_ms": 405
+    }
+  },
+  "post_load_host": {
+    "load_1m": 0.68,
+    "memory_total_gib": 7.4,
+    "memory_used_gib": 1.8,
+    "memory_available_gib": 5.6,
+    "swap_total_gib": 1.9,
+    "swap_used_kib": 12,
+    "disk_total_gib": 50,
+    "disk_used_gib": 27,
+    "disk_available_gib": 21
+  },
+  "feed_corpus_count": 30
+}

@@ -105,6 +105,25 @@
   font-size: 1.25rem;
 }
 
+.feed-selection-hint {
+  position: absolute;
+  right: 42px;
+  bottom: 176px;
+  left: 42px;
+  z-index: 7;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  pointer-events: none;
+  background: rgb(25 17 38 / 78%);
+  border: 1px solid rgb(245 216 255 / 60%);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 32%);
+  backdrop-filter: blur(12px);
+}
+
 .feed-lasso-layer {
   position: absolute;
   inset: 0;

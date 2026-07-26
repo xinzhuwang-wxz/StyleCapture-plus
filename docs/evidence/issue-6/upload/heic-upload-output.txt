@@ -1,0 +1,8 @@
+
+Running 1 test using 1 worker
+
+(node:21788) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/heic-upload.spec.ts:6:1 › accepts a real iPhone HEIC upload through the public wardrobe flow (35.7s)
+
+  1 passed (36.3s)

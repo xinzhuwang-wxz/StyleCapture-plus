@@ -29,6 +29,7 @@ export function LookCard({
   return (
     <motion.article
       className="item-card look-card pixel-card wardrobe-card"
+      data-look-id={look.id}
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -39,12 +40,16 @@ export function LookCard({
             <img
               src={pixelCover.output_image_url!}
               alt="已生成的像素穿搭封面"
+              loading="lazy"
+              decoding="async"
               data-image-kind="look-pixel-cover"
             />
           ) : (
             <img
               src={pixelAvatarDataUrl(look.id, { size: 300 })}
               alt={coverAlt}
+              loading="lazy"
+              decoding="async"
               data-image-kind="look-pixel-pending"
               data-pixel="true"
             />

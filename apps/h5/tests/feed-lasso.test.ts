@@ -62,4 +62,18 @@ describe("Feed lasso normalization", () => {
       )
     ).toBeNull();
   });
+
+  it("discards tiny closed loops that would create provider-rejected crops", () => {
+    expect(
+      closeNormalizedLasso(
+        [
+          { x: 100, y: 100 },
+          { x: 108, y: 100 },
+          { x: 108, y: 110 },
+          { x: 100, y: 100 }
+        ],
+        { x: 0, y: 0, width: 400, height: 800 }
+      )
+    ).toBeNull();
+  });
 });

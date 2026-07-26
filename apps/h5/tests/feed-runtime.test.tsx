@@ -72,6 +72,23 @@ const manifest = {
       fixed_regression: false,
       annotation_provenance: "curated_seed",
       curated_seed_reason: "corpus coverage"
+    },
+    {
+      asset_id: "look-03",
+      source_page_url: "https://example.test/look-03",
+      source_platform: "Pexels",
+      creator_name: "Third creator",
+      license_name: "Pexels License",
+      license_url: "https://example.test/license",
+      local_path: "media/look-03.mp4",
+      content_type: "video",
+      category_bucket: "layering",
+      orientation: "portrait",
+      sha256: "ghi",
+      replacement_note: "replaceable public demo asset",
+      fixed_regression: false,
+      annotation_provenance: "curated_seed",
+      curated_seed_reason: "corpus coverage"
     }
   ]
 } as const;
@@ -236,7 +253,7 @@ describe("Feed runtime", () => {
   });
 
   it("loads only safe local video entries from the provenance manifest", async () => {
-    await expect(loadFeedManifest()).resolves.toHaveLength(2);
+    await expect(loadFeedManifest()).resolves.toHaveLength(3);
     expect(feedMediaUrl("media/look-01.mp4")).toBe(
       "/feed/media/look-01.mp4"
     );
@@ -268,23 +285,28 @@ describe("Feed runtime", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("captures the decoded video frame as a real PNG File", async () => {
+  it("captures a high-quality bounded JPEG frame for responsive public upload", async () => {
     const { drawImage } = installMediaAndCanvasDoubles();
     const video = document.createElement("video");
     prepareVideo(video, 1.275);
 
     const frame = await captureVideoFrame(video, "look-01");
 
-    expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 1080, 2160);
+    expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 720, 1440);
+    expect(HTMLCanvasElement.prototype.toBlob).toHaveBeenCalledWith(
+      expect.any(Function),
+      "image/jpeg",
+      0.92
+    );
     expect(frame.file).toEqual(
       expect.objectContaining({
-        name: "look-01-1275.png",
-        type: "image/png"
+        name: "look-01-1275.jpg",
+        type: "image/jpeg"
       })
     );
     expect(frame).toMatchObject({
-      width: 1080,
-      height: 2160,
+      width: 720,
+      height: 1440,
       timestampMs: 1275
     });
   });
@@ -314,6 +336,30 @@ describe("Feed runtime", () => {
     await waitFor(() => {
       expect(pause.mock.instances).toContain(videos[0]);
       expect(play.mock.instances).toContain(videos[1]);
+    });
+  });
+
+  it("loads media only for the current Feed video and its neighbors", async () => {
+    installMediaAndCanvasDoubles();
+    renderFeed();
+
+    const videos = (await screen.findAllByLabelText(
+      /的穿搭视频$/
+    )) as HTMLVideoElement[];
+
+    expect(videos[0]).toHaveAttribute("src", "/feed/media/look-01.mp4");
+    expect(videos[1]).toHaveAttribute("src", "/feed/media/look-02.mp4");
+    expect(videos[2]).not.toHaveAttribute("src");
+
+    const feed = screen.getByTestId("feed");
+    Object.defineProperties(feed, {
+      clientHeight: { configurable: true, value: 800 },
+      scrollTop: { configurable: true, value: 800, writable: true }
+    });
+    fireEvent.scroll(feed);
+
+    await waitFor(() => {
+      expect(videos[2]).toHaveAttribute("src", "/feed/media/look-03.mp4");
     });
   });
 

@@ -1,0 +1,45 @@
+
+Running 1 test using 1 worker
+
+(node:1434) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 e2e/feed-whole-outfit.spec.ts:207:3 › Issue 6 public Feed lasso › saves a whole outfit by right swipe and opens the recovered look in wardrobe (3.2m)
+
+
+  1) e2e/feed-whole-outfit.spec.ts:207:3 › Issue 6 public Feed lasso › saves a whole outfit by right swipe and opens the recovered look in wardrobe 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('.look-card').first()
+    Expected substring: not "正在拆解"
+    Received string: "正在拆解生成中Feed 穿搭灵感原始穿搭已保存，AI 在后台理解"
+    Timeout: 150000ms
+
+    Call log:
+      - Expect "not toContainText" with timeout 150000ms
+      - waiting for locator('.look-card').first()
+        303 × locator resolved to <article class="item-card look-card pixel-card wardrobe-card">…</article>
+            - unexpected value "正在拆解生成中Feed 穿搭灵感原始穿搭已保存，AI 在后台理解"
+
+
+      220 |     const savedLook = page.locator(".look-card").first();
+      221 |     await expect(savedLook).toContainText("Feed 穿搭灵感");
+    > 222 |     await expect(savedLook).not.toContainText("正在拆解", { timeout: 150_000 });
+          |                                 ^
+      223 |     await expect(savedLook).toContainText(/搭配已解析|已收藏 · 待补全|解析失败/);
+      224 |     await savedLook.click();
+      225 |     await expect(page.getByText("Feed 穿搭灵感").first()).toBeVisible();
+        at /Users/bamboo/Githubs/StyleCapture-plus/apps/h5/e2e/feed-whole-outfit.spec.ts:222:33
+
+    Error Context: ../../.stylecapture/playwright/feed-whole-outfit-Issue-6--77b79--recovered-look-in-wardrobe/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../.stylecapture/playwright/feed-whole-outfit-Issue-6--77b79--recovered-look-in-wardrobe/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../.stylecapture/playwright/feed-whole-outfit-Issue-6--77b79--recovered-look-in-wardrobe/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    e2e/feed-whole-outfit.spec.ts:207:3 › Issue 6 public Feed lasso › saves a whole outfit by right swipe and opens the recovered look in wardrobe 

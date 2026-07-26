@@ -58,6 +58,13 @@ class BackendSettings(BaseSettings):
     fixed_model_object_key: str | None = None
     demo_seed_enabled: bool = True
     demo_seed_new_session_quota: int = 512
+    ai_cost_window_seconds: int = 600
+    ai_cost_actor_requests: int = 8
+    ai_cost_client_requests: int = 20
+    ai_cost_global_requests: int = 160
+    ai_cost_actor_concurrency: int = 1
+    ai_cost_client_concurrency: int = 3
+    ai_cost_global_concurrency: int = 12
 
     @field_validator("upload_signing_secret", "session_signing_secret")
     @classmethod
@@ -71,6 +78,13 @@ class BackendSettings(BaseSettings):
         "max_image_pixels",
         "render_download_max_bytes",
         "demo_seed_new_session_quota",
+        "ai_cost_window_seconds",
+        "ai_cost_actor_requests",
+        "ai_cost_client_requests",
+        "ai_cost_global_requests",
+        "ai_cost_actor_concurrency",
+        "ai_cost_client_concurrency",
+        "ai_cost_global_concurrency",
     )
     @classmethod
     def validate_positive_limits(cls, value: int) -> int:

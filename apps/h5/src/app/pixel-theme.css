@@ -131,6 +131,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
   color: var(--pixel-text);
 }
 
+/* 宽屏但高度不足以展示金属外壳时，也保持 Feed 与衣橱使用同一块 390px 画布。 */
+@media (min-width: 560px) {
+  .pixel-screen {
+    width: var(--phone-w);
+    margin: 0 auto;
+  }
+}
+
 /* 视口装得下演示外壳时，才显示钛合金边框；真机/窄屏不套壳 */
 @media (min-width: 560px) and (min-height: 760px) and (display-mode: browser) {
   .pixel-stage {

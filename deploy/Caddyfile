@@ -1,0 +1,38 @@
+{
+	admin 127.0.0.1:2019
+	# Browsers and CLI clients do not consistently send SNI for a literal IP.
+	# Serve the trusted IP certificate as the TLS default so the public demo URL
+	# works the same through direct connections and CONNECT proxies.
+	default_sni {$STYLECAPTURE_PUBLIC_HOST}
+}
+
+(stylecapture_proxy) {
+	# gzip has the widest mobile/Safari support. API JSON is small, so the
+	# marginal zstd gain is not worth a judging-device compatibility failure.
+	encode gzip
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+	}
+	reverse_proxy h5:80
+
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Upload-Token delete
+			}
+		}
+	}
+}
+
+{$STYLECAPTURE_PUBLIC_HOST} {
+	tls {$STYLECAPTURE_TLS_CERT_FILE} {$STYLECAPTURE_TLS_KEY_FILE}
+	import stylecapture_proxy
+}

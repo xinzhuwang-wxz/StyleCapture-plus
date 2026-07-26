@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, cast
 from uuid import UUID, uuid4
 
 from fastapi import Cookie, FastAPI, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 
@@ -80,6 +80,12 @@ from stylecapture_backend.features.wardrobe.interfaces.http import (
     ItemSourceNotFoundError,
     build_wardrobe_router,
 )
+from stylecapture_backend.platform.cost_guard import (
+    CostGuard,
+    CostGuardUnavailable,
+    costly_capability,
+    trusted_client_key,
+)
 from stylecapture_backend.platform.errors import ErrorBody, ErrorEnvelope
 from stylecapture_backend.platform.session import (
     SESSION_COOKIE_NAME,
@@ -122,6 +128,7 @@ CAPTURE_ERROR_STATUS = {
 }
 
 CurrentUser = Callable[..., UUID]
+ReadinessCheck = Callable[[], Awaitable[Mapping[str, bool]]]
 DEFAULT_DEMO_SEED_NEW_SESSION_QUOTA = 64
 
 
@@ -132,6 +139,7 @@ def _error_response(
     code: str,
     message: str,
     details: dict[str, object] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     request_id = request.state.request_id
     envelope = ErrorEnvelope(
@@ -144,7 +152,7 @@ def _error_response(
     )
     return JSONResponse(
         status_code=status_code,
-        headers={"X-Request-ID": request_id},
+        headers={"X-Request-ID": request_id, **(headers or {})},
         content=envelope.model_dump(mode="json"),
     )
 
@@ -169,6 +177,8 @@ def create_app(
     session_signing_secret: str = "test-session-signing-secret-with-enough-entropy",
     session_cookie_secure: bool = False,
     demo_seed_new_session_quota: int = DEFAULT_DEMO_SEED_NEW_SESSION_QUOTA,
+    cost_guard: CostGuard | None = None,
+    readiness_check: ReadinessCheck | None = None,
 ) -> FastAPI:
     if demo_seed_new_session_quota < 0:
         raise ValueError("demo seed new-session quota must not be negative")
@@ -217,7 +227,59 @@ def create_app(
         call_next: RequestResponseEndpoint,
     ) -> Response:
         request.state.request_id = request.headers.get("X-Request-ID") or f"req_{uuid4().hex}"
-        response = await call_next(request)
+        lease = None
+        capability = costly_capability(request.method, request.url.path)
+        if cost_guard is not None and capability is not None:
+            actor_key = None
+            session_token = request.cookies.get(SESSION_COOKIE_NAME)
+            if session_token is not None:
+                try:
+                    actor_key = str(sessions.verify(session_token))
+                except InvalidSessionError:
+                    actor_key = None
+            try:
+                lease = await cost_guard.acquire(
+                    client_key=trusted_client_key(request),
+                    actor_key=actor_key,
+                    capability=capability,
+                )
+            except CostGuardUnavailable:
+                return _error_response(
+                    request,
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    code="ai_capacity_unavailable",
+                    message="AI 服务暂时繁忙, 请稍后重试。",
+                    headers={"Retry-After": "5"},
+                )
+            if not lease.allowed:
+                retry_after = max(1, lease.retry_after_seconds)
+                return _error_response(
+                    request,
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    code="ai_quota_exceeded",
+                    message="体验请求较多, 请稍后再试。",
+                    details={"capability": capability},
+                    headers={"Retry-After": str(retry_after)},
+                )
+        release_after_call = True
+        try:
+            response = await call_next(request)
+            if cost_guard is not None and lease is not None:
+                streaming_response = cast(StreamingResponse, response)
+                original_body = streaming_response.body_iterator
+
+                async def guarded_body() -> AsyncIterator[bytes | memoryview | str]:
+                    try:
+                        async for chunk in original_body:
+                            yield chunk
+                    finally:
+                        await cost_guard.release(lease)
+
+                streaming_response.body_iterator = guarded_body()
+                release_after_call = False
+        finally:
+            if cost_guard is not None and lease is not None and release_after_call:
+                await cost_guard.release(lease)
         response.headers["X-Request-ID"] = request.state.request_id
         if request.url.path.startswith("/v1/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
@@ -505,6 +567,17 @@ def create_app(
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/readyz")
+    async def readyz() -> JSONResponse:
+        if readiness_check is None:
+            return JSONResponse({"status": "ready", "checks": {}})
+        checks = dict(await readiness_check())
+        ready = bool(checks) and all(checks.values())
+        return JSONResponse(
+            status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "ready" if ready else "not_ready", "checks": checks},
+        )
 
     @app.post("/v1/session", status_code=status.HTTP_201_CREATED)
     async def create_session(

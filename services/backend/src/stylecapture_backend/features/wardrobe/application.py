@@ -10,7 +10,10 @@ from stylecapture_backend.features.capture.domain import (
     ProcessingJob,
 )
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
-from stylecapture_backend.platform.image_normalization import normalize_provider_image
+from stylecapture_backend.platform.image_normalization import (
+    normalize_provider_image,
+    optimize_browser_image,
+)
 
 EDITABLE_FIELDS = frozenset(
     {
@@ -137,7 +140,9 @@ class WardrobeApplication:
         object_key = item.display_object_key or item.source_object_key
         if object_key == item.source_object_key and not item.source_available:
             raise FileNotFoundError(item.source_object_key)
-        return normalize_provider_image(self._sources.read_image(object_key))
+        return optimize_browser_image(
+            normalize_provider_image(self._sources.read_image(object_key))
+        )
 
     async def delete_source(self, user_id: UUID, item_id: UUID) -> None:
         item = await self.get_item(user_id, item_id)

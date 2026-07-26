@@ -414,6 +414,8 @@ class TransformersSam2Backend:
 
 
 class PillowSelectionImageRenderer:
+    _MIN_PROVIDER_EDGE_PX = 64
+
     def render(
         self,
         frame: ImagePayload,
@@ -427,7 +429,20 @@ class PillowSelectionImageRenderer:
             bounds = alpha.getbbox()
             if bounds is None:
                 raise ValueError("selection mask is empty")
-            selected = rendered.crop(bounds)
+            safe_bounds = self._expand_bounds_to_minimum(
+                bounds,
+                rendered.size,
+                self._MIN_PROVIDER_EDGE_PX,
+            )
+            selected = rendered.crop(safe_bounds)
+            if (
+                selected.width < self._MIN_PROVIDER_EDGE_PX
+                or selected.height < self._MIN_PROVIDER_EDGE_PX
+            ):
+                selected = self._resize_to_minimum_edge(
+                    selected,
+                    self._MIN_PROVIDER_EDGE_PX,
+                )
             output = BytesIO()
             selected.save(output, format="PNG", optimize=True)
         except (UnidentifiedImageError, OSError, ValueError) as error:
@@ -443,6 +458,53 @@ class PillowSelectionImageRenderer:
             body=body,
             sha256=sha256(body).hexdigest(),
         )
+
+    @staticmethod
+    def _expand_bounds_to_minimum(
+        bounds: tuple[int, int, int, int],
+        image_size: tuple[int, int],
+        minimum_edge: int,
+    ) -> tuple[int, int, int, int]:
+        left, top, right, bottom = bounds
+        image_width, image_height = image_size
+        target_width = min(image_width, max(right - left, minimum_edge))
+        target_height = min(image_height, max(bottom - top, minimum_edge))
+        safe_left, safe_right = PillowSelectionImageRenderer._expand_axis(
+            start=left,
+            end=right,
+            limit=image_width,
+            target=target_width,
+        )
+        safe_top, safe_bottom = PillowSelectionImageRenderer._expand_axis(
+            start=top,
+            end=bottom,
+            limit=image_height,
+            target=target_height,
+        )
+        return (
+            safe_left,
+            safe_top,
+            safe_right,
+            safe_bottom,
+        )
+
+    @staticmethod
+    def _expand_axis(*, start: int, end: int, limit: int, target: int) -> tuple[int, int]:
+        if target >= limit:
+            return 0, limit
+        center = (start + end) / 2
+        expanded_start = round(center - target / 2)
+        expanded_start = min(max(0, expanded_start), limit - target)
+        return expanded_start, expanded_start + target
+
+    @staticmethod
+    def _resize_to_minimum_edge(image: Image.Image, minimum_edge: int) -> Image.Image:
+        scale = max(minimum_edge / image.width, minimum_edge / image.height)
+        target_size = (
+            max(minimum_edge, round(image.width * scale)),
+            max(minimum_edge, round(image.height * scale)),
+        )
+        return image.resize(target_size, Image.Resampling.LANCZOS)
 
     @staticmethod
     def _alpha_mask(
