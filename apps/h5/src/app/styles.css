@@ -210,9 +210,9 @@ p {
   letter-spacing: -0.035em;
 }
 
-.wardrobe-header__title--profile {
+.pixel-title.wardrobe-header__title--profile {
   width: 85px;
-  font-size: 2rem;
+  font-size: 32px;
 }
 
 .subtitle {
