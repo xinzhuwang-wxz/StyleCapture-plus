@@ -408,9 +408,9 @@ h1, h2, h3, h4, p { margin-top: 0; }
   bottom: max(var(--px-3), env(safe-area-inset-bottom));
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   padding: var(--px-2);
-  gap: 6px;
+  gap: 2px;
   border: var(--pixel-border-width) solid var(--pixel-border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
@@ -430,8 +430,38 @@ h1, h2, h3, h4, p { margin-top: 0; }
   background: transparent;
   color: var(--pixel-text-dim);
   font-family: var(--font-pixel);
-  font-size: 0.62rem;
+  min-width: 0;
+  font-size: 0.58rem;
   transition: all 0.12s ease;
+}
+
+.product-view--world {
+  position: absolute;
+  z-index: 70;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #f8f0fc;
+}
+
+.product-shell--world {
+  background: #f8f0fc;
+}
+
+.pixel-world-loading {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
+  gap: 0.6rem;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(242, 181, 217, 0.28), transparent 32%),
+    linear-gradient(180deg, #fff8fd 0%, #f5ebff 100%);
+  color: #563168;
+  text-align: center;
+}
+
+.pixel-world-loading span {
+  font-size: 1.8rem;
 }
 
 .pixel-nav button.is-active {

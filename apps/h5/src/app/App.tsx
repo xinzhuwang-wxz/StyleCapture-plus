@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient
 } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type CaptureAccepted,
@@ -23,6 +23,7 @@ import { CaptureSheet } from "../features/capture/CaptureSheet";
 import { PhoneFrame } from "../components/PhoneFrame";
 import { AIRecommendScreen } from "../features/ai/AIRecommendScreen";
 import { AnalysisScreen } from "../features/analysis/AnalysisScreen";
+import type { CommunityAvatarSource } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
 import { ProfileScreen } from "../features/profile/ProfileScreen";
 import { ItemDetail } from "../features/wardrobe/ItemDetail";
@@ -42,7 +43,13 @@ type Selection = {
   sourceKind: SourceKind;
 };
 
-type Destination = "feed" | "wardrobe" | "analysis" | "ai" | "profile";
+type Destination =
+  | "feed"
+  | "wardrobe"
+  | "analysis"
+  | "ai"
+  | "world"
+  | "profile";
 type FeedRestoreTarget = {
   videoRef: string;
   timestampMs: number;
@@ -51,6 +58,11 @@ type FeedRestoreTarget = {
 
 const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
 const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
+const CommunityScreen = lazy(() =>
+  import("../features/community/CommunityScreen").then((module) => ({
+    default: module.CommunityScreen
+  }))
+);
 
 function restoreSelectedLookId(): string | null {
   if (typeof window === "undefined") return null;
@@ -243,13 +255,40 @@ export function App() {
           : false
     }))
   });
-  const pixelCovers = Object.fromEntries(
-    looks.flatMap((look, index) => {
-      const cover = lookRenderQueries[index]?.data?.find(
-        (render) => render.kind === "pixel_cover"
-      );
-      return cover ? [[look.id, cover] as const] : [];
-    })
+  const pixelCovers = useMemo(
+    () =>
+      Object.fromEntries(
+        looks.flatMap((look, index) => {
+          const cover = lookRenderQueries[index]?.data?.find(
+            (render) => render.kind === "pixel_cover"
+          );
+          return cover ? [[look.id, cover] as const] : [];
+        })
+      ),
+    [lookRenderQueries, looks]
+  );
+  const communityLooks = useMemo<CommunityAvatarSource[]>(
+    () =>
+      looks.flatMap((look, index) => {
+        const cover = pixelCovers[look.id];
+        if (cover?.status !== "succeeded" || !cover.output_image_url) return [];
+        return [
+          {
+            lookId: look.id,
+            assetUrl: cover.output_image_url,
+            label:
+              look.source === "feed_saved"
+                ? `Feed 穿搭 ${index + 1}`
+                : `我的穿搭 ${index + 1}`,
+            kind: "public-render-artifact" as const,
+            tags: [
+              look.source === "feed_saved" ? "Feed 灵感" : "我的搭配",
+              "像素封面"
+            ]
+          }
+        ];
+      }),
+    [looks, pixelCovers]
   );
   const lookQuery = useQuery({
     queryKey: ["wardrobe-look", selectedLookId],
@@ -687,9 +726,35 @@ export function App() {
     <PhoneFrame>
       <main
         className={`product-shell pixel-shell ${
-          destination === "feed" ? "product-shell--feed" : "product-shell--wardrobe"
+          destination === "feed"
+            ? "product-shell--feed"
+            : destination === "world"
+              ? "product-shell--world"
+              : "product-shell--wardrobe"
         }`}
       >
+      <section
+        aria-label="像素世界"
+        className="product-view product-view--world"
+        hidden={destination !== "world"}
+      >
+        {destination === "world" ? (
+          <Suspense
+            fallback={
+              <div className="pixel-world-loading" role="status">
+                <span aria-hidden="true">✦</span>
+                <strong>正在打开像素世界</strong>
+              </div>
+            }
+          >
+            <CommunityScreen
+              avatarSources={communityLooks}
+              onExit={() => setDestination("wardrobe")}
+            />
+          </Suspense>
+        ) : null}
+      </section>
+
       <section
         aria-label="穿搭灵感"
         className="product-view product-view--feed feed-standalone"
@@ -740,7 +805,7 @@ export function App() {
       <div
         ref={wardrobeView}
         className="product-view product-view--wardrobe pixel-app"
-        hidden={destination === "feed"}
+        hidden={destination === "feed" || destination === "world"}
       >
         {destination !== "feed" ? (
           <header className="wardrobe-header">
@@ -1012,7 +1077,7 @@ export function App() {
         />
       </div>
 
-      {destination !== "feed" ? (
+      {destination !== "feed" && destination !== "world" ? (
       <nav aria-label="主要功能" className="pixel-nav">
         <button
           aria-current={destination === "wardrobe" ? "page" : undefined}
@@ -1055,6 +1120,13 @@ export function App() {
         >
           <span className="nav-icon" aria-hidden="true">◇</span>
           <small>AI</small>
+        </button>
+        <button
+          type="button"
+          onClick={() => setDestination("world")}
+        >
+          <span className="nav-icon" aria-hidden="true">▦</span>
+          <small>像素世界</small>
         </button>
         <button
           aria-current={destination === "profile" ? "page" : undefined}
