@@ -10,10 +10,13 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
 
 ## Deployment shape
 
-- Tencent Cloud SA9, Ubuntu 24.04, 4 vCPU / 8 GiB / 5 Mbps.
-- Caddy official image for automatic HTTPS at `119-45-216-38.sslip.io`.
+- Tencent Cloud SA9, Ubuntu 24.04, 4 vCPU / 8 GiB / 30 Mbps.
+- Caddy official image terminates HTTPS at `119.45.216.38` with a browser-trusted
+  Let's Encrypt IP certificate. The earlier `nip.io` / `sslip.io` hostname route was
+  rejected after DNS interception made ACME validation unreliable.
 - Existing H5/Nginx, FastAPI, PostgreSQL/pgvector, Redis/Celery and LiteLLM containers.
-- One `core` worker with concurrency one; hosted Doubao/Seedream providers by default.
+- One `core` worker with bounded concurrency two; hosted Doubao/Seedream providers by
+  default.
 - Local S3-compatible object-store adapter on the persistent upload volume for the first
   public smoke. Move large media to COS/CDN if measured bandwidth affects judging; no
   Product API or domain contract changes are allowed.
@@ -28,15 +31,15 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
   29.1.3 and Compose 2.40.3, no active old workloads.
 - [x] Reclaim stopped Docker containers, unused images and build cache while retaining
   all prior named volumes and `/home/ubuntu/rel001`; disk usage fell from 84% to 28%.
-- [ ] Validate production Compose locally and through CI-quality targeted checks.
-- [ ] Deploy the server-only environment and complete stack.
-- [ ] Verify trusted HTTPS, camera availability, service health and non-public internal
+- [x] Validate production Compose locally and through CI-quality targeted checks.
+- [x] Deploy the server-only environment and complete stack.
+- [x] Verify trusted HTTPS, camera availability, service health and non-public internal
   ports.
-- [ ] Run the real H5 main journey and Skill against the public Product API, saving
+- [x] Run the real H5 main journey and Skill against the public Product API, saving
   screenshots, trace IDs, provider versions, latency and resource evidence.
-- [ ] Test slow/failing provider recovery, session/media privacy, data deletion, backup
+- [x] Test slow/failing provider recovery, session/media privacy, data deletion, backup
   and restart persistence.
-- [ ] Run final architecture, security/privacy, license, visual and code reviews; fix all
+- [x] Run final architecture, security/privacy, license, visual and code reviews; fix all
   P0/P1 findings before merge and Issue closure.
 
 ## Reuse audit
@@ -57,6 +60,13 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
   provenance remains `curated_seed` and is never represented as live AI output.
 - Preserve old Docker volumes until the new product has passed persistence and backup
   tests. Only rebuildable stopped containers, images and build cache were removed.
+- Keep the portable CPU deployment's garment image contract truthful: it guarantees a
+  browser-safe normalized garment crop and a real generated pixel presentation. Full
+  alpha-matte SAM2 extraction stays in the optional `ai-light` profile and is not a
+  judging-path dependency on this CPU host.
+- Remove the temporary Cloudflare tunnel after the direct HTTPS edge passed. A second
+  public path would bypass the hardened Caddy policy and make the submitted URL
+  ambiguous.
 
 ## Surprises and discoveries
 
@@ -74,3 +84,27 @@ packaged Skill. Processing, failure and recovery states remain honest and tracea
   `UV_DEFAULT_INDEX` did not affect locked downloads. The production build optionally
   rewrites those copied in-image URLs to Tencent's path-compatible HTTPS mirror while
   retaining every locked hash; the tracked lockfile remains byte-identical.
+- Public headless testing revealed that browser background throttling paused wardrobe
+  query polling while Feed processing continued. Enabling background polling for the
+  Look list/detail made the right-swipe save recover from `processing` to the completed
+  Look without forcing a refresh.
+- A final upload rerun hit one transient wardrobe-list read failure after navigation.
+  The product correctly rendered a non-destructive retry state; the E2E now exercises
+  that recovery instead of treating a temporary read failure as an empty wardrobe.
+- The canonical transparent PNG produced by the upload pipeline was 1.81 MiB. The API
+  now preserves that source while serving a browser-optimized 274 KiB WebP derivative;
+  the item detail uses native image streaming over HTTP/2 instead of buffering the
+  entire object in browser JavaScript.
+
+## Final verification evidence
+
+- Backend: `295 passed`; Ruff and mypy clean.
+- H5: `87 passed`; TypeScript clean. Skill package: `4 passed`.
+- Public mobile, 390x844: five top-level tabs, Feed pause/resume and lasso guidance,
+  cancel/save gestures, whole-Look ingestion, real upload and persistence, pixel Try,
+  Chinese AI recommendation, progressive outfit delivery, Look save, personal try-on,
+  API-level source deletion and failure recovery.
+- Production: `/readyz` verifies PostgreSQL, Redis and LiteLLM; only 22/80/443 are
+  exposed; HSTS/CSP and upload-token log filtering are active; Redis cost/concurrency
+  guard, database restore, certificate renewal timer and 30 Mbps load checks passed.
+- Judge instructions: `docs/judging/DEMO-GUIDE.md`.

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily StyleCapture certificate renewal
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=20m
+Unit=stylecapture-cert-renew.service
+
+[Install]
+WantedBy=timers.target

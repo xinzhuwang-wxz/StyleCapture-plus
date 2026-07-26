@@ -201,12 +201,31 @@ export function App() {
 
   const itemsQuery = useQuery({
     queryKey: ["wardrobe-items"],
-    queryFn: wardrobeApi.listItems
+    queryFn: wardrobeApi.listItems,
+    refetchIntervalInBackground: true,
+    refetchInterval: (query) =>
+      pending.length > 0 ||
+      query.state.data?.some(
+        (item) =>
+          item.status === "processing" ||
+          item.status === "partial" ||
+          item.pixel_image_status === "queued" ||
+          item.pixel_image_status === "running"
+      )
+        ? 1_500
+        : false
   });
   const items = itemsQuery.data ?? [];
   const looksQuery = useQuery({
     queryKey: ["wardrobe-looks"],
-    queryFn: wardrobeApi.listLooks
+    queryFn: wardrobeApi.listLooks,
+    refetchIntervalInBackground: true,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (look) => look.status === "processing" || look.status === "partial"
+      )
+        ? 1_500
+        : false
   });
   const looks = looksQuery.data ?? [];
   const lookRenderQueries = useQueries({
@@ -236,6 +255,7 @@ export function App() {
     queryKey: ["wardrobe-look", selectedLookId],
     queryFn: () => wardrobeApi.getLook(selectedLookId!),
     enabled: selectedLookId !== null,
+    refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       query.state.data?.look.status === "processing" ||
       query.state.data?.look.status === "partial"
@@ -286,6 +306,22 @@ export function App() {
         active.map(async (entry) => {
           try {
             const job = await wardrobeApi.getJob(entry.jobId);
+            if (job.state === "ready" || job.state === "partial") {
+              const [refreshedItems, refreshedLooks] = await Promise.all([
+                wardrobeApi.listItems(),
+                wardrobeApi.listLooks()
+              ]);
+              queryClient.setQueryData(["wardrobe-items"], refreshedItems);
+              queryClient.setQueryData(["wardrobe-looks"], refreshedLooks);
+              if (!refreshedItems.some((item) => item.capture_id === entry.captureId)) {
+                return;
+              }
+              releaseBrowserImagePreview(entry.previewUrl);
+              setPending((current) =>
+                current.filter((candidate) => candidate.jobId !== entry.jobId)
+              );
+              return;
+            }
             setPending((current) =>
               current.map((candidate) =>
                 candidate.jobId === entry.jobId
@@ -298,10 +334,6 @@ export function App() {
                   : candidate
               )
             );
-            if (job.state === "ready" || job.state === "partial") {
-              void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
-              void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
-            }
           } catch (error) {
             if (error instanceof ProductApiError && error.code === "job_not_found") {
               releaseBrowserImagePreview(entry.previewUrl);

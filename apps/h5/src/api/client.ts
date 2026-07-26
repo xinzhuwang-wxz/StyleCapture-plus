@@ -491,13 +491,7 @@ async function deleteSource(itemId: string): Promise<void> {
 
 async function displayImage(itemId: string): Promise<string> {
   await ensureSession();
-  const response = await fetch(`/v1/items/${itemId}/image`, {
-    cache: "no-store"
-  });
-  if (!response.ok) {
-    throwApiError(await response.json().catch(() => undefined), "衣橱展示图暂时不可用");
-  }
-  return URL.createObjectURL(await response.blob());
+  return `/v1/items/${encodeURIComponent(itemId)}/image`;
 }
 
 async function planOutfits(input: {

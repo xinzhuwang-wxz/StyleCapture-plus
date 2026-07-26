@@ -1,0 +1,94 @@
+[
+  {
+    "scenario": "feed-to-wardrobe",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "frame": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844
+    },
+    "screen": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844
+    },
+    "timings": {
+      "domcontentloaded": 7167,
+      "feedVisible": 7183,
+      "wardrobeFirstFeedback": 69,
+      "wardrobeInteractive": 9906
+    },
+    "slowRequests": [
+      {
+        "url": "https://119.45.216.38/assets/index-DmjnnP-w.css",
+        "ms": 2284,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap",
+        "ms": 2815,
+        "status": 200
+      },
+      {
+        "url": "https://119.45.216.38/assets/index-BlSaK013.js",
+        "ms": 6851,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.114.woff2",
+        "ms": 1872,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.117.woff2",
+        "ms": 2050,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.118.woff2",
+        "ms": 2054,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.113.woff2",
+        "ms": 2054,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.104.woff2",
+        "ms": 2307,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.119.woff2",
+        "ms": 1727,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.115.woff2",
+        "ms": 1728,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wo-Tpo2MpsrpYU3EJjXfOiTrBdUtGm0PGsPHkbHZzpr3G.101.woff2",
+        "ms": 1729,
+        "status": 200
+      },
+      {
+        "url": "https://119.45.216.38/feed/media/pexels-9512049.mp4",
+        "ms": 7160,
+        "status": 206
+      },
+      {
+        "url": "https://119.45.216.38/v1/looks",
+        "ms": 4704,
+        "status": 200
+      }
+    ]
+  }
+]

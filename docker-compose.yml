@@ -215,7 +215,7 @@ services:
       - stylecapture_backend.worker:celery
       - worker
       - --loglevel=INFO
-      - --concurrency=1
+      - --concurrency=${STYLECAPTURE_WORKER_CONCURRENCY:-1}
       - --queues=${STYLECAPTURE_CAPTURE_QUEUE:-capture},${STYLECAPTURE_RENDER_QUEUE:-render}
       - --without-gossip
       - --without-mingle

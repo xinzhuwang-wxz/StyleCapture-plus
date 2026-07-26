@@ -33,17 +33,20 @@ docker compose \
   up --build -d
 ```
 
-The current judging URL is `https://119-45-216-38.sslip.io`. `sslip.io` resolves the
-hostname to the public IP, allowing Caddy to obtain a normal browser-trusted certificate
-without inventing a custom TLS implementation. A competition-owned domain can replace
-the host without changing any application contract.
+The current judging URL is `https://119.45.216.38`. It uses a browser-trusted,
+short-lived Let's Encrypt IP certificate. `deploy/renew-ip-certificate.sh` renews the
+certificate before its six-day lifetime expires and restarts only the edge container.
+A competition-owned domain can replace the IP without changing any application
+contract.
 
 ## Health and operations
 
 ```bash
-curl --fail https://119-45-216-38.sslip.io/healthz
+curl --fail https://119.45.216.38/healthz
 docker compose --env-file .env -f docker-compose.yml -f docker-compose.production.yml ps
 docker compose --env-file .env -f docker-compose.yml -f docker-compose.production.yml logs --tail=200
+sudo STYLECAPTURE_REPOSITORY_ROOT=/srv/stylecapture/app deploy/backup-state.sh
+sudo STYLECAPTURE_REPOSITORY_ROOT=/srv/stylecapture/app deploy/verify-database-backup.sh
 ```
 
 Application state is held in named PostgreSQL, Redis, upload and Caddy volumes. Build
@@ -59,7 +62,7 @@ duplicates prompts or provider configuration.
 ```bash
 cd skills/scene-outfit-matching
 npm test
-STYLECAPTURE_API_URL=https://119-45-216-38.sslip.io \
+STYLECAPTURE_API_URL=https://119.45.216.38 \
 node scripts/match.js --request '{"scene":"周五面试","style":"简洁正式"}'
 ```
 

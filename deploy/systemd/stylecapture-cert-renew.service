@@ -1,0 +1,13 @@
+[Unit]
+Description=Renew StyleCapture public IP certificate
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=STYLECAPTURE_REPOSITORY_ROOT=/srv/stylecapture/app
+Environment=STYLECAPTURE_ENV_FILE=/srv/stylecapture/shared/.env
+Environment=STYLECAPTURE_LETSENCRYPT_DIR=/srv/stylecapture/shared/letsencrypt
+Environment=STYLECAPTURE_PUBLIC_HOST=119.45.216.38
+ExecStart=/srv/stylecapture/app/deploy/renew-ip-certificate.sh
+ExecStartPost=/usr/bin/curl --fail --silent --show-error --max-time 10 https://119.45.216.38/healthz

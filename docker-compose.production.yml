@@ -28,6 +28,8 @@ services:
     restart: unless-stopped
     environment:
       STYLECAPTURE_PUBLIC_HOST: ${STYLECAPTURE_PUBLIC_HOST:?STYLECAPTURE_PUBLIC_HOST is required}
+      STYLECAPTURE_TLS_CERT_FILE: ${STYLECAPTURE_TLS_CERT_FILE:?STYLECAPTURE_TLS_CERT_FILE is required}
+      STYLECAPTURE_TLS_KEY_FILE: ${STYLECAPTURE_TLS_KEY_FILE:?STYLECAPTURE_TLS_KEY_FILE is required}
     depends_on:
       h5:
         condition: service_healthy
@@ -37,9 +39,13 @@ services:
       - "443:443/udp"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${STYLECAPTURE_LETSENCRYPT_DIR:?STYLECAPTURE_LETSENCRYPT_DIR is required}:/etc/letsencrypt:ro
       - stylecapture-caddy-data:/data
       - stylecapture-caddy-config:/config
     read_only: true
+    # The certificate tree stays root-only (0700/0600). The container itself
+    # remains read-only with every capability dropped except low-port binding.
+    user: "0:0"
     security_opt:
       - no-new-privileges:true
     cap_drop:

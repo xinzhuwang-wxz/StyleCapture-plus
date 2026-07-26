@@ -29,6 +29,7 @@ export function LookCard({
   return (
     <motion.article
       className="item-card look-card pixel-card wardrobe-card"
+      data-look-id={look.id}
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
