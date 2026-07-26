@@ -11,7 +11,7 @@ import {
   type FeedSelectionDecision
 } from "./FeedSelectionOverlay";
 import { captureVideoFrame, type CapturedVideoFrame } from "./frameCapture";
-import { type FeedAsset, feedMediaUrl } from "./manifest";
+import { type FeedAsset, feedMediaUrl, feedPosterUrl } from "./manifest";
 
 interface FeedVideoProps {
   active: boolean;
@@ -275,6 +275,7 @@ export function FeedVideo({
         loop
         muted
         playsInline
+        poster={mediaLoaded ? feedPosterUrl(asset.assetId) : undefined}
         preload={active ? "auto" : mediaLoaded ? "metadata" : "none"}
         tabIndex={active ? 0 : -1}
         ref={videoRef}

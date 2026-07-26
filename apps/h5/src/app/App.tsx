@@ -966,12 +966,12 @@ export function App() {
           />
         ) : null}
 
-        <div hidden={destination !== "profile"}>
+        {destination === "profile" ? (
           <ProfileScreen
             itemCount={items.length + pending.length}
             onNotice={setNotice}
           />
-        </div>
+        ) : null}
 
         <input
           ref={cameraInput}

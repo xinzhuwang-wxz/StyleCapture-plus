@@ -471,6 +471,83 @@ async def test_reasoning_only_reranks_closed_candidates_and_returns_chinese_expl
 
 
 @pytest.mark.asyncio
+async def test_scene_semantics_change_real_items_and_each_result_has_visible_variety() -> None:
+    user_id = uuid4()
+    wardrobe = WardrobeStub(
+        [
+            item(
+                user_id,
+                category="tops",
+                description="白色衬衫",
+                extra_fields={"styles": ["通勤", "正式", "利落"]},
+            ),
+            item(
+                user_id,
+                category="tops",
+                description="亮黄色短袖",
+                extra_fields={"styles": ["旅行", "度假", "明亮", "拍照"]},
+            ),
+            item(
+                user_id,
+                category="bottoms",
+                description="黑色西裤",
+                extra_fields={"styles": ["通勤", "正式", "面试"]},
+            ),
+            item(
+                user_id,
+                category="bottoms",
+                description="浅色短裤",
+                extra_fields={"styles": ["旅行", "度假", "方便走路"]},
+            ),
+            item(
+                user_id,
+                category="shoes",
+                description="棕色乐福鞋",
+                extra_fields={"styles": ["通勤", "正式"]},
+            ),
+            item(
+                user_id,
+                category="shoes",
+                description="白色运动鞋",
+                extra_fields={"styles": ["旅行", "运动", "方便走路"]},
+            ),
+            item(user_id, category="outerwear", description="米色针织外套"),
+            item(user_id, category="accessories", description="亮色拍照发带"),
+        ]
+    )
+    application = OutfitApplication(wardrobe=wardrobe, reranker=None)
+
+    travel = await application.plan(
+        user_id=user_id,
+        request=OutfitRequest(
+            scene="旅行拍照，显眼但方便走路",  # noqa: RUF001
+            weather="炎热高温",
+            formality="轻松休闲",
+            comfort="方便走路",
+        ),
+    )
+    interview = await application.plan(
+        user_id=user_id,
+        request=OutfitRequest(
+            scene="通勤面试，利落但不刻板",  # noqa: RUF001
+            weather="温和",
+            formality="正式商务",
+            comfort="久坐舒适",
+        ),
+    )
+
+    assert travel.plans[0].wardrobe_item_ids != interview.plans[0].wardrobe_item_ids
+    travel_names = {slot.item_name for slot in travel.plans[0].slots}
+    interview_names = {slot.item_name for slot in interview.plans[0].slots}
+    assert "亮黄色短袖" in travel_names
+    assert "白色运动鞋" in travel_names
+    assert "白色衬衫" in interview_names
+    assert "棕色乐福鞋" in interview_names
+    assert len({plan.structure_signature for plan in travel.plans}) == 4
+    assert len({plan.wardrobe_item_ids for plan in travel.plans}) == 4
+
+
+@pytest.mark.asyncio
 async def test_required_excluded_and_weather_constraints_are_applied_before_ranking() -> None:
     user_id = uuid4()
     required_top = item(user_id, category="tops", description="白色通勤衬衫")
