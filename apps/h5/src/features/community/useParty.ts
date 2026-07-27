@@ -27,7 +27,9 @@ export type LookSpriteSource = {
 export function useParty(
   initialSceneId: string,
   playerLookId: string,
-  sources: readonly LookSpriteSource[]
+  sources: readonly LookSpriteSource[],
+  /** Guests to place in the room; changing it rebuilds the world. */
+  activeGuestIds: readonly string[]
 ) {
   const [sceneId, setSceneId] = useState(initialSceneId);
   const scene: SceneMap = useMemo(() => sceneById(sceneId), [sceneId]);
@@ -36,17 +38,22 @@ export function useParty(
   );
   const [failedLookIds, setFailedLookIds] = useState<readonly string[]>([]);
 
-  const worldRef = useRef<PartyWorld>(createPartyWorld(scene, playerLookId));
+  const worldRef = useRef<PartyWorld>(
+    createPartyWorld(scene, playerLookId, activeGuestIds)
+  );
   // Re-created only when the location changes; guests and choreography reset.
   const [worldVersion, setWorldVersion] = useState(0);
 
   useEffect(() => {
-    worldRef.current = createPartyWorld(scene, playerLookId);
+    const worn = worldRef.current.actors.find(
+      (actor) => actor.id === worldRef.current.playerId
+    )?.lookId;
+    worldRef.current = createPartyWorld(scene, worn ?? playerLookId, activeGuestIds);
     setWorldVersion((version) => version + 1);
     // playerLookId is applied through updatePlayerLook to avoid resetting the
     // room every time the user changes outfit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene]);
+  }, [scene, activeGuestIds]);
 
   useEffect(() => {
     let cancelled = false;

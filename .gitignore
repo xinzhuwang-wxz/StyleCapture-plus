@@ -37,3 +37,9 @@ playwright-report/
 test-results/
 .stylecapture/
 autoresearch-results.tsv
+
+# Large supplied art packs: derived sprites are committed, sources are not.
+像素小人动作包/
+新的像素小人动作包/
+apps/h5/dist-party/
+apps/h5/*.tmp.mjs

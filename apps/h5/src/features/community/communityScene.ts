@@ -105,6 +105,45 @@ const animatedLooks: readonly PartyLook[] = [
     outfitFormula: ["条纹球衣", "迷彩短裤", "黑色短靴"]
   },
   {
+    id: "pose-crew-wide",
+    title: "活动衫阔腿裤",
+    assetUrl: `${poseRootFor("crew-wide")}/idle.png`,
+    alt: "活动衫阔腿裤 Look 像素形象",
+    sourceKind: "curated-seed",
+    sourceLabel: "精选示例 · 非真人",
+    needsBackdropRemoval: false,
+    poseRoot: poseRootFor("crew-wide"),
+    tags: ["活动限定", "阔腿裤", "耐穿一整天"],
+    description: "黑色活动 T 恤配浅蓝阔腿裤，站一天也不皱。",
+    outfitFormula: ["黑色活动 T", "浅蓝阔腿裤", "白色板鞋"]
+  },
+  {
+    id: "pose-crew-glasses",
+    title: "工牌黑T",
+    assetUrl: `${poseRootFor("crew-glasses")}/idle.png`,
+    alt: "工牌黑T Look 像素形象",
+    sourceKind: "curated-seed",
+    sourceLabel: "精选示例 · 非真人",
+    needsBackdropRemoval: false,
+    poseRoot: poseRootFor("crew-glasses"),
+    tags: ["利落", "全黑", "工牌"],
+    description: "全黑一身加一副眼镜，最省心也最不会错。",
+    outfitFormula: ["黑色活动 T", "深色牛仔裤", "帆布鞋"]
+  },
+  {
+    id: "pose-visitor-skirt",
+    title: "白T百褶裙",
+    assetUrl: `${poseRootFor("visitor-skirt")}/idle.png`,
+    alt: "白T百褶裙 Look 像素形象",
+    sourceKind: "curated-seed",
+    sourceLabel: "精选示例 · 非真人",
+    needsBackdropRemoval: false,
+    poseRoot: poseRootFor("visitor-skirt"),
+    tags: ["出片", "百褶裙", "墨镜"],
+    description: "印花白 T 塞进百褶裙，配马丁靴和不摘的墨镜。",
+    outfitFormula: ["印花白 T", "黑色百褶裙", "棕色短靴"]
+  },
+  {
     id: "pose-linen",
     title: "白衬衫日",
     assetUrl: `${poseRootFor("linen")}/idle.png`,

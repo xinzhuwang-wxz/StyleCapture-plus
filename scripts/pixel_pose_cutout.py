@@ -20,13 +20,19 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from PIL import Image
 
+from pixel_sprite import TARGET_HEIGHT, normalise
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DIR = REPO_ROOT / "像素小人动作包"
+SOURCE_DIRS = (
+    REPO_ROOT / "像素小人动作包",
+    REPO_ROOT / "新的像素小人动作包",
+)
 OUTPUT_DIR = REPO_ROOT / "apps/h5/public/assets/community/poses"
 
-TARGET_HEIGHT = 360
 
 # character -> pose -> source stem
 POSE_PACK: dict[str, dict[str, str]] = {
@@ -54,28 +60,43 @@ POSE_PACK: dict[str, dict[str, str]] = {
         "cheer": "3735c1e1-4d82-4ae6-bdfe-ca4581781ae9",
         "walk": "d89a5a6b-55bc-452c-b145-366b26debc60",
     },
+    # On-site crew and visitors from the second pack.
+    "crew-wide": {
+        "idle": "ad9c2950-3490-48b9-a1bd-26e6d980b832",
+        "wave": "18dd2303-1a5b-417d-a511-e28780475c80",
+        "cheer": "87a8db74-eaed-48de-937b-908e05b72076",
+        "walk": "348630ec-cf6d-4c9f-a4cb-c60956b279c1",
+    },
+    "crew-glasses": {
+        "idle": "43467758-04a5-4de2-9d70-1095f8440f97",
+        "wave": "6fda1ec2-ef4f-4c97-b4b0-cecba4112c06(1)",
+        "cheer": "fcdd2eb9-e69e-4438-9292-c2211c6b8c11",
+        "walk": "6fda1ec2-ef4f-4c97-b4b0-cecba4112c06(1)(1)",
+    },
+    # Only three poses were supplied; walking falls back to idle at runtime.
+    "visitor-skirt": {
+        "idle": "a3310a4c-6834-4758-89fb-a30365cd163d",
+        "wave": "37c20763-5bfb-4eca-8e44-f8bb9cd769ba - 副本 (2)",
+        "cheer": "37c20763-5bfb-4eca-8e44-f8bb9cd769ba",
+    },
 }
 
 
-def trim_to_subject(image: Image.Image) -> Image.Image:
-    box = image.getbbox()
-    if box is None:
-        raise SystemExit("empty image")
-    return image.crop(box)
+def find_source(stem: str) -> Path | None:
+    for directory in SOURCE_DIRS:
+        candidate = directory / f"{stem}.png"
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def build(character: str, pose: str, stem: str) -> tuple[int, int, float]:
-    source = SOURCE_DIR / f"{stem}.png"
-    if not source.exists():
-        raise SystemExit(f"missing source for {character}/{pose}: {source.name}")
+    source = find_source(stem)
+    if source is None:
+        raise SystemExit(f"missing source for {character}/{pose}: {stem}.png")
 
     image = Image.open(source).convert("RGBA")
-    cropped = trim_to_subject(image)
-    scale = TARGET_HEIGHT / cropped.height
-    resized = cropped.resize(
-        (max(1, round(cropped.width * scale)), TARGET_HEIGHT),
-        Image.Resampling.LANCZOS,
-    )
+    resized = normalise(image)
 
     destination = OUTPUT_DIR / character / f"{pose}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -84,11 +105,14 @@ def build(character: str, pose: str, stem: str) -> tuple[int, int, float]:
 
 
 def main() -> int:
-    if not SOURCE_DIR.exists():
-        print(f"pose pack not found at {SOURCE_DIR}", file=sys.stderr)
+    present = [directory for directory in SOURCE_DIRS if directory.exists()]
+    if not present:
+        print("no pose packs found", file=sys.stderr)
         return 1
 
-    stems = {path.stem for path in SOURCE_DIR.glob("*.png")}
+    stems = {
+        path.stem for directory in present for path in directory.glob("*.png")
+    }
     mapped = {stem for poses in POSE_PACK.values() for stem in poses.values()}
     unmapped = stems - mapped
     if unmapped:
