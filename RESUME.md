@@ -32,7 +32,16 @@ PR #36 的头分支就是 `codex/issue-9-community-dance-demo`——也就是那
 
 验证：`pnpm test` 216/216、`typecheck` 干净、`build` 成功。
 
-## 下一步（Stage 7）
+## Stage 7 已完成
+
+PR **#42** 已开：https://github.com/xinzhuwang-wxz/StyleCapture-plus/pull/42
+核对过实际状态：`OPEN` / `MERGEABLE` / `mergeState: CLEAN` / CI `product` 通过（2m49s）。
+跟 `f7abb615` 的新 main 没有冲突，不需要 rebase。
+
+下一轮是用户说的「统一视觉风格设计」——换皮，独立开一轮。
+
+<details><summary>原 Stage 7 清单（已做完）</summary>
+
 
 1. **分支落后于 main**：本地 `origin/main` 是 `b1b08ab`，远端 main 已到 `f7abb615`
    （多了 PR #36 和 #40）。我这条分支基于 `b1b08ab`。开 PR 后要用
@@ -68,3 +77,5 @@ PR #36 的头分支就是 `codex/issue-9-community-dance-demo`——也就是那
 ## 用户的下一轮
 
 「这个做完之后再统一视觉风格设计」——换皮是独立的下一轮，本轮**只补功能**。
+
+</details>
