@@ -31,6 +31,8 @@ Do not use referral bounties, volume-paid group owners, information-feed ads, po
 
 Exclude team members, direct family, duplicate subjects, pro trialists, non-ICP travelers, trips outside 7-30 days, non-3-7-day travel, and users unable to provide low-sensitivity proof.
 
+Every de-identified aggregate record must include both `source_bucket` and `professional_creator` so these caps are recomputable. The validator enforces caps once the qualified cohort denominator reaches 20; smaller draft aggregates still report `channel_mix` but are not treated as final cohort cap evidence.
+
 ## Evidence handling
 
 Permitted low-sensitivity proof:
@@ -54,6 +56,7 @@ The command validates JSON Schema, scans for obvious contact details, enforces t
 - `pain_rate`
 - `real_paid_rate`
 - `execution_rate`
+- `channel_mix`
 - `maturity_cutoff`
 - `all_m0_thresholds_passed`
 

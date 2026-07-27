@@ -28,6 +28,8 @@
       "required": [
         "participant_id",
         "recruiting_source",
+        "source_bucket",
+        "professional_creator",
         "qualified_icp",
         "trip_template",
         "trip_start",
@@ -62,6 +64,15 @@
             "other"
           ]
         },
+        "source_bucket": {
+          "enum": [
+            "natural_search_public_intent",
+            "approved_women_travel_group",
+            "second_degree_referral",
+            "other"
+          ]
+        },
+        "professional_creator": { "type": "boolean" },
         "qualified_icp": { "type": "boolean" },
         "trip_template": { "const": "travel_3_7_day" },
         "trip_start": { "type": "string", "format": "date" },
@@ -69,7 +80,12 @@
         "trip_days": { "type": "integer" },
         "trip_within_30_days": { "type": "boolean" },
         "pain_question_completed": { "type": "boolean" },
-        "pain_score": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "pain_score": {
+          "anyOf": [
+            { "type": "integer", "minimum": 0, "maximum": 10 },
+            { "type": "null" }
+          ]
+        },
         "current_workaround": {
           "type": "string",
           "minLength": 1,

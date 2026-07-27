@@ -38,7 +38,7 @@ The first release is successful only when real users pay for and execute this re
 
 1. Active Codex Goal created from `docs/engineering/STYLECAPTURE-JOURNEY-GOAL.md`.
 2. This living ExecPlan.
-3. Current milestone GitHub Issue and acceptance criteria.
+3. Current branch-local milestone ExecPlan and SDD task brief.
 4. `docs/product/STYLECAPTURE-JOURNEY-PRD.md`.
 5. `docs/architecture/STYLECAPTURE-JOURNEY-TECHNICAL-DESIGN.md`.
 6. `docs/architecture/JOURNEY-SKILL-CAPABILITY-REGISTRY.md`.
@@ -51,11 +51,11 @@ The first release is successful only when real users pay for and execute this re
 The plan uses two sequential commitments:
 
 1. **Prove willingness to pay cheaply.** Do not build the complete native product before the M0 seven-day recruiting/offer plus post-trip maturity gate. Concierge work may use manually reviewed plan generation, but research responses and metrics must be real and attributable.
-2. **Build vertical commercial slices.** After the gate passes, each Issue delivers an observable iOS journey through generated API contracts, domain, persistence, worker/provider boundaries, and production evidence.
+2. **Build vertical commercial slices.** After the gate passes, each branch-local milestone task delivers an observable iOS journey through generated API contracts, domain, persistence, worker/provider boundaries, and production evidence.
 
-Create the milestone Issues only when the Goal starts so their acceptance criteria reflect the final reviewed plan. Execute them in the dependency order below without pausing between completed Issues.
+Create or update milestone ExecPlans and SDD task briefs only after the Goal starts so their acceptance criteria reflect the final reviewed plan. Execute them in the dependency order below without pausing between completed branch-local tasks. Do not read, create, edit, comment on, close, or otherwise touch GitHub Issues or PRs without explicit future authorization.
 
-## Milestones and proposed Issue order
+## Milestones and branch-local task order
 
 ### M0 — Paid problem validation
 
@@ -163,7 +163,7 @@ Acceptance:
 
 ## Reuse audit
 
-Every milestone copies this table into its Issue ExecPlan and adds exact inspected source commit/license before implementation.
+Every milestone copies this table into its branch-local ExecPlan and adds exact inspected source commit/license before implementation.
 
 | Capability | Candidates inspected | Decision | Constraint |
 |---|---|---|---|
@@ -213,7 +213,7 @@ The gate checks Goal alignment, current acceptance criteria, reuse audit, data f
 
 ### Time-driven heartbeat
 
-When active work lasts longer than one hour and the Codex automation surface is available, create one recurring hourly automation targeting this same task/worktree. It does not implement in a second branch. If automation is unavailable, run the same heartbeat prompt at every long-task checkpoint and event gate. It reads Goal, current Issue, ExecPlan, diff, test output, review findings, traces and screenshots; stops duplicate work; corrects drift; updates decisions; and resumes the current milestone. Disable it when the Goal completes, blocks, or the branch is intentionally paused.
+When active work lasts longer than one hour and the Codex automation surface is available, create one recurring hourly automation targeting this same task/worktree. It does not implement in a second branch. If automation is unavailable, run the same heartbeat prompt at every long-task checkpoint and event gate. It reads Goal, ExecPlan, current SDD task brief, diff, test output, review findings, traces and screenshots; stops duplicate work; corrects drift; updates decisions; and resumes the current milestone. It must not touch GitHub Issues or PRs without explicit future authorization. Disable it when the Goal completes, blocks, or the branch is intentionally paused.
 
 ### Per-milestone verification order
 
@@ -264,15 +264,13 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - M0 needs a local repository-side operating surface before native iOS work. The implemented surface validates only de-identified aggregate records; it intentionally does not fabricate cohort, payment, refund, or maturity evidence.
 - China-market operating controls tighten M0 collection: recruit toward 30 to preserve a mature denominator, cap natural search at <=50%, approved women/travel groups at <=35%, second-degree referrals at <=25%, and professional creators at <=20%; exclude bounties, volume-paid group owners, information-feed ads, positive-feedback rewards, and completion cash rewards.
 
-## Decision Log
-
-- 2026-07-28: M0 repository infrastructure is implemented locally, but the product decision remains `BLOCKED_FOR_REAL_EVIDENCE`. Task 2 native iOS work is still gated because no real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, or `trip_end+7d` execution evidence exists.
 - Current FASHN default would send person photos overseas and FastFit is non-commercial. Removing P0 try-on improves both compliance and margin without weakening the paid Journey job.
 - StoreKit official client/server libraries cover the first launch; RevenueCat is not necessary until cross-platform or remote-paywall operations become real bottlenecks.
 - Fresh baseline verification exposed one pre-existing H5 test that synchronously asserted content hidden behind an asynchronous wardrobe load. The test now waits for the observable card before checking terminal removal; production behavior was unchanged and all 239 JavaScript/Skill plus 301 Python tests pass.
 
 ## Decision Log
 
+- 2026-07-28: M0 repository infrastructure is implemented locally, but the product decision remains `BLOCKED_FOR_REAL_EVIDENCE`. Task 2 native iOS work is still gated because no real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, or `trip_end+7d` execution evidence exists.
 - 2026-07-27: Make scene execution, not content consumption, the first paid result.
 - 2026-07-27: Target native iOS 17+ and reuse the existing Product API rather than wrapping H5 or rebuilding backend services.
 - 2026-07-27: Price one Journey pack at a ¥12 hypothesis and show the contextual paywall after one complete Day 1 travel result.

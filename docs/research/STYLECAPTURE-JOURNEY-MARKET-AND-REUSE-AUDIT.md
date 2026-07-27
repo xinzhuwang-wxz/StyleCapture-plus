@@ -138,4 +138,4 @@ StyleCapture 不应把原抖音 Feed 做成独立 App，也不应与现有“AI 
 uv run python scripts/journey_validation_metrics.py validate path/to/m0-aggregate.json
 ```
 
-该命令校验 `docs/research/journey-validation/metrics.schema.json`、扫描明显联系方式、拒绝单日/非旅行 cohort、强制唯一 CNY 12 offer，并重新计算 `pain_rate`、`real_paid_rate`、`execution_rate` 与实际 maturity cutoff。当前仓库尚无真实 cohort、支付或成熟后执行证据，因此不得记录 `GO` 或启动 Task 2。
+该命令校验 `docs/research/journey-validation/metrics.schema.json`、扫描明显联系方式、拒绝单日/非旅行 cohort、强制唯一 CNY 12 offer，基于 `frozen_at` 推导成熟分母，并重新计算 `pain_rate`、`real_paid_rate`、`execution_rate`、`channel_mix` 与实际 maturity cutoff。当前仓库尚无真实 cohort、支付或成熟后执行证据，因此不得记录 `GO` 或启动 Task 2。

@@ -14,8 +14,11 @@ SCHEMA = REPOSITORY_ROOT / "docs" / "research" / "journey-validation" / "metrics
 def _record(
     index: int,
     *,
-    pain_score: int,
+    pain_score: int | None,
     complete_plan: bool,
+    pain_question_completed: bool = True,
+    source_bucket: str = "natural_search_public_intent",
+    professional_creator: bool = False,
     offer_outcome: str = "declined",
     payment_evidence: str = "none",
     execution_outcome: str = "not_executed",
@@ -28,13 +31,15 @@ def _record(
     return {
         "participant_id": f"m0-p{index:03d}",
         "recruiting_source": "xiaohongshu_dm",
+        "source_bucket": source_bucket,
+        "professional_creator": professional_creator,
         "qualified_icp": True,
         "trip_template": "travel_3_7_day",
         "trip_start": trip_start.isoformat(),
         "trip_end": trip_end.isoformat(),
         "trip_days": trip_days,
         "trip_within_30_days": True,
-        "pain_question_completed": True,
+        "pain_question_completed": pain_question_completed,
         "pain_score": pain_score,
         "current_workaround": "manual_notes_and_saved_posts",
         "cost_of_failure": "overpacking_or_buying_emergency_items",
@@ -100,6 +105,13 @@ def test_validate_recomputes_m0_thresholds_from_deidentified_records(tmp_path: P
                 index,
                 pain_score=7 if index < 12 else 6,
                 complete_plan=complete_plan,
+                source_bucket=(
+                    "natural_search_public_intent"
+                    if index < 10
+                    else "approved_women_travel_group"
+                    if index < 17
+                    else "second_degree_referral"
+                ),
                 offer_outcome="paid" if index < 5 else "declined",
                 payment_evidence="verified_deposit" if index < 5 else "none",
                 execution_outcome=(
@@ -133,7 +145,37 @@ def test_validate_recomputes_m0_thresholds_from_deidentified_records(tmp_path: P
         "rate": 0.533333,
         "passed": True,
     }
-    assert metrics["maturity_cutoff"] == "2026-09-03"
+    assert metrics["channel_mix"] == {
+        "approved_women_travel_group": {
+            "denominator": 20,
+            "limit": 0.35,
+            "passed": True,
+            "rate": 0.35,
+            "recruits": 7,
+        },
+        "natural_search_public_intent": {
+            "denominator": 20,
+            "limit": 0.5,
+            "passed": True,
+            "rate": 0.5,
+            "recruits": 10,
+        },
+        "professional_creator": {
+            "denominator": 20,
+            "limit": 0.2,
+            "passed": True,
+            "rate": 0.0,
+            "recruits": 0,
+        },
+        "second_degree_referral": {
+            "denominator": 20,
+            "limit": 0.25,
+            "passed": True,
+            "rate": 0.15,
+            "recruits": 3,
+        },
+    }
+    assert metrics["maturity_cutoff"] == "2026-09-30"
     assert metrics["all_m0_thresholds_passed"] is True
 
 
@@ -190,6 +232,125 @@ def test_validate_excludes_promises_from_real_paid_and_counts_nonresponse_as_not
     assert metrics["real_paid_rate"]["passed"] is False
     assert metrics["execution_rate"]["numerator"] == 0
     assert metrics["execution_rate"]["denominator"] == 15
+
+
+def test_validate_derives_maturity_from_frozen_cutoff_and_rejects_future_maturity(
+    tmp_path: Path,
+) -> None:
+    record = _record(0, pain_score=8, complete_plan=True, maturity_reached=True)
+    payload = _cohort([record])
+    payload["frozen_at"] = "2026-08-15T10:00:00+08:00"
+    aggregate = tmp_path / "future-maturity.json"
+    aggregate.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _run_validate(aggregate)
+
+    assert result.returncode == 1
+    assert "maturity_reached contradicts frozen_at cutoff" in result.stderr
+
+
+def test_validate_includes_elapsed_cutoff_nonresponders_in_execution_denominator(
+    tmp_path: Path,
+) -> None:
+    records = [
+        _record(
+            index,
+            pain_score=8,
+            complete_plan=True,
+            maturity_reached=True,
+            execution_outcome="non_response",
+        )
+        for index in range(15)
+    ]
+    payload = _cohort(records)
+    payload["frozen_at"] = "2026-09-30T10:00:00+08:00"
+    aggregate = tmp_path / "elapsed-nonresponse.json"
+    aggregate.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _run_validate(aggregate)
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(result.stdout)
+    assert metrics["execution_rate"]["denominator"] == 15
+    assert metrics["execution_rate"]["numerator"] == 0
+
+
+def test_validate_excludes_skipped_pain_question_without_imputed_score(tmp_path: Path) -> None:
+    records = [
+        _record(0, pain_score=None, pain_question_completed=False, complete_plan=False),
+        _record(1, pain_score=8, complete_plan=False),
+    ]
+    payload = tmp_path / "skipped-pain.json"
+    payload.write_text(json.dumps(_cohort(records)), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(result.stdout)
+    assert metrics["pain_rate"]["denominator"] == 1
+    assert metrics["pain_rate"]["numerator"] == 1
+
+
+def test_validate_rejects_imputed_pain_score_when_question_was_skipped(
+    tmp_path: Path,
+) -> None:
+    record = _record(0, pain_score=7, pain_question_completed=False, complete_plan=False)
+    payload = tmp_path / "imputed-pain.json"
+    payload.write_text(json.dumps(_cohort([record])), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 1
+    assert "pain_score must be null when pain question is skipped" in result.stderr
+
+
+def test_validate_rejects_recruiting_channel_cap_overage(tmp_path: Path) -> None:
+    records = [
+        _record(
+            index,
+            pain_score=8,
+            complete_plan=False,
+            source_bucket=(
+                "natural_search_public_intent"
+                if index < 11
+                else "approved_women_travel_group"
+            ),
+        )
+        for index in range(20)
+    ]
+    payload = tmp_path / "source-cap.json"
+    payload.write_text(json.dumps(_cohort(records)), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 1
+    assert "source bucket natural_search_public_intent exceeds cap 0.5" in result.stderr
+
+
+def test_validate_rejects_professional_creator_cap_overage(tmp_path: Path) -> None:
+    source_buckets = (
+        ["natural_search_public_intent"] * 10
+        + ["approved_women_travel_group"] * 8
+        + ["second_degree_referral"] * 6
+        + ["other"]
+    )
+    records = [
+        _record(
+            index,
+            pain_score=8,
+            complete_plan=False,
+            source_bucket=source_buckets[index],
+            professional_creator=index < 6,
+        )
+        for index in range(25)
+    ]
+    payload = tmp_path / "creator-cap.json"
+    payload.write_text(json.dumps(_cohort(records)), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 1
+    assert "professional_creator exceeds cap 0.2" in result.stderr
 
 
 def test_validate_rejects_contact_details_in_deidentified_records(tmp_path: Path) -> None:
