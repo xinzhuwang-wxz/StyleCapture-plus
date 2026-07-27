@@ -2,6 +2,18 @@
 
 This folder defines the repository-side controls for the M0 paid problem validation. It does not contain real participant contact details, raw photos, recordings, transcripts, payment screenshots, exports, or completion evidence.
 
+## Execution package
+
+- `recruitment-copy.md` contains copy-ready neutral recruiting text for Xiaohongshu, comments, DMs, approved group forwards, and seven-day reminders.
+- `participant-notice.md` contains the participant-facing research notice template. All legal subject, contact, complaint, privacy, merchant, and refund placeholders must be completed by the authorized legal subject before real use.
+- `operator-runbook.md` contains the external operating checklist for screening, proof deletion, pseudonymous IDs, merchant collection, refund reserve, delivery, follow-up, aggregate metrics, decision, incidents, and pause gates.
+- `interview-script.md` contains the neutral screener, current-behavior interview, wardrobe tolerance questions, identical offer wording, and post-trip follow-up.
+- `concierge-plan-template.md` contains the one-trip plan structure and identical ¥12 refundable deposit terms.
+- `metrics.schema.json` defines the only commit-safe de-identified aggregate record shape.
+- `decision-log.md` remains the decision record and must not record `GO`, `PIVOT`, or `STOP` without real de-identified evidence.
+
+All actual posting, forwarding, participant contact, payment collection, refund handling, complaint handling, and legal/privacy disclosures require logged-in accounts, channel permission, merchant authority, and legal subject authorization outside these documents. This folder can prepare and constrain operations; it cannot claim those external actions are complete.
+
 ## Gate
 
 Task 2 native iOS work remains blocked until the local M0 decision log records `GO` from real evidence:
