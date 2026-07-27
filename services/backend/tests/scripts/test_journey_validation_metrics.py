@@ -26,9 +26,30 @@ def _record(
     trip_days: int = 4,
     offer_amount_cny: int = 12,
     include_pain_score: bool = True,
+    offer_evidence_ref: str | None = None,
+    post_trip_evidence_ref: str | None = None,
 ) -> dict[str, object]:
     trip_start = date(2026, 8, 10) + timedelta(days=index)
     trip_end = trip_start + timedelta(days=trip_days - 1)
+    offer: dict[str, object] = {
+        "shown": complete_plan,
+        "amount_cny": offer_amount_cny,
+        "currency": "CNY",
+        "outcome": offer_outcome,
+        "real_payment_evidence": payment_evidence,
+    }
+    if offer_evidence_ref is not None:
+        offer["evidence_ref"] = offer_evidence_ref
+
+    post_trip: dict[str, object] = {
+        "maturity_reached": maturity_reached,
+        "trip_end_plus_7": (trip_end + timedelta(days=7)).isoformat(),
+        "followed_up": execution_outcome != "non_response",
+        "execution_outcome": execution_outcome,
+    }
+    if post_trip_evidence_ref is not None:
+        post_trip["evidence_ref"] = post_trip_evidence_ref
+
     record: dict[str, object] = {
         "participant_id": f"m0-p{index:03d}",
         "recruiting_source": "xiaohongshu_dm",
@@ -49,13 +70,7 @@ def _record(
             "accepted_item_count": 12,
         },
         "complete_plan_delivered": complete_plan,
-        "offer": {
-            "shown": complete_plan,
-            "amount_cny": offer_amount_cny,
-            "currency": "CNY",
-            "outcome": offer_outcome,
-            "real_payment_evidence": payment_evidence,
-        },
+        "offer": offer,
         "pixel_world_primed": False,
         "plan": {
             "constraints_confirmed": complete_plan,
@@ -67,12 +82,7 @@ def _record(
             "user_corrections_recorded": complete_plan,
             "post_trip_outcome_recorded": maturity_reached,
         },
-        "post_trip": {
-            "maturity_reached": maturity_reached,
-            "trip_end_plus_7": (trip_end + timedelta(days=7)).isoformat(),
-            "followed_up": execution_outcome != "non_response",
-            "execution_outcome": execution_outcome,
-        },
+        "post_trip": post_trip,
         "exclusions": [],
     }
     if include_pain_score:
@@ -117,9 +127,11 @@ def test_validate_recomputes_m0_thresholds_from_deidentified_records(tmp_path: P
                 ),
                 offer_outcome="paid" if index < 5 else "declined",
                 payment_evidence="verified_deposit" if index < 5 else "none",
+                offer_evidence_ref=f"payment/deposit-hash-{index:03d}" if index < 5 else None,
                 execution_outcome=(
                     "planned_main_or_alternative" if index < 8 else "non_response"
                 ),
+                post_trip_evidence_ref=f"post-trip/adoption-hash-{index:03d}" if index < 8 else None,
             )
         )
     payload = tmp_path / "m0.json"
@@ -285,6 +297,80 @@ def test_validate_excludes_promises_from_real_paid_and_counts_nonresponse_as_not
     assert metrics["real_paid_rate"]["passed"] is False
     assert metrics["execution_rate"]["numerator"] == 0
     assert metrics["execution_rate"]["denominator"] == 15
+
+
+def test_validate_requires_payment_evidence_ref_for_verified_real_payment(
+    tmp_path: Path,
+) -> None:
+    record = _record(
+        0,
+        pain_score=8,
+        complete_plan=True,
+        offer_outcome="paid",
+        payment_evidence="verified_payment",
+    )
+    payload = tmp_path / "missing-payment-evidence-ref.json"
+    payload.write_text(json.dumps(_cohort([record])), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 1
+    assert "offer.evidence_ref is required for verified payment evidence" in result.stderr
+
+
+def test_validate_accepts_verified_real_payment_with_external_evidence_ref(
+    tmp_path: Path,
+) -> None:
+    record = _record(
+        0,
+        pain_score=8,
+        complete_plan=True,
+        offer_outcome="paid",
+        payment_evidence="verified_deposit",
+        offer_evidence_ref="payment/deposit-hash-001",
+    )
+    payload = tmp_path / "payment-evidence-ref.json"
+    payload.write_text(json.dumps(_cohort([record])), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_validate_requires_post_trip_evidence_ref_for_successful_execution(
+    tmp_path: Path,
+) -> None:
+    record = _record(
+        0,
+        pain_score=8,
+        complete_plan=True,
+        execution_outcome="planned_main_or_alternative",
+    )
+    payload = tmp_path / "missing-execution-evidence-ref.json"
+    payload.write_text(json.dumps(_cohort([record])), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 1
+    assert "post_trip.evidence_ref is required for successful execution outcome" in result.stderr
+
+
+def test_validate_accepts_successful_execution_with_external_evidence_ref(
+    tmp_path: Path,
+) -> None:
+    record = _record(
+        0,
+        pain_score=8,
+        complete_plan=True,
+        execution_outcome="hard_constraint_preserving_replacement",
+        post_trip_evidence_ref="post-trip/adoption-hash-001",
+    )
+    payload = tmp_path / "execution-evidence-ref.json"
+    payload.write_text(json.dumps(_cohort([record])), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_validate_derives_maturity_from_frozen_cutoff_and_rejects_future_maturity(

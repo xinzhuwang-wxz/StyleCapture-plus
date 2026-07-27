@@ -148,19 +148,30 @@ def _validate_record(record: Mapping[str, Any], *, frozen_date: date) -> None:
         if plan["alternatives_count"] < record["trip_days"]:
             raise ValidationFailure(f"{participant_id}: complete plan needs an alternative for every trip day")
 
+    offer = record["offer"]
+    if offer["real_payment_evidence"] in REAL_PAYMENT_EVIDENCE and not offer.get("evidence_ref"):
+        raise ValidationFailure(
+            f"{participant_id}: offer.evidence_ref is required for verified payment evidence"
+        )
+
     expected_maturity_date = trip_end + timedelta(days=7)
-    actual_maturity_date = _parse_date(record["post_trip"]["trip_end_plus_7"], field="trip_end_plus_7")
+    post_trip = record["post_trip"]
+    actual_maturity_date = _parse_date(post_trip["trip_end_plus_7"], field="trip_end_plus_7")
     if actual_maturity_date != expected_maturity_date:
         raise ValidationFailure(f"{participant_id}: trip_end_plus_7 must equal trip_end + 7d")
 
     derived_mature = expected_maturity_date <= frozen_date
-    if record["post_trip"]["maturity_reached"] != derived_mature:
+    if post_trip["maturity_reached"] != derived_mature:
         raise ValidationFailure(f"{participant_id}: maturity_reached contradicts frozen_at cutoff")
-    execution_outcome = record["post_trip"]["execution_outcome"]
+    execution_outcome = post_trip["execution_outcome"]
     if derived_mature and execution_outcome == "not_mature":
         raise ValidationFailure(f"{participant_id}: execution_outcome cannot be not_mature after cutoff")
     if not derived_mature and execution_outcome != "not_mature":
         raise ValidationFailure(f"{participant_id}: execution_outcome must be not_mature before cutoff")
+    if execution_outcome in EXECUTED_OUTCOMES and not post_trip.get("evidence_ref"):
+        raise ValidationFailure(
+            f"{participant_id}: post_trip.evidence_ref is required for successful execution outcome"
+        )
 
 
 def _rate(numerator: int, denominator: int) -> float | None:
