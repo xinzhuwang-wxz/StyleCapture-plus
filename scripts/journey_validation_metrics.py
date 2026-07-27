@@ -107,9 +107,11 @@ def _validate_record(record: Mapping[str, Any], *, frozen_date: date) -> None:
         raise ValidationFailure(f"{participant_id}: trip must be within 30 days")
     if record["pixel_world_primed"]:
         raise ValidationFailure(f"{participant_id}: pixel_world_primed must be false for M0")
-    if record["pain_question_completed"] and record["pain_score"] is None:
+    has_pain_score = "pain_score" in record
+    pain_score = record.get("pain_score")
+    if record["pain_question_completed"] and pain_score is None:
         raise ValidationFailure(f"{participant_id}: pain_score is required when pain question is completed")
-    if not record["pain_question_completed"] and record["pain_score"] is not None:
+    if not record["pain_question_completed"] and has_pain_score and pain_score is not None:
         raise ValidationFailure(f"{participant_id}: pain_score must be null when pain question is skipped")
 
     trip_start = _parse_date(record["trip_start"], field="trip_start")
@@ -231,8 +233,8 @@ def recompute(payload: Mapping[str, Any]) -> dict[str, Any]:
         for record in records
         if record["qualified_icp"]
         and record["pain_question_completed"]
-        and record["pain_score"] is not None
-        and record["pain_score"] >= PAIN_THRESHOLD
+        and (pain_score := record.get("pain_score")) is not None
+        and pain_score >= PAIN_THRESHOLD
     )
 
     plan_recipients = [

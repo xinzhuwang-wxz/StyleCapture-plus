@@ -37,7 +37,6 @@
         "trip_days",
         "trip_within_30_days",
         "pain_question_completed",
-        "pain_score",
         "current_workaround",
         "cost_of_failure",
         "evidence_of_action",

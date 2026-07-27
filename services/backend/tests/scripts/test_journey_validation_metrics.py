@@ -25,10 +25,11 @@ def _record(
     maturity_reached: bool = True,
     trip_days: int = 4,
     offer_amount_cny: int = 12,
+    include_pain_score: bool = True,
 ) -> dict[str, object]:
     trip_start = date(2026, 8, 10) + timedelta(days=index)
     trip_end = trip_start + timedelta(days=trip_days - 1)
-    return {
+    record: dict[str, object] = {
         "participant_id": f"m0-p{index:03d}",
         "recruiting_source": "xiaohongshu_dm",
         "source_bucket": source_bucket,
@@ -40,7 +41,6 @@ def _record(
         "trip_days": trip_days,
         "trip_within_30_days": True,
         "pain_question_completed": pain_question_completed,
-        "pain_score": pain_score,
         "current_workaround": "manual_notes_and_saved_posts",
         "cost_of_failure": "overpacking_or_buying_emergency_items",
         "evidence_of_action": ["saved_inspiration", "started_packing_list"],
@@ -75,6 +75,9 @@ def _record(
         },
         "exclusions": [],
     }
+    if include_pain_score:
+        record["pain_score"] = pain_score
+    return record
 
 
 def _cohort(records: list[dict[str, object]]) -> dict[str, object]:
@@ -177,6 +180,56 @@ def test_validate_recomputes_m0_thresholds_from_deidentified_records(tmp_path: P
     }
     assert metrics["maturity_cutoff"] == "2026-09-30"
     assert metrics["all_m0_thresholds_passed"] is True
+
+
+def test_validate_excludes_skipped_pain_question_when_score_is_omitted(
+    tmp_path: Path,
+) -> None:
+    records = [
+        _record(
+            0,
+            pain_score=None,
+            complete_plan=False,
+            pain_question_completed=False,
+            include_pain_score=False,
+        ),
+        _record(1, pain_score=8, complete_plan=False),
+    ]
+    payload = tmp_path / "skipped-pain-omitted.json"
+    payload.write_text(json.dumps(_cohort(records)), encoding="utf-8")
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(result.stdout)
+    assert metrics["pain_rate"]["numerator"] == 1
+    assert metrics["pain_rate"]["denominator"] == 1
+
+
+def test_validate_requires_pain_score_when_completed_question_omits_score(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "completed-pain-omitted.json"
+    payload.write_text(
+        json.dumps(
+            _cohort(
+                [
+                    _record(
+                        0,
+                        pain_score=None,
+                        complete_plan=False,
+                        include_pain_score=False,
+                    )
+                ]
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_validate(payload)
+
+    assert result.returncode == 1
+    assert "pain_score is required when pain question is completed" in result.stderr
 
 
 def test_validate_rejects_non_travel_or_single_day_cohort_members(tmp_path: Path) -> None:
