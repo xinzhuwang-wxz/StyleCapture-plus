@@ -3,6 +3,7 @@
 - Date/time: 2026-07-28 00:14 CST
 - Milestone / Issue / PR: pre-Goal commercial discovery and planning baseline; no Issue or PR yet
 - Fixed diff base: `origin/main@fb4b9c0e04158cb82279426727bcdc8fb073491a`
+- Reviewed planning content commit: `5bac2ff`
 - Branch: `codex/stylecapture-journey`
 - Scope: market hypothesis, product contract, iOS/backend/AI/deployment architecture, reuse/license choices, privacy/security gates, Skill boundary, implementation sequencing, and Goal stop conditions
 - Excluded scope: app implementation, production deployment, Apple review, production payment evidence, real-provider quality evidence, and production cohort outcomes

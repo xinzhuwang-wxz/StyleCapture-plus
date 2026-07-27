@@ -249,7 +249,7 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - [x] Narrow the first paid wedge to one 3–7 day travel job; defer single-day occasions to separately measured experiments.
 - [x] Draft PRD, technical design, ADR, research/reuse audit and this ExecPlan.
 - [x] Complete independent product, architecture, iOS, privacy/security and adversarial plan review; resolve all P0/P1.
-- [ ] Commit and push the reviewed planning baseline.
+- [x] Commit and push the reviewed planning baseline (`5bac2ff`).
 - [ ] Start the aggregate Goal and create milestone Issues only after the user invokes the launch prompt.
 
 ## Surprises & discoveries
