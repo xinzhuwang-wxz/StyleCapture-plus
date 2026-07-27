@@ -19,6 +19,7 @@ characters keep their size through every pose and every interaction.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, cast
 
 from PIL import Image
 
@@ -68,12 +69,9 @@ def measure(image: Image.Image) -> Anatomy | None:
     the feet; trusting it put the feet a hundred rows too low, and the shadow
     then vanished on downscale, leaving the character hovering.
     """
-    alpha = image.split()[3].load()
+    alpha = cast(Any, image.split()[3].load())
     width, height = image.size
-    mask = [
-        [1 if alpha[x, y] > ALPHA_FLOOR else 0 for x in range(width)]
-        for y in range(height)
-    ]
+    mask = [[1 if alpha[x, y] > ALPHA_FLOOR else 0 for x in range(width)] for y in range(height)]
     runs = [_widest_run(row) for row in mask]
     widest = max(runs)
     if widest == 0:
@@ -84,9 +82,7 @@ def measure(image: Image.Image) -> Anatomy | None:
     if not solid_rows:
         return None
     top, feet = solid_rows[0], solid_rows[-1] + 1
-    column_counts = [
-        sum(mask[y][x] for y in solid_rows) for x in range(width)
-    ]
+    column_counts = [sum(mask[y][x] for y in solid_rows) for x in range(width)]
     solid_columns = [x for x in range(width) if column_counts[x] >= MIN_SOLID_RUN]
     if not solid_columns:
         return None
@@ -117,7 +113,7 @@ def normalise(image: Image.Image) -> Image.Image:
     scale = (TARGET_HEIGHT * BODY_FRACTION) / anatomy.standing_height
     scaled = image.resize(
         (max(1, round(image.width * scale)), max(1, round(image.height * scale))),
-        Image.LANCZOS,
+        Image.Resampling.LANCZOS,
     )
 
     feet_y = anatomy.feet * scale

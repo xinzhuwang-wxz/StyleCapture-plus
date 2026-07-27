@@ -23,8 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PIL import Image
-
-from pixel_sprite import TARGET_HEIGHT, normalise
+from pixel_sprite import normalise  # type: ignore[import-not-found]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIRS = (
@@ -110,9 +109,7 @@ def main() -> int:
         print("no pose packs found", file=sys.stderr)
         return 1
 
-    stems = {
-        path.stem for directory in present for path in directory.glob("*.png")
-    }
+    stems = {path.stem for directory in present for path in directory.glob("*.png")}
     mapped = {stem for poses in POSE_PACK.values() for stem in poses.values()}
     unmapped = stems - mapped
     if unmapped:

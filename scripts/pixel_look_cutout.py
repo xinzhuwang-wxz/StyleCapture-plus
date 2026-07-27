@@ -23,8 +23,7 @@ from typing import Any, cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PIL import Image
-
-from pixel_sprite import normalise
+from pixel_sprite import normalise  # type: ignore[import-not-found]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMUNITY_ASSETS = REPO_ROOT / "apps/h5/public/assets/community"
