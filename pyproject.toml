@@ -7,6 +7,11 @@ dependencies = []
 
 [tool.uv]
 package = false
+# cryptography 47+ 的 aarch64 wheel 里，Rust 扩展会执行一条 Docker Desktop 的
+# linux/arm64 虚拟机不支持的指令；结果是 litellm 网关一 import 就 SIGILL 退出
+# （exit 132），worker 因此永远起不来。46.x 是同时能在 arm64 与 x86_64 上启动
+# 的最后一个版本。
+constraint-dependencies = ["cryptography<47"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }

@@ -1,0 +1,178 @@
+/* 组合衣柜：常驻底部的落点抽屉，沿用 pixel-theme 的记号笔风格。 */
+
+.combo-door {
+  position: fixed;
+  right: 0;
+  bottom: 92px;
+  left: 0;
+  z-index: 40;
+  width: min(100%, 32rem);
+  margin: 0 auto;
+  padding: 0 var(--px-3);
+  pointer-events: none;
+}
+
+.combo-door > * {
+  pointer-events: auto;
+}
+
+.combo-door__handle {
+  display: flex;
+  align-items: center;
+  gap: var(--px-2);
+  width: 100%;
+  padding: 10px var(--px-4);
+  font-family: var(--font-pixel);
+  font-size: 0.82rem;
+  color: var(--pixel-text);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 999px;
+  box-shadow: var(--pixel-shadow-lg);
+}
+
+.combo-door__handle strong {
+  flex: 1;
+  text-align: left;
+}
+
+.combo-door__count {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  color: #fff;
+  background: var(--pixel-primary);
+  border-radius: 999px;
+}
+
+/* 有东西正被拖过来时，落点要明显长大一圈。 */
+.combo-door[data-receiving="true"] .combo-door__handle {
+  border-color: var(--pixel-primary);
+  background: linear-gradient(135deg, #f3edfd, #fdeef5);
+  transform: scale(1.03);
+}
+
+.combo-door__panel {
+  margin-top: var(--px-2);
+  padding: var(--px-4);
+  background: #fff;
+  border: 2px solid var(--pixel-border);
+  border-radius: 18px;
+  box-shadow: var(--pixel-shadow-lg);
+}
+
+.combo-door__list {
+  display: flex;
+  gap: var(--px-2);
+  margin: 0 0 var(--px-3);
+  padding: 0 0 var(--px-2);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.combo-door__list::-webkit-scrollbar {
+  display: none;
+}
+
+.combo-door__list li {
+  position: relative;
+  flex: 0 0 68px;
+}
+
+.combo-door__list img,
+.combo-door__blank {
+  display: block;
+  width: 68px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: #f4f0fb;
+  border: 2px solid var(--pixel-border);
+  border-radius: 12px;
+}
+
+.combo-door__label {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-family: var(--font-pixel);
+  font-size: 0.56rem;
+  color: var(--pixel-text-dim);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combo-door__list li > button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  background: var(--pixel-text);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.combo-door__empty,
+.combo-door__audit {
+  margin: 0 0 var(--px-3);
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--pixel-text-muted);
+}
+
+.combo-door__actions {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: var(--px-2);
+}
+
+/* 拖起来的那张卡片的影子，跟着手指走。 */
+.combo-ghost {
+  position: fixed;
+  z-index: 60;
+  width: 84px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border: 3px solid var(--pixel-primary);
+  border-radius: 14px;
+  box-shadow: var(--pixel-shadow-lg);
+  opacity: 0.92;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-4deg);
+}
+
+/* 卡片上的「加入组合」——拖拽的等价入口，键盘和读屏都能用。 */
+.combo-add {
+  width: 100%;
+  margin-top: 6px;
+  padding: 5px 8px;
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  color: var(--pixel-primary-dark);
+  background: #f3edfd;
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
+}
+
+.combo-add[data-in-basket="true"] {
+  color: #fff;
+  background: var(--pixel-primary);
+  border-color: var(--pixel-primary-dark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combo-door[data-receiving="true"] .combo-door__handle {
+    transform: none;
+  }
+  .combo-ghost {
+    transform: translate(-50%, -50%);
+  }
+}

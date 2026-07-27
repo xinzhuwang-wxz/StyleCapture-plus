@@ -89,6 +89,7 @@ function DeferredPixelImage({ src, alt }: { src: string; alt: string }) {
 }
 
 export function WardrobeItemCard({
+  combo,
   item,
   onOpen,
   onRetry,
@@ -98,6 +99,12 @@ export function WardrobeItemCard({
   onOpen: () => void;
   onRetry: () => void;
   onRetryPixel: () => void;
+  /** 组合衣柜入口。不传就完全不渲染，既有调用方不受影响。 */
+  combo?: {
+    inBasket: boolean;
+    onToggle: () => void;
+    dragHandlers?: Record<string, unknown>;
+  };
 }) {
   const category = garmentLabel(
     item.attributes.subcategory?.value ?? item.attributes.category?.value
@@ -111,6 +118,7 @@ export function WardrobeItemCard({
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
+      {...(combo?.dragHandlers ?? {})}
     >
       <button
         aria-label={`${description} ${STATUS_LABELS[item.status]} ${category} ${ownershipLabel}`}
@@ -135,6 +143,18 @@ export function WardrobeItemCard({
           <span>{ownershipLabel} · 点开看真实图</span>
         </div>
       </button>
+      {combo ? (
+        <button
+          type="button"
+          className="combo-add"
+          data-in-basket={combo.inBasket ? "true" : undefined}
+          aria-pressed={combo.inBasket}
+          aria-label={`${combo.inBasket ? "移出" : "加入"}组合衣柜：${description}`}
+          onClick={combo.onToggle}
+        >
+          {combo.inBasket ? "✓ 已在组合" : "＋ 加入组合"}
+        </button>
+      ) : null}
       {(item.status === "error" || item.status === "partial") &&
       item.source_available ? (
         <button className="retry-link" type="button" onClick={onRetry}>
