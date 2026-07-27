@@ -1,6 +1,6 @@
 # ADR-0006: Standalone provider-bound Codex skill
 
-Status: Proposed
+Status: Accepted
 Date: 2026-07-26
 
 ## Context
@@ -27,7 +27,7 @@ on a deployed product or duplicate Product API semantics incompletely.
 
 ## Decision
 
-Propose one narrowly scoped exception to ADR-0005:
+Accept one narrowly scoped exception to ADR-0005:
 
 1. `skills/doubao-virtual-try-on` is classified as an independently distributed
    Codex artifact, not a StyleCapture Product API facade.
@@ -51,7 +51,7 @@ Propose one narrowly scoped exception to ADR-0005:
    required file is missing, a symlink is present, or a likely embedded Ark key
    is detected.
 
-This ADR does not supersede ADR-0005. It proposes a reviewable exception for one
+This ADR does not supersede ADR-0005. It accepts a reviewable exception for one
 named, non-product-runtime artifact.
 
 ## Consequences
@@ -67,6 +67,9 @@ named, non-product-runtime artifact.
   consent, provider access, and an appropriate retention/privacy posture.
 - Model upgrades are explicit artifact releases rather than silent provider
   substitution.
+- A bounded live smoke on the requested Ark models completed in 150.14 seconds.
+  That is acceptable for a standalone Codex artifact, but not for replacing the
+  current interactive H5/Product API try-on path.
 
 ## Alternatives considered
 
@@ -94,3 +97,5 @@ named, non-product-runtime artifact.
   retain sanitized manifests/audits outside the repository.
 - Architecture review confirms no product module imports
   `skills/doubao-virtual-try-on`.
+- Post-merge cleanup confirms the standalone scripts pass direct mypy, ruff,
+  unittest, py_compile, and diff checks.

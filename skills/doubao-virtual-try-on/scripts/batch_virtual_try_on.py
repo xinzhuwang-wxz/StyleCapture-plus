@@ -570,7 +570,10 @@ def main() -> int:
     )
     batch_audit["hard_pass"] = cross_passes(batch_audit)
     save_json(output_dir / "cross-look-audit.json", batch_audit)
-    manifest = {
+    look_manifests: list[dict[str, Any]] = [
+        dict(look["manifest"]) for look in sorted(looks, key=lambda item: item["index"])
+    ]
+    manifest: dict[str, Any] = {
         "models": {
             "understanding": args.understanding_model,
             "generation": args.image_model,
@@ -578,13 +581,13 @@ def main() -> int:
         "person_image": str(person_path),
         "outfit_boards": [str(path) for path in outfit_paths],
         "anchor": anchor_manifest,
-        "looks": [look["manifest"] for look in sorted(looks, key=lambda item: item["index"])],
+        "looks": look_manifests,
         "cross_look_pass": cross_passes(batch_audit),
         "cross_look_audit": "cross-look-audit.json",
     }
     manifest["hard_pass"] = (
         bool(anchor_manifest["pass"])
-        and all(bool(look["pass"]) for look in manifest["looks"])
+        and all(bool(look["pass"]) for look in look_manifests)
         and bool(manifest["cross_look_pass"])
     )
     manifest["quality_status"] = "pass" if manifest["hard_pass"] else "hard_fail"
