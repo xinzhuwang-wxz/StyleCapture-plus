@@ -591,7 +591,7 @@ async def test_fixed_model_complete_look_uses_multimodal_image_edit(
     assert stored.provider_trace.parameters["strategy"] == "multimodal_image_edit"
     assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v2"
+    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v3"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert stored.provider_trace.parameters["image_count"] == 3
     assert stored.provider_trace.parameters["garment_count"] == 2
@@ -696,7 +696,7 @@ async def test_personal_try_on_uses_uploaded_subject_and_real_image_provider_fal
     assert stored.provider_trace.parameters["personalization"] == "user_photo"
     assert stored.provider_trace.parameters["strategy"] == "multimodal_image_edit"
     assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
-    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v2"
+    assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v3"
     assert stored.provider_trace.parameters["image_count"] == 2
     assert dedicated_try_on.categories == []
 
