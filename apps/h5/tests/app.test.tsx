@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
@@ -170,48 +170,41 @@ describe("StyleCapture garment ingest", () => {
     vi.unstubAllGlobals();
   });
 
-  it("defers wardrobe loading until the user leaves the Feed", async () => {
-    vi.useFakeTimers();
+  it("loads the wardrobe on entry and keeps it cached while users visit Feed", async () => {
     renderApp();
 
-    expect(api.listItems).not.toHaveBeenCalled();
-    expect(api.listLooks).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
-
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(api.listItems).toHaveBeenCalledTimes(1);
       expect(api.listLooks).toHaveBeenCalledTimes(1);
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(6_000);
-    });
+    fireEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
+    fireEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     expect(api.listItems).toHaveBeenCalledTimes(1);
     expect(api.listLooks).toHaveBeenCalledTimes(1);
   });
 
-  it("opens to the Feed first and lets users enter the digital wardrobe from there", async () => {
+  it("opens to the digital wardrobe first and lets users enter Feed from there", async () => {
     renderApp();
+
+    expect(
+      await screen.findByRole("heading", { name: "我的衣橱" })
+    ).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "刷灵感 Feed" })).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
 
     expect(screen.getByLabelText("穿搭灵感")).toBeVisible();
     expect(screen.getByRole("button", { name: "数字衣橱" })).toBeVisible();
     expect(screen.queryByRole("navigation", { name: "主要功能" })).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
-
-    expect(
-      await screen.findByRole("heading", { name: "我的衣橱" })
-    ).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
   });
 
   it("opens the pixel world from the first-level navigation and returns to the wardrobe", async () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     await user.click(await screen.findByRole("button", { name: "像素世界" }));
 
     expect(screen.getByLabelText("像素世界")).toBeVisible();
@@ -230,6 +223,7 @@ describe("StyleCapture garment ingest", () => {
     const user = userEvent.setup();
     renderApp();
 
+    await user.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
     await user.click(screen.getByRole("button", { name: "测试保存整套" }));
 
     const prompt = await screen.findByRole("complementary", {
@@ -271,7 +265,6 @@ describe("StyleCapture garment ingest", () => {
     );
     renderApp();
 
-    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
     expect(screen.getByText("正在理解这件衣服")).toBeInTheDocument();
 
     await waitFor(
@@ -281,7 +274,7 @@ describe("StyleCapture garment ingest", () => {
     expect(window.sessionStorage.getItem("stylecapture:pending-items:v1")).toBeNull();
   });
 
-  it("restores an opened Look after a page refresh without changing the fresh-session Feed default", async () => {
+  it("restores an opened Look after a page refresh without changing the wardrobe default", async () => {
     const lookId = "11111111-1111-4111-8111-111111111111";
     window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
     api.getLook.mockResolvedValue({
@@ -314,7 +307,6 @@ describe("StyleCapture garment ingest", () => {
   it("resets the wardrobe scroll position when switching primary destinations", async () => {
     const user = userEvent.setup();
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const scrollContainer = document.querySelector<HTMLElement>(".pixel-app");
     expect(scrollContainer).not.toBeNull();
     scrollContainer!.scrollTop = 640;
@@ -325,9 +317,7 @@ describe("StyleCapture garment ingest", () => {
   });
 
   it("keeps camera and gallery inputs distinct", async () => {
-    const user = userEvent.setup();
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     const camera = screen.getByLabelText("拍摄衣物照片");
     const gallery = screen.getByLabelText("选择衣物照片");
@@ -347,7 +337,6 @@ describe("StyleCapture garment ingest", () => {
     });
     const { container } = renderApp();
 
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const wardrobeViewport = container.querySelector(".product-view--wardrobe");
     expect(wardrobeViewport).toBeInstanceOf(HTMLElement);
     (wardrobeViewport as HTMLElement).scrollTop = 720;
@@ -362,7 +351,6 @@ describe("StyleCapture garment ingest", () => {
   it("requires an asset type and ownership before a real upload can enter the wardrobe", async () => {
     const user = userEvent.setup();
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const file = new File(["real-image"], "jacket.jpg", { type: "image/jpeg" });
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
@@ -400,7 +388,6 @@ describe("StyleCapture garment ingest", () => {
   it("keeps HEIC upload usable without rendering a broken browser preview", async () => {
     const user = userEvent.setup();
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const file = new File(["heic-bytes"], "wardrobe.HEIC", { type: "image/heic" });
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
@@ -435,7 +422,6 @@ describe("StyleCapture garment ingest", () => {
       events_url: "/v1/jobs/job-full-body/events"
     });
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const file = new File(["full-body"], "full-body.jpg", { type: "image/jpeg" });
 
     await user.upload(screen.getByLabelText("选择衣物照片"), file);
@@ -466,9 +452,7 @@ describe("StyleCapture garment ingest", () => {
   });
 
   it("rejects a non-image locally without opening the confirmation surface", async () => {
-    const user = userEvent.setup();
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     const file = new File(["not-an-image"], "notes.pdf", { type: "application/pdf" });
 
     fireEvent.change(screen.getByLabelText("选择衣物照片"), {
@@ -484,7 +468,6 @@ describe("StyleCapture garment ingest", () => {
     const user = userEvent.setup();
     api.listItems.mockResolvedValue([wardrobeItem]);
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     await user.click(
       await screen.findByRole("button", {
@@ -524,7 +507,6 @@ describe("StyleCapture garment ingest", () => {
       }
     });
     renderApp();
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     await user.click(
       await screen.findByRole("button", {
@@ -552,8 +534,6 @@ describe("StyleCapture garment ingest", () => {
   it("uses a pixel first-level card and keeps the real display asset in item detail", async () => {
     api.listItems.mockResolvedValue([wardrobeItem]);
     renderApp();
-
-    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
 
     const pixelCard = await screen.findByRole("img", {
       name: "上装的像素图标"
@@ -588,7 +568,6 @@ describe("StyleCapture garment ingest", () => {
     api.listLooks.mockResolvedValue([]);
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     await user.click(screen.getByRole("tab", { name: "按单品" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -612,7 +591,6 @@ describe("StyleCapture garment ingest", () => {
     api.listItems.mockResolvedValue([wardrobeItem]);
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     await user.click(
       await screen.findByRole("button", {
         name: "米白色针织上衣 可搭配 上装 我的衣服"
@@ -639,7 +617,6 @@ describe("StyleCapture garment ingest", () => {
     ]);
     renderApp();
 
-    await userEvent.click(screen.getByRole("button", { name: "数字衣橱" }));
     await userEvent.click(
       await screen.findByRole("button", {
         name: "米白色针织上衣 可搭配 上装 我的衣服"
@@ -659,7 +636,6 @@ describe("StyleCapture garment ingest", () => {
     api.getPixelTrial.mockRejectedValueOnce(new Error("status unavailable"));
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
     await user.click(await screen.findByRole("button", { name: "我的" }));
     const file = new File(["full-body"], "me.jpg", { type: "image/jpeg" });
     await user.upload(screen.getByLabelText("选择全身照生成像素形象"), file);

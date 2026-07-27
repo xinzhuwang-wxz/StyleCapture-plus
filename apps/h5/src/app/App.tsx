@@ -222,9 +222,7 @@ export function App() {
   const addMenuClose = useRef<HTMLButtonElement>(null);
   const wardrobeView = useRef<HTMLDivElement>(null);
   const restoredLookId = useRef(restoreSelectedLookId());
-  const [destination, setDestination] = useState<Destination>(() =>
-    restoredLookId.current ? "wardrobe" : "feed"
-  );
+  const [destination, setDestination] = useState<Destination>("wardrobe");
   const [feedRestoreTarget, setFeedRestoreTarget] =
     useState<FeedRestoreTarget | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);

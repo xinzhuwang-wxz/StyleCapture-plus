@@ -24,10 +24,10 @@ async function saveEvidence(page: import("@playwright/test").Page, name: string)
 }
 
 async function enterWardrobeFromCurrentFeed(page: import("@playwright/test").Page) {
-  await expect(page.locator('[aria-label="穿搭灵感 Feed"]')).toBeVisible({
-    timeout: 20_000
-  });
-  await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
+  const wardrobeHeading = page.getByRole("heading", { name: "我的数字衣橱" });
+  if (!(await wardrobeHeading.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
+  }
   await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
     timeout: 20_000
   });

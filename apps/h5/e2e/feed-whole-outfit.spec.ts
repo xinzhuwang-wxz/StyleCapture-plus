@@ -20,6 +20,13 @@ async function saveEvidence(page: Page, name: string) {
 
 async function openFeed(page: Page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  const feedEntry = page.getByRole("button", {
+    name: "刷灵感 Feed",
+    exact: true
+  });
+  if (await feedEntry.isVisible().catch(() => false)) {
+    await feedEntry.click();
+  }
   await expect(page.getByTestId("feed")).toBeVisible({
     timeout: 30_000
   });

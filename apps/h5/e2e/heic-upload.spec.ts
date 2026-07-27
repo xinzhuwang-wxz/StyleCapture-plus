@@ -10,8 +10,7 @@ test("accepts a real iPhone HEIC upload through the public wardrobe flow", async
   test.setTimeout(120_000);
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator('[aria-label="穿搭灵感 Feed"]')).toBeVisible();
-  await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible();
 
   const chooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "添加衣服或试试像素形象" }).click();

@@ -71,7 +71,7 @@ async function withNetworkTiming(
   await run(slowRequests);
 }
 
-async function openWardrobeFromFeed(
+async function openWardrobeHome(
   page: import("@playwright/test").Page,
   scenario = "open-wardrobe"
 ) {
@@ -79,29 +79,20 @@ async function openWardrobeFromFeed(
   const t0 = Date.now();
   await page.goto("/", { waitUntil: "domcontentloaded" });
   timings.domcontentloaded = Date.now() - t0;
-  await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible({
-    timeout: 20_000
-  });
-  timings.feedVisible = Date.now() - t0;
-  await expect(page.getByRole("button", { name: "暂停并圈选" }).first()).toBeVisible({
-    timeout: 20_000
-  });
-  const clickStarted = Date.now();
-  await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
   const skeleton = page.locator(".wardrobe-loading").first();
   const wardrobe = page.locator(".wardrobe-section");
   await Promise.race([
     skeleton.waitFor({ state: "visible", timeout: 3_000 }).catch(() => undefined),
     wardrobe.locator(".wardrobe-card").first().waitFor({ state: "visible", timeout: 3_000 }).catch(() => undefined)
   ]);
-  timings.wardrobeFirstFeedback = Date.now() - clickStarted;
+  timings.wardrobeFirstFeedback = Date.now() - t0;
   await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
     timeout: 20_000
   });
   await expect(wardrobe.locator(".wardrobe-card").first()).toBeVisible({
     timeout: 20_000
   });
-  timings.wardrobeInteractive = Date.now() - clickStarted;
+  timings.wardrobeInteractive = Date.now() - t0;
   return timings;
 }
 
@@ -111,19 +102,21 @@ test.describe("public mobile navigation", () => {
     page.setDefaultTimeout(20_000);
   });
 
-  test("opens the public feed and enters the wardrobe from the feed CTA", async ({
+  test("opens the public wardrobe and enters Feed from its CTA", async ({
     page
   }) => {
     await withNetworkTiming(page, async (slowRequests) => {
-      const timings = await openWardrobeFromFeed(page, "feed-to-wardrobe");
+      const timings = await openWardrobeHome(page, "wardrobe-to-feed");
 
       await expect(page.getByRole("tab", { name: "按穿搭" })).toBeVisible();
       await expect(page.getByRole("tab", { name: "按单品" })).toBeVisible();
       await expect(page.getByText("我的数字衣橱")).toBeVisible();
       await expect(page.locator(".wardrobe-section .wardrobe-card").first()).toBeVisible();
-      await expect(page.locator("body")).not.toContainText("暂停没有加载出来");
-      await captureLayoutMetric(page, "feed-to-wardrobe", timings, slowRequests);
-      await saveEvidence(page, "01-feed-to-wardrobe");
+      await page.getByRole("button", { name: "刷灵感 Feed", exact: true }).click();
+      await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "暂停并圈选" }).first()).toBeVisible();
+      await captureLayoutMetric(page, "wardrobe-to-feed", timings, slowRequests);
+      await saveEvidence(page, "01-wardrobe-to-feed");
     });
   });
 
@@ -132,27 +125,27 @@ test.describe("public mobile navigation", () => {
   }) => {
     await page.setViewportSize({ width: 1024, height: 844 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible({
-      timeout: 20_000
-    });
-
-    const feedScreen = await page.locator(".pixel-screen").boundingBox();
-    expect(feedScreen?.width).toBe(390);
-    await saveEvidence(page, "00-desktop-feed-canvas");
-
-    await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
     await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
       timeout: 20_000
     });
+
     const wardrobeScreen = await page.locator(".pixel-screen").boundingBox();
-    expect(wardrobeScreen).toEqual(feedScreen);
+    expect(wardrobeScreen?.width).toBe(390);
     await saveEvidence(page, "00-desktop-wardrobe-canvas");
+
+    await page.getByRole("button", { name: "刷灵感 Feed", exact: true }).click();
+    await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible({
+      timeout: 20_000
+    });
+    const feedScreen = await page.locator(".pixel-screen").boundingBox();
+    expect(feedScreen).toEqual(wardrobeScreen);
+    await saveEvidence(page, "00-desktop-feed-canvas");
   });
 
   test("shows seeded wardrobe looks and item cards without empty states", async ({
     page
   }) => {
-    await openWardrobeFromFeed(page, "wardrobe-seeded-assets");
+    await openWardrobeHome(page, "wardrobe-seeded-assets");
 
     await expect(page.locator(".wardrobe-section .wardrobe-card").first()).toBeVisible();
     await expect(page.getByText("Feed 穿搭灵感").first()).toBeVisible();
@@ -176,7 +169,7 @@ test.describe("public mobile navigation", () => {
   test("opens analysis and AI tabs with real Chinese product copy", async ({
     page
   }) => {
-    await openWardrobeFromFeed(page, "analysis-ai");
+    await openWardrobeHome(page, "analysis-ai");
 
     await page.getByRole("button", { name: "分析", exact: true }).click();
     await expect(page.getByRole("heading", { name: "穿搭分析" }).first()).toBeVisible();
@@ -194,7 +187,7 @@ test.describe("public mobile navigation", () => {
   });
 
   test("opens the add menu and profile try-it entry", async ({ page }) => {
-    await openWardrobeFromFeed(page, "add-profile");
+    await openWardrobeHome(page, "add-profile");
 
     await page
       .getByRole("button", { name: "添加衣服或试试像素形象" })
@@ -216,7 +209,7 @@ test.describe("public mobile navigation", () => {
   test("returns from wardrobe to the public feed without duplicate blank tabs", async ({
     page
   }) => {
-    await openWardrobeFromFeed(page, "return-feed");
+    await openWardrobeHome(page, "return-feed");
 
     await page.getByRole("button", { name: "刷灵感 Feed", exact: true }).click();
     await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible();
