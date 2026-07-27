@@ -326,7 +326,7 @@ export function FeedVideo({
       <div className="feed-video__rail">
         <button
           aria-label="暂停并圈选"
-          className="feed-video__circle-button"
+          className={`feed-video__circle-button${frame ? "" : " feed-video__circle-button--glow"}`}
           disabled={!active || !mediaReady || capturing || submitting}
           tabIndex={active ? 0 : -1}
           type="button"

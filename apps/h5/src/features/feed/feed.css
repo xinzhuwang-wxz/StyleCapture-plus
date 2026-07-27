@@ -352,6 +352,8 @@
 }
 
 .feed-video__circle-button {
+  position: relative;
+  isolation: isolate;
   display: grid;
   width: 4rem;
   min-height: 4.2rem;
@@ -364,8 +366,58 @@
     linear-gradient(145deg, rgb(118 87 255 / 92%), rgb(230 87 216 / 86%));
   box-shadow:
     0 0.8rem 2rem rgb(0 0 0 / 35%),
-    0 0 1.5rem rgb(147 105 238 / 34%);
+    0 0 1.5rem rgb(147 105 238 / 46%),
+    0 0 0 0.08rem rgb(244 219 255 / 20%);
   backdrop-filter: blur(12px);
+}
+
+.feed-video__circle-button--glow::before,
+.feed-video__circle-button--glow::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.feed-video__circle-button--glow::before {
+  inset: -0.4rem;
+  z-index: -1;
+  border-radius: 1.78rem;
+  background:
+    radial-gradient(circle, rgb(235 178 255 / 42%) 0 38%, rgb(117 224 255 / 20%) 54%, transparent 74%);
+  filter: blur(0.38rem);
+  animation: feed-circle-glow-breathe 2.1s ease-in-out infinite;
+}
+
+.feed-video__circle-button--glow::after {
+  top: -0.2rem;
+  left: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 76%);
+  box-shadow:
+    0 0 0.4rem rgb(255 255 255 / 54%),
+    0 0 0.78rem rgb(247 141 255 / 48%),
+    0 0 1.1rem rgb(107 222 255 / 36%);
+  transform-origin: 0 2.3rem;
+  animation: feed-circle-glow-orbit 2.5s linear infinite;
+}
+
+.feed-video__circle-button--glow > span,
+.feed-video__circle-button--glow > small {
+  position: relative;
+  z-index: 1;
+}
+
+.feed-video__circle-button--glow:focus-visible {
+  outline: 0.18rem solid rgb(255 255 255 / 92%);
+  outline-offset: 0.24rem;
+}
+
+.feed-video__circle-button--glow:disabled::before,
+.feed-video__circle-button--glow:disabled::after {
+  animation-play-state: paused;
+  opacity: 0.28;
 }
 
 .feed-video__circle-button:disabled {
@@ -381,6 +433,25 @@
 .feed-video__circle-button small {
   font-size: 0.7rem;
   font-weight: 800;
+}
+
+@keyframes feed-circle-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.46;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 0.78;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes feed-circle-glow-orbit {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .feed-state {
@@ -604,6 +675,11 @@
 
   .feed-lifted-selection {
     transform: none;
+  }
+
+  .feed-video__circle-button--glow::before,
+  .feed-video__circle-button--glow::after {
+    animation: none;
   }
 }
 
