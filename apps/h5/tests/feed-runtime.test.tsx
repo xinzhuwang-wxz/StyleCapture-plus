@@ -442,6 +442,7 @@ describe("Feed runtime", () => {
     const selectButton = screen.getAllByRole("button", {
       name: "暂停并圈选"
     })[0]!;
+    expect(selectButton).toHaveClass("feed-video__circle-button--glow");
     await waitFor(() => expect(selectButton).toBeEnabled());
     const pauseCount = pause.mock.calls.length;
     await act(async () => {
@@ -451,6 +452,9 @@ describe("Feed runtime", () => {
     expect(pause.mock.calls.length).toBeGreaterThan(pauseCount);
     await waitFor(() =>
       expect(frameCapture).toHaveBeenCalledWith(video, "look-01")
+    );
+    await waitFor(() =>
+      expect(selectButton).not.toHaveClass("feed-video__circle-button--glow")
     );
 
     await drawAndConfirm();
