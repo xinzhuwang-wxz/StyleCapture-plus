@@ -1,0 +1,28 @@
+{
+  "identifier" : "StyleCaptureJourney",
+  "nonRenewingSubscriptions" : [
+    {
+      "displayPrice" : "12.00",
+      "familyShareable" : false,
+      "internalID" : "journey_pack",
+      "localizations" : [
+        {
+          "description" : "Unlock Day 2-7, alternatives, packing list, gaps and weather revisions for one Journey.",
+          "displayName" : "Journey Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.stylecapture.journey.pack",
+      "referenceName" : "Journey Pack"
+    }
+  ],
+  "products" : [],
+  "settings" : {
+    "_applicationInternalID" : "com.stylecapture.journey"
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

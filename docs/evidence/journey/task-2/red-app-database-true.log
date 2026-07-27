@@ -1,0 +1,191 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj -scheme StyleCaptureJourney -destination "platform=iOS Simulator,name=iPhone 16" -derivedDataPath /tmp/sc-task2-red-derived.0wv6Q9 -clonedSourcePackagesDirPath /tmp/sc-task2-red-packages.Y2ZoZ3 -jobs 2 -parallel-testing-enabled NO "-only-testing:StyleCaptureJourneyTests/AppDatabaseTests" test
+
+Resolve Package Graph
+
+Fetching from https://github.com/kean/Nuke.git (cached)
+
+Fetching from https://github.com/apple/swift-openapi-generator.git (cached)
+
+Fetching from https://github.com/groue/GRDB.swift.git (cached)
+
+Fetching from https://github.com/apple/swift-openapi-runtime.git (cached)
+
+Fetching from https://github.com/pointfreeco/swift-composable-architecture.git (cached)
+
+Fetching from https://github.com/apple/swift-openapi-urlsession.git (cached)
+
+Fetching from https://github.com/apple/swift-collections (cached)
+
+Fetching from https://github.com/apple/swift-http-types (cached)
+
+Fetching from https://github.com/jpsim/Yams (cached)
+
+Fetching from https://github.com/apple/swift-algorithms (cached)
+
+Fetching from https://github.com/apple/swift-argument-parser (cached)
+
+Fetching from https://github.com/mattpolzin/OpenAPIKit (cached)
+
+Fetching from https://github.com/pointfreeco/swift-sharing (cached)
+
+Fetching from https://github.com/pointfreeco/swift-perception (cached)
+
+Fetching from https://github.com/pointfreeco/swift-dependencies (cached)
+
+Fetching from https://github.com/swiftlang/swift-syntax (cached)
+
+Fetching from https://github.com/pointfreeco/swift-navigation (cached)
+
+Fetching from https://github.com/pointfreeco/swift-identified-collections (cached)
+
+Fetching from https://github.com/pointfreeco/xctest-dynamic-overlay (cached)
+
+Fetching from https://github.com/pointfreeco/combine-schedulers (cached)
+
+Fetching from https://github.com/pointfreeco/swift-concurrency-extras (cached)
+
+Fetching from https://github.com/pointfreeco/swift-custom-dump (cached)
+
+Fetching from https://github.com/pointfreeco/swift-case-paths (cached)
+
+Fetching from https://github.com/pointfreeco/swift-clocks (cached)
+
+Fetching from https://github.com/apple/swift-numerics.git (cached)
+
+Creating working copy of package ‘swift-concurrency-extras’
+
+Checking out 1.4.1 of package ‘swift-concurrency-extras’
+
+Creating working copy of package ‘swift-dependencies’
+
+Checking out 1.14.1 of package ‘swift-dependencies’
+
+Creating working copy of package ‘swift-identified-collections’
+
+Checking out 1.1.1 of package ‘swift-identified-collections’
+
+Creating working copy of package ‘Yams’
+
+Checking out 6.2.2 of package ‘Yams’
+
+Creating working copy of package ‘xctest-dynamic-overlay’
+
+Checking out 1.11.0 of package ‘xctest-dynamic-overlay’
+
+Creating working copy of package ‘Nuke’
+
+Checking out 13.0.6 of package ‘Nuke’
+
+Creating working copy of package ‘swift-navigation’
+
+Checking out 2.10.3 of package ‘swift-navigation’
+
+Creating working copy of package ‘combine-schedulers’
+
+Checking out 1.2.0 of package ‘combine-schedulers’
+
+Creating working copy of package ‘swift-syntax’
+
+Checking out 603.0.2 of package ‘swift-syntax’
+
+Creating working copy of package ‘swift-case-paths’
+
+Checking out 1.9.1 of package ‘swift-case-paths’
+
+Creating working copy of package ‘OpenAPIKit’
+
+Checking out 6.2.0 of package ‘OpenAPIKit’
+
+Creating working copy of package ‘swift-custom-dump’
+
+Checking out 1.6.1 of package ‘swift-custom-dump’
+
+Creating working copy of package ‘swift-algorithms’
+
+Checking out 1.2.1 of package ‘swift-algorithms’
+
+Creating working copy of package ‘swift-openapi-generator’
+
+Checking out 1.13.0 of package ‘swift-openapi-generator’
+
+Creating working copy of package ‘swift-composable-architecture’
+
+Checking out 1.26.1 of package ‘swift-composable-architecture’
+
+Creating working copy of package ‘GRDB.swift’
+
+Checking out 7.11.1 of package ‘GRDB.swift’
+
+Creating working copy of package ‘swift-numerics’
+
+Checking out 1.1.1 of package ‘swift-numerics’
+
+Creating working copy of package ‘swift-openapi-runtime’
+
+Checking out 1.11.0 of package ‘swift-openapi-runtime’
+
+Creating working copy of package ‘swift-http-types’
+
+Checking out 1.6.0 of package ‘swift-http-types’
+
+Creating working copy of package ‘swift-openapi-urlsession’
+
+Checking out 1.1.0 of package ‘swift-openapi-urlsession’
+
+Creating working copy of package ‘swift-argument-parser’
+
+Checking out 1.8.2 of package ‘swift-argument-parser’
+
+Creating working copy of package ‘swift-sharing’
+
+Checking out 2.9.1 of package ‘swift-sharing’
+
+Creating working copy of package ‘swift-collections’
+
+Checking out 1.6.0 of package ‘swift-collections’
+
+Creating working copy of package ‘swift-perception’
+
+Checking out 2.0.11 of package ‘swift-perception’
+
+Creating working copy of package ‘swift-clocks’
+
+Checking out 1.1.0 of package ‘swift-clocks’
+
+
+Resolved source packages:
+  swift-collections: https://github.com/apple/swift-collections @ 1.6.0
+  swift-perception: https://github.com/pointfreeco/swift-perception @ 2.0.11
+  swift-identified-collections: https://github.com/pointfreeco/swift-identified-collections @ 1.1.1
+  swift-openapi-runtime: https://github.com/apple/swift-openapi-runtime.git @ 1.11.0
+  GRDB: https://github.com/groue/GRDB.swift.git @ 7.11.1
+  swift-openapi-generator: https://github.com/apple/swift-openapi-generator.git @ 1.13.0
+  swift-http-types: https://github.com/apple/swift-http-types @ 1.6.0
+  swift-numerics: https://github.com/apple/swift-numerics.git @ 1.1.1
+  Yams: https://github.com/jpsim/Yams @ 6.2.2
+  swift-syntax: https://github.com/swiftlang/swift-syntax @ 603.0.2
+  swift-navigation: https://github.com/pointfreeco/swift-navigation @ 2.10.3
+  combine-schedulers: https://github.com/pointfreeco/combine-schedulers @ 1.2.0
+  swift-openapi-urlsession: https://github.com/apple/swift-openapi-urlsession.git @ 1.1.0
+  xctest-dynamic-overlay: https://github.com/pointfreeco/xctest-dynamic-overlay @ 1.11.0
+  swift-clocks: https://github.com/pointfreeco/swift-clocks @ 1.1.0
+  swift-custom-dump: https://github.com/pointfreeco/swift-custom-dump @ 1.6.1
+  swift-concurrency-extras: https://github.com/pointfreeco/swift-concurrency-extras @ 1.4.1
+  Nuke: https://github.com/kean/Nuke.git @ 13.0.6
+  OpenAPIKit: https://github.com/mattpolzin/OpenAPIKit @ 6.2.0
+  swift-algorithms: https://github.com/apple/swift-algorithms @ 1.2.1
+  swift-argument-parser: https://github.com/apple/swift-argument-parser @ 1.8.2
+  swift-composable-architecture: https://github.com/pointfreeco/swift-composable-architecture.git @ 1.26.1
+  swift-case-paths: https://github.com/pointfreeco/swift-case-paths @ 1.9.1
+  swift-sharing: https://github.com/pointfreeco/swift-sharing @ 2.9.1
+  swift-dependencies: https://github.com/pointfreeco/swift-dependencies @ 1.14.1
+
+2026-07-28 07:16:52.588 xcodebuild[85785:4140786] Writing error result bundle to /var/folders/s8/1wm20hwn3dzc1fs34qk50qjr0000gn/T/ResultBundle_2026-28-07_07-16-0052.xcresult
+xcodebuild: error: Unable to find a device matching the provided destination specifier:
+		{ platform:iOS Simulator, OS:latest, name:iPhone 16 }
+
+	The requested device could not be found because no available devices matched the request.
+
+	Ineligible destinations for the "StyleCaptureJourney" scheme:
+		{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device, error:iOS 26.5 is not installed. Please download and install the platform from Xcode > Settings > Components. }

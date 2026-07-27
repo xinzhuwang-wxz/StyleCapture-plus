@@ -128,10 +128,10 @@ def test_validate_recomputes_m0_thresholds_from_deidentified_records(tmp_path: P
                 offer_outcome="paid" if index < 5 else "declined",
                 payment_evidence="verified_deposit" if index < 5 else "none",
                 offer_evidence_ref=f"payment/deposit-hash-{index:03d}" if index < 5 else None,
-                execution_outcome=(
-                    "planned_main_or_alternative" if index < 8 else "non_response"
-                ),
-                post_trip_evidence_ref=f"post-trip/adoption-hash-{index:03d}" if index < 8 else None,
+                execution_outcome=("planned_main_or_alternative" if index < 8 else "non_response"),
+                post_trip_evidence_ref=f"post-trip/adoption-hash-{index:03d}"
+                if index < 8
+                else None,
             )
         )
     payload = tmp_path / "m0.json"
@@ -450,9 +450,7 @@ def test_validate_rejects_recruiting_channel_cap_overage(tmp_path: Path) -> None
             pain_score=8,
             complete_plan=False,
             source_bucket=(
-                "natural_search_public_intent"
-                if index < 11
-                else "approved_women_travel_group"
+                "natural_search_public_intent" if index < 11 else "approved_women_travel_group"
             ),
         )
         for index in range(20)

@@ -32,6 +32,22 @@ FEATURE_ROOT_LAYERS = {
     "processing.py": "application",
     "taxonomy.py": "domain",
 }
+IOS_FORBIDDEN_SHELL_NAMES = (
+    "AppRouter",
+    "AppEnvironment",
+    "ViewModel",
+    "DIContainer",
+    "EffectRunner",
+    "OutboxScheduler",
+)
+IOS_FEATURE_FORBIDDEN_IMPORTS = frozenset(
+    {
+        "GRDB",
+        "Nuke",
+        "StoreKit",
+        "StyleCaptureAPI",
+    }
+)
 
 
 def imported_roots(tree: ast.AST) -> Iterable[str]:
@@ -126,6 +142,58 @@ def check(target: Path) -> list[str]:
     return violations
 
 
+def imported_swift_modules(source: str) -> Iterable[str]:
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@testable import "):
+            yield stripped.removeprefix("@testable import ").split()[0]
+        elif stripped.startswith("import "):
+            yield stripped.removeprefix("import ").split()[0]
+
+
+def check_ios_boundaries(repository_root: Path) -> list[str]:
+    app_root = repository_root / "apps" / "ios" / "StyleCaptureJourney"
+    if not app_root.exists():
+        return []
+    violations: list[str] = []
+    for path in sorted(app_root.rglob("*.swift")):
+        relative = path.relative_to(repository_root)
+        source = path.read_text(encoding="utf-8")
+        stem = path.stem
+        if any(forbidden in stem for forbidden in IOS_FORBIDDEN_SHELL_NAMES):
+            violations.append(f"{relative.as_posix()} uses forbidden iOS shell naming")
+        modules = set(imported_swift_modules(source))
+        in_feature = "Features" in path.parts
+        in_core_api = "Core" in path.parts and "API" in path.parts
+        in_tests = path.parts[-2].endswith("Tests")
+        if in_feature:
+            for module in sorted(modules & IOS_FEATURE_FORBIDDEN_IMPORTS):
+                violations.append(
+                    f"{relative.as_posix()} imports forbidden feature-boundary module {module}"
+                )
+        if "StyleCaptureAPI" in modules and not (in_core_api or in_tests):
+            violations.append(
+                f"{relative.as_posix()} imports StyleCaptureAPI outside Core/API adapter or tests"
+            )
+        if "Features" in path.parts:
+            feature_index = path.parts.index("Features")
+            if len(path.parts) > feature_index + 1:
+                feature = path.parts[feature_index + 1]
+                for other in (
+                    "Onboarding",
+                    "Wardrobe",
+                    "Packing",
+                    "Paywall",
+                    "PixelJournal",
+                    "Settings",
+                ):
+                    if other != feature and f"Features/{other}" in source:
+                        violations.append(
+                            f"{relative.as_posix()} references another feature internals: {other}"
+                        )
+    return violations
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print("usage: check_boundaries.py <python-source-root>")
@@ -135,6 +203,10 @@ def main(argv: list[str]) -> int:
         print(f"source root does not exist: {target}")
         return 2
     violations = check(target)
+    repository_root = target
+    while repository_root.parent != repository_root and not (repository_root / ".git").exists():
+        repository_root = repository_root.parent
+    violations.extend(check_ios_boundaries(repository_root))
     if violations:
         print("\n".join(violations))
         return 1

@@ -1,0 +1,3 @@
+Root cause: swift-openapi-generator 1.13.0 Package.swift declares swift-openapi-runtime from 1.11.0 with traits: []; swift-openapi-runtime 1.9.0 declares no traits; Swift 6.3 rejects disabling default traits on a package with no traits.
+Correction: keep generator 1.13.0; pin swift-openapi-runtime exactVersion 1.11.0; keep swift-openapi-urlsession 1.1.0.
+Evidence: local checked-out generator manifest and upstream runtime 1.11.0 manifest inspected on 2026-07-28.

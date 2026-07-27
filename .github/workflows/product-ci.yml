@@ -1,6 +1,7 @@
 name: product-ci
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -66,3 +67,42 @@ jobs:
         run: |
           docker compose config --quiet
           docker build -f services/backend/Dockerfile -t stylecapture-backend:test .
+
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      - name: Install pinned XcodeGen
+        run: |
+          brew install xcodegen || brew upgrade xcodegen
+          test "$(xcodegen --version | awk '{print $NF}')" = "2.46.0"
+
+      - name: Bootstrap generated iOS project
+        run: bash scripts/bootstrap_ios.sh --check
+
+      - name: Verify iOS OpenAPI build-plugin inputs
+        run: |
+          uv sync --all-packages
+          uv run python scripts/export_openapi.py --output apps/h5/openapi.json --output apps/ios/StyleCaptureJourney/OpenAPI/openapi.json --check
+          bash scripts/generate_ios_openapi_client.sh --check
+
+      - name: Test iOS foundation
+        run: |
+          xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj \
+            -scheme StyleCaptureJourney \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -parallel-testing-enabled NO \
+            -jobs 2 \
+            test
+          bash scripts/bootstrap_ios.sh --check-package-resolved
+
+      - name: Inspect iOS privacy manifest and boundaries
+        run: |
+          test -f apps/ios/StyleCaptureJourney/StyleCaptureJourney/Resources/PrivacyInfo.xcprivacy
+          uv run python scripts/check_boundaries.py services/backend/src

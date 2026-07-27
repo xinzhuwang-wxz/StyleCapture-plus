@@ -110,9 +110,13 @@ def _validate_record(record: Mapping[str, Any], *, frozen_date: date) -> None:
     has_pain_score = "pain_score" in record
     pain_score = record.get("pain_score")
     if record["pain_question_completed"] and pain_score is None:
-        raise ValidationFailure(f"{participant_id}: pain_score is required when pain question is completed")
+        raise ValidationFailure(
+            f"{participant_id}: pain_score is required when pain question is completed"
+        )
     if not record["pain_question_completed"] and has_pain_score and pain_score is not None:
-        raise ValidationFailure(f"{participant_id}: pain_score must be null when pain question is skipped")
+        raise ValidationFailure(
+            f"{participant_id}: pain_score must be null when pain question is skipped"
+        )
 
     trip_start = _parse_date(record["trip_start"], field="trip_start")
     trip_end = _parse_date(record["trip_end"], field="trip_end")
@@ -144,9 +148,13 @@ def _validate_record(record: Mapping[str, Any], *, frozen_date: date) -> None:
         if plan["selected_garments_count"] < 8:
             raise ValidationFailure(f"{participant_id}: complete plan needs at least 8 garments")
         if plan["day_activity_looks_count"] < record["trip_days"]:
-            raise ValidationFailure(f"{participant_id}: complete plan needs a look for every trip day")
+            raise ValidationFailure(
+                f"{participant_id}: complete plan needs a look for every trip day"
+            )
         if plan["alternatives_count"] < record["trip_days"]:
-            raise ValidationFailure(f"{participant_id}: complete plan needs an alternative for every trip day")
+            raise ValidationFailure(
+                f"{participant_id}: complete plan needs an alternative for every trip day"
+            )
 
     offer = record["offer"]
     if offer["real_payment_evidence"] in REAL_PAYMENT_EVIDENCE and not offer.get("evidence_ref"):
@@ -165,9 +173,13 @@ def _validate_record(record: Mapping[str, Any], *, frozen_date: date) -> None:
         raise ValidationFailure(f"{participant_id}: maturity_reached contradicts frozen_at cutoff")
     execution_outcome = post_trip["execution_outcome"]
     if derived_mature and execution_outcome == "not_mature":
-        raise ValidationFailure(f"{participant_id}: execution_outcome cannot be not_mature after cutoff")
+        raise ValidationFailure(
+            f"{participant_id}: execution_outcome cannot be not_mature after cutoff"
+        )
     if not derived_mature and execution_outcome != "not_mature":
-        raise ValidationFailure(f"{participant_id}: execution_outcome must be not_mature before cutoff")
+        raise ValidationFailure(
+            f"{participant_id}: execution_outcome must be not_mature before cutoff"
+        )
     if execution_outcome in EXECUTED_OUTCOMES and not post_trip.get("evidence_ref"):
         raise ValidationFailure(
             f"{participant_id}: post_trip.evidence_ref is required for successful execution outcome"
@@ -180,7 +192,9 @@ def _rate(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 6)
 
 
-def _metric(numerator: int, denominator: int, *, min_denominator: int, min_rate: float) -> dict[str, Any]:
+def _metric(
+    numerator: int, denominator: int, *, min_denominator: int, min_rate: float
+) -> dict[str, Any]:
     rate = _rate(numerator, denominator)
     return {
         "numerator": numerator,
@@ -205,7 +219,9 @@ def _rate_metric(count: int, denominator: int, limit: float) -> dict[str, Any]:
 def _channel_mix(qualified_records: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
     denominator = len(qualified_records)
     mix: dict[str, dict[str, Any]] = {}
-    professional_creator_count = sum(1 for record in qualified_records if record["professional_creator"])
+    professional_creator_count = sum(
+        1 for record in qualified_records if record["professional_creator"]
+    )
     mix["professional_creator"] = _rate_metric(
         professional_creator_count,
         denominator,
@@ -235,9 +251,7 @@ def recompute(payload: Mapping[str, Any]) -> dict[str, Any]:
     channel_mix = _channel_mix(qualified_records)
 
     pain_denominator = sum(
-        1
-        for record in records
-        if record["qualified_icp"] and record["pain_question_completed"]
+        1 for record in records if record["qualified_icp"] and record["pain_question_completed"]
     )
     pain_numerator = sum(
         1
@@ -249,7 +263,9 @@ def recompute(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
 
     plan_recipients = [
-        record for record in records if record["qualified_icp"] and record["complete_plan_delivered"]
+        record
+        for record in records
+        if record["qualified_icp"] and record["complete_plan_delivered"]
     ]
     real_paid = [
         record

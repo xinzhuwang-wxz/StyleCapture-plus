@@ -1,0 +1,6 @@
+StyleCaptureJourney.xcodeproj/
+DerivedData/
+.swiftpm/
+build/
+DerivedSources/
+xcresult/

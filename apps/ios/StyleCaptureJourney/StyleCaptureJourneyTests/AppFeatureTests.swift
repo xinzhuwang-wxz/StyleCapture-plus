@@ -1,0 +1,103 @@
+import ComposableArchitecture
+import XCTest
+@testable import StyleCaptureJourney
+
+@MainActor
+final class AppFeatureTests: XCTestCase {
+    func testLaunchMigratesDatabaseAndMarksAppReady() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.databaseClient = DatabaseClient(
+                migrate: {},
+                insertOutbox: { _ in },
+                pendingOutbox: { [] }
+            )
+            $0.navigationSnapshotClient = NavigationSnapshotClient(
+                load: { nil },
+                save: { _ in }
+            )
+        }
+
+        await store.send(.launch)
+        await store.receive(.launchResponse(.success(nil))) {
+            $0.hasMigratedDatabase = true
+        }
+    }
+
+    func testEmptyJourneyNavigationRestoresFromSnapshot() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+
+        await store.send(.restoreNavigation(.init(selectedTab: "journey", journeyID: "journey-42"))) {
+            $0.selectedTab = .journey
+            $0.restoredJourneyID = "journey-42"
+        }
+        await store.receive(.navigationPersisted(.success(())))
+    }
+
+    func testDeepLinkSelectsJourneyWithoutCustomRouter() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+
+        await store.send(.deepLink(URL(string: "stylecapture://journey/journey-43")!)) {
+            $0.selectedTab = .journey
+            $0.restoredJourneyID = "journey-43"
+        }
+        await store.receive(.navigationPersisted(.success(())))
+    }
+
+    func testDeepLinkNavigationPersistsAndRestoresAfterRelaunch() async {
+        let persistence = NavigationSnapshotPersistence()
+        let dependencies: (inout DependencyValues) -> Void = {
+            $0.databaseClient = DatabaseClient(
+                migrate: {},
+                insertOutbox: { _ in },
+                pendingOutbox: { [] }
+            )
+            $0.navigationSnapshotClient = NavigationSnapshotClient(
+                load: { await persistence.load() },
+                save: { await persistence.save($0) }
+            )
+        }
+
+        let firstStore = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: dependencies
+
+        await firstStore.send(.deepLink(URL(string: "stylecapture://journey/journey-44")!)) {
+            $0.selectedTab = .journey
+            $0.restoredJourneyID = "journey-44"
+        }
+        await firstStore.receive(.navigationPersisted(.success(())))
+
+        let secondStore = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: dependencies
+
+        await secondStore.send(.launch)
+        await secondStore.receive(
+            .launchResponse(
+                .success(.init(selectedTab: "journey", journeyID: "journey-44"))
+            )
+        ) {
+            $0.hasMigratedDatabase = true
+            $0.selectedTab = .journey
+            $0.restoredJourneyID = "journey-44"
+        }
+    }
+}
+
+private actor NavigationSnapshotPersistence {
+    private var snapshot: NavigationSnapshot?
+
+    func load() -> NavigationSnapshot? {
+        snapshot
+    }
+
+    func save(_ snapshot: NavigationSnapshot) {
+        self.snapshot = snapshot
+    }
+}

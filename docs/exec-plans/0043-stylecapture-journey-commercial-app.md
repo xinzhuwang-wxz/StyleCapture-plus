@@ -255,6 +255,8 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - [x] Commit and push the reviewed planning baseline (`5bac2ff`).
 - [x] Add the local M0 research operating surface: neutral interview script, concierge template, de-identified schema, raw-data Git exclusions, decision log, and deterministic recomputation validator.
 - [x] Capture behavior-first RED/GREEN evidence for M0 schema/recompute validation.
+- [ ] Task 2 iOS foundation: source/config slice implemented locally with XcodeGen 2.46.0 bootstrap, TCA app/Journey shell, dependency clients, GRDB outbox, OpenAPI export inputs, privacy/localization/StoreKit manifests, CI wiring and boundary checks. xcodebuild behavior verification is blocked on this host because no iOS simulator runtime or available simulator device is installed.
+- [ ] Pre-M2 TCA 2.0 audit: before expanding Journey feature behavior, re-check TCA 2.0 migration/deprecation guidance against the current 1.26.1 pin and decide whether the P0 branch stays pinned or performs a dedicated migration slice.
 - [ ] Collect real M0 recruitment, payments/deposits, complete plans, refunds, post-trip follow-up, and maturity evidence outside Git.
 - [ ] Record a real `GO`, `PIVOT`, or `STOP` in `docs/research/journey-validation/decision-log.md` only after at least 15 plan recipients reach `trip_end+7d`.
 
@@ -271,10 +273,12 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - Current FASHN default would send person photos overseas and FastFit is non-commercial. Removing P0 try-on improves both compliance and margin without weakening the paid Journey job.
 - StoreKit official client/server libraries cover the first launch; RevenueCat is not necessary until cross-platform or remote-paywall operations become real bottlenecks.
 - TCA `1.26.1` is the approved mature iOS app shell. Task 2 must prove AppFeature/AppView, feature reducers, dependency clients, cancellation, navigation restoration and TestStore ergonomics before broad feature work; do not resurrect custom Router/Environment/ViewModel architecture.
+- SwiftPM resolution under Xcode 26.5 / Swift 6.3 rejects `swift-openapi-generator` 1.13.0 when `swift-openapi-runtime` is forced to 1.9.0 because generator 1.13.0 disables runtime default traits and runtime 1.9.0 predates trait declarations. Official manifests show generator 1.13.0 requires runtime from 1.11.0 with `traits: []`, and runtime 1.11.0 introduces the `FullFoundation` default trait. Task 2 corrects only the runtime exact pin to 1.11.0 and keeps URLSession transport at 1.1.0 pending throttled xcodebuild verification.
 - Fresh baseline verification exposed one pre-existing H5 test that synchronously asserted content hidden behind an asynchronous wardrobe load. The test now waits for the observable card before checking terminal removal; production behavior was unchanged and all 239 JavaScript/Skill plus 301 Python tests pass.
 
 ## Decision Log
 
+- 2026-07-28: Correct the iOS OpenAPI runtime exact pin from 1.9.0 to 1.11.0 for SwiftPM traits compatibility with Apple Swift OpenAPI Generator 1.13.0. This preserves the required generator 1.13.0 pin and exact dependency policy without broadening to ranges or branches.
 - 2026-07-28: Product-owner correction: M0 repository infrastructure is implemented locally and the market decision remains `BLOCKED_FOR_REAL_EVIDENCE`, but Task 2 native iOS work is admissible for local development, Apple sandbox, staging, and TestFlight technical verification. Real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, and `trip_end+7d` execution evidence remain mandatory before any M0 `GO`/`PIVOT`/`STOP`, production commercialization, scale, or aggregate-completion claim.
 - 2026-07-28: Record external execution readiness separately from product validation. Missing authorized account, legal-subject/contact, merchant/refund, reserve and controlled-data-store evidence prevents safe recruitment or deposit collection; it is not a failed product experiment and does not authorize `PIVOT` or `STOP`.
 - 2026-07-28: Adopt TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` as the mature app shell and reject custom Router/Environment/ViewModel infrastructure; SwiftUI/Observation remain rendering/lifecycle only.
