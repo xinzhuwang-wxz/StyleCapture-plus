@@ -250,7 +250,10 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - [x] Draft PRD, technical design, ADR, research/reuse audit and this ExecPlan.
 - [x] Complete independent product, architecture, iOS, privacy/security and adversarial plan review; resolve all P0/P1.
 - [x] Commit and push the reviewed planning baseline (`5bac2ff`).
-- [ ] Start the aggregate Goal and create milestone Issues only after the user invokes the launch prompt.
+- [x] Add the local M0 research operating surface: neutral interview script, concierge template, de-identified schema, raw-data Git exclusions, decision log, and deterministic recomputation validator.
+- [x] Capture behavior-first RED/GREEN evidence for M0 schema/recompute validation.
+- [ ] Collect real M0 recruitment, payments/deposits, complete plans, refunds, post-trip follow-up, and maturity evidence outside Git.
+- [ ] Record a real `GO`, `PIVOT`, or `STOP` in `docs/research/journey-validation/decision-log.md` only after at least 15 plan recipients reach `trip_end+7d`.
 
 ## Surprises & discoveries
 
@@ -258,6 +261,12 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - Existing backend assets are substantially more reusable than the H5: Item/Look, capture, outfit constraints, render lifecycle, ownership, jobs, LiteLLM and cost guards form a credible product core.
 - The current anonymous 30-day HMAC cookie cannot provide commercial revocation or account deletion; it must not be reused as the native account contract.
 - Current H5 stores person photos/body data in `localStorage`; native storage must not copy that design.
+- M0 needs a local repository-side operating surface before native iOS work. The implemented surface validates only de-identified aggregate records; it intentionally does not fabricate cohort, payment, refund, or maturity evidence.
+- China-market operating controls tighten M0 collection: recruit toward 30 to preserve a mature denominator, cap natural search at <=50%, approved women/travel groups at <=35%, second-degree referrals at <=25%, and professional creators at <=20%; exclude bounties, volume-paid group owners, information-feed ads, positive-feedback rewards, and completion cash rewards.
+
+## Decision Log
+
+- 2026-07-28: M0 repository infrastructure is implemented locally, but the product decision remains `BLOCKED_FOR_REAL_EVIDENCE`. Task 2 native iOS work is still gated because no real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, or `trip_end+7d` execution evidence exists.
 - Current FASHN default would send person photos overseas and FastFit is non-commercial. Removing P0 try-on improves both compliance and margin without weakening the paid Journey job.
 - StoreKit official client/server libraries cover the first launch; RevenueCat is not necessary until cross-platform or remote-paywall operations become real bottlenecks.
 - Fresh baseline verification exposed one pre-existing H5 test that synchronously asserted content hidden behind an asynchronous wardrobe load. The test now waits for the observable card before checking terminal removal; production behavior was unchanged and all 239 JavaScript/Skill plus 301 Python tests pass.

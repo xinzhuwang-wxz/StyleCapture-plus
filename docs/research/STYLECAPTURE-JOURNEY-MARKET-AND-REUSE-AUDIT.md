@@ -121,3 +121,21 @@ StyleCapture 不应把原抖音 Feed 做成独立 App，也不应与现有“AI 
 满足任一条件就 Kill 当前旅行楔子并停止扩量：两轮各至少 100 个生产 `eligible_paywall` 且质量门通过后，合并首次付费转化仍 <3%；至少 50 个成熟付费锁定 Journey 的 confirmed-worn VSS <30%；至少 100 个付费 Journey 且完成一次成本优化后毛利仍 <40%；或至少 20 个流失访谈中 ≥60% 的首要原因是“结果没有货币价值”。Iterate 使用不重叠半开区间：`3% ≤ conversion <8%`、`30% ≤ confirmed VSS <55%`、`10% ≤ 60d repeat <25%`、`40% ≤ gross margin <65%`。Kill 的是旅行楔子，不是现有衣橱资产层。
 
 指标公式、排除项与事件字段以 `docs/product/STYLECAPTURE-JOURNEY-PRD.md` 第 4–5 节为唯一真源。App Store Product Page Optimization 只优化达到生产 paid VSS 的获客成本和质量，不能用下载量替代付费结果。
+
+## 8. M0 调研运营控制
+
+仓库内 M0 运营面位于 `docs/research/journey-validation/`，只保存访谈脚本、concierge 模板、决策日志、脱敏指标 schema、原始材料 `.gitignore` 与可复算校验命令；真实联系方式、照片、录音、转写、支付截图、退款记录和导出文件不得进入 Git。
+
+为保留至少 15 名达到 `trip_end+7d` 的成熟 plan recipients，实际招募目标按 30 人执行，而不是用刚好 20 人作为运营目标。渠道构成单独报告并执行上限：自然搜索/公开意图发现 ≤50%，经批准的女性/旅行群 ≤35%，二度转介绍 ≤25%，职业创作者 ≤20%。禁止转介绍赏金、按量付费群主、信息流广告、正反馈奖励和完成现金奖励；需要补偿研究劳动时，只能使用与正反馈、付款或执行结果无关的固定劳务费。
+
+资格确认必须包含：7-30 天内确认出发、3-7 天过夜旅行、至少 8 件本次自有衣物且推荐 12-30 件、低敏证明可出示并在姓名/订单/证件/精确住宿/联系方式打码后删除。团队成员、直系亲属、历史 pro 试用者、重复主体、非目标行程和无法提供证明者排除；旅行取消者退款并记录，不用另一个场景替换。
+
+所有 complete-plan recipients 只收到一个完全相同的 ¥12 可退款订金 offer，权益与退款条款一致。支付和退款原始证据与研究指标分离保存，不使用个人收款码，不作为 iOS 外部付款链接，也不计入 App Store 产品权益。`real_paid` 只接受真实支付或可退款订金；意愿、口头承诺、等价承诺、创作者置换和群主渠道准入都不计入 numerator。
+
+复算路径复用仓库已锁定的 Python `jsonschema` 运行时：
+
+```bash
+uv run python scripts/journey_validation_metrics.py validate path/to/m0-aggregate.json
+```
+
+该命令校验 `docs/research/journey-validation/metrics.schema.json`、扫描明显联系方式、拒绝单日/非旅行 cohort、强制唯一 CNY 12 offer，并重新计算 `pain_rate`、`real_paid_rate`、`execution_rate` 与实际 maturity cutoff。当前仓库尚无真实 cohort、支付或成熟后执行证据，因此不得记录 `GO` 或启动 Task 2。

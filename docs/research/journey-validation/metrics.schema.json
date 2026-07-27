@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stylecapture.example/research/journey-validation/metrics.schema.json",
+  "title": "StyleCapture Journey M0 De-identified Metrics",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "cohort_id", "frozen_at", "records"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "cohort_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,80}$"
+    },
+    "frozen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participant_id",
+        "recruiting_source",
+        "qualified_icp",
+        "trip_template",
+        "trip_start",
+        "trip_end",
+        "trip_days",
+        "trip_within_30_days",
+        "pain_question_completed",
+        "pain_score",
+        "current_workaround",
+        "cost_of_failure",
+        "evidence_of_action",
+        "wardrobe_import_tolerance",
+        "complete_plan_delivered",
+        "offer",
+        "pixel_world_primed",
+        "plan",
+        "post_trip",
+        "exclusions"
+      ],
+      "properties": {
+        "participant_id": {
+          "type": "string",
+          "pattern": "^m0-[a-z0-9][a-z0-9._-]{2,64}$"
+        },
+        "recruiting_source": {
+          "enum": [
+            "xiaohongshu_dm",
+            "douyin_dm",
+            "wechat_group",
+            "friend_referral",
+            "offline_intercept",
+            "other"
+          ]
+        },
+        "qualified_icp": { "type": "boolean" },
+        "trip_template": { "const": "travel_3_7_day" },
+        "trip_start": { "type": "string", "format": "date" },
+        "trip_end": { "type": "string", "format": "date" },
+        "trip_days": { "type": "integer" },
+        "trip_within_30_days": { "type": "boolean" },
+        "pain_question_completed": { "type": "boolean" },
+        "pain_score": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "current_workaround": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "cost_of_failure": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "evidence_of_action": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "saved_inspiration",
+              "started_packing_list",
+              "asked_friend_or_stylist",
+              "bought_or_returned_item",
+              "checked_weather_or_itinerary",
+              "made_outfit_notes",
+              "other"
+            ]
+          }
+        },
+        "wardrobe_import_tolerance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["accepted_minimum_slot_coverage", "accepted_item_count"],
+          "properties": {
+            "accepted_minimum_slot_coverage": { "type": "boolean" },
+            "accepted_item_count": { "type": "integer", "minimum": 0, "maximum": 30 }
+          }
+        },
+        "complete_plan_delivered": { "type": "boolean" },
+        "offer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shown",
+            "amount_cny",
+            "currency",
+            "outcome",
+            "real_payment_evidence"
+          ],
+          "properties": {
+            "shown": { "type": "boolean" },
+            "amount_cny": { "type": "integer" },
+            "currency": { "const": "CNY" },
+            "outcome": { "enum": ["paid", "declined", "refunded"] },
+            "real_payment_evidence": {
+              "enum": ["verified_payment", "verified_deposit", "oral_promise", "none"]
+            },
+            "evidence_ref": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._/-]{2,120}$"
+            }
+          }
+        },
+        "pixel_world_primed": { "type": "boolean" },
+        "plan": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "constraints_confirmed",
+            "selected_garments_count",
+            "day_activity_looks_count",
+            "alternatives_count",
+            "packing_deduplicated",
+            "gaps_recorded",
+            "user_corrections_recorded",
+            "post_trip_outcome_recorded"
+          ],
+          "properties": {
+            "constraints_confirmed": { "type": "boolean" },
+            "selected_garments_count": { "type": "integer", "minimum": 0, "maximum": 30 },
+            "day_activity_looks_count": { "type": "integer", "minimum": 0 },
+            "alternatives_count": { "type": "integer", "minimum": 0 },
+            "packing_deduplicated": { "type": "boolean" },
+            "gaps_recorded": { "type": "boolean" },
+            "user_corrections_recorded": { "type": "boolean" },
+            "post_trip_outcome_recorded": { "type": "boolean" }
+          }
+        },
+        "post_trip": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maturity_reached",
+            "trip_end_plus_7",
+            "followed_up",
+            "execution_outcome"
+          ],
+          "properties": {
+            "maturity_reached": { "type": "boolean" },
+            "trip_end_plus_7": { "type": "string", "format": "date" },
+            "followed_up": { "type": "boolean" },
+            "execution_outcome": {
+              "enum": [
+                "planned_main_or_alternative",
+                "hard_constraint_preserving_replacement",
+                "not_executed",
+                "non_response",
+                "not_mature"
+              ]
+            }
+          }
+        },
+        "exclusions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "duplicate_subject",
+              "employee_or_test",
+              "not_icp",
+              "trip_not_within_30_days",
+              "not_travel_3_7_day",
+              "incomplete_pain_question",
+              "no_complete_plan",
+              "not_mature"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
