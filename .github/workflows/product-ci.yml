@@ -99,6 +99,8 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -parallel-testing-enabled NO \
             -jobs 2 \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             test
           bash scripts/bootstrap_ios.sh --check-package-resolved
 
