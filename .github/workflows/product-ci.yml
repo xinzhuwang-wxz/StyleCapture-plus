@@ -96,7 +96,7 @@ jobs:
         run: |
           xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj \
             -scheme StyleCaptureJourney \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -parallel-testing-enabled NO \
             -jobs 2 \
             test

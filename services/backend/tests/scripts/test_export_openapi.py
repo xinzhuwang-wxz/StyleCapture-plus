@@ -7,7 +7,6 @@ from types import ModuleType
 
 import pytest
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = REPOSITORY_ROOT / "scripts" / "export_openapi.py"
 
