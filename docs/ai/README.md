@@ -49,3 +49,15 @@ Provider 进入真实链路。测试分两档：
 文件有效性、主体数量、服装保真、自我一致性、视觉 rubric，并继续由真实移动端截图
 和人工视觉审查兜底。
 
+## Proposed standalone distribution exception
+
+[`doubao-virtual-try-on`](../../skills/doubao-virtual-try-on/) is a proposed,
+provider-bound Codex artifact for installation outside the StyleCapture product
+runtime. It accepts local person/outfit images and calls the user-selected Ark
+models directly so the package can be shared without deploying the Product API.
+
+This is not a Product API facade and is not used by H5, backend, Worker, or
+production render flows. Those paths remain governed by ADR-0005 and the
+`look.virtual_try_on` capability above. The narrow exception, security boundary,
+and migration condition are reviewable in
+[ADR-0006](../adr/0006-standalone-provider-bound-codex-skill.md).
