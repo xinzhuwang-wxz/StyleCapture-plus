@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 PIXEL_COVER_CAPABILITY_ID = "look.pixel_cover"
+PIXEL_COVER_OUTPUT_SIZE = "1728x2304"
 PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v4"
 PIXEL_COVER_SCHEMA_VERSION = "generated-image-v1"
 
@@ -9,6 +10,7 @@ TRY_ON_PROMPT_VERSION = "look-virtual-try-on-zh-v3"
 TRY_ON_SCHEMA_VERSION = "generated-image-v1"
 
 PIXEL_COVER_PROMPT = (
+    "输出固定为竖版3:4像素人物卡 (1728x2304), 禁止使用1:1方形画布; 完整保留从头顶到鞋底的人物比例与四周留白, 不得压扁、裁掉脚部或让人物贴边。"
     "第一张参考图如果是完整穿搭,以它的整体轮廓、配色和搭配关系为主;"
     "最后一张参考图是这套穿搭真实单品的拼贴,用于补足材质和细节。"
     "把参考图里的上衣、下装、外套、鞋履和配饰组合到同一个且仅一个"

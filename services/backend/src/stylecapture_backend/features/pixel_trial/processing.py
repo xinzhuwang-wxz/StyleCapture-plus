@@ -38,7 +38,11 @@ class PixelImageGenerator(Protocol):
     ) -> GeneratedImage: ...
 
 
+PIXEL_TRIAL_OUTPUT_SIZE = "1728x2304"
+
+
 PIXEL_TRIAL_PROMPT = """
+输出固定为竖版 3:4 像素人物卡 (1728x2304), 禁止使用 1:1 方形画布; 完整保留从头顶到鞋底的人物比例与四周留白, 不得压扁、裁掉脚部或让人物贴边。
 把用户上传的正面全身照转换为一张轻盈、可爱的全身像素角色卡。
 要求:
 - 只生成一个居中的完整人物, 保留身份线索、姿势、发型、体态、鞋履、配饰和有意义的手持物;
@@ -51,7 +55,7 @@ PIXEL_TRIAL_PROMPT = """
 - 输出应在手机小尺寸下仍能看清人物、表情和穿搭, 适合作为 StyleCapture 像素形象预览。
 """.strip()
 PIXEL_TRIAL_CAPABILITY_ID = "photo.pixel_trial"
-PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v2"
+PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v3"
 PIXEL_TRIAL_SCHEMA_VERSION = "generated-image-v1"
 
 
@@ -94,7 +98,7 @@ class PixelTrialProcessor:
             generated = await self._generator.generate(
                 prompt=PIXEL_TRIAL_PROMPT,
                 images=(subject,),
-                size="2K",
+                size=PIXEL_TRIAL_OUTPUT_SIZE,
             )
             stored = self._objects.write_derived_image(
                 ImagePayload(

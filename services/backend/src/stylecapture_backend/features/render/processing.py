@@ -25,6 +25,7 @@ from stylecapture_backend.features.render.ports import (
 )
 from stylecapture_backend.features.render.prompt_contracts import (
     PIXEL_COVER_CAPABILITY_ID,
+    PIXEL_COVER_OUTPUT_SIZE,
     PIXEL_COVER_PROMPT,
     PIXEL_COVER_PROMPT_VERSION,
     PIXEL_COVER_SCHEMA_VERSION,
@@ -202,7 +203,7 @@ class RenderProcessor:
             generated = await self._pixel_generator.generate(
                 prompt=PIXEL_COVER_PROMPT,
                 images=source_images,
-                size="1024x1365",
+                size=PIXEL_COVER_OUTPUT_SIZE,
             )
             await self._record_provider_and_store(
                 artifact,
