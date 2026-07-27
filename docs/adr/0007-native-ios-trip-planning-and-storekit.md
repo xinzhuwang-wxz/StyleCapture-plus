@@ -12,9 +12,11 @@ The repository already contains the valuable server-side assets: Item/Look truth
 
 ## Decision
 
-Create `apps/ios/StyleCaptureJourney` as an iOS 17+ SwiftUI application using Observation and Swift Concurrency. Use GRDB for explicit offline persistence/outbox, Apple Swift OpenAPI Generator for the Product API client, and Nuke for image loading. All other default client capabilities use Apple frameworks: Sign in with Apple, PhotosPicker/CoreTransferable, UniformTypeIdentifiers, ImageIO, Vision OCR, WeatherKit after coverage smoke, StoreKit 2, BackgroundTasks, Network/NWPathMonitor, UserNotifications, OSLog, MetricKit, Swift Testing, XCTest, XCUITest, NavigationStack, and Xcode Cloud/TestFlight.
+Create `apps/ios/StyleCaptureJourney` as an iOS 17+ SwiftUI application rendered with SwiftUI/Observation and structured concurrency, but use The Composable Architecture (TCA) `1.26.1` as the production app shell. Pin `pointfreeco/swift-composable-architecture` to tag commit `ead11e04e5011c437722c1990d22f80d87056978` under its MIT license. TCA owns app/feature state, reducer composition, dependency clients, effects/cancellation, navigation state/state restoration and `TestStore` coverage; SwiftUI/Observation owns rendering. Use GRDB for explicit offline persistence/outbox, Apple Swift OpenAPI Generator for the Product API client, and Nuke for image loading. All other default client capabilities use Apple frameworks: Sign in with Apple, PhotosPicker/CoreTransferable, UniformTypeIdentifiers, ImageIO, Vision OCR, WeatherKit after coverage smoke, StoreKit 2, BackgroundTasks, Network/NWPathMonitor, UserNotifications, OSLog, MetricKit, Swift Testing, XCTest, XCUITest, NavigationStack, and Xcode Cloud/TestFlight.
 
 Generate the Xcode project from an audited XcodeGen `project.yml`; do not hand-maintain or commit `.xcodeproj`. Tuist remains a measured-scale option, not a P0 service dependency.
+
+Use current non-deprecated TCA APIs only. Because TCA has release churn toward 2.0, require a pre-M2 migration audit before broad feature work and record compile/test impact before any TCA upgrade.
 
 Keep the FastAPI modular monolith. Add durable Trip/Occasion/Packing and Store entitlement modules that reference existing Item, Look, OutfitPlan, and RenderArtifact records. Do not duplicate wardrobe or recommendation logic in Swift.
 
@@ -32,7 +34,9 @@ For the China-first P0, disable FASHN and every other overseas person-photo proc
 
 - The commercial App can evolve independently without merging quickly into the H5 product.
 - Existing backend behavior remains one truth and is consumed through generated contracts.
-- Native iOS work is not a port of React components; visual language and pixel assets can be adapted, business logic cannot be copied into views.
+- Native iOS work is not a port of React components; visual language and pixel assets can be adapted, business logic cannot be copied into views or reducers when it belongs in pure Journey domain policies.
+- TCA replaces the earlier Observation-only app-shell decision. This adds one app-level framework, but avoids custom `AppRouter`, global `AppEnvironment`, ViewModel architecture, DI container, navigation restoration and effect-cancellation infrastructure.
+- Feature work must provide reducer tests with `TestStore`; dependency clients are the only way reducers reach Product API, GRDB, StoreKit, SIWA, Photos, BackgroundTasks, notifications, image loading and observability.
 - GRDB adds one dependency but provides explicit migrations, queries, offline outbox, and testable synchronization.
 - StoreKit server handling becomes our operational responsibility, but Apple's maintained library removes cryptographic/protocol reinvention.
 - XcodeGen, generated OpenAPI contracts, LiteLLM, Promptfoo, Langfuse and OpenTelemetry replace hand-maintained project/API/gateway/eval/trace foundations; their versions, privacy behavior and licenses become release-audited dependencies.
@@ -45,7 +49,10 @@ For the China-first P0, disable FASHN and every other overseas person-photo proc
 
 - Wrap the H5 in WKWebView: weak native integration, harder purchase/privacy review, and no meaningful reuse of server-side contracts beyond what native can already consume.
 - React Native/Expo: would retain TypeScript but introduce a bridge and third-party lifecycle for Apple-first capabilities without a confirmed Android roadmap.
+- SwiftUI/Observation-only custom shell: rejected after planning review because it would require custom navigation, dependency override, effect cancellation, state restoration and reducer-style test harness work that TCA already provides.
 - Rebuild backend as Firebase/Supabase: duplicates mature domain, provider, job, ownership, and cost-control work already present.
+- Amplify or other hosted BaaS: duplicates the existing backend and adds a separate vendor/data surface before P0 evidence requires it.
+- RevenueCat for P0 purchases: duplicates our server entitlement ledger and, for China-first P0, introduces an additional purchase-data processor and US/AWS data surface. Reconsider only after measured cross-platform entitlement or remote-paywall operations need plus in-region privacy controls.
 - Split microservices before launch: creates distributed consistency and operations cost without solving the missing Trip/Packing domain.
 - SwiftData as the primary commercial store: convenient for simple object graphs, but less explicit than GRDB for migrations, sync metadata, outbox, and complex packing queries.
 - Feed or community as the paid home: neither is the first verifiable paid outcome.

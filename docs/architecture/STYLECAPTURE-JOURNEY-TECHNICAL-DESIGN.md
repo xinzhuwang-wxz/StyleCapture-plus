@@ -11,7 +11,7 @@
 ```mermaid
 flowchart LR
     subgraph iOS["Native iOS App"]
-        UI["SwiftUI + Observation"]
+        UI["SwiftUI + Observation rendering over TCA 1.26.1"]
         Local["GRDB cache + outbox"]
         Client["Generated OpenAPI client"]
         IAP["StoreKit 2"]
@@ -46,11 +46,13 @@ P0 不拆微服务。只有 GPU/render、媒体 ingest 或通知/import 在 SLA�
 
 ## 2. iOS 工程
 
-新目录：`apps/ios/StyleCaptureJourney/`。按 feature-first 组织，每个 feature 包含 domain、application、infrastructure、interface；跨 feature 仅通过公开协议/类型。建议结构：
+新目录：`apps/ios/StyleCaptureJourney/`。按 TCA-native feature-first 组织：feature owns reducer/state/action/view；pure domain rules 按真实复杂度放在 Feature-local `Domain` 或 `SharedDomain`，不强制每个 feature 拆齐 domain/application/infrastructure/interface 四层。外部 adapter 只放在 `Core/*`，跨 feature 仅通过公开 domain value、typed error 或 dependency client。建议结构：
 
 ```text
 apps/ios/StyleCaptureJourney/
   App/
+    AppFeature.swift
+    AppView.swift
   Core/
     API/
     Auth/
@@ -76,8 +78,10 @@ apps/ios/StyleCaptureJourney/
 
 - XcodeGen `2.46.0` 从版本化 `project.yml` 生成 `.xcodeproj`；工程文件不手工编辑、不提交。只有模块数量、构建缓存或选择性测试出现实测瓶颈后才评估 Tuist。
 - `scripts/bootstrap_ios.sh --check` 与 CI 首先校验 Xcode 26.x、Swift 6.2+ 和 XcodeGen 2.46.0；版本不匹配直接失败并打印精确升级命令。Xcode Cloud 在 `ci_scripts/ci_post_clone.sh` 生成工程后才 archive，并必须在空 checkout 中证明 workflow 能发现生成的 project/shared scheme；若平台首跑无法选择未提交的 project，则记录证据并降级为 GitHub macOS CI 签名 archive，或提交最小可审查 workspace/shared scheme，而不是静默依赖不可发现配置。
-- SwiftUI + Observation + structured concurrency；不引入 Rx、Redux、TCA 或 DI 容器。
-- NavigationStack/NavigationPath 管理 tab、deep link 和 state restoration；复杂度达到可复现测试瓶颈后才评估 `swift-navigation`。
+- The Composable Architecture `1.26.1` 是 production app shell，SwiftPM exact pin 到 tag commit `ead11e04e5011c437722c1990d22f80d87056978`，MIT license，官方审计源为 `https://github.com/pointfreeco/swift-composable-architecture` 与 `https://github.com/pointfreeco/swift-composable-architecture/releases/tag/1.26.1`。使用当前 non-deprecated APIs；因为 2.0 前存在 API churn，M2 前必须做一次迁移审计并记录 deprecation、navigation、dependency、TestStore 与 compile 影响。
+- SwiftUI + Observation + structured concurrency 只负责渲染、系统生命周期和异步边界；TCA owns app/feature state、feature reducers、dependency clients、effects/cancellation、navigation state/state restoration 与 reducer tests。禁止自建 `AppRouter`、全局 `AppEnvironment`、ViewModel 架构、DI container 或第二套 navigation framework。
+- App entry 由 `AppFeature`/`AppView` 组合 feature reducers。每个 feature 暴露 `State`、`Action`、`Reducer`、`View` 与窄 dependency client；Product API、GRDB、StoreKit、SIWA、Photos、BackgroundTasks、UserNotifications、Nuke、OSLog/MetricKit、clock/UUID 都通过 TCA dependency clients 注入。Views 只渲染 state 并 send actions，不直接 import infrastructure adapters 或 generated transport DTO。`StyleCaptureAPI` generated DTO import 只允许 `Core/API` adapter 与其测试；reducers、domain 和 application-like policies 只消费 dependency client 返回的 domain values/typed errors。
+- NavigationStack/NavigationPath 由 TCA navigation state 驱动 tab、deep link 和 state restoration；不得另建 custom Router。Task 2 必须用 `TestStore` 证明启动、空 Journey shell navigation、state restoration、dependency override 与至少一个 cancellable effect 的测试 ergonomics，再展开功能。
 - GRDB `v7.11.1` 管理 SQLite、显式迁移、查询、outbox 与同步状态；不以 SwiftData 作为商业数据真源。
 - Apple Swift OpenAPI Generator `1.13.0` + runtime + URLSession transport 从 FastAPI OpenAPI 构建时生成客户端；禁止手写重复 DTO。所有 SwiftPM 依赖在 `project.yml` 使用 exact version/revision，禁止 branch/floating range；受版本控制的 `Config/Package.resolved` 是锁文件真源，bootstrap 复制到生成 workspace 的标准路径并做 byte check。
 - OpenAPI 输入固定为 `apps/ios/StyleCaptureJourney/OpenAPI/openapi.json`，generator 配置为同目录 `openapi-generator-config.yaml`，生成到 DerivedSources 中的 `StyleCaptureAPI` module；`Package.resolved` 锁定 generator/runtime/transport，扩展后的 `scripts/export_openapi.py --output ... --check` 从同一 FastAPI schema 生成 H5/iOS 的 deterministic sorted JSON，并做 byte/diff check。
@@ -88,7 +92,7 @@ apps/ios/StyleCaptureJourney/
 - Network `NWPathMonitor` 只作为同步时机信号，不把 reachability 当请求必然成功；不引入自建/第三方 reachability。
 - UserNotifications 负责穿着确认的本地提醒；通知正文不得出现精确城市、日期、酒店或衣物照片，拒绝权限必须有应用内恢复路径。
 - OSLog/Logger + MetricKit 记录结构化诊断；敏感字段必须使用 private redaction。
-- Swift Testing 测 domain/application；XCTest/XCUITest 测 UI、StoreKit、系统权限与可访问性。
+- Swift Testing 测 domain/application；TCA `TestStore` 测 reducer state/effect/navigation/recovery；XCTest/XCUITest 测 UI、StoreKit、系统权限与可访问性。
 
 BackgroundTasks identifier 是固定发布合同：
 

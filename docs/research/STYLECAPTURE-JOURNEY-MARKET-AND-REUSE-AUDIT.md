@@ -82,12 +82,13 @@ StyleCapture 不应把原抖音 Feed 做成独立 App，也不应与现有“AI 
 
 | 能力 | 项目/平台 | 当前核对版本或 commit | 许可证 | 决定 |
 |---|---|---|---|---|
-| 原生 UI/状态/并发 | SwiftUI、Observation、Swift Concurrency | 随目标 Xcode/iOS SDK | Apple SDK | 直接使用 |
+| App shell/state/effects/navigation/testing | [pointfreeco/swift-composable-architecture](https://github.com/pointfreeco/swift-composable-architecture) | `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978`；official release: https://github.com/pointfreeco/swift-composable-architecture/releases/tag/1.26.1 | MIT | 采用；TCA owns feature composition、dependency clients、effects/cancellation、navigation state/state restoration、TestStore。SwiftUI/Observation 只负责渲染；M2 前做 2.0 migration/deprecation audit |
+| 原生 UI/渲染/并发 | SwiftUI、Observation、Swift Concurrency | 随目标 Xcode/iOS SDK | Apple SDK | 直接使用渲染与生命周期；不自建 ViewModel/Router/Environment app shell |
 | 原生认证/密钥/网络/通知 | AuthenticationServices、Security/Keychain、Network、UserNotifications | 随目标 iOS SDK | Apple SDK | 直接使用 credential revocation、设备内密钥、网络变化与本地通知；不引入 reachability/keychain wrapper/推送 SDK |
 | 图片格式与降采样 | CoreTransferable、UniformTypeIdentifiers、ImageIO | 随目标 iOS SDK | Apple SDK | 直接使用 HEIC/类型协商/metadata stripping/downsample，不手写解析器 |
 | 行程截图 OCR | Apple Vision `VNRecognizeTextRequest` | 随目标 iOS SDK | Apple SDK | 设备端直接使用；原图默认不上云，文本必须由用户确认后才写 Occasion |
 | 天气 | Apple WeatherKit / WeatherKit REST | 随 Apple Developer entitlement | Apple service | 首选候选；实施前以中国目标城市覆盖、归因、配额、服务端签名和降级 smoke 决定 direct/adapt，禁止自写天气预测 |
-| Xcode 工程生成 | [yonaskolb/XcodeGen](https://github.com/yonaskolb/XcodeGen) | `2.46.0` / `8445e77` | MIT | 使用可审查的 `project.yml` 生成 `.xcodeproj`，不手工维护工程文件；规模达到多模块缓存/选择性测试瓶颈时再评估 Tuist |
+| Xcode 工程生成 | [yonaskolb/XcodeGen](https://github.com/yonaskolb/XcodeGen) | `2.46.0` / `8445e77` | MIT | 使用可审查的 `project.yml` 生成 `.xcodeproj`，不手工维护工程文件；Tuist 仅解决 project graph/caching/selective test ergonomics，不解决 app lifecycle/state/effects，等规模达到实测瓶颈后再按当时官方 license/release 重审 |
 | API client 生成 | [apple/swift-openapi-generator](https://github.com/apple/swift-openapi-generator) + runtime + URLSession transport | generator `1.13.0` / `af9a2a1`; runtime `7c9f2b6`; URLSession `08796d3` | Apache-2.0 | 直接使用，构建时生成，不提交生成源码 |
 | 离线数据库与 outbox | [GRDB.swift](https://github.com/groue/GRDB.swift) | `v7.11.1` / `b83108d` | MIT | 使用；比为同步/迁移需求强行套 SwiftData 更可控 |
 | 图片加载/缓存 | [Nuke](https://github.com/kean/Nuke) | `13.0.6` / `63a8fcb` | MIT | 使用；不手写 downloader/cache |
@@ -95,7 +96,7 @@ StyleCapture 不应把原抖音 Feed 做成独立 App，也不应与现有“AI 
 | Paywall UI | StoreKit `ProductView` / `SubscriptionStoreView` 与自定义 SwiftUI | 随目标 iOS SDK | Apple SDK | Task 7 先做本地化/可访问性对照；系统 view 能满足上下文 pack-first 体验则直接使用，否则仅保留必要自定义布局 |
 | Apple identity token | PyJWT `[crypto]` + Apple JWKS/REST | 实施时重验稳定版 | MIT | 候选直接复用 JWT/JWK/签名原语；应用层只依赖 AppleIdentityVerifier，禁止自写 JOSE |
 | COS/S3 client | AWS boto3 S3 client + COS S3-compatible endpoint | 实施时重验稳定版 | Apache-2.0 | 候选适配复用；若 COS 兼容性 smoke 不满足 checksum/lifecycle/SSE/signing，再比较腾讯 COS 官方 SDK |
-| 托管订阅平台 | [RevenueCat purchases-ios](https://github.com/RevenueCat/purchases-ios) | HEAD `a268c9b` | SDK MIT，服务另行计费 | P0 拒绝；China-first 数据跨境、供应商成本与现有 Python 后端使官方链路更合适；全球化时重评 |
+| 托管订阅平台 | [RevenueCat purchases-ios](https://github.com/RevenueCat/purchases-ios) + official DPA https://www.revenuecat.com/dpa | HEAD `a268c9b` for SDK audit only | SDK MIT，服务另行计费；DPA/vendor terms separate | P0 拒绝；official DPA says the services operate on AWS, and current upstream evidence records customer data sent to AWS data centers in the United States. This duplicates StoreKit/server-ledger work and adds China-first vendor/data risk; revisit only after measured cross-platform entitlement/remote-paywall bottleneck plus in-region privacy controls |
 | 产品分析 | [sensorsdata/sa-sdk-ios](https://github.com/sensorsdata/sa-sdk-ios) | `v5.0.10` / `b71f54a` | 商用需购买许可 | 不作为默认免费依赖；若采购通过再以 AnalyticsPort 适配，首发先用最小化一方事件 + App Store Connect |
 | AI 网关/路由/预算 | [LiteLLM](https://github.com/BerriAI/litellm) | 仓库锁定 `>=1.60,<2` | MIT | 直接复用现有 Proxy、capability alias、fallback、rate limit 和 spend tracking；禁止业务模块直接调用 provider SDK |
 | AI 工作队列 | [Celery](https://github.com/celery/celery) + Redis | 仓库锁定 `>=5.4,<6` | BSD-3-Clause | 直接复用，任务必须幂等并与 DB outbox/inbox 配合；只有多日工作流恢复成为实测瓶颈时才评估 Temporal |

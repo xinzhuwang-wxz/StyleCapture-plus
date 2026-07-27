@@ -3,7 +3,8 @@
 Copy this file into the current milestone evidence directory for every independent review. Chat-only verdicts are not completion evidence.
 
 - Date/time:
-- Milestone / Issue / PR:
+- Milestone / local task / commit:
+- GitHub Issue / PR: leave blank and do not read, create, edit, comment on, close, or otherwise operate Issues/PRs unless a future task explicitly authorizes it.
 - Reviewer identity and role:
 - Review type: spec | reuse/license | architecture | security/privacy | code quality | conversion/UX
 - Fixed git commit and diff base:

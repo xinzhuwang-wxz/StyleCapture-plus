@@ -6,7 +6,7 @@
 
 **Architecture:** Add a SwiftUI iOS 17+ client over the existing FastAPI modular monolith. Keep Item/Look/Outfit/Render as existing truths; add revocable accounts, Trip/Occasion/Packing orchestration, StoreKit entitlement ledger, deletion state machine and minimal product events. Generate the Swift API client from FastAPI OpenAPI, keep an offline GRDB projection/outbox, and route intelligent work through existing LiteLLM capability ports.
 
-**Tech Stack:** SwiftUI, Observation, Swift Concurrency, NavigationStack, PhotosPicker, StoreKit 2, BackgroundTasks, OSLog, MetricKit, Swift Testing, XCTest/XCUITest, XcodeGen, GRDB.swift, Apple Swift OpenAPI Generator, Nuke, FastAPI, SQLAlchemy/Alembic, PostgreSQL/pgvector, Redis/Celery, COS/S3, LiteLLM Proxy, Promptfoo, OpenTelemetry, in-region control-gated Langfuse, Apple App Store Server Python library, Xcode Cloud/TestFlight.
+**Tech Stack:** TCA `1.26.1` exact pin, SwiftUI, Observation, Swift Concurrency, NavigationStack, PhotosPicker, StoreKit 2, BackgroundTasks, OSLog, MetricKit, Swift Testing, TCA TestStore, XCTest/XCUITest, XcodeGen, GRDB.swift, Apple Swift OpenAPI Generator, Nuke, FastAPI, SQLAlchemy/Alembic, PostgreSQL/pgvector, Redis/Celery, COS/S3, LiteLLM Proxy, Promptfoo, OpenTelemetry, in-region control-gated Langfuse, Apple App Store Server Python library, Xcode Cloud/TestFlight.
 
 ---
 
@@ -52,15 +52,24 @@
 - Create: `apps/ios/StyleCaptureJourney/Config/Package.resolved`
 - Create: `apps/ios/StyleCaptureJourney/.gitignore`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/App/StyleCaptureJourneyApp.swift`
-- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/App/AppEnvironment.swift`
-- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/App/AppRouter.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/App/AppFeature.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/App/AppView.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Features/Journey/JourneyFeature.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Features/Journey/JourneyView.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/API/APIClientDependency.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Database/DatabaseClient.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Entitlements/StoreKitClient.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Photos/PhotosClient.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Background/BackgroundTasksClient.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Notifications/NotificationsClient.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/DesignSystem/DesignTokens.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Database/AppDatabase.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Database/OutboxRecord.swift`
-- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/API/APIClient.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Observability/AppLogger.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Resources/PrivacyInfo.xcprivacy`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Resources/Localizable.xcstrings`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourneyTests/AppFeatureTests.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourneyTests/JourneyFeatureTests.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourneyTests/AppDatabaseTests.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourneyUITests/LaunchTests.swift`
 - Create: `apps/ios/StyleCaptureJourney/StoreKit/StyleCaptureJourney.storekit`
@@ -79,13 +88,17 @@
 
 1. Add a failing Swift test for first-run database migration and outbox round trip.
 2. Make `bootstrap_ios.sh --check` fail fast unless Xcode 26.x, Swift 6.2+ and XcodeGen 2.46.0 match, and print an exact Homebrew install/upgrade command plus detected/required versions. Define targets/configurations/shared schemes/packages in `project.yml`, generate `.xcodeproj` locally/CI and ignore it. Use exact SwiftPM version/revision requirements, forbid branch/range dependencies in CI, keep `Config/Package.resolved` under version control, copy it to the generated workspace's canonical SwiftPM path and byte-check it after resolution.
-3. Implement the smallest App/Router/Environment composition using Apple Observation and explicit initializer injection; do not add a DI container or reducer framework.
-4. Implement `AppDatabase` migrations and outbox storage through GRDB.
-5. Extend existing `scripts/export_openapi.py` with repeatable `--output` and `--check` arguments, preserving deterministic sorted JSON without adding a YAML dependency. Export the same schema bytes to existing `apps/h5/openapi.json` and `apps/ios/StyleCaptureJourney/OpenAPI/openapi.json`; define `openapi-generator-config.yaml`, `StyleCaptureAPI` module and DerivedSources output; generate and compile during the build without committing generated source.
-6. Add privacy manifest, localized permissions and OSLog redaction tests before any SDK is allowed.
-7. Keep existing Python/H5/Compose job on Ubuntu. Add a separate pinned macOS/Xcode `ios` job for bootstrap, generate, test and privacy-manifest inspection; add Xcode Cloud `ci_post_clone.sh` to validate/install XcodeGen, generate the project and fail if the expected project/scheme is absent before archive. Record a clean-checkout Xcode Cloud discovery/archive result; if an uncommitted generated project cannot be selected, use the documented GitHub macOS signed-archive fallback or commit only a minimal reviewed workspace/shared scheme.
-8. Register only the technical-design allowlist (`com.stylecapture.journey.outbox-refresh`, `...upload-resume`, `...image-preprocess`) in both `BGTaskSchedulerPermittedIdentifiers` and scheduling code, add `processing` mode only for the two `BGProcessingTask` entries, and prove permitted, expiration, denied, app-termination and relaunch behavior instead of adding a custom background runner.
-9. Add a lightweight Swift boundary check in CI that forbids feature UI importing infrastructure or generated transport DTOs directly and forbids cross-feature internal imports; domain/application code sees explicit local protocols/types.
+3. Pin TCA `1.26.1` exact tag commit `ead11e04e5011c437722c1990d22f80d87056978` in `project.yml`/`Config/Package.resolved`; use current non-deprecated APIs only and add a pre-M2 TCA 2.0 migration/deprecation audit note before expanding feature work.
+4. Implement the smallest `StyleCaptureJourneyApp` -> `AppFeature` -> `AppView` composition. Use TCA stores/reducers/dependency clients for app state, navigation state, effects and cancellation; SwiftUI/Observation renders state. Do not create `AppRouter`, `AppEnvironment`, custom ViewModel architecture, DI container, custom effect runner or navigation framework.
+5. Add an empty `JourneyFeature` reducer/view and dependency client boundaries for API, GRDB, StoreKit, Photos, BackgroundTasks, Notifications, Nuke/image loading, OSLog/MetricKit, clock and UUID. Features own reducer/state/action/view; pure domain rules live feature-local or in `SharedDomain` only when needed, and external adapters live only in `Core/*`. Reducers may depend only on these clients and pure domain policies; reducers/domain/application-like policies consume domain values/typed errors, not generated DTOs.
+6. Add TCA `TestStore` tests for app launch state, empty Journey navigation, state restoration/deep-link action handling, dependency override and one cancellable effect. Keep the first behavior RED before implementation.
+7. Implement `AppDatabase` migrations and outbox storage through GRDB behind `DatabaseClient`.
+8. Extend existing `scripts/export_openapi.py` with repeatable `--output` and `--check` arguments, preserving deterministic sorted JSON without adding a YAML dependency. Export the same schema bytes to existing `apps/h5/openapi.json` and `apps/ios/StyleCaptureJourney/OpenAPI/openapi.json`; define `openapi-generator-config.yaml`, `StyleCaptureAPI` module and DerivedSources output; generate and compile during the build without committing generated source.
+9. Add privacy manifest, localized permissions and OSLog redaction tests before any SDK is allowed.
+10. Keep existing Python/H5/Compose job on Ubuntu. Add a separate pinned macOS/Xcode `ios` job for bootstrap, generate, test and privacy-manifest inspection; add Xcode Cloud `ci_post_clone.sh` to validate/install XcodeGen, generate the project and fail if the expected project/scheme is absent before archive. Record a clean-checkout Xcode Cloud discovery/archive result; if an uncommitted generated project cannot be selected, use the documented GitHub macOS signed-archive fallback or commit only a minimal reviewed workspace/shared scheme.
+11. Register only the technical-design allowlist (`com.stylecapture.journey.outbox-refresh`, `...upload-resume`, `...image-preprocess`) in both `BGTaskSchedulerPermittedIdentifiers` and scheduling code, add `processing` mode only for the two `BGProcessingTask` entries, and prove permitted, expiration, denied, app-termination and relaunch behavior through dependency clients instead of adding a custom background runner.
+12. Add a lightweight Swift boundary check in CI that forbids feature UI importing infrastructure or generated transport DTOs directly, forbids cross-feature internal imports, forbids custom Router/Environment/ViewModel shell files, and allows `StyleCaptureAPI` generated DTO imports only in `Core/API` adapter code and its tests. Reducers, domain rules and application-like policies see explicit local protocols/types, domain values and typed errors.
+13. Run `swift package show-dependencies` after project generation, archive the output with the Task 2 evidence, and audit transitive package licenses plus SDK privacy manifests before any new SDK reaches release gates.
 
 **Verification commands:**
 
@@ -93,6 +106,9 @@
 - `bash scripts/bootstrap_ios.sh --check`
 - `bash scripts/generate_ios_openapi_client.sh --check`
 - `xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj -scheme StyleCaptureJourney -destination 'platform=iOS Simulator,name=iPhone 16' test`
+- TCA `TestStore` coverage passes for `AppFeatureTests` and `JourneyFeatureTests` inside the xcodebuild run.
+- Source scan has zero custom `AppRouter`, `AppEnvironment`, ViewModel app-shell or DI container files, and `StyleCaptureAPI` imports appear only in `Core/API` adapter files or their tests.
+- `swift package show-dependencies` evidence is captured; transitive license and privacy manifest audit has no P0/P1 blocker.
 - `uv run python scripts/check_boundaries.py services/backend/src`
 - `pnpm test`
 - `uv run pytest -q`
@@ -242,7 +258,7 @@
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Features/Packing/PackingListView.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourneyTests/JourneySyncTests.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Network/NetworkMonitor.swift`
-- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Sync/OutboxSyncCoordinator.swift`
+- Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Sync/OutboxSyncClient.swift`
 - Create: `apps/ios/StyleCaptureJourney/StyleCaptureJourneyUITests/JourneyPlanningTests.swift`
 - Modify: `scripts/check_boundaries.py`
 
@@ -254,7 +270,7 @@
 2. Adapt the existing Outfit application through a typed port. Do not copy its ranking, provider payload or prompt into Trip or Swift.
 3. Generate candidate plans deterministically, use LiteLLM only for closed-candidate rerank/explanation, validate output, and persist the accepted revision.
 4. Reserve a budget before model work and release it on timeout/failure; return `202` jobs with idempotent status.
-5. Build SwiftUI journey/preview/revision/packing surfaces on the generated client and GRDB outbox. Use `NWPathMonitor` only to schedule retries; request results remain authoritative.
+5. Build SwiftUI journey/preview/revision/packing surfaces on the generated client and GRDB outbox. `OutboxSyncClient` is only a TCA dependency client over GRDB/API sync operations; it must not own a scheduler, effect runner or background loop. TCA effects plus BackgroundTasks own scheduling/cancellation, and `NWPathMonitor` is only a retry timing signal; request results remain authoritative.
 6. Exercise stale weather, no suitable shoe, provider timeout, app termination and offline packing recovery.
 7. Add API and UI negative entitlement tests: without a verified pack, only the Day 1 main Look and non-revealing locked summaries are readable; alternative details, Day 2–7, replacement, packing, gaps and weather revisions return stable `PAYWALL_REQUIRED` without leaking content.
 8. Add one generated-contract commercial capability test for create → selection → 202 preview/poll → paywall denial → verified entitlement → paid plan → replace → lock → offline packing → completion, including retry, duplicate request, stale version, provider failure and deletion tombstone. Facade tests or fixed local servers cannot substitute.
@@ -426,7 +442,7 @@
 7. Maintain an encrypted, access-restricted subject-to-observability deletion index containing only opaque trace/dataset identifiers and expiry metadata; it exists only for deletion/evidence, uses per-environment rotating pseudonym keys, and deletes itself after convergence evidence expires. Delete and poll active databases, replicas, object versions, queues and datasets to verified absence. Immutable backups follow approved maximum-expiry or cryptographic-erasure SLA; quarantine restores replay subject tombstones before restored data becomes queryable, and must never claim immediate row deletion from a snapshot.
 8. Inject privacy canaries and query FastAPI/Celery/LiteLLM structured logs, Langfuse stores/blob, Collector queues/local spool, Prometheus labels, DLQ/retry payloads, exception/crash systems, ingress/WAF logs, Promptfoo database/cache/stdout/stderr/output and CI artifacts, plus a provider mock/receiver packet capture, for zero sensitive hits. A positive-control allowed metadata event must arrive so disabling all telemetry cannot pass. Exercise sanitizer crash/exporter retry and prove the telemetry-leak incident runbook. Every OTel semantic-convention or Langfuse/LiteLLM upgrade runs a field-schema diff.
 9. Prove migration, rolling deploy, rollback, backup restore to RPO ≤24h/RTO ≤4h, provider outage, Redis restart, Langfuse/Collector outage, notification replay and budget-degrade runbooks in staging.
-10. Configure App Store Connect metadata, privacy, IAP and travel-only Custom Product Pages/Product Page Optimization; use Xcode Cloud/TestFlight for signed archives. Optimize against production paid VSS/CAC, never downloads alone.
+10. Configure App Store Connect metadata, privacy, IAP and travel-only Custom Product Pages/Product Page Optimization; use Xcode Cloud/TestFlight for signed archives. Save release evidence under `docs/evidence/app-store/task-10/` with subdirectories/checklists for `screenshots/`, `preview/`, `review-notes.md`, `demo-account-credentials-delivery.md` process only, `age-rating.md`, `privacy-nutrition.md`, `iap-review-package.md`, `localization.md`, and `cpp-ppo.md`. Demo account credentials or secrets must be delivered through App Store Connect or the approved secret channel and never committed to Git. Optimize against production paid VSS/CAC, never downloads alone.
 11. Treat TestFlight as technical evidence only. Run production cohorts using the frozen metric dictionary: at least 200 eligible paywalls/20 payers for initial validation and 500/50 plus mature D90 outcomes for scale. Apply any-trigger kill rules, not a conjunctive kill rule.
 
 **Verification:** clean-environment deploy; restore drill with RPO/RTO evidence; load test to the next threshold; chaos/provider failure recovery; TestFlight/App Review checklist; D30/D90 decision record; final independent APPROVE + CLEAR review.

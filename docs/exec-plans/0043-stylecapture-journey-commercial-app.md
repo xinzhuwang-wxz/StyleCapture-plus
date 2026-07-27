@@ -76,10 +76,11 @@ Outcome: a signed debug app launches on small/main/large iPhones, persists an of
 
 Acceptance:
 
-- SwiftUI shell, navigation, design tokens, GRDB migrations/outbox, Nuke pipeline, OpenAPI generation, OSLog privacy, Swift Testing and XCUITest are wired.
+- TCA `1.26.1` app shell, SwiftUI/Observation rendering, design tokens, GRDB migrations/outbox, Nuke pipeline, OpenAPI generation, OSLog privacy, Swift Testing, TCA `TestStore` and XCUITest are wired.
+- iOS module contract is TCA-native: features own reducer/state/action/view; pure domain rules are feature-local or `SharedDomain` only when needed; external adapters live in `Core/*`.
 - XcodeGen produces the project deterministically from a reviewed spec; generated `.xcodeproj` is not a merge-conflict surface.
 - `PrivacyInfo.xcprivacy`, localized usage descriptions, accessibility identifiers, StoreKit configuration, and Xcode Cloud workflow exist from the beginning.
-- No API DTO, image cache, purchase verifier, DI container, navigation framework, or sync database is reimplemented.
+- No API DTO, image cache, purchase verifier, DI container, custom Router, global Environment, ViewModel app shell, navigation framework, effect runner, scheduler-owning outbox coordinator, or sync database is reimplemented. Generated `StyleCaptureAPI` DTO imports are restricted to `Core/API` adapter code and its tests.
 
 ### M2 — Revocable account and private garment import
 
@@ -156,6 +157,7 @@ Acceptance:
 
 - API has at least two replicas; PostgreSQL, Redis, COS/CDN, WAF, queues, backup/restore, secrets, migrations, health, alerts, and rollback are exercised.
 - App Store Custom Product Pages cover travel intent variants such as city/weather/luggage; Product Page Optimization optimizes acquisition against production paid VSS/CAC, not downloads. Wedding/date/interview pages wait for separate validated products.
+- App Store release evidence is stored under `docs/evidence/app-store/task-10/` with checklists/artifacts for screenshots, app preview, review notes, demo account/credentials delivery process without secrets in Git, age rating, privacy nutrition/App Privacy, IAP review package, localization, and CPP/PPO.
 - Langfuse is private-network/TLS-only with public signup/password auth/deployment telemetry disabled, SSO+MFA, least privilege, isolated keys/projects, approved retention/audit/delete controls and pinned image digest/SBOM/CVE gate; otherwise release is blocked.
 - Promptfoo is lockfile/SBOM managed and runs in ephemeral isolated CI with the exact disabled telemetry, sharing, red-team remote, all remote generation, template-environment, update, cache, write, and table controls defined by implementation Task 10; only scanned JUnit output remains.
 - TestFlight metrics are technical only. Production soft launch needs at least 200 eligible paywalls and 20 real payers for initial validation; scale decisions need at least 500 eligible paywalls, 50 payers and mature D90 outcomes. The audited metric dictionary and any-trigger kill rules decide scale, iterate, pivot, or stop.
@@ -167,9 +169,10 @@ Every milestone copies this table into its branch-local ExecPlan and adds exact 
 
 | Capability | Candidates inspected | Decision | Constraint |
 |---|---|---|---|
-| UI/state/concurrency | SwiftUI, Observation, Swift Concurrency | Direct reuse | iOS 17+ |
+| App shell/state/effects/navigation/tests | TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` | Direct reuse | MIT; exact pin; current non-deprecated APIs; pre-M2 2.0 migration/deprecation audit |
+| UI/rendering/concurrency | SwiftUI, Observation, Swift Concurrency | Direct reuse | iOS 17+; rendering/lifecycle only, not custom app shell |
 | Xcode project | XcodeGen `2.46.0` / `8445e77` | Direct reuse | MIT; generated project, reviewable spec |
-| Navigation | NavigationStack/NavigationPath | Direct reuse | Add library only after measured testability failure |
+| Navigation | TCA navigation state over NavigationStack/NavigationPath | Direct reuse | No custom Router/navigation framework; reducer tests prove restoration/deep-link behavior |
 | Offline DB/outbox | GRDB.swift `v7.11.1` / `b83108d` | Direct reuse | MIT; explicit migrations and sync metadata |
 | API contracts | FastAPI OpenAPI + Apple Swift OpenAPI Generator `1.13.0` / `af9a2a1` | Direct reuse | Apache-2.0; generated during build |
 | Image pipeline | PhotosPicker/Transferable + Nuke `13.0.6` / `63a8fcb` | Direct reuse | No whole-library permission for selective import |
@@ -178,7 +181,7 @@ Every milestone copies this table into its branch-local ExecPlan and adds exact 
 | Purchase client/server | StoreKit 2 + Apple server Python `v3.1.2` / `4eaa224` | Direct reuse | Server ledger owns entitlement |
 | Apple identity verification | AuthenticationServices + PyJWT `[crypto]` + Apple JWKS | Candidate direct/adapt | Re-audit stable release/license; never hand-write JOSE |
 | COS object client | boto3 S3 client + COS compatible endpoint | Candidate adapt | Re-audit version/license and checksum/SSE/lifecycle/signing smoke; compare Tencent SDK only on measured incompatibility |
-| Hosted purchase platform | RevenueCat SDK | Rejected P0 | China-first/iOS-only; revisit after measured cross-platform/remote-paywall need |
+| Hosted purchase platform | RevenueCat SDK + official DPA | Rejected P0 | Duplicates backend entitlement ledger and adds US/AWS vendor/data surface for China-first; revisit after measured cross-platform/remote-paywall need plus in-region controls |
 | Analytics | First-party events + App Store Connect | Direct reuse/adapt | No autocapture/session replay; Sensors Data needs commercial license |
 | Wardrobe/outfit/render | Existing backend vertical modules | Direct/adapt reuse | New Trip references existing truths |
 | Feed/community | Existing H5 | Rejected | Not the paid job; only pixel art assets may be adapted |
@@ -266,11 +269,13 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 
 - Current FASHN default would send person photos overseas and FastFit is non-commercial. Removing P0 try-on improves both compliance and margin without weakening the paid Journey job.
 - StoreKit official client/server libraries cover the first launch; RevenueCat is not necessary until cross-platform or remote-paywall operations become real bottlenecks.
+- TCA `1.26.1` is the approved mature iOS app shell. Task 2 must prove AppFeature/AppView, feature reducers, dependency clients, cancellation, navigation restoration and TestStore ergonomics before broad feature work; do not resurrect custom Router/Environment/ViewModel architecture.
 - Fresh baseline verification exposed one pre-existing H5 test that synchronously asserted content hidden behind an asynchronous wardrobe load. The test now waits for the observable card before checking terminal removal; production behavior was unchanged and all 239 JavaScript/Skill plus 301 Python tests pass.
 
 ## Decision Log
 
 - 2026-07-28: M0 repository infrastructure is implemented locally, but the product decision remains `BLOCKED_FOR_REAL_EVIDENCE`. Task 2 native iOS work is still gated because no real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, or `trip_end+7d` execution evidence exists.
+- 2026-07-28: Adopt TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` as the mature app shell and reject custom Router/Environment/ViewModel infrastructure; SwiftUI/Observation remain rendering/lifecycle only.
 - 2026-07-27: Make scene execution, not content consumption, the first paid result.
 - 2026-07-27: Target native iOS 17+ and reuse the existing Product API rather than wrapping H5 or rebuilding backend services.
 - 2026-07-27: Price one Journey pack at a ¥12 hypothesis and show the contextual paywall after one complete Day 1 travel result.
