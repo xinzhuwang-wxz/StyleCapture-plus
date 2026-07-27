@@ -693,7 +693,6 @@ export function App() {
     if (
       !detail ||
       detail.look.source === "ai_generated" ||
-      detail.look.source === "user_created" ||
       !detail.components.some((component) => component.item_id !== null) ||
       (detail.look.status !== "ready" && detail.look.status !== "partial")
     ) {
