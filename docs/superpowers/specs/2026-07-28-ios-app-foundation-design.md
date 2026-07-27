@@ -1,7 +1,7 @@
 # iOS App Foundation Design
 
 - Date: 2026-07-28
-- Status: approved design direction; implementation remains gated by M0 GO
+- Status: approved design direction; local implementation may proceed; M0 GO remains a market/commercialization gate
 - Scope: `apps/ios/StyleCaptureJourney` architecture planning only
 
 ## Sources Of Truth
@@ -116,7 +116,7 @@ TCA is pinned to `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978`. Use curr
 
 ## Non-Goals
 
-- No app implementation before M0 GO.
+- No production commercialization, paid production rollout, scale claim, aggregate Goal completion, or M0 `GO`/`PIVOT`/`STOP` claim before real M0 evidence matures. Local implementation, Apple sandbox, staging, and TestFlight technical verification may proceed and must stay out of M0 and production commercial denominators.
 - No custom `Router`, global `Environment`, ViewModel architecture, DI container or navigation framework.
 - No Tuist until project graph/caching/selective-test pain is measured.
 - No Firebase, Supabase, Amplify or RevenueCat for China-first P0.

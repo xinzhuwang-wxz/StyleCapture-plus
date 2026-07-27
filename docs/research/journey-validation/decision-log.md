@@ -36,4 +36,4 @@ Record objections after real interviews:
 
 ## Next falsifiable hypothesis
 
-Unset until real evidence exists. Task 2 remains blocked.
+Unset until real evidence exists. Task 2 local implementation and Apple sandbox/staging/TestFlight technical verification may proceed, but no M0 `GO`, `PIVOT`, `STOP`, production commercialization, scale, or aggregate Goal completion claim is allowed until real evidence satisfies this log's decision rules.

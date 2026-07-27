@@ -50,8 +50,8 @@ The first release is successful only when real users pay for and execute this re
 
 The plan uses two sequential commitments:
 
-1. **Prove willingness to pay cheaply.** Do not build the complete native product before the M0 seven-day recruiting/offer plus post-trip maturity gate. Concierge work may use manually reviewed plan generation, but research responses and metrics must be real and attributable.
-2. **Build vertical commercial slices.** After the gate passes, each branch-local milestone task delivers an observable iOS journey through generated API contracts, domain, persistence, worker/provider boundaries, and production evidence.
+1. **Prove willingness to pay cheaply for market decisions.** Keep M0 real: concierge work may use manually reviewed plan generation, but recruitment, the uniform ¥12 offer, payments/deposits, refunds, post-trip execution and every market metric must be real, attributable and mature before any `GO`/`PIVOT`/`STOP`, production commercialization, scale or aggregate-completion claim.
+2. **Build vertical technical slices in parallel with unresolved M0.** Task 2–9 local iOS/backend development, Apple sandbox, staging and TestFlight technical verification may proceed before a real M0 decision. Missing legal-subject/contact, account/channel, merchant/refund or controlled-evidence-store inputs block only real external M0 operations that need them. Technical/sandbox/TestFlight evidence never counts in M0 or production commercial denominators.
 
 Create or update milestone ExecPlans and SDD task briefs only after the Goal starts so their acceptance criteria reflect the final reviewed plan. Execute them in the dependency order below without pausing between completed branch-local tasks. Do not read, create, edit, comment on, close, or otherwise touch GitHub Issues or PRs without explicit future authorization.
 
@@ -67,8 +67,8 @@ Acceptance:
 - `execution_rate` uses every plan recipient whose trip has reached `trip_end+7d`, denominator ≥15, and must be ≥50% for a planned main/alternative Look or traceable hard-constraint-preserving replacement; non-response counts as not executed.
 - `real_paid_rate` uses all qualified complete-plan recipients shown the one ¥12 offer, denominator ≥15, and must be ≥33% with at least five real refundable payments/deposits. It excludes willingness, oral promises and equivalent commitments. Research payment stays outside any App binary and never becomes an external iOS purchase link.
 - The evidence set records recruiting source, upcoming date, completion, offer outcome (`paid|declined|refunded`), payment/deposit evidence status, objections, maturity and actual plan execution; it never treats a WTP choice as success.
-- Failure leads to a revised wedge or stop decision; it does not authorize more feature work.
-- An M0 `STOP`/`PIVOT` closes the research milestone and blocks the aggregate launch Goal. Task 2 requires a newly authorized wedge or an explicit `GO`; the failed original launch Goal is never marked complete.
+- Failure leads to a revised wedge or stop decision; it does not authorize commercialization, paid production rollout, scale claims, or aggregate Goal completion.
+- An M0 `STOP`/`PIVOT` closes the research milestone and blocks the aggregate launch Goal. Local Task 2–9 implementation may continue only as technical/staging/TestFlight work under the authorized Journey plan or a newly authorized wedge; the failed original launch Goal is never marked complete.
 
 ### M1 — iOS foundation and generated contract
 
@@ -264,9 +264,9 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - Existing backend assets are substantially more reusable than the H5: Item/Look, capture, outfit constraints, render lifecycle, ownership, jobs, LiteLLM and cost guards form a credible product core.
 - The current anonymous 30-day HMAC cookie cannot provide commercial revocation or account deletion; it must not be reused as the native account contract.
 - Current H5 stores person photos/body data in `localStorage`; native storage must not copy that design.
-- M0 needs a local repository-side operating surface before native iOS work. The implemented surface validates only de-identified aggregate records; it intentionally does not fabricate cohort, payment, refund, or maturity evidence.
+- M0 needs a local repository-side operating surface before real external market operations and decision claims. The implemented surface validates only de-identified aggregate records; it intentionally does not fabricate cohort, payment, refund, or maturity evidence, and the absence of those real records no longer blocks local native iOS/backend development.
 - China-market operating controls tighten M0 collection: recruit toward 30 to preserve a mature denominator, cap natural search at <=50%, approved women/travel groups at <=35%, second-degree referrals at <=25%, and professional creators at <=20%; exclude bounties, volume-paid group owners, information-feed ads, positive-feedback rewards, and completion cash rewards.
-- The 2026-07-28 external-readiness audit found no established Xiaohongshu creator login signal, authorized legal-subject/contact values, group-forward approvals, merchant/refund authority, isolated refund reserve, or controlled external evidence register. One direct read-only navigation attempt in each available browser surface produced no usable page or login-state signal; no external side effect was attempted. This is recorded in `docs/research/journey-validation/external-readiness.md` and blocks real M0 launch without changing the product gate.
+- The 2026-07-28 external-readiness audit found no established Xiaohongshu creator login signal, authorized legal-subject/contact values, group-forward approvals, merchant/refund authority, isolated refund reserve, or controlled external evidence register. One direct read-only navigation attempt in each available browser surface produced no usable page or login-state signal; no external side effect was attempted. This is recorded in `docs/research/journey-validation/external-readiness.md` and blocks real external M0 launch operations that need those inputs; it does not block local iOS/backend implementation, Apple sandbox, staging, or TestFlight technical verification.
 
 - Current FASHN default would send person photos overseas and FastFit is non-commercial. Removing P0 try-on improves both compliance and margin without weakening the paid Journey job.
 - StoreKit official client/server libraries cover the first launch; RevenueCat is not necessary until cross-platform or remote-paywall operations become real bottlenecks.
@@ -275,7 +275,7 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 
 ## Decision Log
 
-- 2026-07-28: M0 repository infrastructure is implemented locally, but the product decision remains `BLOCKED_FOR_REAL_EVIDENCE`. Task 2 native iOS work is still gated because no real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, or `trip_end+7d` execution evidence exists.
+- 2026-07-28: Product-owner correction: M0 repository infrastructure is implemented locally and the market decision remains `BLOCKED_FOR_REAL_EVIDENCE`, but Task 2 native iOS work is admissible for local development, Apple sandbox, staging, and TestFlight technical verification. Real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, and `trip_end+7d` execution evidence remain mandatory before any M0 `GO`/`PIVOT`/`STOP`, production commercialization, scale, or aggregate-completion claim.
 - 2026-07-28: Record external execution readiness separately from product validation. Missing authorized account, legal-subject/contact, merchant/refund, reserve and controlled-data-store evidence prevents safe recruitment or deposit collection; it is not a failed product experiment and does not authorize `PIVOT` or `STOP`.
 - 2026-07-28: Adopt TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` as the mature app shell and reject custom Router/Environment/ViewModel infrastructure; SwiftUI/Observation remain rendering/lifecycle only.
 - 2026-07-27: Make scene execution, not content consumption, the first paid result.
@@ -284,7 +284,7 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - 2026-07-27: Use GRDB, Swift OpenAPI Generator and Nuke as the only initial external client dependencies.
 - 2026-07-27: Keep StoreKit entitlement verification in the existing Python backend using Apple's maintained server library.
 - 2026-07-27: Forbid overseas person-photo processing and photorealistic try-on in China-first P0.
-- 2026-07-27: Require the M0 seven-day recruiting/offer window plus post-trip maturity evidence before full P0 implementation and use frozen mature cohorts for scale decisions.
+- 2026-07-27: Require the M0 seven-day recruiting/offer window plus post-trip maturity evidence before production commercialization, paid production scale, or aggregate completion claims, and use frozen mature cohorts for scale decisions.
 - 2026-07-27: Do not count TestFlight/sandbox transactions as commercial evidence; require production cohorts with frozen denominators.
 - 2026-07-27: Keep subscription secondary until 60-day second-paid-Journey behavior reaches 25%; preserve pack restore and read-only access without Pro.
 

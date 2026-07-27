@@ -12,7 +12,7 @@
 
 ## Execution rules
 
-- Do not start Task 2 until Task 1's M0 paid-problem gate passes after the seven-day recruiting/offer window and at least 15 plan recipients reach `trip_end+7d`; record the actual maturity cutoff. A failed gate produces a documented pivot/stop, not speculative implementation.
+- Task 2–9 local iOS/backend development, Apple sandbox, staging, and TestFlight technical verification may proceed before a real M0 decision. Task 1's M0 paid-problem gate still controls any market-validation `GO`/`PIVOT`/`STOP` claim, production commercialization decision, paid production rollout/scale claim, or aggregate Goal completion after the seven-day recruiting/offer window and at least 15 plan recipients reach `trip_end+7d`; record the actual maturity cutoff. Technical/sandbox/TestFlight evidence must never enter M0 or production commercial denominators.
 - Before every task, update the matching milestone section in `docs/exec-plans/0043-stylecapture-journey-commercial-app.md` and copy in the exact reuse audit.
 - Start with one failing public-behavior test, add the minimum implementation, then continue behavior by behavior.
 - After a public API change, regenerate OpenAPI and compile the generated Swift client before continuing.
@@ -40,7 +40,7 @@
 2. Define a de-identified metrics schema; keep raw contact details and photos outside Git. The committed `.gitignore` must reject `participants/`, raw photos, recordings and exports.
 3. Produce at least 15 complete concierge plans with a repeatable template: confirmed constraints, selected garments, day/activity looks, alternatives, deduplicated packing, gaps, user corrections and post-trip outcome. Offer every recipient the same ¥12 result and record at least five real, refundable payments or deposits; willingness, oral promises and “equivalent commitments” are not `real_paid`. Keep this research collection outside any App binary and never use it as an external payment link from iOS.
 4. Calculate the M0 thresholds exactly as defined in the PRD/research audit. Pain and payment denominators are the qualified cohort/at-least-15 complete-plan recipients as specified; post-trip execution uses those same at-least-15 recipients, requires at least one planned main/alternative Look or traceable hard-constraint-preserving replacement, and counts non-response as not executed. Record exclusions and denominator for each percentage.
-5. Write a `GO`, `PIVOT`, or `STOP` decision with objections and the next falsifiable hypothesis. Only `GO` enables Task 2.
+5. Write a `GO`, `PIVOT`, or `STOP` decision with objections and the next falsifiable hypothesis only after real M0 evidence matures. A missing decision does not block Task 2 local implementation or technical verification, but only a real `GO` can support market-validation, commercialization, scale, or aggregate-completion claims.
 
 **Verification:** JSON Schema validates every de-identified record; secret/PII pattern scan is clean; an independent product reviewer can recompute all ratios from the committed aggregate; no participant photo/contact/raw transcript is tracked.
 
