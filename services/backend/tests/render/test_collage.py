@@ -36,7 +36,7 @@ def pixel_rgba(image: Image.Image, xy: tuple[int, int]) -> tuple[int, int, int, 
     return cast(tuple[int, int, int, int], image.getpixel(xy))
 
 
-def test_collage_renders_stable_png_for_one_to_six_real_item_images() -> None:
+def test_collage_defaults_to_a_stable_pure_white_portrait_png() -> None:
     images = [
         payload("top", (255, 0, 64)),
         payload("bottom", (40, 120, 255)),
@@ -45,21 +45,24 @@ def test_collage_renders_stable_png_for_one_to_six_real_item_images() -> None:
         payload("hat", (180, 80, 255)),
         payload("coat", (80, 60, 50)),
     ]
-    renderer = PillowLookCollageRenderer(canvas_size=512, padding=24, gap=16)
+    renderer = PillowLookCollageRenderer()
 
     output = renderer.render(images)
     repeated = renderer.render(images)
+    image = decode(output.body).convert("RGBA")
 
     assert output.content_type == "image/png"
     assert output.object_key == "derived/renders/collage-pending.png"
     assert output.sha256 == sha256(output.body).hexdigest()
     assert output.body == repeated.body
-    assert decode(output.body).size == (512, 512)
+    assert image.size == (768, 1024)
+    assert pixel_rgba(image, (0, 0)) == (255, 255, 255, 255)
 
 
 def test_collage_transparent_background_is_explicit() -> None:
     output = PillowLookCollageRenderer(
-        canvas_size=320,
+        canvas_width=320,
+        canvas_height=426,
         padding=24,
         transparent_background=True,
     ).render([payload("dress", (255, 120, 180), size=(90, 160))])
@@ -72,7 +75,12 @@ def test_collage_transparent_background_is_explicit() -> None:
 def test_collage_preserves_input_order_in_layout() -> None:
     first = payload("first", (250, 0, 0), size=(80, 80))
     second = payload("second", (0, 0, 250), size=(80, 80))
-    renderer = PillowLookCollageRenderer(canvas_size=320, padding=20, gap=12)
+    renderer = PillowLookCollageRenderer(
+        canvas_width=320,
+        canvas_height=426,
+        padding=20,
+        gap=12,
+    )
 
     image = decode(renderer.render([first, second]).body).convert("RGBA")
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Real Photo Flat-Lay Collage"
+  short_description: "Render a captured real outfit as a white 3:4 flat-lay collage."
+  default_prompt: "Use $real-photo-flat-lay-collage to render my captured StyleCapture Look as a white 3:4 flat-lay collage."
