@@ -102,7 +102,7 @@ def validate_https_public_url(url: str, label: str) -> str:
         addresses = socket.getaddrinfo(normalized_host, parsed.port or 443, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise ValueError(f"{label} host could not be resolved") from exc
-    resolved = {entry[4][0] for entry in addresses}
+    resolved: set[str] = {str(entry[4][0]) for entry in addresses}
     if not resolved or any(_is_blocked_ip(address) for address in resolved):
         raise ValueError(f"{label} resolves to a non-public address")
     return url
@@ -110,23 +110,23 @@ def validate_https_public_url(url: str, label: str) -> str:
 
 def redact_for_log(value: Any) -> Any:
     if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
+        redacted_mapping: dict[str, Any] = {}
         for key, item in value.items():
             normalized = str(key).lower().replace("-", "_")
             if normalized in SENSITIVE_KEYS or "authorization" in normalized:
-                redacted[key] = "<redacted>"
+                redacted_mapping[key] = "<redacted>"
             else:
-                redacted[key] = redact_for_log(item)
-        return redacted
+                redacted_mapping[key] = redact_for_log(item)
+        return redacted_mapping
     if isinstance(value, list):
         return [redact_for_log(item) for item in value]
     if isinstance(value, str):
-        redacted = value
-        if "Bearer " in redacted:
-            redacted = redacted.split("Bearer ", 1)[0] + "Bearer <redacted>"
-        if "b64_json" in redacted or "data:image/" in redacted:
+        redacted_text = value
+        if "Bearer " in redacted_text:
+            redacted_text = redacted_text.split("Bearer ", 1)[0] + "Bearer <redacted>"
+        if "b64_json" in redacted_text or "data:image/" in redacted_text:
             return "<redacted image payload>"
-        return redacted
+        return redacted_text
     return value
 
 

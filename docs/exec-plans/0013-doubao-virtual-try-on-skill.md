@@ -1,6 +1,6 @@
 # ExecPlan 0013: Package the Doubao virtual try-on skill
 
-Status: Implemented, pending PR review
+Status: Implemented and reviewed; retained as standalone Skill
 Date: 2026-07-26
 Issue: User-requested standalone skill PR; no GitHub issue assigned
 
@@ -30,7 +30,8 @@ The public usage and output contract is documented in
 - No H5, Product API, Worker, persistence, or OpenAPI changes.
 - No change to the product `look.virtual_try_on` capability or its providers.
 - No checked-in generated photos or live-provider evidence.
-- No automatic merge; the architecture exception requires PR review.
+- No product-runtime replacement; the architecture exception remains bounded to
+  the standalone artifact.
 
 ## Reuse audit
 
@@ -52,7 +53,8 @@ The public usage and output contract is documented in
 - [x] Add version reporting, deterministic packaging, and offline tests.
 - [x] Validate that likely provider credentials and generated artifacts are absent
   from the diff.
-- [ ] Obtain PR review for the Proposed ADR and standalone/product boundary.
+- [x] Obtain PR review for the standalone/product boundary.
+- [x] Run one bounded live Ark smoke and record the runtime decision.
 
 ## Surprises and discoveries
 
@@ -65,6 +67,13 @@ The public usage and output contract is documented in
 - A cropped portrait can lock consistency across generated looks but cannot prove
   the person's real full-body proportions. Documentation requires a full-body
   reference when true-body fidelity matters.
+- The bounded live Ark smoke completed in 150.14 seconds with
+  `doubao-seed-2-0-lite-260428` and `doubao-seedream-5-0-260128`. That proves
+  the standalone artifact can call the requested providers, but the latency is
+  too high for replacing the current online product try-on path.
+- The live smoke accidentally used a flat-lay asset as the person input. The
+  output and timing are useful provider evidence, but identity/body preservation
+  for a real full-body person remains unproven by that run.
 
 ## Decision log
 
@@ -76,6 +85,9 @@ The public usage and output contract is documented in
 - Keep provider failures truthful and stop; never use a local or alternate AIGC
   fallback.
 - Keep the Proposed exception outside every StyleCapture product runtime path.
+- Keep product try-on on the existing Product API and provider adapters. Do not
+  wire this standalone skill into H5, backend, Worker, or persisted render jobs
+  unless a separate Product API contract is designed and verified.
 
 ## Verification
 
@@ -86,6 +98,9 @@ The public usage and output contract is documented in
 - repository Python format, lint, and type gates for changed root scripts
 - secret-pattern scan across all PR files
 - full repository CI as available; no paid Ark request is part of offline CI
+- one bounded live Ark smoke outside the repository: 150.14 seconds, one attempt,
+  hard pass reported by the artifact audit; not committed because generated
+  provider artifacts and source images stay out of Git
 
 Fresh local results:
 
@@ -98,3 +113,11 @@ Fresh local results:
 - Full mypy reproduced eight current-main Celery/Kombu import-stub errors in
   unchanged files. The changed root packager passes mypy independently.
 - No live or paid Ark call was performed as part of PR verification.
+
+Post-review cleanup:
+
+- `uv run --all-packages mypy skills/doubao-virtual-try-on/scripts/*.py`
+- `uv run --all-packages ruff check skills/doubao-virtual-try-on tests/test_doubao_skill.py`
+- `python3 -B -m unittest tests/test_doubao_skill.py`
+- `python3 -m py_compile skills/doubao-virtual-try-on/scripts/*.py`
+- `git diff --check`
