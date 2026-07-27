@@ -6,14 +6,18 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import getpass
+import ipaddress
 import json
 import mimetypes
 import os
 import shutil
+import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -23,6 +27,20 @@ DEFAULT_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260428"
 DEFAULT_IMAGE_MODEL = "doubao-seedream-5-0-260128"
 VERSION = "1.2.0"
 TRANSIENT_HTTP_CODES = {408, 409, 429, 500, 502, 503, 504}
+MAX_IMAGE_DOWNLOAD_BYTES = 20 * 1024 * 1024
+ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+SENSITIVE_KEYS = {
+    "api_key",
+    "apikey",
+    "ark_api_key",
+    "authorization",
+    "b64_json",
+    "token",
+    "signature",
+    "signed_url",
+    "url",
+}
+BLOCKED_HOSTNAMES = {"localhost", "localhost.localdomain"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,6 +71,65 @@ def require_image(path: Path, label: str) -> Path:
     return path
 
 
+def _is_blocked_ip(address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return True
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def validate_https_public_url(url: str, label: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"{label} must use HTTPS")
+    if parsed.username or parsed.password:
+        raise ValueError(f"{label} must not contain credentials")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError(f"{label} must include a hostname")
+    normalized_host = hostname.rstrip(".").lower()
+    if normalized_host in BLOCKED_HOSTNAMES or normalized_host.endswith(".localhost"):
+        raise ValueError(f"{label} host is not allowed")
+    try:
+        addresses = socket.getaddrinfo(normalized_host, parsed.port or 443, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError(f"{label} host could not be resolved") from exc
+    resolved = {entry[4][0] for entry in addresses}
+    if not resolved or any(_is_blocked_ip(address) for address in resolved):
+        raise ValueError(f"{label} resolves to a non-public address")
+    return url
+
+
+def redact_for_log(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            normalized = str(key).lower().replace("-", "_")
+            if normalized in SENSITIVE_KEYS or "authorization" in normalized:
+                redacted[key] = "<redacted>"
+            else:
+                redacted[key] = redact_for_log(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact_for_log(item) for item in value]
+    if isinstance(value, str):
+        redacted = value
+        if "Bearer " in redacted:
+            redacted = redacted.split("Bearer ", 1)[0] + "Bearer <redacted>"
+        if "b64_json" in redacted or "data:image/" in redacted:
+            return "<redacted image payload>"
+        return redacted
+    return value
+
+
 def image_data_url(path: Path) -> str:
     mime = mimetypes.guess_type(path.name)[0] or "image/png"
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
@@ -63,9 +140,9 @@ def sanitized_http_error(exc: urllib.error.HTTPError, endpoint: str) -> RuntimeE
     body = exc.read().decode("utf-8", errors="replace")
     try:
         payload = json.loads(body)
-        detail = json.dumps(payload, ensure_ascii=False)
+        detail = json.dumps(redact_for_log(payload), ensure_ascii=False)
     except json.JSONDecodeError:
-        detail = body[:2000]
+        detail = str(redact_for_log(body[:2000]))
     return RuntimeError(f"Ark HTTP {exc.code} from {endpoint}: {detail}")
 
 
@@ -79,6 +156,7 @@ def post_json(
     transport_attempts: int = 4,
 ) -> dict[str, Any]:
     request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    api_base = validate_https_public_url(api_base.rstrip("/"), "Ark API base URL")
     url = api_base.rstrip("/") + endpoint
     for attempt in range(transport_attempts):
         request = urllib.request.Request(
@@ -249,21 +327,43 @@ def download_result(response: dict[str, Any], target: Path) -> None:
             "Unexpected Ark image response: " + json.dumps(response, ensure_ascii=False)[:2000]
         ) from exc
     if item.get("b64_json"):
-        target.write_bytes(base64.b64decode(item["b64_json"]))
+        try:
+            data = base64.b64decode(item["b64_json"], validate=True)
+        except (binascii.Error, TypeError) as exc:
+            raise RuntimeError("Ark image response contains invalid b64_json") from exc
+        if len(data) > MAX_IMAGE_DOWNLOAD_BYTES:
+            raise RuntimeError("Ark b64_json image exceeds 20 MB limit")
+        target.write_bytes(data)
         return
     url = item.get("url")
     if not url:
         raise RuntimeError("Ark image response has neither url nor b64_json")
+    url = validate_https_public_url(str(url), "Ark image download URL")
     request = urllib.request.Request(
         url, headers={"User-Agent": f"doubao-virtual-try-on/{VERSION}"}
     )
     with urllib.request.urlopen(request, timeout=300) as result:
-        target.write_bytes(result.read())
+        content_type = result.headers.get_content_type()
+        if content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            raise RuntimeError(
+                f"Ark image download returned non-image Content-Type: {content_type}"
+            )
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = result.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_IMAGE_DOWNLOAD_BYTES:
+                raise RuntimeError("Ark image download exceeds 20 MB limit")
+            chunks.append(chunk)
+        target.write_bytes(b"".join(chunks))
 
 
 def response_for_log(response: dict[str, Any]) -> dict[str, Any]:
     """Copy an image response while removing temporary signed download URLs."""
-    value = json.loads(json.dumps(response))
+    value = redact_for_log(json.loads(json.dumps(response)))
     for item in value.get("data", []):
         if isinstance(item, dict) and item.get("url"):
             item["url"] = "<temporary signed URL omitted; image saved locally>"
@@ -450,6 +550,8 @@ def main() -> int:
         },
         "attempts": attempts,
         "selected_attempt": best["attempt"],
+        "hard_pass": bool(best["pass"]),
+        "quality_status": "pass" if best["pass"] else "hard_fail",
         "result": result_path.name,
     }
     manifest_path = output_dir / "manifest.json"
@@ -457,7 +559,7 @@ def main() -> int:
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     print(f"RESULT={result_path}")
-    return 0
+    return 0 if best["pass"] else 3
 
 
 if __name__ == "__main__":

@@ -582,9 +582,15 @@ def main() -> int:
         "cross_look_pass": cross_passes(batch_audit),
         "cross_look_audit": "cross-look-audit.json",
     }
+    manifest["hard_pass"] = (
+        bool(anchor_manifest["pass"])
+        and all(bool(look["pass"]) for look in manifest["looks"])
+        and bool(manifest["cross_look_pass"])
+    )
+    manifest["quality_status"] = "pass" if manifest["hard_pass"] else "hard_fail"
     save_json(output_dir / "manifest.json", manifest)
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
-    return 0 if cross_passes(batch_audit) else 3
+    return 0 if manifest["hard_pass"] else 3
 
 
 if __name__ == "__main__":
