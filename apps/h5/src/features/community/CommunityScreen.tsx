@@ -20,16 +20,16 @@ import {
   type PartyLook,
   type PartyReaction
 } from "./communityScene";
-import { personaById } from "./world/guests";
+import { guestPersonas, personaById } from "./world/guests";
 import { sceneMaps } from "./world/sceneMap";
 import {
   CARD_HEIGHT,
   CARD_WIDTH,
   downloadBlob,
   drawShareCard,
-  encodeAnimatedCard,
   SCENE_RECT
 } from "./world/shareMoment";
+import { recordClip, supportedClipType } from "./world/recordMoment";
 import {
   actorById,
   freezeParty,
@@ -59,7 +59,7 @@ const phaseCopy: Record<string, { eyebrow: string; title: string }> = {
   frozen: { eyebrow: "FREEZE", title: "画面已定格，可以带走这一刻" }
 };
 
-type ShareState = "idle" | "card" | "gif" | "error";
+type ShareState = "idle" | "card" | "clip" | "error";
 
 type CommunityScreenProps = {
   avatarSource?: CommunityAvatarSource;
@@ -71,9 +71,9 @@ type CommunityScreenProps = {
   onShare?: (look: PartyLook) => void;
 };
 
-/** ~2.6 seconds of motion inside the card frame. */
-const CARD_FRAMES = 20;
-const CARD_DELAY = 130;
+/** Long enough to read as a moment, short enough to send. */
+const CLIP_MS = 3000;
+const CLIP_FPS = 24;
 
 export function CommunityScreen({
   avatarSource,
@@ -97,6 +97,10 @@ export function CommunityScreen({
   const [immersive, setImmersive] = useState(false);
   const [draft, setDraft] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  // Everyone would crowd the room, so the cast is a deliberate choice.
+  const [castIds, setCastIds] = useState<readonly string[]>(() =>
+    guestPersonas.slice(0, 4).map((persona) => persona.id)
+  );
   const uploadedObjectUrl = useRef<string | null>(null);
   const worldHandle = useRef<PixelWorldHandle>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -125,7 +129,12 @@ export function CommunityScreen({
     [scene.looks]
   );
 
-  const party = useParty(sceneMaps[0].id, scene.wornLookId, spriteSources);
+  const party = useParty(
+    sceneMaps[0].id,
+    scene.wornLookId,
+    spriteSources,
+    castIds
+  );
   const selectedLook = selectedPartyLook(scene);
   const worn = wornLook(scene);
   const selectedGuest = selectedGuestId ? personaById(selectedGuestId) : null;
@@ -182,6 +191,23 @@ export function CommunityScreen({
     }
     screen.orientation?.unlock?.();
     onExit?.();
+  }
+
+  /** Guest spots are limited, so inviting a fifth person retires the oldest. */
+  function toggleCast(personaId: string) {
+    const persona = personaById(personaId);
+    if (!persona) return;
+    setCastIds((current) => {
+      if (current.includes(personaId)) {
+        if (current.length === 1) return current;
+        announce(`${persona.name} 先离开了`);
+        return current.filter((id) => id !== personaId);
+      }
+      const next = [...current, personaId].slice(-4);
+      announce(`${persona.name} 来了`);
+      return next;
+    });
+    setSelectedGuestId(null);
   }
 
   function dressIn(lookId: string) {
@@ -320,7 +346,9 @@ export function CommunityScreen({
     }
   }
 
-  const busy = shareState === "card" || shareState === "gif";
+  const busy = shareState === "card" || shareState === "clip";
+  // Recording needs MediaRecorder; the still card always works without it.
+  const clipSupported = useMemo(() => supportedClipType() !== null, []);
 
   function shareSubject() {
     return {
@@ -370,32 +398,36 @@ export function CommunityScreen({
   }
 
   /** The caption holds still while the scene inside the frame keeps moving. */
-  async function exportAnimatedCard() {
+  async function exportClip() {
     if (busy) return;
-    setShareState("gif");
+    setShareState("clip");
     setMessage("正在等大家入镜…");
     try {
       resumeParty(party.world);
       await settleForPhoto();
-      setMessage("正在录制合影动图…");
-      const cards: HTMLCanvasElement[] = [];
-      for (let index = 0; index < CARD_FRAMES; index += 1) {
-        const canvas = renderCard();
-        if (!canvas) throw new Error("画面还没有准备好");
-        cards.push(canvas);
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, CARD_DELAY / 2)
-        );
-      }
-      const blob = encodeAnimatedCard(cards, { delay: CARD_DELAY });
-      downloadBlob(blob, "stylecapture-style-party.gif");
+      setMessage("正在录制合影视频…");
+      const clip = await recordClip({
+        durationMs: CLIP_MS,
+        framesPerSecond: CLIP_FPS,
+        width: CARD_WIDTH,
+        height: CARD_HEIGHT,
+        paint: (context) => {
+          const card = renderCard();
+          if (card) context.drawImage(card, 0, 0, CARD_WIDTH, CARD_HEIGHT);
+        }
+      });
+      downloadBlob(clip.blob, `stylecapture-style-party.${clip.extension}`);
       onShare?.(worn);
       setShareState("idle");
       setCameraOpen(false);
-      announce("合影动图已保存");
+      announce(
+        clip.extension === "mp4"
+          ? "合影视频已保存，可直接发到社交平台"
+          : "合影视频已保存（WebM 格式）"
+      );
     } catch {
       setShareState("error");
-      setMessage("动图生成失败，请重试");
+      setMessage("视频录制失败，请改用静态合影卡");
     }
   }
 
@@ -466,10 +498,14 @@ export function CommunityScreen({
             <button
               type="button"
               className="party-camera__primary"
-              disabled={busy}
-              onClick={() => void exportAnimatedCard()}
+              disabled={busy || !clipSupported}
+              onClick={() => void exportClip()}
             >
-              {shareState === "gif" ? "正在录制…" : "合影动图 · 2.6 秒"}
+              {shareState === "clip"
+                ? "正在录制…"
+                : clipSupported
+                  ? "合影视频 · 3 秒"
+                  : "此浏览器不支持录像"}
             </button>
             <button
               type="button"
@@ -586,6 +622,32 @@ export function CommunityScreen({
               <span aria-hidden="true">＋</span>
               <span>上传</span>
             </label>
+          </div>
+        </div>
+
+        <div className="party-cast" aria-label="选择在场的人">
+          <div className="party-section-heading">
+            <p className="party-kicker">今晚在场 · {castIds.length} 人</p>
+            <small>最多 4 人同时在场</small>
+          </div>
+          <div className="party-cast__list">
+            {guestPersonas.map((persona) => {
+              const look = lookById(scene, persona.lookId);
+              const active = castIds.includes(persona.id);
+              return (
+                <button
+                  key={persona.id}
+                  type="button"
+                  className="party-cast__item"
+                  aria-pressed={active}
+                  aria-label={`${active ? "请走" : "邀请"}${persona.name}`}
+                  onClick={() => toggleCast(persona.id)}
+                >
+                  <img src={look?.assetUrl} alt="" aria-hidden="true" />
+                  <span>{persona.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

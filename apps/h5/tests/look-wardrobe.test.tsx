@@ -334,7 +334,7 @@ describe("Look wardrobe states", () => {
     expect(screen.getByText("后台生成中…")).toBeInTheDocument();
   });
 
-  it("never presents the real collage as an ungenerated try-on or pixel cover", () => {
+  it("uses a successful collage render as the Look detail hero and removes the collage tab", () => {
     const onGenerate = vi.fn();
     render(
       <LookDetail
@@ -356,13 +356,17 @@ describe("Look wardrobe states", () => {
 
     expect(
       screen.getByRole("img", { name: "真实单品拼贴" })
-    ).toBeInTheDocument();
+    ).toHaveAttribute(
+      "src",
+      expect.stringContaining("55555555-5555-4555-8555-555555555555")
+    );
+    expect(screen.queryByRole("tab", { name: "真实拼贴" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
     expect(document.querySelector('input[capture="user"]')).not.toBeNull();
     expect(
-      screen.queryByRole("img", { name: "真实单品拼贴" })
-    ).not.toBeInTheDocument();
+      document.querySelector('.render-studio__preview img[alt="真实单品拼贴"]')
+    ).toBeNull();
     expect(
       screen.getByText(
         "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
@@ -374,8 +378,8 @@ describe("Look wardrobe states", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
     expect(
-      screen.queryByRole("img", { name: "真实单品拼贴" })
-    ).not.toBeInTheDocument();
+      document.querySelector('.render-studio__preview img[alt="真实单品拼贴"]')
+    ).toBeNull();
     expect(
       screen.getByText(
         "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"
@@ -383,6 +387,63 @@ describe("Look wardrobe states", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "生成像素封面" }));
     expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
+  });
+
+  it("shows an explicit hero placeholder while the collage render is queued", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact({
+            status: "queued",
+            output_image_url: null,
+            presentation_label: "真实单品拼贴排队中"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("img", { name: "真实单品拼贴生成中" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("真实单品拼贴排队中")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "收藏的真实整套穿搭" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls the hero back to the original Look image when no collage render is available", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("img", { name: "收藏的真实整套穿搭" })
+    ).toHaveAttribute(
+      "src",
+      "/v1/looks/11111111-1111-4111-8111-111111111111/image"
+    );
   });
 
   it("rejects invalid try-on files before creating a pending generation", () => {

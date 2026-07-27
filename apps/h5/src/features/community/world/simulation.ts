@@ -138,9 +138,14 @@ function guestActor(
 
 export function createPartyWorld(
   scene: SceneMap,
-  playerLookId: string
+  playerLookId: string,
+  /** Which guests to place. Omitted means everyone the cast has. */
+  activeGuestIds?: readonly string[]
 ): PartyWorld {
-  const guests = guestPersonas.map((persona, index) =>
+  const cast = activeGuestIds
+    ? guestPersonas.filter((persona) => activeGuestIds.includes(persona.id))
+    : guestPersonas;
+  const guests = cast.map((persona, index) =>
     guestActor(
       persona,
       scene.guestSpots[index % scene.guestSpots.length],
@@ -553,13 +558,20 @@ function startGuestChat(world: PartyWorld) {
       return actor && world.conversation?.guestId !== id;
     })
   );
-  if (!available.length) return;
+  // With a small cast, most scripted pairs are simply not both present.
+  if (!available.length) {
+    world.nextGuestChatAt = world.time + GUEST_CHAT_INTERVAL;
+    return;
+  }
 
   const script =
     available[Math.floor(noise(world.time * 3.7) * available.length) % available.length];
   const first = actorById(world, script.between[0]);
   const second = actorById(world, script.between[1]);
-  if (!first || !second) return;
+  if (!first || !second) {
+    world.nextGuestChatAt = world.time + GUEST_CHAT_INTERVAL;
+    return;
+  }
 
   // Meet in the middle, a step apart, on ground they can both stand on.
   const midX = (first.x + second.x) / 2;

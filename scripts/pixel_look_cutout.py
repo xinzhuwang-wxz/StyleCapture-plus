@@ -20,7 +20,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from PIL import Image
+from pixel_sprite import normalise  # type: ignore[import-not-found]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMUNITY_ASSETS = REPO_ROOT / "apps/h5/public/assets/community"
@@ -231,12 +234,9 @@ def cut_out(source: Path, destination: Path) -> tuple[int, int]:
         min(width, max_x + 1 + EDGE_PADDING),
         min(height, max_y + 1 + EDGE_PADDING),
     )
-    cropped = result.crop(box)
-    scale = TARGET_HEIGHT / cropped.height
-    resized = cropped.resize(
-        (max(1, round(cropped.width * scale)), TARGET_HEIGHT),
-        Image.Resampling.LANCZOS,
-    )
+    # Same body-size normalisation as the pose pack, so a Look cut from an
+    # illustration card stands exactly as tall as an authored character.
+    resized = normalise(result.crop(box))
     destination.parent.mkdir(parents=True, exist_ok=True)
     resized.save(destination, optimize=True)
     return resized.size

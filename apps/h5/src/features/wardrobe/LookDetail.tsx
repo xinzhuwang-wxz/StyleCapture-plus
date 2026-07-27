@@ -42,6 +42,13 @@ type LookDetailProps = {
   ) => void;
 };
 
+const RENDER_STUDIO_KINDS = ["try_on", "pixel_cover"] as const;
+type RenderStudioKind = (typeof RENDER_STUDIO_KINDS)[number];
+
+function isRenderStudioKind(kind: RenderKind | null): kind is RenderStudioKind {
+  return kind === "try_on" || kind === "pixel_cover";
+}
+
 function DetailContent({
   detail,
   renders = [],
@@ -69,7 +76,7 @@ function DetailContent({
 }) {
   const [reason, setReason] = useState("");
   const [activeRenderKind, setActiveRenderKind] =
-    useState<RenderKind>("collage");
+    useState<RenderStudioKind>("try_on");
   const [sharing, setSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [pendingTryOnFile, setPendingTryOnFile] = useState<File | null>(null);
@@ -87,12 +94,47 @@ function DetailContent({
     detail.analysis?.model_version === "human_reviewed"
       ? "人工整理 · 示例搭配解析"
       : "AI 理解";
+  const sortedRenders = [...renders].sort((left, right) =>
+    right.updated_at.localeCompare(left.updated_at)
+  );
+  const latestByKind = new Map<RenderKind, RenderArtifact>();
+  const completedByKind = new Map<RenderKind, RenderArtifact>();
+  sortedRenders.forEach((render) => {
+    if (!latestByKind.has(render.kind)) latestByKind.set(render.kind, render);
+    if (
+      !completedByKind.has(render.kind) &&
+      (render.status === "succeeded" || render.status === "degraded") &&
+      render.output_image_url
+    ) {
+      completedByKind.set(render.kind, render);
+    }
+  });
+  const successfulCollage = sortedRenders.find(
+    (render) =>
+      render.kind === "collage" &&
+      render.status === "succeeded" &&
+      render.output_image_url
+  );
+  const latestCollage = latestByKind.get("collage");
+  const showCollagePlaceholder =
+    !successfulCollage &&
+    (rendersLoading ||
+      latestCollage?.status === "queued" ||
+      latestCollage?.status === "running");
   const heroImageUrl =
-    detail.look.display_image_url ?? detail.look.source_image_url;
+    successfulCollage?.output_image_url ??
+    detail.look.display_image_url ??
+    detail.look.source_image_url;
 
   useEffect(() => {
     setReason("");
-    setActiveRenderKind("collage");
+    setActiveRenderKind(
+      latestByKind.has("try_on")
+        ? "try_on"
+        : latestByKind.has("pixel_cover")
+          ? "pixel_cover"
+          : "try_on"
+    );
     setShareMessage(null);
     setPendingTryOnFile(null);
     setTryOnValidationError(null);
@@ -131,24 +173,9 @@ function DetailContent({
   }, [pendingTryOnFile]);
 
   useEffect(() => {
-    if (generatingKind) setActiveRenderKind(generatingKind);
+    if (isRenderStudioKind(generatingKind)) setActiveRenderKind(generatingKind);
   }, [generatingKind]);
 
-  const sortedRenders = [...renders].sort((left, right) =>
-    right.updated_at.localeCompare(left.updated_at)
-  );
-  const latestByKind = new Map<RenderKind, RenderArtifact>();
-  const completedByKind = new Map<RenderKind, RenderArtifact>();
-  sortedRenders.forEach((render) => {
-    if (!latestByKind.has(render.kind)) latestByKind.set(render.kind, render);
-    if (
-      !completedByKind.has(render.kind) &&
-      (render.status === "succeeded" || render.status === "degraded") &&
-      render.output_image_url
-    ) {
-      completedByKind.set(render.kind, render);
-    }
-  });
   const activeRender = latestByKind.get(activeRenderKind);
   const completedActiveRender = completedByKind.get(activeRenderKind);
   const explicitFallback = activeRender?.fallback_artifact_id
@@ -246,11 +273,27 @@ function DetailContent({
       </div>
 
       <div className="detail-image look-detail__hero">
-        {heroImageUrl ? (
+        {showCollagePlaceholder ? (
+          <div className="look-detail__collage-placeholder" role="img" aria-label="真实单品拼贴生成中">
+            <span aria-hidden="true">✦</span>
+            <strong>
+              {latestCollage?.status === "queued"
+                ? "真实单品拼贴排队中"
+                : "正在生成真实单品拼贴"}
+            </strong>
+            <small>完成后会优先作为这套穿搭的详情封面。</small>
+          </div>
+        ) : heroImageUrl ? (
           <img
-            src={heroImageUrl}
+            src={
+              successfulCollage
+                ? `${heroImageUrl}?v=${encodeURIComponent(successfulCollage.updated_at)}`
+                : heroImageUrl
+            }
             alt={
-              detail.look.source === "ai_generated"
+              successfulCollage
+                ? successfulCollage.presentation_label
+                : detail.look.source === "ai_generated"
                 ? "AI 搭配中的真实衣橱单品"
                 : "收藏的真实整套穿搭"
             }
@@ -436,11 +479,10 @@ function DetailContent({
             </div>
             <div className="render-studio__tabs" role="tablist" aria-label="穿搭成片类型">
               {(
-                [
-                  ["collage", "真实拼贴"],
-                  ["try_on", "真人试穿"],
-                  ["pixel_cover", "像素封面"]
-                ] as const
+                RENDER_STUDIO_KINDS.map((kind) => [
+                  kind,
+                  kind === "try_on" ? "真人试穿" : "像素封面"
+                ] as const)
               ).map(([kind, label]) => (
                 <button
                   key={kind}
@@ -454,7 +496,7 @@ function DetailContent({
                 </button>
               ))}
             </div>
-            <div className="render-studio__preview">
+            <div className="render-studio__preview" data-render-kind={activeRenderKind}>
               {visibleRender?.output_image_url ? (
                 <img
                   src={`${visibleRender.output_image_url}?v=${encodeURIComponent(
@@ -475,14 +517,10 @@ function DetailContent({
                     {rendersLoading || activeRender?.status === "queued" || activeRender?.status === "running"
                       ? activeRenderKind === "try_on"
                         ? "正在生成真人试穿"
-                        : activeRenderKind === "pixel_cover"
-                          ? "正在生成像素封面"
-                          : "正在准备真实单品拼贴"
-                      : activeRenderKind === "collage"
-                        ? "正在准备真实单品拼贴"
-                        : activeRenderKind === "try_on"
-                          ? "上传全身照后生成真人试穿"
-                          : "生成一张像素穿搭封面"}
+                        : "正在生成像素封面"
+                      : activeRenderKind === "try_on"
+                        ? "上传全身照后生成真人试穿"
+                        : "生成一张像素穿搭封面"}
                   </strong>
                   <small>任务会在后台完成，退出详情也不会丢失。</small>
                 </div>
@@ -511,9 +549,7 @@ function DetailContent({
                       activeRender.status === "degraded"
                     ? "本次真人试穿暂时不可用，当前展示真实单品拼贴；可换张全身照重试。"
                   : "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
-                : activeRenderKind === "pixel_cover"
-                  ? "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"
-                  : "拼贴直接来自这套穿搭里已入库的真实单品图。"}
+                : "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"}
             </p>
             {activeRenderKind === "try_on" && onTryOn ? (
               <>

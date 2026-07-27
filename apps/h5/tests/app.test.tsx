@@ -8,6 +8,7 @@ import {
   type CaptureAccepted,
   type Item,
   ProductApiError,
+  type RenderArtifact,
   wardrobeApi
 } from "../src/api/client";
 
@@ -47,6 +48,7 @@ vi.mock("../src/api/client", async (importOriginal) => {
       listLooks: vi.fn(),
       getLook: vi.fn(),
       listRenders: vi.fn(),
+      createRender: vi.fn(),
       listPurchaseDemands: vi.fn(),
       addLikingReason: vi.fn(),
       retryLook: vi.fn(),
@@ -97,6 +99,25 @@ const wardrobeItem: Item = {
   updated_at: "2026-07-25T00:00:00Z"
 };
 
+const collageRender: RenderArtifact = {
+  id: "55555555-5555-4555-8555-555555555555",
+  look_id: "11111111-1111-4111-8111-111111111111",
+  kind: "collage",
+  status: "queued",
+  presentation_label: "真实单品拼贴",
+  subject_attached: false,
+  personalized: false,
+  output_image_url: null,
+  fallback_artifact_id: null,
+  failure_code: null,
+  failure_message: null,
+  retryable: false,
+  share_eligible: false,
+  cache_hit: false,
+  created_at: "2026-07-25T00:00:00Z",
+  updated_at: "2026-07-25T00:00:00Z"
+};
+
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -129,6 +150,7 @@ describe("StyleCapture garment ingest", () => {
     api.listItems.mockResolvedValue([]);
     api.listLooks.mockResolvedValue([]);
     api.listRenders.mockResolvedValue([]);
+    api.createRender.mockResolvedValue(collageRender);
     api.listPurchaseDemands.mockResolvedValue([]);
     api.addLikingReason.mockResolvedValue(undefined);
     api.ingest.mockResolvedValue({
@@ -302,6 +324,52 @@ describe("StyleCapture garment ingest", () => {
     expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
     expect(screen.getByText("由衣橱真实单品组成")).toBeInTheDocument();
     expect(screen.queryByText("原始画面已删除")).not.toBeInTheDocument();
+  });
+
+  it("requests a real collage when opening a user-uploaded outfit with extracted items", async () => {
+    const lookId = "11111111-1111-4111-8111-111111111111";
+    window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
+    api.getLook.mockResolvedValue({
+      look: {
+        id: lookId,
+        capture_id: null,
+        status: "ready",
+        source: "user_created",
+        display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image",
+        source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
+        display_ready: true,
+        source_available: true,
+        created_at: "2026-07-25T00:00:00Z",
+        updated_at: "2026-07-25T00:01:00Z"
+      },
+      components: [
+        {
+          component_key: "top",
+          status: "ready",
+          item_id: wardrobeItem.id,
+          item_image_url: wardrobeItem.display_image_url,
+          role: "tops",
+          layer: "base",
+          display_order: 0,
+          confidence: 0.95
+        }
+      ],
+      analysis: null,
+      preferences: [],
+      source_video_ref: null,
+      source_timestamp_ms: null
+    });
+
+    renderApp();
+
+    expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
+    await waitFor(() =>
+      expect(api.createRender).toHaveBeenCalledWith(
+        lookId,
+        "collage",
+        "auto-collage:11111111-1111-4111-8111-111111111111:2026-07-25T00:01:00Z"
+      )
+    );
   });
 
   it("resets the wardrobe scroll position when switching primary destinations", async () => {
