@@ -43,6 +43,8 @@ Do not use referral bounties, volume-paid group owners, information-feed ads, po
 
 Exclude team members, direct family, duplicate subjects, pro trialists, non-ICP travelers, trips outside 7-30 days, non-3-7-day travel, and users unable to provide low-sensitivity proof.
 
+Throttle intake by source. If continuing a source would make the target qualified cohort exceed its cap, stop that source before the next candidate and switch to another approved source.
+
 Every de-identified aggregate record must include both `source_bucket` and `professional_creator` so these caps are recomputable. The validator enforces caps once the qualified cohort denominator reaches 20; smaller draft aggregates still report `channel_mix` but are not treated as final cohort cap evidence.
 
 ## Evidence handling
@@ -50,10 +52,12 @@ Every de-identified aggregate record must include both `source_bucket` and `prof
 Permitted low-sensitivity proof:
 
 - Redacted booking or itinerary proof with name, order number, ID, exact lodging, and contact data removed.
-- Screenshot shown during qualification and deleted after qualification evidence is recorded.
+- Screenshot shown during qualification; operators only delete local caches/files under their control after qualification evidence is recorded.
 - Garment photos needed for planning stay outside Git and outside App binaries.
 
 Raw contact details, payment proof, refunds, photos, recordings, transcripts, and exports stay outside Git. The committed aggregate must use `metrics.schema.json` and pseudonymous `participant_id` values only.
+
+If a third-party channel cannot be controlled or deletion cannot be verified, pause that channel and follow the participant notice plus authorized legal subject process before resuming.
 
 ## Validation command
 

@@ -33,9 +33,10 @@ If any item is missing, pause external action and keep the decision log at `BLOC
    - Approved women/travel groups: <=35%.
    - Second-degree referrals: <=25%.
    - Professional creators: <=20%.
-3. Ask the screener in `interview-script.md`.
-4. Reject and record exclusion if the candidate is under 18, duplicate, team/direct family, prior pro trialist, non-ICP, outside 7-30 days, not a 3-7 day overnight trip, single-day occasion, lacks proof, or lacks at least 8 owned garments.
-5. Do not replace a cancellation with another scene under the same participant record.
+3. Apply an intake throttle before accepting the next candidate from a source. If accepting that candidate would make the target cohort exceed a cap, stop that source and use another approved source.
+4. Ask the screener in `interview-script.md`.
+5. Reject and record exclusion if the candidate is under 18, duplicate, team/direct family, prior pro trialist, non-ICP, outside 7-30 days, not a 3-7 day overnight trip, single-day occasion, lacks proof, or lacks at least 8 owned garments.
+6. Do not replace a cancellation with another scene under the same participant record.
 
 ## Proof and evidence handling
 
@@ -46,10 +47,10 @@ Operator flow:
 1. Ask the participant to redact name, order number, ID, exact lodging, and contact details before showing proof.
 2. View proof only long enough to confirm eligibility.
 3. Record only de-identified eligibility status and an external `evidence_ref` if needed.
-4. Delete the proof from local device caches and chat/file surfaces under operator control.
+4. Delete proof only from local caches and files under operator control.
 5. Never commit proof, screenshots, chat exports, transcripts, recordings, contacts, or payment evidence.
 
-If proof cannot be deleted from a third-party chat surface, record the incident outside Git and pause that channel until the legal subject approves the handling.
+If proof cannot be controlled or deletion cannot be verified on a third-party channel, record the incident outside Git, pause that channel, and follow the notice and authorized legal subject process before resuming.
 
 ## Pseudonymous IDs
 
@@ -146,21 +147,15 @@ Non-response, unclear use, and explicit no-use do not count as execution success
 
 ## Metrics aggregate
 
-When real de-identified records exist, create an aggregate matching `metrics.schema.json` outside raw-data folders. Each record must include:
+When real de-identified records exist, create an aggregate matching `metrics.schema.json` outside raw-data folders. Use the schema `required` arrays as the only authoritative field checklist; do not treat this runbook as a schema copy.
 
-- `participant_id`
-- `recruiting_source`
-- `source_bucket`
-- `professional_creator`
-- `qualified_icp`
-- trip dates, `trip_days`, and `trip_within_30_days`
-- pain/current workaround/cost/evidence/tolerance fields
-- complete-plan status
-- one ¥12 CNY offer
-- `offer.evidence_ref` for verified deposits/payments
-- plan completeness fields
-- post-trip maturity and `post_trip.evidence_ref` for execution successes
-- exclusions
+De-identified shape:
+
+- One cohort object with `schema_version`, `cohort_id`, `frozen_at`, and `records`.
+- Each `records[]` entry uses one pseudonymous `participant_id` and every field required by `metrics.schema.json`.
+- No extra fields outside the schema.
+- `offer.evidence_ref` is required when payment evidence is `verified_payment` or `verified_deposit`.
+- `post_trip.evidence_ref` is required for successful execution outcomes.
 
 Use `evidence_ref` only as a pointer to an external controlled evidence register. It must not reveal contacts, payment handles, exact lodging, account IDs, or raw file names containing personal data.
 

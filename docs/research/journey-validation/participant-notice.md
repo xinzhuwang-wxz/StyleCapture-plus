@@ -51,7 +51,7 @@ Operational raw material must stay in an approved external store controlled by t
 
 Trip proof is viewed only to confirm the 7-30 day, 3-7 day travel eligibility. Participants should redact name, order number, ID, exact lodging, and contact details before showing it.
 
-After qualification is recorded, the operator deletes the proof from local device caches and chat/file surfaces under their control. The committed repository stores only de-identified eligibility and `evidence_ref` values.
+After qualification is recorded, the operator deletes proof only from local caches and files under operator control. If a third-party channel cannot be controlled or deletion cannot be verified, pause that channel and follow the notice and authorized legal subject process. The committed repository stores only de-identified eligibility and `evidence_ref` values.
 
 ## Retention, deletion, and withdrawal
 
@@ -61,7 +61,7 @@ Operational retention schedule:
 
 | Data type | Default handling |
 |---|---|
-| Redacted trip proof | View for qualification, then delete immediately after the eligibility record is created. |
+| Redacted trip proof | View for qualification, then delete operator-controlled local caches/files after the eligibility record is created; third-party retention follows the notice and authorized legal subject process. |
 | Raw garment photos | Store outside Git only while needed to create and revise the one plan; delete on withdrawal or after the retention period set by the legal subject. |
 | Contact details | Store outside Git only for scheduling, delivery, refund, and follow-up; delete or de-link after the retention period set by the legal subject. |
 | Payment/refund evidence | Store outside Git under merchant/accounting controls; retain only under the pre-launch retention period set by the authorized legal subject. |
