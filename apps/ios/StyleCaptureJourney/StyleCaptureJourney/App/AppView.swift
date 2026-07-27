@@ -5,9 +5,12 @@ struct AppView: View {
     let store: StoreOf<AppFeature>
 
     var body: some View {
-        @Bindable var store = store
-
-        TabView(selection: $store.selectedTab) {
+        TabView(
+            selection: Binding(
+                get: { store.selectedTab },
+                set: { store.send(.selectedTabChanged($0)) }
+            )
+        ) {
             NavigationStack {
                 JourneyView(
                     store: store.scope(state: \.journey, action: \.journey)

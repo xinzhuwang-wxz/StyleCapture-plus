@@ -24,7 +24,7 @@ public struct OutboxRecord: Codable, Equatable, FetchableRecord, PersistableReco
         self.createdAt = createdAt
     }
 
-    enum Columns {
+    public enum Columns {
         static let id = Column("id")
         static let createdAt = Column("createdAt")
     }

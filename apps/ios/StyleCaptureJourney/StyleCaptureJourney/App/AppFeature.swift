@@ -15,12 +15,12 @@ struct AppFeature {
         case journey
     }
 
-    enum Action: BindableAction, Equatable {
-        case binding(BindingAction<State>)
+    enum Action: Equatable {
         case launch
         case launchResponse(Result<NavigationSnapshot?, AppError>)
         case navigationPersisted(Result<Void, AppError>)
         case restoreNavigation(NavigationSnapshot)
+        case selectedTabChanged(Tab)
         case deepLink(URL)
         case journey(JourneyFeature.Action)
     }
@@ -34,18 +34,11 @@ struct AppFeature {
     @Dependency(\.navigationSnapshotClient) var navigationSnapshotClient
 
     var body: some ReducerOf<Self> {
-        BindingReducer()
         Scope(state: \.journey, action: \.journey) {
             JourneyFeature()
         }
         Reduce { state, action in
             switch action {
-            case .binding(\.selectedTab):
-                return persistNavigation(state)
-
-            case .binding:
-                return .none
-
             case .launch:
                 return .run { send in
                     do {
@@ -78,6 +71,10 @@ struct AppFeature {
 
             case let .restoreNavigation(snapshot):
                 apply(snapshot, to: &state)
+                return persistNavigation(state)
+
+            case let .selectedTabChanged(tab):
+                state.selectedTab = tab
                 return persistNavigation(state)
 
             case let .deepLink(url):
