@@ -8,6 +8,12 @@ import {
   releaseBrowserImagePreview
 } from "../../media/browserImagePreview";
 import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
+import { BodyProfileSheet } from "./BodyProfileSheet";
+import {
+  isDefaultBodyProfile,
+  readBodyProfile,
+  type BodyProfile
+} from "./profileStorage";
 import "./profile.css";
 
 interface ProfileScreenProps {
@@ -44,6 +50,9 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
   const [trialId, setTrialId] = useState<string | null>(restoreTrialId);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 身材资料只在本机，读一次就够；保存后由 sheet 回传最新值。
+  const [bodyProfile, setBodyProfile] = useState<BodyProfile>(readBodyProfile);
+  const [editingBody, setEditingBody] = useState(false);
 
   const trialQuery = useQuery({
     queryKey: ["pixel-trial", trialId],
@@ -130,6 +139,17 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
           ? "生成失败，可重新上传"
           : "上传全身照，一键生成像素形象";
 
+  if (editingBody) {
+    return (
+      <BodyProfileSheet
+        profile={bodyProfile}
+        onSaved={setBodyProfile}
+        onClose={() => setEditingBody(false)}
+        onNotice={onNotice}
+      />
+    );
+  }
+
   return (
     <div className="profile-page">
       <section className="profile__card" aria-label="我的资料">
@@ -144,6 +164,22 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
           </span>
         </div>
         <span className="profile__edit">{statusCopy}</span>
+      </section>
+
+      <PixelSectionHeader
+        kicker="我的个人信息"
+        title={bodyProfile.nickname}
+        action={
+          <PixelButton variant="ghost" onClick={() => setEditingBody(true)}>
+            编辑资料 ›
+          </PixelButton>
+        }
+      />
+
+      <section className="profile__summary" aria-label="身材资料">
+        {isDefaultBodyProfile(bodyProfile)
+          ? "补全身材数据，AI 生成的上身效果更准。只保存在这台设备上。"
+          : `${bodyProfile.height} cm · ${bodyProfile.weight} kg · ${bodyProfile.bust}/${bodyProfile.waist}/${bodyProfile.hip} · ${bodyProfile.shape}`}
       </section>
 
       <PixelSectionHeader
