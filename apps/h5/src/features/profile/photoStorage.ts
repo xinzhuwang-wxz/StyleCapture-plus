@@ -1,0 +1,113 @@
+/**
+ * 形象照的本机相册。
+ *
+ * 这些是真人全身照，属于最敏感的一类数据，所以只以缩小后的 data URL 存在这台
+ * 设备上，不进任何请求体。设计里写明「最多保存 6 张，可随时切换」——上限不是
+ * 装饰，是 localStorage 容量的现实约束。
+ */
+
+import {
+  asRecord,
+  asTrimmedString,
+  readLocal,
+  writeLocal,
+  type LocalStoreDefinition,
+  type WriteResult
+} from "../../storage/localStore";
+
+export const MAX_REFERENCE_PHOTOS = 6;
+
+export type ReferencePhoto = {
+  id: string;
+  /** 缩小后的 JPEG data URL。 */
+  dataUrl: string;
+  addedAt: string;
+};
+
+export type PhotoAlbum = {
+  photos: ReferencePhoto[];
+  /** 当前用于真人试穿的那张；相册为空时是 null。 */
+  activeId: string | null;
+};
+
+export function emptyAlbum(): PhotoAlbum {
+  return { photos: [], activeId: null };
+}
+
+function parsePhoto(raw: unknown): ReferencePhoto | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+  const id = asTrimmedString(record.id, 64);
+  const addedAt = asTrimmedString(record.addedAt, 40);
+  const dataUrl = typeof record.dataUrl === "string" ? record.dataUrl : "";
+  // 只认 data URL：外部链接会把本机照片变成一次网络请求。
+  if (!id || !addedAt || !dataUrl.startsWith("data:image/")) return null;
+  return { id, dataUrl, addedAt };
+}
+
+export const photoAlbumStore: LocalStoreDefinition<PhotoAlbum> = {
+  key: "stylecapture:reference-photos:v1",
+  fallback: emptyAlbum,
+  parse: (raw) => {
+    const record = asRecord(raw);
+    if (!record) return null;
+    if (!Array.isArray(record.photos)) return null;
+
+    const photos = record.photos
+      .map(parsePhoto)
+      .filter((photo): photo is ReferencePhoto => photo !== null)
+      .slice(0, MAX_REFERENCE_PHOTOS);
+
+    const activeId =
+      typeof record.activeId === "string" &&
+      photos.some((photo) => photo.id === record.activeId)
+        ? record.activeId
+        : (photos[0]?.id ?? null);
+
+    return { photos, activeId };
+  }
+};
+
+export function readPhotoAlbum(): PhotoAlbum {
+  return readLocal(photoAlbumStore);
+}
+
+export function writePhotoAlbum(album: PhotoAlbum): WriteResult {
+  return writeLocal(photoAlbumStore, album);
+}
+
+export function isAlbumFull(album: PhotoAlbum): boolean {
+  return album.photos.length >= MAX_REFERENCE_PHOTOS;
+}
+
+/** 加一张；相册满了就原样返回，由调用方给出提示。 */
+export function addPhoto(album: PhotoAlbum, photo: ReferencePhoto): PhotoAlbum {
+  if (isAlbumFull(album)) return album;
+  const photos = [...album.photos, photo];
+  // 第一张自动成为试穿照，省掉一次多余的点击。
+  return { photos, activeId: album.activeId ?? photo.id };
+}
+
+/** 删若干张；删掉的正好是当前试穿照时，自动顺延到剩下的第一张。 */
+export function removePhotos(
+  album: PhotoAlbum,
+  ids: readonly string[]
+): PhotoAlbum {
+  const doomed = new Set(ids);
+  const photos = album.photos.filter((photo) => !doomed.has(photo.id));
+  const activeId =
+    album.activeId && !doomed.has(album.activeId)
+      ? album.activeId
+      : (photos[0]?.id ?? null);
+  return { photos, activeId };
+}
+
+export function setActivePhoto(album: PhotoAlbum, id: string): PhotoAlbum {
+  return album.photos.some((photo) => photo.id === id)
+    ? { ...album, activeId: id }
+    : album;
+}
+
+export function activePhoto(album: PhotoAlbum): ReferencePhoto | null {
+  return album.photos.find((photo) => photo.id === album.activeId) ?? null;
+}

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -8,6 +9,7 @@ import {
   type RenderArtifact,
   type RenderKind
 } from "../../api/client";
+import { ShareCardSheet } from "../outfit/ShareCardSheet";
 import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
@@ -79,6 +81,7 @@ function DetailContent({
     useState<RenderStudioKind>("try_on");
   const [sharing, setSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const [pendingTryOnFile, setPendingTryOnFile] = useState<File | null>(null);
   const [pendingTryOnPreview, setPendingTryOnPreview] = useState<string | null>(
     null
@@ -215,6 +218,32 @@ function DetailContent({
         : detail.look.status === "partial"
           ? "部分拆解完成"
           : "后台处理中";
+
+  /** 只下载，不走系统面板——「保存到相册」要的就是这条。 */
+  async function downloadPixelCover() {
+    if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
+    setSharing(true);
+    setShareMessage(null);
+    try {
+      const response = await fetch(pixelCover.output_image_url, {
+        cache: "no-store",
+        credentials: "same-origin"
+      });
+      if (!response.ok) throw new Error("像素封面暂时无法读取");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `stylecapture-${detail.look.id}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setShareMessage("像素封面已保存");
+    } catch (error) {
+      setShareMessage(error instanceof Error ? error.message : "保存没有完成");
+    } finally {
+      setSharing(false);
+    }
+  }
 
   async function sharePixelCover() {
     if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
@@ -694,12 +723,23 @@ function DetailContent({
                 className="secondary-action"
                 type="button"
                 disabled={sharing}
-                onClick={() => void sharePixelCover()}
+                onClick={() => setShareOpen(true)}
               >
                 {sharing ? "正在准备分享…" : "分享像素封面"}
               </button>
             ) : null}
             {shareMessage ? <p className="render-studio__message" role="status">{shareMessage}</p> : null}
+            {shareOpen && pixelCover?.output_image_url ? (
+              <ShareCardSheet
+                imageUrl={pixelCover.output_image_url}
+                title="我的穿搭"
+                sharing={sharing}
+                message={shareMessage}
+                onShare={sharePixelCover}
+                onSave={downloadPixelCover}
+                onClose={() => setShareOpen(false)}
+              />
+            ) : null}
           </section>
         ) : null}
 

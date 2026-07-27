@@ -539,6 +539,32 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
 
+  /**
+   * 把组合衣柜里的单品存成一套真实的 Look。
+   *
+   * 走的是既有的搭配接口：把选中的单品作为必选项交给后端出方案，再保存该方案。
+   * 没有为此新增任何端点，也没有在前端凭空拼一个 Look——衣橱资产必须由后端产生。
+   */
+  async function saveCombo(entries: readonly { itemId: string }[]) {
+    if (entries.length < 2) return;
+    try {
+      const plans = await wardrobeApi.planOutfits({
+        scene: "自由组合",
+        mustIncludeItemIds: entries.map((entry) => entry.itemId)
+      });
+      const plan = plans.plans?.[0];
+      if (!plan) {
+        setNotice("这套组合暂时没能生成方案，换一件再试");
+        return;
+      }
+      await wardrobeApi.saveOutfitPlan(plan, crypto.randomUUID());
+      setNotice("已存为新的穿搭，正在后台生成拼贴");
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+    } catch (error) {
+      setNotice(errorMessage(error));
+    }
+  }
+
   function dismissPending(entry: PendingItem) {
     releaseBrowserImagePreview(entry.previewUrl);
     setPending((current) =>
@@ -987,6 +1013,8 @@ export function App() {
               onRetryPixel={(item) => retryPixelMutation.mutate(item)}
               onRetryPending={(entry) => retryPendingMutation.mutate(entry.jobId)}
               onDismissPending={dismissPending}
+              onNotice={setNotice}
+              onSaveCombo={saveCombo}
             />
           </Suspense>
         ) : null}

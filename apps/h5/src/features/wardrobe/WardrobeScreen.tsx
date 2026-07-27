@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { Item, Look, RenderArtifact } from "../../api/client";
-import { PendingItemCard, type PendingItem, WardrobeItemCard } from "./ItemCard";
+import { ComboBasket } from "../combo/ComboBasket";
+import {
+  addToBasket,
+  basketEntryOf,
+  isInBasket,
+  removeFromBasket,
+  type BasketEntry
+} from "../combo/basketRules";
+import { ComboDraggableItem } from "../combo/ComboDraggableItem";
+import { PendingItemCard, type PendingItem } from "./ItemCard";
 import { LookCard } from "./LookCard";
 import "./wardrobe.css";
 
@@ -24,7 +33,9 @@ export function WardrobeScreen({
   onRetry,
   onRetryPixel,
   onRetryPending,
-  onDismissPending
+  onDismissPending,
+  onSaveCombo,
+  onNotice
 }: {
   looks: Look[];
   pixelCovers: Record<string, RenderArtifact>;
@@ -42,7 +53,23 @@ export function WardrobeScreen({
   onRetryPixel: (item: Item) => void;
   onRetryPending: (pending: PendingItem) => void;
   onDismissPending: (pending: PendingItem) => void;
+  onSaveCombo?: (entries: readonly BasketEntry[]) => Promise<void> | void;
+  onNotice?: (message: string) => void;
 }) {
+  const [basket, setBasket] = useState<readonly BasketEntry[]>([]);
+  const [basketOpen, setBasketOpen] = useState(false);
+  const [receiving, setReceiving] = useState(false);
+  const [savingCombo, setSavingCombo] = useState(false);
+
+  function toggleInBasket(item: Item, label: string) {
+    setBasket((current) => {
+      if (isInBasket(current, item.id)) return removeFromBasket(current, item.id);
+      const next = addToBasket(current, basketEntryOf(item, label));
+      if (next === current) onNotice?.("组合衣柜放满了，先拿出一件再加");
+      else setBasketOpen(true);
+      return next;
+    });
+  }
   const [view, setView] = useState<WardrobeView>("looks");
   const [filter, setFilter] = useState<Filter>("all");
   useEffect(() => {
@@ -177,16 +204,48 @@ export function WardrobeScreen({
                   />
                 ))}
                 {visible.map((item) => (
-                  <WardrobeItemCard
+                  <ComboDraggableItem
                     key={item.id}
                     item={item}
+                    inBasket={isInBasket(basket, item.id)}
                     onOpen={() => onOpen(item)}
                     onRetry={() => onRetry(item)}
                     onRetryPixel={() => onRetryPixel(item)}
+                    onToggleBasket={(label) => toggleInBasket(item, label)}
+                    onDragActive={setReceiving}
                   />
                 ))}
               </>}
         </div>
+      ) : null}
+
+      {view === "items" ? (
+        <ComboBasket
+          basket={basket}
+          open={basketOpen}
+          receiving={receiving}
+          saving={savingCombo}
+          onToggle={() => setBasketOpen((open) => !open)}
+          onRemove={(itemId: string) =>
+            setBasket((current) => removeFromBasket(current, itemId))
+          }
+          onClear={() => setBasket([])}
+          onSave={async () => {
+            if (!onSaveCombo) {
+              // 没接保存能力时说实话，而不是假装存好了。
+              onNotice?.("这套组合还不能保存，稍后再试");
+              return;
+            }
+            setSavingCombo(true);
+            try {
+              await onSaveCombo(basket);
+              setBasket([]);
+              setBasketOpen(false);
+            } finally {
+              setSavingCombo(false);
+            }
+          }}
+        />
       ) : null}
     </section>
   );
