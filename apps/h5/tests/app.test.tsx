@@ -287,7 +287,7 @@ describe("StyleCapture garment ingest", () => {
     );
     renderApp();
 
-    expect(screen.getByText("正在理解这件衣服")).toBeInTheDocument();
+    expect(await screen.findByText("正在理解这件衣服")).toBeInTheDocument();
 
     await waitFor(
       () => expect(screen.queryByText("正在理解这件衣服")).not.toBeInTheDocument(),

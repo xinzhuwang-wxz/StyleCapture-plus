@@ -42,3 +42,8 @@ What credible alternatives were rejected and why?
 
 Which tests, traces, measurements, or user observations validate the decision?
 ```
+
+## Current records
+
+- `0001`–`0006`: existing Product API, provider, deployment, and Skill decisions.
+- `0007-native-ios-trip-planning-and-storekit.md`: native iOS Journey client, generated API contracts, offline store, StoreKit entitlement truth, and China-first dependency boundary.

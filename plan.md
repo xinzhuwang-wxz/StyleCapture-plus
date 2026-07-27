@@ -1,4 +1,28 @@
-## 一、产品定义（文档/PPT 按此结构写：痛点 → 能力 → 实现）
+## 独立商业 App 路线（长期分支）
+
+`codex/stylecapture-journey` 在不急于合并的独立分支上验证一个新的付费楔子：
+3–7 天旅行的逐日穿搭和去重打包计划。单日婚礼、面试、约会不进入同一 P0 或指标分母。
+该路线不复制 Feed，也不改变本文件记录的原演示产品。
+商业路线的当前真源为：
+
+- `docs/product/STYLECAPTURE-JOURNEY-PRD.md`
+- `docs/architecture/STYLECAPTURE-JOURNEY-TECHNICAL-DESIGN.md`
+- `docs/architecture/JOURNEY-SKILL-CAPABILITY-REGISTRY.md`
+- `docs/research/STYLECAPTURE-JOURNEY-MARKET-AND-REUSE-AUDIT.md`
+- `docs/exec-plans/0043-stylecapture-journey-commercial-app.md`
+- `docs/superpowers/plans/2026-07-27-stylecapture-journey.md`
+
+进入完整 P0 开发前必须先通过 M0 付费问题门（7 天招募/统一报价，加旅行后成熟观察）；未通过时修订或停止该楔子，不用功能堆叠掩盖需求证据不足。
+
+---
+
+# Legacy demo route — archived reference only
+
+以下内容是原抖音 Feed/H5 评审演示的历史计划，只用于理解已有资产来源。它不适用于
+StyleCapture Journey，不得作为该独立 App 的 scope、实现顺序、mock 策略、真人试穿要求或
+完成标准。Journey 执行只以上述商业路线文档和 active Goal 为准。
+
+## 一、历史产品定义（文档/PPT 按此结构写：痛点 → 能力 → 实现）
 
   
 
