@@ -266,6 +266,7 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - Current H5 stores person photos/body data in `localStorage`; native storage must not copy that design.
 - M0 needs a local repository-side operating surface before native iOS work. The implemented surface validates only de-identified aggregate records; it intentionally does not fabricate cohort, payment, refund, or maturity evidence.
 - China-market operating controls tighten M0 collection: recruit toward 30 to preserve a mature denominator, cap natural search at <=50%, approved women/travel groups at <=35%, second-degree referrals at <=25%, and professional creators at <=20%; exclude bounties, volume-paid group owners, information-feed ads, positive-feedback rewards, and completion cash rewards.
+- The 2026-07-28 external-readiness audit found no established Xiaohongshu creator login signal, authorized legal-subject/contact values, group-forward approvals, merchant/refund authority, isolated refund reserve, or controlled external evidence register. One direct read-only navigation attempt in each available browser surface produced no usable page or login-state signal; no external side effect was attempted. This is recorded in `docs/research/journey-validation/external-readiness.md` and blocks real M0 launch without changing the product gate.
 
 - Current FASHN default would send person photos overseas and FastFit is non-commercial. Removing P0 try-on improves both compliance and margin without weakening the paid Journey job.
 - StoreKit official client/server libraries cover the first launch; RevenueCat is not necessary until cross-platform or remote-paywall operations become real bottlenecks.
@@ -275,6 +276,7 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 ## Decision Log
 
 - 2026-07-28: M0 repository infrastructure is implemented locally, but the product decision remains `BLOCKED_FOR_REAL_EVIDENCE`. Task 2 native iOS work is still gated because no real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, or `trip_end+7d` execution evidence exists.
+- 2026-07-28: Record external execution readiness separately from product validation. Missing authorized account, legal-subject/contact, merchant/refund, reserve and controlled-data-store evidence prevents safe recruitment or deposit collection; it is not a failed product experiment and does not authorize `PIVOT` or `STOP`.
 - 2026-07-28: Adopt TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` as the mature app shell and reject custom Router/Environment/ViewModel infrastructure; SwiftUI/Observation remain rendering/lifecycle only.
 - 2026-07-27: Make scene execution, not content consumption, the first paid result.
 - 2026-07-27: Target native iOS 17+ and reuse the existing Product API rather than wrapping H5 or rebuilding backend services.

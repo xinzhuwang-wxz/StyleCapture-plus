@@ -7,6 +7,7 @@ This folder defines the repository-side controls for the M0 paid problem validat
 - `recruitment-copy.md` contains copy-ready neutral recruiting text for Xiaohongshu, comments, DMs, approved group forwards, and seven-day reminders.
 - `participant-notice.md` contains the participant-facing research notice template. All legal subject, contact, complaint, privacy, merchant, and refund placeholders must be completed by the authorized legal subject before real use.
 - `operator-runbook.md` contains the external operating checklist for screening, proof deletion, pseudonymous IDs, merchant collection, refund reserve, delivery, follow-up, aggregate metrics, decision, incidents, and pause gates.
+- `external-readiness.md` records the current account, legal-subject, merchant/refund and controlled-data-store readiness evidence without claiming external execution.
 - `interview-script.md` contains the neutral screener, current-behavior interview, wardrobe tolerance questions, identical offer wording, and post-trip follow-up.
 - `concierge-plan-template.md` contains the one-trip plan structure and identical ¥12 refundable deposit terms.
 - `metrics.schema.json` defines the only commit-safe de-identified aggregate record shape.
@@ -88,3 +89,5 @@ The following require account or payment authority and must not be marked done u
 - Isolated refund balance.
 - Privacy and deposit notice delivery.
 - Real recruitment, payments, refunds, post-trip follow-up, and maturity cutoff.
+
+The latest readiness audit and precise missing evidence are recorded in `external-readiness.md`.

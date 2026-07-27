@@ -4,6 +4,8 @@ Status: `BLOCKED_FOR_REAL_EVIDENCE`
 
 No `GO`, `PIVOT`, or `STOP` decision is recorded yet. Repository infrastructure is ready to collect, validate, and recompute M0 evidence, but recruitment, payments/deposits, plan delivery, refunds, and post-trip maturity have not happened in this repository.
 
+The 2026-07-28 external-readiness audit found no established Xiaohongshu creator login signal, authorized legal-subject/contact values, group-forward approvals, merchant/refund authority, refund reserve, or controlled external evidence register. No posting, login, message, upload, payment or account mutation was attempted. See `external-readiness.md`.
+
 ## Decision options
 
 ### GO
