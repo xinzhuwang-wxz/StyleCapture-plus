@@ -212,13 +212,14 @@ def build_client(
     *,
     display_ready: bool = True,
     source_available: bool = True,
+    fixed_presentation: bool = False,
 ) -> tuple[AsyncClient, Look]:
     user_id = uuid4()
     capture = _capture(user_id)
     look = Look.feed_saved(
         user_id=user_id,
         capture_id=capture.id,
-        source_selection_key="whole-look",
+        source_selection_key="seed_example" if fixed_presentation else "whole-look",
     )
     if display_ready:
         look = replace(look, display_object_key="derived/looks/look.png")
@@ -294,6 +295,18 @@ async def test_owner_lists_opens_images_and_adds_optional_liking_reason() -> Non
     assert source.headers["content-type"] == "image/jpeg"
     assert feedback.status_code == 201
     assert feedback.json()["payload"]["reason"] == "喜欢松弛的层次感"
+
+
+@pytest.mark.asyncio
+async def test_curated_demo_look_declares_its_fixed_presentation() -> None:
+    client, look = build_client(fixed_presentation=True)
+
+    async with client:
+        listed = await client.get("/v1/looks")
+        detailed = await client.get(f"/v1/looks/{look.id}")
+
+    assert listed.json()["looks"][0]["fixed_presentation"] is True
+    assert detailed.json()["look"]["fixed_presentation"] is True
 
 
 @pytest.mark.asyncio

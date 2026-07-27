@@ -309,6 +309,7 @@ describe("StyleCapture garment ingest", () => {
         source_image_url: null,
         display_ready: false,
         source_available: false,
+        fixed_presentation: false,
         created_at: "2026-07-25T00:00:00Z",
         updated_at: "2026-07-25T00:00:00Z"
       },
@@ -339,6 +340,7 @@ describe("StyleCapture garment ingest", () => {
         source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
         display_ready: true,
         source_available: true,
+        fixed_presentation: false,
         created_at: "2026-07-25T00:00:00Z",
         updated_at: "2026-07-25T00:01:00Z"
       },
@@ -370,6 +372,140 @@ describe("StyleCapture garment ingest", () => {
         "auto-collage:11111111-1111-4111-8111-111111111111:2026-07-25T00:01:00Z"
       )
     );
+  });
+
+  it("keeps a curated example on its fixed presentation without requesting another collage", async () => {
+    const lookId = "11111111-1111-4111-8111-111111111111";
+    window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
+    api.getLook.mockResolvedValue({
+      look: {
+        id: lookId,
+        capture_id: "22222222-2222-4222-8222-222222222222",
+        status: "ready",
+        source: "feed_saved",
+        display_image_url: `/v1/looks/${lookId}/image`,
+        source_image_url: `/v1/looks/${lookId}/source`,
+        display_ready: true,
+        source_available: true,
+        fixed_presentation: true,
+        created_at: "2026-07-25T00:00:00Z",
+        updated_at: "2026-07-25T00:01:00Z"
+      },
+      components: [
+        {
+          component_key: "top",
+          status: "ready",
+          item_id: wardrobeItem.id,
+          item_image_url: wardrobeItem.display_image_url,
+          role: "tops",
+          layer: "base",
+          display_order: 0,
+          confidence: 1
+        }
+      ],
+      analysis: {
+        capability_alias: "curated_seed",
+        confidence: { style: 1 },
+        model_version: "human_reviewed",
+        prompt_version: "not_applicable",
+        schema_version: "look-analysis-v1",
+        taxonomy_version: "stylecapture-v1",
+        values: { style: "人工整理示例" }
+      },
+      preferences: [],
+      source_video_ref: null,
+      source_timestamp_ms: null
+    });
+
+    renderApp();
+
+    expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
+    await waitFor(() => expect(api.getLook).toHaveBeenCalledWith(lookId));
+    expect(api.createRender).not.toHaveBeenCalledWith(
+      lookId,
+      "collage",
+      expect.any(String)
+    );
+  });
+
+  it("does not let wardrobe pixel generation enqueue a collage for a fixed example", async () => {
+    const fixedLook = {
+      id: "11111111-1111-4111-8111-111111111111",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      status: "ready" as const,
+      source: "feed_saved" as const,
+      display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image",
+      source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
+      display_ready: true,
+      source_available: true,
+      fixed_presentation: true,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:01:00Z"
+    };
+    api.listLooks.mockResolvedValue([fixedLook]);
+    api.listRenders.mockResolvedValue([]);
+
+    renderApp();
+
+    await waitFor(() => expect(api.listRenders).toHaveBeenCalledWith(fixedLook.id));
+    expect(api.createRender).not.toHaveBeenCalled();
+  });
+
+  it("retries one failed automatic collage with a new idempotency key", async () => {
+    const lookId = "11111111-1111-4111-8111-111111111111";
+    const failedCollage = {
+      ...collageRender,
+      id: "66666666-6666-4666-8666-666666666666",
+      status: "failed" as const,
+      failure_code: "provider_timeout",
+      failure_message: "生成超时",
+      retryable: true,
+      updated_at: "2026-07-25T00:02:00Z"
+    };
+    window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
+    api.listRenders.mockResolvedValue([failedCollage]);
+    api.getLook.mockResolvedValue({
+      look: {
+        id: lookId,
+        capture_id: null,
+        status: "ready",
+        source: "user_created",
+        display_image_url: `/v1/looks/${lookId}/image`,
+        source_image_url: `/v1/looks/${lookId}/source`,
+        display_ready: true,
+        source_available: true,
+        fixed_presentation: false,
+        created_at: "2026-07-25T00:00:00Z",
+        updated_at: "2026-07-25T00:01:00Z"
+      },
+      components: [
+        {
+          component_key: "top",
+          status: "ready",
+          item_id: wardrobeItem.id,
+          item_image_url: wardrobeItem.display_image_url,
+          role: "tops",
+          layer: "base",
+          display_order: 0,
+          confidence: 0.95
+        }
+      ],
+      analysis: null,
+      preferences: [],
+      source_video_ref: null,
+      source_timestamp_ms: null
+    });
+
+    renderApp();
+
+    await waitFor(() =>
+      expect(api.createRender).toHaveBeenCalledWith(
+        lookId,
+        "collage",
+        `auto-collage-retry:${lookId}:${failedCollage.id}:${failedCollage.updated_at}`
+      )
+    );
+    expect(api.createRender).toHaveBeenCalledTimes(1);
   });
 
   it("resets the wardrobe scroll position when switching primary destinations", async () => {
