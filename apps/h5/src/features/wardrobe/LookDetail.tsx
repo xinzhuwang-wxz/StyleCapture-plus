@@ -109,22 +109,32 @@ function DetailContent({
       completedByKind.set(render.kind, render);
     }
   });
-  const successfulCollage = sortedRenders.find(
+  const usableCollage = sortedRenders.find(
     (render) =>
       render.kind === "collage" &&
-      render.status === "succeeded" &&
+      (render.status === "succeeded" || render.status === "degraded") &&
       render.output_image_url
   );
   const latestCollage = latestByKind.get("collage");
+  const usesFixedCuratedPresentation = detail.look.fixed_presentation === true;
   const showCollagePlaceholder =
-    !successfulCollage &&
-    (rendersLoading ||
-      latestCollage?.status === "queued" ||
+    !usesFixedCuratedPresentation &&
+    !usableCollage &&
+    (latestCollage?.status === "queued" ||
       latestCollage?.status === "running");
+  const collageNeedsRetry =
+    !usesFixedCuratedPresentation &&
+    latestCollage !== undefined &&
+    (latestCollage.status === "failed" ||
+      ((latestCollage.status === "succeeded" ||
+        latestCollage.status === "degraded") &&
+        !latestCollage.output_image_url));
   const heroImageUrl =
-    successfulCollage?.output_image_url ??
-    detail.look.display_image_url ??
-    detail.look.source_image_url;
+    usesFixedCuratedPresentation
+      ? detail.look.display_image_url ?? detail.look.source_image_url
+      : usableCollage?.output_image_url ??
+        detail.look.display_image_url ??
+        detail.look.source_image_url;
 
   useEffect(() => {
     setReason("");
@@ -286,13 +296,13 @@ function DetailContent({
         ) : heroImageUrl ? (
           <img
             src={
-              successfulCollage
-                ? `${heroImageUrl}?v=${encodeURIComponent(successfulCollage.updated_at)}`
+              usableCollage && !usesFixedCuratedPresentation
+                ? `${heroImageUrl}?v=${encodeURIComponent(usableCollage.updated_at)}`
                 : heroImageUrl
             }
             alt={
-              successfulCollage
-                ? successfulCollage.presentation_label
+              usableCollage && !usesFixedCuratedPresentation
+                ? usableCollage.presentation_label
                 : detail.look.source === "ai_generated"
                 ? "AI 搭配中的真实衣橱单品"
                 : "收藏的真实整套穿搭"
@@ -378,6 +388,21 @@ function DetailContent({
               删除整套原图
             </button>
           )
+        ) : null}
+
+        {collageNeedsRetry && onGenerate ? (
+          <div className="look-recovery" role="status">
+            <strong>真实单品拼贴暂未生成</strong>
+            <span>原始穿搭和已拆单品都已保留，可以重新生成。</span>
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={generatingKind !== null}
+              onClick={() => onGenerate(detail.look.id, "collage")}
+            >
+              {generatingKind === "collage" ? "正在重新生成…" : "重新生成真实拼贴"}
+            </button>
+          </div>
         ) : null}
 
         {detail.components.length > 0 ? (

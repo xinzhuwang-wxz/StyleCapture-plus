@@ -52,6 +52,7 @@ class LookSummaryResponse(BaseModel):
     source_image_url: str | None
     display_ready: bool
     source_available: bool
+    fixed_presentation: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -73,6 +74,10 @@ class LookSummaryResponse(BaseModel):
             source_image_url=(f"/v1/looks/{look.id}/source" if source_available else None),
             display_ready=look.display_object_key is not None,
             source_available=source_available,
+            fixed_presentation=(
+                look.source_selection_key.startswith("seed_")
+                and look.display_object_key is not None
+            ),
             created_at=look.created_at,
             updated_at=look.updated_at,
         )

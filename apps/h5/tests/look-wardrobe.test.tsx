@@ -17,6 +17,7 @@ const pendingLook: Look = {
   source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
   display_ready: false,
   source_available: true,
+  fixed_presentation: false,
   created_at: "2026-07-25T00:00:00Z",
   updated_at: "2026-07-25T00:00:00Z"
 };
@@ -578,6 +579,75 @@ describe("Look wardrobe states", () => {
 
     expect(screen.getByText("人工整理 · 示例搭配解析")).toBeInTheDocument();
     expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
+  });
+
+  it("keeps a curated example's fixed image visible despite a stale queued collage", () => {
+    const detail = readyDetail();
+    detail.look.fixed_presentation = true;
+    detail.analysis = {
+      ...detail.analysis!,
+      capability_alias: "curated_seed",
+      model_version: "human_reviewed"
+    };
+
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        renders={[
+          renderArtifact({
+            status: "queued",
+            output_image_url: null
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText("真实单品拼贴排队中")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "收藏的真实整套穿搭" })).toHaveAttribute(
+      "src",
+      detail.look.display_image_url
+    );
+  });
+
+  it("offers a manual retry when a generated look collage fails", () => {
+    const onGenerate = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact({
+            status: "failed",
+            output_image_url: null,
+            retryable: true,
+            failure_code: "provider_timeout",
+            failure_message: "生成超时"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onGenerate={onGenerate}
+      />
+    );
+
+    expect(screen.getByText("真实单品拼贴暂未生成")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新生成真实拼贴" }));
+    expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "collage");
   });
 
   it("keeps the AI label for real model relationship analysis", () => {

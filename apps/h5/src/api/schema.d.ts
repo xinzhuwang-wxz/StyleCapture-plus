@@ -1038,6 +1038,11 @@ export interface components {
             /** Display Ready */
             display_ready: boolean;
             /**
+             * Fixed Presentation
+             * @default false
+             */
+            fixed_presentation: boolean;
+            /**
              * Id
              * Format: uuid
              */
