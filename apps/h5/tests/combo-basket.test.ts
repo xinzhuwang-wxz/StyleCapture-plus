@@ -101,4 +101,21 @@ describe("combo basket", () => {
     ]);
     expect(audit).toEqual({ ok: true });
   });
+
+  it("shows the same picture the card shows, not the empty display image", () => {
+    // 种子单品只有像素图；用 display_image_url 会让篮子里全是灰块。
+    const entry = basketEntryOf(
+      {
+        id: "i9",
+        pixel_image_url: "/v1/items/i9/pixel",
+        display_image_url: null,
+        updated_at: "2026-07-27T00:00:00Z",
+        attributes: { category: { value: "shoes" } }
+      } as unknown as Item,
+      "鞋子"
+    );
+    expect(entry.imageUrl).toBe(
+      "/v1/items/i9/pixel?v=2026-07-27T00%3A00%3A00Z"
+    );
+  });
 });

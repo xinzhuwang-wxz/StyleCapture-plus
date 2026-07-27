@@ -49,7 +49,12 @@ export function basketEntryOf(item: Item, label: string): BasketEntry {
     itemId: item.id,
     category: comboCategoryOf(item),
     label,
-    imageUrl: item.display_image_url ?? null
+    // 跟卡片取同一张图。种子单品没有 display_image_url，只有像素图，用后者
+    // 会让篮子里全是灰块——走查截图就是这么发现的。?v= 与卡片保持一致，
+    // 像素图重新生成后不会读到缓存里的旧图。
+    imageUrl: item.pixel_image_url
+      ? `${item.pixel_image_url}?v=${encodeURIComponent(item.updated_at)}`
+      : item.display_image_url ?? null
   };
 }
 
