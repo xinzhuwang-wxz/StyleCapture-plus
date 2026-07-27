@@ -75,6 +75,15 @@ describe("party simulation", () => {
     expect(world.guestChat ?? spoke.length).toBeTruthy();
   });
 
+  it("backs off guest chat scheduling when no scripted pair is available", () => {
+    const world = createPartyWorld(sceneMaps[0], "curated-vintage", ["guest-taozi"]);
+
+    stepParty(world, 7, { width: 390, height: 380 });
+
+    expect(world.guestChat).toBeNull();
+    expect(world.nextGuestChatAt).toBeGreaterThan(world.time);
+  });
+
   it("speaks as the player and rejects an empty line", () => {
     const world = createPartyWorld(sceneMaps[0], "curated-vintage");
     expect(sayAsPlayer(world, "   ")).toBe(false);

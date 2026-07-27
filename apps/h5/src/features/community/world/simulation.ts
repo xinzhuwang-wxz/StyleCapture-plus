@@ -559,13 +559,19 @@ function startGuestChat(world: PartyWorld) {
     })
   );
   // With a small cast, most scripted pairs are simply not both present.
-  if (!available.length) return;
+  if (!available.length) {
+    world.nextGuestChatAt = world.time + GUEST_CHAT_INTERVAL;
+    return;
+  }
 
   const script =
     available[Math.floor(noise(world.time * 3.7) * available.length) % available.length];
   const first = actorById(world, script.between[0]);
   const second = actorById(world, script.between[1]);
-  if (!first || !second) return;
+  if (!first || !second) {
+    world.nextGuestChatAt = world.time + GUEST_CHAT_INTERVAL;
+    return;
+  }
 
   // Meet in the middle, a step apart, on ground they can both stand on.
   const midX = (first.x + second.x) / 2;

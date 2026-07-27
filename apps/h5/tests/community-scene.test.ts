@@ -67,7 +67,7 @@ describe("theme party scene", () => {
       }
     ]);
 
-    expect(scene.looks.filter((look) => look.poseRoot)).toHaveLength(4);
+    expect(scene.looks.filter((look) => look.poseRoot)).toHaveLength(7);
     expect(scene.looks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

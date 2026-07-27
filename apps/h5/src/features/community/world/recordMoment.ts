@@ -84,10 +84,25 @@ export function recordClip(options: RecordOptions): Promise<RecordedClip> {
     );
     let frame = 0;
     let timer = 0;
+    let settled = false;
 
-    const finish = () => {
+    const cleanup = () => {
       window.clearInterval(timer);
       stream.getTracks().forEach((track) => track.stop());
+    };
+
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (recorder.state !== "inactive") recorder.stop();
+      reject(error instanceof Error ? error : new Error("录制失败"));
+    };
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
       const blob = new Blob(chunks, { type: mimeType });
       if (!blob.size) {
         reject(new Error("录制结果为空"));
@@ -98,8 +113,7 @@ export function recordClip(options: RecordOptions): Promise<RecordedClip> {
 
     recorder.onstop = finish;
     recorder.onerror = () => {
-      window.clearInterval(timer);
-      reject(new Error("录制失败"));
+      fail(new Error("录制失败"));
     };
 
     try {
@@ -107,17 +121,20 @@ export function recordClip(options: RecordOptions): Promise<RecordedClip> {
       options.paint(context, 0);
       recorder.start();
       timer = window.setInterval(() => {
-        frame += 1;
-        if (frame >= totalFrames) {
-          window.clearInterval(timer);
-          if (recorder.state !== "inactive") recorder.stop();
-          return;
+        try {
+          frame += 1;
+          if (frame >= totalFrames) {
+            window.clearInterval(timer);
+            if (recorder.state !== "inactive") recorder.stop();
+            return;
+          }
+          options.paint(context, frame);
+        } catch (error) {
+          fail(error);
         }
-        options.paint(context, frame);
       }, 1000 / options.framesPerSecond);
     } catch (error) {
-      window.clearInterval(timer);
-      reject(error instanceof Error ? error : new Error("录制失败"));
+      fail(error);
     }
   });
 }
