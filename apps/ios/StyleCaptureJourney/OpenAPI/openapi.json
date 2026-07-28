@@ -36,16 +36,9 @@
             "type": "string"
           },
           "device_name": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Name"
+            "maxLength": 120,
+            "title": "Device Name",
+            "type": "string"
           },
           "identity_token": {
             "minLength": 1,
@@ -119,16 +112,9 @@
             "type": "string"
           },
           "look_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Look Id"
+            "format": "uuid",
+            "title": "Look Id",
+            "type": "string"
           },
           "state": {
             "$ref": "#/components/schemas/JobState"
@@ -184,15 +170,8 @@
             "$ref": "#/components/schemas/RenderArtifactKind"
           },
           "subject_object_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject Object Key"
+            "title": "Subject Object Key",
+            "type": "string"
           }
         },
         "required": [
@@ -372,15 +351,8 @@
             "type": "boolean"
           },
           "model_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model Version"
+            "title": "Model Version",
+            "type": "string"
           },
           "provenance": {
             "$ref": "#/components/schemas/FieldProvenance"
@@ -443,26 +415,12 @@
             "type": "string"
           },
           "failure_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Code"
+            "title": "Failure Code",
+            "type": "string"
           },
           "failure_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Message"
+            "title": "Failure Message",
+            "type": "string"
           },
           "id": {
             "format": "uuid",
@@ -478,15 +436,8 @@
             "$ref": "#/components/schemas/ItemPresentationKind"
           },
           "output_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Output Image Url"
+            "title": "Output Image Url",
+            "type": "string"
           },
           "retryable": {
             "title": "Retryable",
@@ -546,20 +497,13 @@
             "type": "string"
           },
           "display_image_issue": {
-            "anyOf": [
-              {
-                "enum": [
-                  "multiple_garments",
-                  "no_reliable_garment",
-                  "normalization_unavailable"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "multiple_garments",
+              "no_reliable_garment",
+              "normalization_unavailable"
             ],
-            "title": "Display Image Issue"
+            "title": "Display Image Issue",
+            "type": "string"
           },
           "display_image_kind": {
             "default": "source_capture",
@@ -588,25 +532,11 @@
             "$ref": "#/components/schemas/OwnershipState"
           },
           "pixel_image_status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ItemPresentationStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/ItemPresentationStatus"
           },
           "pixel_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pixel Image Url"
+            "title": "Pixel Image Url",
+            "type": "string"
           },
           "source_available": {
             "title": "Source Available",
@@ -620,26 +550,12 @@
             "$ref": "#/components/schemas/CaptureSourceKind"
           },
           "source_timestamp_ms": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Timestamp Ms"
+            "title": "Source Timestamp Ms",
+            "type": "integer"
           },
           "source_video_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Video Ref"
+            "title": "Source Video Ref",
+            "type": "string"
           },
           "status": {
             "$ref": "#/components/schemas/ItemStatus"
@@ -717,26 +633,12 @@
             "type": "string"
           },
           "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
+            "title": "Error Code",
+            "type": "string"
           },
           "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
+            "title": "Error Message",
+            "type": "string"
           },
           "job_id": {
             "format": "uuid",
@@ -840,49 +742,21 @@
             "type": "integer"
           },
           "item_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Id"
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
           },
           "item_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Image Url"
+            "title": "Item Image Url",
+            "type": "string"
           },
           "layer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Layer"
+            "title": "Layer",
+            "type": "string"
           },
           "role": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Role"
+            "title": "Role",
+            "type": "string"
           },
           "status": {
             "title": "Status",
@@ -905,14 +779,7 @@
       "LookDetailResponse": {
         "properties": {
           "analysis": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LookAnalysisResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/LookAnalysisResponse"
           },
           "components": {
             "items": {
@@ -932,26 +799,12 @@
             "type": "array"
           },
           "source_timestamp_ms": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Timestamp Ms"
+            "title": "Source Timestamp Ms",
+            "type": "integer"
           },
           "source_video_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Video Ref"
+            "title": "Source Video Ref",
+            "type": "string"
           }
         },
         "required": [
@@ -1026,16 +879,9 @@
       "LookSummaryResponse": {
         "properties": {
           "capture_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capture Id"
+            "format": "uuid",
+            "title": "Capture Id",
+            "type": "string"
           },
           "created_at": {
             "format": "date-time",
@@ -1043,15 +889,8 @@
             "type": "string"
           },
           "display_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Image Url"
+            "title": "Display Image Url",
+            "type": "string"
           },
           "display_ready": {
             "title": "Display Ready",
@@ -1075,15 +914,8 @@
             "type": "boolean"
           },
           "source_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Image Url"
+            "title": "Source Image Url",
+            "type": "string"
           },
           "status": {
             "$ref": "#/components/schemas/LookStatus"
@@ -1198,15 +1030,8 @@
       "OutfitPlanSetResponse": {
         "properties": {
           "degradation_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Degradation Reason"
+            "title": "Degradation Reason",
+            "type": "string"
           },
           "degraded": {
             "title": "Degraded",
@@ -1248,28 +1073,14 @@
       "OutfitRequestBody": {
         "properties": {
           "anchor_item_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Anchor Item Id"
+            "format": "uuid",
+            "title": "Anchor Item Id",
+            "type": "string"
           },
           "comfort": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Comfort"
+            "maxLength": 120,
+            "title": "Comfort",
+            "type": "string"
           },
           "exclude_item_ids": {
             "items": {
@@ -1281,16 +1092,9 @@
             "type": "array"
           },
           "formality": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Formality"
+            "maxLength": 120,
+            "title": "Formality",
+            "type": "string"
           },
           "must_include_item_ids": {
             "items": {
@@ -1308,28 +1112,14 @@
             "type": "string"
           },
           "style": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style"
+            "maxLength": 120,
+            "title": "Style",
+            "type": "string"
           },
           "weather": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weather"
+            "maxLength": 120,
+            "title": "Weather",
+            "type": "string"
           }
         },
         "required": [
@@ -1341,74 +1131,32 @@
       "OutfitSlotResponse": {
         "properties": {
           "image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Url"
+            "title": "Image Url",
+            "type": "string"
           },
           "item_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Id"
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
           },
           "item_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Name"
+            "title": "Item Name",
+            "type": "string"
           },
           "ownership": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ownership"
+            "title": "Ownership",
+            "type": "string"
           },
           "role": {
             "$ref": "#/components/schemas/OutfitCategory"
           },
           "search_query": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Search Query"
+            "title": "Search Query",
+            "type": "string"
           },
           "source_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Kind"
+            "title": "Source Kind",
+            "type": "string"
           }
         },
         "required": [
@@ -1535,26 +1283,12 @@
             "type": "string"
           },
           "failure_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Code"
+            "title": "Failure Code",
+            "type": "string"
           },
           "failure_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Message"
+            "title": "Failure Message",
+            "type": "string"
           },
           "id": {
             "format": "uuid",
@@ -1562,15 +1296,8 @@
             "type": "string"
           },
           "output_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Output Image Url"
+            "title": "Output Image Url",
+            "type": "string"
           },
           "retryable": {
             "title": "Retryable",
@@ -1743,16 +1470,9 @@
             "type": "string"
           },
           "item_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Id"
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
           },
           "look_id": {
             "format": "uuid",
@@ -1847,38 +1567,17 @@
             "type": "string"
           },
           "failure_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Code"
+            "title": "Failure Code",
+            "type": "string"
           },
           "failure_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Message"
+            "title": "Failure Message",
+            "type": "string"
           },
           "fallback_artifact_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fallback Artifact Id"
+            "format": "uuid",
+            "title": "Fallback Artifact Id",
+            "type": "string"
           },
           "id": {
             "format": "uuid",
@@ -1894,15 +1593,8 @@
             "type": "string"
           },
           "output_image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Output Image Url"
+            "title": "Output Image Url",
+            "type": "string"
           },
           "personalized": {
             "title": "Personalized",
@@ -2064,14 +1756,7 @@
       "SubmitCaptureBody": {
         "properties": {
           "feed_context": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeedFrameContextBody"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/FeedFrameContextBody"
           },
           "intent": {
             "$ref": "#/components/schemas/CaptureIntent",
@@ -2126,14 +1811,7 @@
             "type": "object"
           },
           "ownership": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/OwnershipState"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/OwnershipState"
           }
         },
         "title": "UpdateItemBody",
@@ -2235,15 +1913,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -2251,15 +1922,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -2377,15 +2041,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -2393,15 +2050,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -2519,15 +2169,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -2535,15 +2178,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -2798,15 +2434,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -2814,15 +2443,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -2960,15 +2582,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -2976,15 +2591,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -3112,15 +2720,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -3128,15 +2729,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -3252,15 +2846,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -3268,15 +2855,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -3404,15 +2984,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -3420,15 +2993,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -3554,15 +3120,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -3570,15 +3129,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -3716,15 +3268,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -3732,15 +3277,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -3866,15 +3404,8 @@
             "name": "Idempotency-Key",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "title": "Idempotency-Key",
+              "type": "string"
             }
           },
           {
@@ -3882,15 +3413,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -3898,15 +3422,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4034,15 +3551,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4050,15 +3560,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4186,15 +3689,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4202,15 +3698,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4338,15 +3827,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4354,15 +3836,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4481,15 +3956,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4497,15 +3965,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4631,15 +4092,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4647,15 +4101,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4783,15 +4230,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4799,15 +4239,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -4933,15 +4366,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -4949,15 +4375,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -5075,15 +4494,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -5091,15 +4503,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -5227,15 +4632,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -5243,15 +4641,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -5388,15 +4779,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -5404,15 +4788,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -5550,15 +4927,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -5566,15 +4936,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -5700,15 +5063,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -5716,15 +5072,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -5859,15 +5208,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -5875,15 +5217,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6021,15 +5356,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6037,15 +5365,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6173,15 +5494,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6189,15 +5503,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6313,15 +5620,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6329,15 +5629,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6475,15 +5768,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6491,15 +5777,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6637,15 +5916,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6653,15 +5925,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6779,15 +6044,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6795,15 +6053,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -6939,15 +6190,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -6955,15 +6199,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -7091,15 +6328,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -7107,15 +6337,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -7262,15 +6485,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -7278,15 +6494,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -7423,15 +6632,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -7439,15 +6641,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -7585,15 +6780,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -7601,15 +6789,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -7728,15 +6909,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -7744,15 +6918,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -7880,15 +7047,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -7896,15 +7056,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -8030,15 +7183,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -8046,15 +7192,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -8182,15 +7321,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -8198,15 +7330,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -8332,15 +7457,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -8348,15 +7466,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -8467,15 +7578,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -8536,15 +7640,8 @@
             "name": "Content-Length",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Content-Length"
+              "title": "Content-Length",
+              "type": "integer"
             }
           }
         ],
@@ -8662,15 +7759,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -8678,15 +7768,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],
@@ -8823,15 +7906,8 @@
             "name": "Authorization",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
+              "title": "Authorization",
+              "type": "string"
             }
           },
           {
@@ -8839,15 +7915,8 @@
             "name": "stylecapture_session",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stylecapture Session"
+              "title": "Stylecapture Session",
+              "type": "string"
             }
           }
         ],

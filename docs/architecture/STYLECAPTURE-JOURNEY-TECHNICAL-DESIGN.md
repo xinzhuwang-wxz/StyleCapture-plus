@@ -84,7 +84,7 @@ apps/ios/StyleCaptureJourney/
 - NavigationStack/NavigationPath 由 TCA navigation state 驱动 tab、deep link 和 state restoration；不得另建 custom Router。Task 2 必须用 `TestStore` 证明启动、空 Journey shell navigation、state restoration、dependency override 与至少一个 cancellable effect 的测试 ergonomics，再展开功能。
 - GRDB `v7.11.1` 管理 SQLite、显式迁移、查询、outbox 与同步状态；不以 SwiftData 作为商业数据真源。
 - Apple Swift OpenAPI Generator `1.13.0` + runtime + URLSession transport 从 FastAPI OpenAPI 构建时生成客户端；禁止手写重复 DTO。所有 SwiftPM 依赖在 `project.yml` 使用 exact version/revision，禁止 branch/floating range；受版本控制的 `Config/Package.resolved` 是锁文件真源，bootstrap 复制到生成 workspace 的标准路径并做 byte check。
-- OpenAPI 输入固定为 `apps/ios/StyleCaptureJourney/OpenAPI/openapi.json`，generator 配置为同目录 `openapi-generator-config.yaml`，生成到 DerivedSources 中的 `StyleCaptureAPI` module；`Package.resolved` 锁定 generator/runtime/transport，扩展后的 `scripts/export_openapi.py --output ... --check` 从同一 FastAPI schema 生成 H5/iOS 的 deterministic sorted JSON，并做 byte/diff check。
+- OpenAPI 输入固定为 `apps/ios/StyleCaptureJourney/OpenAPI/openapi.json`，generator 配置为同目录 `openapi-generator-config.yaml`，生成到 DerivedSources 中的 `StyleCaptureAPI` module；`Package.resolved` 锁定 generator/runtime/transport。`scripts/export_openapi.py` 以同一 FastAPI schema 为真源：`--output` 保留规范的 OpenAPI 3.1 JSON 给 H5，`--swift-output` 仅把精确的 `anyOf: [T, null]` 投影为由 `required` 表达的可选 `T`，规避 generator 1.13.0 丢字段；真实联合类型不变，两类输出各自做 deterministic byte/diff check。
 - Nuke `13.0.6` 负责远程图片加载、预取、内存/磁盘缓存和降采样。
 - PhotosPicker + Transferable 做选择性照片导入；只有出现持续相册同步需求才使用 PhotoKit。
 - 使用 CoreTransferable、UniformTypeIdentifiers 与 ImageIO 做类型协商、HEIC 解码、降采样和 metadata stripping；不手写图片格式解析。

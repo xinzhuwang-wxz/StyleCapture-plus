@@ -29,6 +29,23 @@ if not str(schema.get("openapi", "")).startswith("3."):
 if "paths" not in schema:
     print("OpenAPI schema is missing paths")
     raise SystemExit(1)
+
+def contains_nullable_any_of(value: object) -> bool:
+    if isinstance(value, list):
+        return any(contains_nullable_any_of(item) for item in value)
+    if not isinstance(value, dict):
+        return False
+    any_of = value.get("anyOf")
+    if isinstance(any_of, list) and any(
+        isinstance(member, dict) and member.get("type") == "null"
+        for member in any_of
+    ):
+        return True
+    return any(contains_nullable_any_of(item) for item in value.values())
+
+if contains_nullable_any_of(schema):
+    print("iOS OpenAPI schema still contains generator-unsupported nullable anyOf")
+    raise SystemExit(1)
 PY
 
 if find "$APP_DIR" -path '*/DerivedSources/*' -type f | grep -q .; then

@@ -90,7 +90,7 @@ jobs:
       - name: Verify iOS OpenAPI build-plugin inputs
         run: |
           uv sync --all-packages
-          uv run python scripts/export_openapi.py --output apps/h5/openapi.json --output apps/ios/StyleCaptureJourney/OpenAPI/openapi.json --check
+          uv run python scripts/export_openapi.py --output apps/h5/openapi.json --swift-output apps/ios/StyleCaptureJourney/OpenAPI/openapi.json --check
           bash scripts/generate_ios_openapi_client.sh --check
 
       - name: Resolve iOS package dependencies

@@ -93,7 +93,7 @@
 5. Add an empty `JourneyFeature` reducer/view and dependency client boundaries for API, GRDB, StoreKit, Photos, BackgroundTasks, Notifications, Nuke/image loading, OSLog/MetricKit, clock and UUID. Features own reducer/state/action/view; pure domain rules live feature-local or in `SharedDomain` only when needed, and external adapters live only in `Core/*`. Reducers may depend only on these clients and pure domain policies; reducers/domain/application-like policies consume domain values/typed errors, not generated DTOs.
 6. Add TCA `TestStore` tests for app launch state, empty Journey navigation, state restoration/deep-link action handling, dependency override and one cancellable effect. Keep the first behavior RED before implementation.
 7. Implement `AppDatabase` migrations and outbox storage through GRDB behind `DatabaseClient`.
-8. Extend existing `scripts/export_openapi.py` with repeatable `--output` and `--check` arguments, preserving deterministic sorted JSON without adding a YAML dependency. Export the same schema bytes to existing `apps/h5/openapi.json` and `apps/ios/StyleCaptureJourney/OpenAPI/openapi.json`; define `openapi-generator-config.yaml`, `StyleCaptureAPI` module and DerivedSources output; generate and compile during the build without committing generated source.
+8. Extend existing `scripts/export_openapi.py` with repeatable `--output`, `--swift-output` and `--check` arguments, preserving deterministic sorted JSON without adding a YAML dependency. Keep `apps/h5/openapi.json` as the canonical OpenAPI 3.1 export; derive the iOS input from that same in-memory schema using only the generator-compatibility projection `anyOf: [T, null] -> T`, with optionality retained by `required`. Define `openapi-generator-config.yaml`, `StyleCaptureAPI` module and DerivedSources output; generate and compile during the build without committing generated source.
 9. Add privacy manifest, localized permissions and OSLog redaction tests before any SDK is allowed.
 10. Keep existing Python/H5/Compose job on Ubuntu. Add a separate pinned macOS/Xcode `ios` job for bootstrap, generate, test and privacy-manifest inspection; add Xcode Cloud `ci_post_clone.sh` to validate/install XcodeGen, generate the project and fail if the expected project/scheme is absent before archive. Record a clean-checkout Xcode Cloud discovery/archive result; if an uncommitted generated project cannot be selected, use the documented GitHub macOS signed-archive fallback or commit only a minimal reviewed workspace/shared scheme.
 11. Register only the technical-design allowlist (`com.stylecapture.journey.outbox-refresh`, `...upload-resume`, `...image-preprocess`) in both `BGTaskSchedulerPermittedIdentifiers` and scheduling code, add `processing` mode only for the two `BGProcessingTask` entries, and prove permitted, expiration, denied, app-termination and relaunch behavior through dependency clients instead of adding a custom background runner.
@@ -102,7 +102,7 @@
 
 **Verification commands:**
 
-- `uv run python scripts/export_openapi.py --output apps/h5/openapi.json --output apps/ios/StyleCaptureJourney/OpenAPI/openapi.json --check`
+- `uv run python scripts/export_openapi.py --output apps/h5/openapi.json --swift-output apps/ios/StyleCaptureJourney/OpenAPI/openapi.json --check`
 - `bash scripts/bootstrap_ios.sh --check`
 - `bash scripts/generate_ios_openapi_client.sh --check`
 - `xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj -scheme StyleCaptureJourney -destination 'platform=iOS Simulator,name=iPhone 16' test`
