@@ -1168,9 +1168,34 @@ p {
   padding-bottom: 0.35rem;
 }
 
-.look-component-strip article {
+.look-component-strip article,
+.look-component-strip__link {
   display: grid;
   gap: 0.2rem;
+}
+
+/* 可点的两种（进单品详情 / 去搜同款）视觉上仍是同一条，只是能按下去。 */
+.look-component-strip__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.look-component-strip__link:active { transform: scale(0.97); }
+
+/* 衣橱里没有的单品照设计稿压暗，一眼能看出这件要另外买。 */
+.look-component-strip__link--shop img,
+.look-component-strip__link--shop .item-image-placeholder {
+  filter: grayscale(0.45) opacity(0.9);
+}
+
+.look-component-strip__link--shop small {
+  color: var(--pixel-pink-dark);
 }
 
 .look-component-strip img,

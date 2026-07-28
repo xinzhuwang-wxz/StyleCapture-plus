@@ -1139,6 +1139,12 @@ export function App() {
           ) : null}
           {selectedLookId ? (
             <LookDetail
+              onOpenItem={(itemId) => {
+                // 从套装的单品条点进来。衣橱列表还没加载好时不硬跳，
+                // 免得开出一个空详情。
+                const target = items.find((item) => item.id === itemId);
+                if (target) setSelectedItem(target);
+              }}
               detail={lookQuery.data ?? null}
               loading={lookQuery.isLoading}
               renders={rendersQuery.data ?? []}
