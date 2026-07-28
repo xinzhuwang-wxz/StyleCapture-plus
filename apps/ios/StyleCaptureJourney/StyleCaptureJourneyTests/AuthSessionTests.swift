@@ -12,7 +12,7 @@ private let authTokensFixture = AuthTokens(
 final class AuthSessionTests: XCTestCase {
     func testSignInStoresServerTokensAndRefreshRotatesRefreshToken() async throws {
         let store = MemoryTokenStore()
-        var refreshedToken: String?
+        let refreshedToken = StringRecorder()
         let session = AuthSession(
             tokenStore: store,
             authenticateWithApple: { request in
@@ -26,7 +26,7 @@ final class AuthSessionTests: XCTestCase {
                 )
             },
             refreshSession: { refreshToken in
-                refreshedToken = refreshToken
+                await refreshedToken.record(refreshToken)
                 return AuthTokens(
                     accountSubject: "account-1",
                     accessToken: "access-2",
@@ -47,7 +47,8 @@ final class AuthSessionTests: XCTestCase {
 
         XCTAssertEqual(signedIn.accessToken, "access-1")
         XCTAssertEqual(refreshed.accessToken, "access-2")
-        XCTAssertEqual(refreshedToken, "refresh-1")
+        let recordedRefreshToken = await refreshedToken.value
+        XCTAssertEqual(recordedRefreshToken, "refresh-1")
         let stored = try await store.load()
         XCTAssertEqual(stored, refreshed)
     }
@@ -63,12 +64,12 @@ final class AuthSessionTests: XCTestCase {
                 tokenType: "Bearer"
             )
         )
-        var didDelete = false
+        let deletion = DeletionRecorder()
         let session = AuthSession(
             tokenStore: store,
             authenticateWithApple: { _ in throw AuthSessionError.missingToken },
             refreshSession: { _ in throw AuthSessionError.missingToken },
-            deleteAccount: { didDelete = true }
+            deleteAccount: { await deletion.record() }
         )
 
         try await session.logout()
@@ -86,6 +87,7 @@ final class AuthSessionTests: XCTestCase {
         )
         try await session.deleteAccount()
 
+        let didDelete = await deletion.didDelete
         XCTAssertTrue(didDelete)
         let afterDeletion = try await store.load()
         XCTAssertNil(afterDeletion)
@@ -181,5 +183,13 @@ private actor DeletionRecorder {
 
     func record() {
         didDelete = true
+    }
+}
+
+private actor StringRecorder {
+    private(set) var value: String?
+
+    func record(_ value: String) {
+        self.value = value
     }
 }
