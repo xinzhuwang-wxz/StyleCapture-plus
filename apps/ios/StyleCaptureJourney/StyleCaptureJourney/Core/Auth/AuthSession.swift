@@ -16,9 +16,9 @@ struct AuthTokens: Codable, Equatable, Sendable {
 }
 
 protocol TokenStore: Sendable {
-    func load() async -> AuthTokens?
-    func save(_ tokens: AuthTokens) async
-    func clear() async
+    func load() async throws -> AuthTokens?
+    func save(_ tokens: AuthTokens) async throws
+    func clear() async throws
 }
 
 enum AuthSessionError: Error, Equatable {
@@ -59,26 +59,26 @@ struct AuthSession: Sendable {
                 deviceName: deviceName
             )
         )
-        await tokenStore.save(tokens)
+        try await tokenStore.save(tokens)
         return tokens
     }
 
     @discardableResult
     func refresh() async throws -> AuthTokens {
-        guard let current = await tokenStore.load() else {
+        guard let current = try await tokenStore.load() else {
             throw AuthSessionError.missingToken
         }
         let tokens = try await refreshSession(current.refreshToken)
-        await tokenStore.save(tokens)
+        try await tokenStore.save(tokens)
         return tokens
     }
 
-    func logout() async {
-        await tokenStore.clear()
+    func logout() async throws {
+        try await tokenStore.clear()
     }
 
     func deleteAccount() async throws {
         try await requestAccountDeletion()
-        await tokenStore.clear()
+        try await tokenStore.clear()
     }
 }
