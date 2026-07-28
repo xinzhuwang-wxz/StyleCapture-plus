@@ -12,8 +12,9 @@
   --pixel-surface: #ffffff;
   --pixel-surface-raised: #ffffff;
 
-  --pixel-primary: #7c3aed;        /* 主紫 */
-  --pixel-primary-dark: #5b21b6;
+  --pixel-primary: #8b5cf6;        /* 主紫 · 文字/描边/焦点 */
+  --pixel-primary-fill: #a78bfa;   /* 主紫 · 实心底（设计稿里填充比描边浅一档） */
+  --pixel-primary-dark: #7c3aed;   /* 按下态 */
   --pixel-secondary: #c4b5fd;
   --pixel-pink: #f9a8d4;           /* 粉爱心 */
   --pixel-pink-dark: #f472b6;
@@ -21,8 +22,8 @@
   --pixel-accent-glow: #f59e0b;
 
   --pixel-text: #3d2c5e;           /* 深紫文字 */
-  --pixel-text-muted: #66528e;
-  --pixel-text-dim: #7d6aa5;
+  --pixel-text-muted: #7c6aa8;     /* 正文次级：设计稿里用了 34 处 */
+  --pixel-text-dim: #a89cc9;       /* 说明文字：同样 34 处，比原来淡得多 */
 
   --pixel-border: #e9e2f6;
   --pixel-border-light: #f0eaf9;
@@ -43,14 +44,18 @@
 
   /* Typography */
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  --font-pixel: var(--font-body);
+  /* 标题/按钮/徽章用的圆体。设计稿里出现 152 处，是它观感的主要来源。
+     字体取不到时整条链路回落到 --font-body，只是没那么圆，不会错版。 */
+  --font-pixel: "ZCOOL KuaiLe", var(--font-body);
 
   /* Shape — 圆角卡片 */
   --pixel-border-width: 2px;
   --pixel-border-radius: 16px;
   --pixel-radius-sm: 12px;
-  --pixel-shadow: 0 4px 16px rgba(139, 92, 246, 0.10);
-  --pixel-shadow-lg: 0 10px 30px rgba(139, 92, 246, 0.16);
+  /* 设计稿的阴影是不透明的淡紫（#ece5f8，用了 23 处），不是半透明的紫。
+     半透明会把下层颜色吃进来，堆叠时越叠越脏；实色淡紫无论叠几层都干净。 */
+  --pixel-shadow: 0 4px 14px #ece5f8;
+  --pixel-shadow-lg: 0 12px 30px #ece5f8;
 }
 
 /* ─── Base Reset ─── */
@@ -329,7 +334,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 .pixel-button--primary {
-  background: var(--pixel-primary);
+  background: var(--pixel-primary-fill);
   border-color: var(--pixel-primary-dark);
   color: #fff;
   box-shadow: 0 4px 0 var(--pixel-primary-dark);
@@ -426,7 +431,10 @@ h1, h2, h3, h4, p { margin-top: 0; }
   border: 2px solid transparent;
   border-radius: 999px;
   background: transparent;
-  color: var(--pixel-text-dim);
+  /* 设计稿这里用的是 --pixel-text-dim(#a89cc9)，但那个色对白底只有 2.54:1，
+     而导航标签是 11px 的功能性文字，AA 要 4.5:1。这里刻意比设计稿深一档
+     (#7c6aa8，4.68:1)：认不出自己在哪一屏，比不够还原严重得多。 */
+  color: var(--pixel-text-muted);
   font-family: var(--font-pixel);
   min-width: 0;
   font-size: 0.68rem;
@@ -640,7 +648,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 .pixel-filter button.is-selected {
-  background: var(--pixel-primary);
+  background: var(--pixel-primary-fill);
   border-color: var(--pixel-primary-dark);
   color: #fff;
   box-shadow: 0 3px 0 var(--pixel-primary-dark);
@@ -854,7 +862,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 .pixel-chat-bubble--user {
-  background: var(--pixel-primary);
+  background: var(--pixel-primary-fill);
   color: #fff;
   align-self: flex-end;
   border-color: var(--pixel-primary-dark);
