@@ -49,6 +49,27 @@ final class AppFeatureTests: XCTestCase {
         await store.receive(.navigationPersisted)
     }
 
+    func testNavigationSaveFailureIsVisibleAndDoesNotAcknowledgePersistence() async {
+        struct SaveFailed: Error {}
+
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.navigationSnapshotClient = NavigationSnapshotClient(
+                load: { nil },
+                save: { _ in throw SaveFailed() }
+            )
+        }
+
+        await store.send(.deepLink(URL(string: "stylecapture://journey/journey-save-fails")!)) {
+            $0.selectedTab = .journey
+            $0.restoredJourneyID = "journey-save-fails"
+        }
+        await store.receive(.navigationPersistenceResponse(.failure(.navigationPersistenceFailed))) {
+            $0.navigationPersistenceStatus = .failed(.navigationPersistenceFailed)
+        }
+    }
+
     func testDeepLinkNavigationPersistsAndRestoresAfterRelaunch() async {
         let persistence = NavigationSnapshotPersistence()
         let dependencies: (inout DependencyValues) -> Void = {

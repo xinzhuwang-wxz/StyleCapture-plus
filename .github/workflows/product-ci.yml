@@ -50,6 +50,7 @@ jobs:
           uv run ruff format --check services/backend/src services/backend/tests scripts
           uv run mypy services/backend/src services/backend/tests scripts
           uv run python scripts/check_boundaries.py services/backend/src
+          uv run python scripts/check_ios_privacy_manifest.py
           uv run pytest -q
 
       - name: Verify generated API contract
@@ -107,4 +108,5 @@ jobs:
       - name: Inspect iOS privacy manifest and boundaries
         run: |
           test -f apps/ios/StyleCaptureJourney/StyleCaptureJourney/Resources/PrivacyInfo.xcprivacy
+          uv run python scripts/check_ios_privacy_manifest.py
           uv run python scripts/check_boundaries.py services/backend/src

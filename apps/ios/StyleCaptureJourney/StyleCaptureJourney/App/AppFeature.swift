@@ -8,6 +8,7 @@ struct AppFeature {
         var hasMigratedDatabase = false
         var selectedTab: Tab = .journey
         var restoredJourneyID: String?
+        var navigationPersistenceStatus: NavigationPersistenceStatus = .idle
         var journey = JourneyFeature.State()
     }
 
@@ -15,10 +16,17 @@ struct AppFeature {
         case journey
     }
 
+    enum NavigationPersistenceStatus: Equatable, Sendable {
+        case idle
+        case persisted
+        case failed(AppError)
+    }
+
     enum Action: Equatable {
         case launch
         case launchResponse(Result<NavigationSnapshot?, AppError>)
         case navigationPersisted
+        case navigationPersistenceResponse(Result<Void, AppError>)
         case restoreNavigation(NavigationSnapshot)
         case selectedTabChanged(Tab)
         case deepLink(URL)
@@ -67,6 +75,9 @@ struct AppFeature {
                 return .none
 
             case .navigationPersisted:
+                return .none
+
+            case .navigationPersistenceResponse:
                 return .none
 
             case let .restoreNavigation(snapshot):
