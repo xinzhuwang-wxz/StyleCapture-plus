@@ -1,8 +1,10 @@
 # Task 2 Report: iOS Foundation And Generated Contract
 
-Status: hosted macOS verification passing at HEAD `055e11a5113a418898b2b308766dbe9d148cf9d9`.
+Status: hosted macOS verification passing at latest reviewed HEAD `045974480dc82d53ddc546a97850b8c6859e5277`; original Task 2 foundation proof also passed at HEAD `055e11a5113a418898b2b308766dbe9d148cf9d9`.
 
 Local xcodebuild/SwiftPM/Simulator/Docker verification was intentionally not run after the laptop thermal warning. GitHub-hosted macOS is the compile/test authority for this Task 2 slice.
+
+Review-fix round 1 status: hosted macOS verification also passes at HEAD `045974480dc82d53ddc546a97850b8c6859e5277` after the navigation-persistence, privacy manifest and CI observability fixes.
 
 ## RED / GREEN Evidence
 
@@ -26,6 +28,14 @@ Local xcodebuild/SwiftPM/Simulator/Docker verification was intentionally not run
   - HEAD `055e11a5113a418898b2b308766dbe9d148cf9d9`.
   - `product` job `90146355217`: success in 2m49s.
   - `ios` job `90146355277`: success in 10m24s.
+  - Evidence summary: `docs/evidence/journey/task-2/hosted-ci.md`.
+- Review-fix round 1 RED/GREEN proof:
+  - RED run `30318648806` confirmed the executable privacy validator failed against the old manifest before implementation.
+  - Superseded run `30319082666` was agent-cancelled after the replacement CI split was committed; `product` job `90150979893` passed, while iOS job `90150979880` was cancelled in the old monolithic `Test iOS foundation` step. Its log records cancellation, not timeout, test failure, or Swift compile failure.
+  - Final GREEN run `30319519482`, URL `https://github.com/xinzhuwang-wxz/StyleCapture-plus/actions/runs/30319519482`.
+  - HEAD `045974480dc82d53ddc546a97850b8c6859e5277`.
+  - `product` job `90152256536`: success in 3m27s.
+  - `ios` job `90152256473`: success in 12m23s.
   - Evidence summary: `docs/evidence/journey/task-2/hosted-ci.md`.
 
 ## Changed Files
@@ -87,6 +97,13 @@ Local xcodebuild/SwiftPM/Simulator/Docker verification was intentionally not run
 - Hosted GitHub Actions `product-ci` run `30317565521`:
   - `product` job `90146355217` -> success; Python architecture/behavior, generated API contract, H5/mobile typecheck/test/build, Docker Compose config and backend image passed.
   - `ios` job `90146355277` -> success; XcodeGen bootstrap, OpenAPI build-plugin inputs, hosted simulator `xcodebuild test`, SwiftPM lock integrity, privacy manifest inspection and boundary checks passed.
+- Hosted GitHub Actions `product-ci` run `30319082666`:
+  - Superseded by the diagnostic CI split and intentionally cancelled by the agent.
+  - `product` job `90150979893` -> success.
+  - `ios` job `90150979880` -> cancelled in the old monolithic `Test iOS foundation` step with `The operation was canceled`; no timeout/test/compile failure was recorded.
+- Hosted GitHub Actions `product-ci` run `30319519482`:
+  - `product` job `90152256536` -> success; Python architecture/behavior, generated API contract, H5/mobile typecheck/test/build, Docker Compose config and backend image passed.
+  - `ios` job `90152256473` -> success; XcodeGen bootstrap, OpenAPI build-plugin input check, split package dependency resolution, package graph validation, hosted simulator `xcodebuild test`, SwiftPM lock integrity, privacy manifest validation and boundary checks passed.
 
 ## Fix Round 1 Notes
 
@@ -98,6 +115,9 @@ Local xcodebuild/SwiftPM/Simulator/Docker verification was intentionally not run
 - CI now has `workflow_dispatch` so the iOS compile/test gate can be run on GitHub-hosted macOS rather than this overheated local machine.
 - TCA 2.0 audit note: before M2 feature expansion, re-audit TCA 2.0 migration/deprecation guidance and decide whether to stay pinned on 1.26.1 for P0 or upgrade with a dedicated migration slice.
 - Review fix round 1 RED commit `2708778b74d9d499ec17dee3068a890462068204` added a failing navigation-persistence test and iOS privacy-manifest validator before implementation. Hosted RED run `30318648806` confirmed the privacy validator fails against the old manifest. The navigation RED was invalid as behavior evidence because `Result<Void, AppError>` blocked `Action: Equatable` synthesis before XCTest could execute; GREEN replaces it with an explicit `NavigationPersistenceResponse` enum.
+- Review fix round 1 GREEN commit `e738da598a2f740630b6a7da1a471cd47f0d4310` fixed the reducer response shape, added `AppLogger` dependency injection, declared the UserDefaults privacy reason `CA92.1`, added Xcode-project package graph validation and removed bulky raw CI logs.
+- CI observability commit `045974480dc82d53ddc546a97850b8c6859e5277` split the iOS job into diagnosable dependency-resolution, package-graph, xcodebuild test, lock and privacy/boundary steps with focused timeouts. Hosted run `30319519482` is the final GREEN proof for this review-fix round.
+- Process correction: after dispatching a GREEN candidate, freeze the HEAD and CI workflow until that run completes. Do not push a diagnostic commit while the candidate run is still in progress, because doing so can make the candidate evidence ambiguous or stale. Only cancel and replace a running candidate after a documented timeout/no-log threshold or another explicit evidence-quality threshold is reached. The cancellation of run `30319082666` happened before that threshold was documented; it was a process error, not a code failure.
 
 ## Hosted CI Fix Chain
 

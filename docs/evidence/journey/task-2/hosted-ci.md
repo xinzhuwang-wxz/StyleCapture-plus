@@ -59,7 +59,14 @@ Bulky raw logs are not tracked; the failure chain is recorded by run/job IDs and
 - RED run: `30318648806`, URL `https://github.com/xinzhuwang-wxz/StyleCapture-plus/actions/runs/30318648806`.
 - Confirmed RED failure: `product` job `90149673962` failed in `Verify Python architecture and behavior` after `scripts/check_ios_privacy_manifest.py` detected that `NavigationSnapshotClient.swift` uses `UserDefaults` while `PrivacyInfo.xcprivacy` lacked `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1`.
 - Navigation RED test was committed before the reducer fix, but the first RED action shape used `Result<Void, AppError>` and failed Swift `Equatable` synthesis before behavior execution. The GREEN fix replaces it with an explicit `NavigationPersistenceResponse` enum so the regression is a compile-safe behavior test going forward. The root behavior being guarded remains the old reducer sending `.navigationPersisted` after `try? await navigationSnapshotClient.save(snapshot)`.
-- GREEN run: pending after review-fix implementation.
+- Superseded GREEN attempt: run `30319082666`, URL `https://github.com/xinzhuwang-wxz/StyleCapture-plus/actions/runs/30319082666`, at HEAD `e738da598a2f740630b6a7da1a471cd47f0d4310`.
+  - `product` job `90150979893` passed in 3m10s.
+  - `ios` job `90150979880` was intentionally cancelled while its monolithic `Test iOS foundation` step was still running. The cancellation was agent-requested after adding a more diagnosable replacement CI split; the log contains `##[error]The operation was canceled.` and no `timed out`, `Testing failed`, or Swift compile error. This run is therefore not counted as a code failure or GREEN proof.
+- Final GREEN run: `30319519482`, URL `https://github.com/xinzhuwang-wxz/StyleCapture-plus/actions/runs/30319519482`, at HEAD `045974480dc82d53ddc546a97850b8c6859e5277`.
+  - `product` job `90152256536`: success in 3m27s.
+  - `ios` job `90152256473`: success in 12m23s.
+  - Evidence scope: product checks remained green; iOS passed the split `Resolve iOS package dependencies`, `Verify iOS package graph`, hosted simulator `xcodebuild test`, SwiftPM lock byte check, privacy manifest validator and boundary checks.
+- Process correction: after dispatching a GREEN candidate, freeze HEAD and CI workflow until the candidate completes. Run `30319082666` was cancelled before a documented timeout/no-log threshold, so its cancellation is recorded as a process error and not as product evidence.
 
 ## Xcode-project SwiftPM evidence policy
 
