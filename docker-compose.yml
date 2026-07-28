@@ -12,11 +12,18 @@ x-backend-environment: &backend-environment
   STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:-replace-with-at-least-24-random-characters}
   STYLECAPTURE_SESSION_SIGNING_SECRET: ${STYLECAPTURE_SESSION_SIGNING_SECRET:-replace-with-a-distinct-session-signing-secret}
 
+x-backend-build-args: &backend-build-args
+  UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+  UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
+  UV_LOCK_MIRROR_BASE: ${UV_LOCK_MIRROR_BASE:-}
+
 services:
   h5:
     build:
       context: .
       dockerfile: apps/h5/Dockerfile
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}
     depends_on:
       api:
         condition: service_healthy
@@ -46,6 +53,8 @@ services:
     build:
       context: .
       dockerfile: services/backend/Dockerfile
+      args:
+        <<: *backend-build-args
     command:
       - sh
       - -c
@@ -94,6 +103,7 @@ services:
       context: .
       dockerfile: services/backend/Dockerfile
       args:
+        <<: *backend-build-args
         INSTALL_GATEWAY: "true"
     command:
       - litellm
@@ -106,8 +116,14 @@ services:
     environment:
       ARK_API_KEY: ${ARK_API_KEY:-}
       ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      STYLECAPTURE_AI_API_KEY: ${STYLECAPTURE_AI_API_KEY:-${ARK_API_KEY:-}}
+      STYLECAPTURE_AI_API_BASE: ${STYLECAPTURE_AI_API_BASE:-${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}}
+      STYLECAPTURE_TEXT_MODEL: ${STYLECAPTURE_TEXT_MODEL:-openai/doubao-seed-2-0-lite-260428}
+      STYLECAPTURE_IMAGE_MODEL: ${STYLECAPTURE_IMAGE_MODEL:-openai/doubao-seedream-5-0-260128}
       LITELLM_LOCAL_MODEL_COST_MAP: "true"
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-local-litellm-gateway-key-change-before-production}
+    volumes:
+      - ${STYLECAPTURE_LITELLM_CONFIG_PATH:-./config/litellm.yaml}:/app/config/litellm.yaml:ro
     healthcheck:
       test:
         - CMD
@@ -208,6 +224,7 @@ services:
       context: .
       dockerfile: services/backend/Dockerfile
       args:
+        <<: *backend-build-args
         INSTALL_AI_LIGHT: "false"
     command:
       - celery
@@ -277,6 +294,7 @@ services:
       context: .
       dockerfile: services/backend/Dockerfile
       args:
+        <<: *backend-build-args
         INSTALL_AI_LIGHT: "true"
     environment:
       <<: *backend-environment
