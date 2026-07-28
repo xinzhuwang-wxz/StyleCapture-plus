@@ -21,12 +21,12 @@ final class AppFeatureTests: XCTestCase {
         }
 
         await store.send(.launch)
+        await store.receive(.launchResponse(.success(nil))) {
+            $0.hasMigratedDatabase = true
+        }
         await store.receive(.auth(.task))
         await store.receive(.auth(.restoreResponse(.signedOut))) {
             $0.auth.phase = .signedOut
-        }
-        await store.receive(.launchResponse(.success(nil))) {
-            $0.hasMigratedDatabase = true
         }
     }
 
@@ -61,12 +61,12 @@ final class AppFeatureTests: XCTestCase {
         }
 
         await store.send(.launch)
+        await store.receive(.launchResponse(.success(nil))) {
+            $0.hasMigratedDatabase = true
+        }
         await store.receive(.auth(.task))
         await store.receive(.auth(.restoreResponse(.signedOut))) {
             $0.auth.phase = .signedOut
-        }
-        await store.receive(.launchResponse(.success(nil))) {
-            $0.hasMigratedDatabase = true
         }
     }
 
@@ -151,10 +151,6 @@ final class AppFeatureTests: XCTestCase {
         } withDependencies: { dependencies(&$0) }
 
         await secondStore.send(.launch)
-        await secondStore.receive(.auth(.task))
-        await secondStore.receive(.auth(.restoreResponse(.signedOut))) {
-            $0.auth.phase = .signedOut
-        }
         await secondStore.receive(
             .launchResponse(
                 .success(.init(selectedTab: "journey", journeyID: "journey-44"))
@@ -163,6 +159,10 @@ final class AppFeatureTests: XCTestCase {
             $0.hasMigratedDatabase = true
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-44"
+        }
+        await secondStore.receive(.auth(.task))
+        await secondStore.receive(.auth(.restoreResponse(.signedOut))) {
+            $0.auth.phase = .signedOut
         }
     }
 }

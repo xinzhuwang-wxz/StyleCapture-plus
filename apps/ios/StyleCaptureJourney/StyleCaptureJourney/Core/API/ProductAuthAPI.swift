@@ -66,6 +66,8 @@ struct ProductAuthAPI {
             }
         } catch let error as APIError {
             throw error
+        } catch let error as ClientError where error.response != nil {
+            throw APIError.unexpectedResponse
         } catch is DecodingError {
             throw APIError.unexpectedResponse
         } catch {
@@ -89,6 +91,8 @@ struct ProductAuthAPI {
             }
         } catch let error as APIError {
             throw error
+        } catch let error as ClientError where error.response != nil {
+            throw APIError.unexpectedResponse
         } catch is DecodingError {
             throw APIError.unexpectedResponse
         } catch {
@@ -104,6 +108,8 @@ struct ProductAuthAPI {
             }
         } catch let error as APIError {
             throw error
+        } catch let error as ClientError where error.response != nil {
+            throw APIError.unexpectedResponse
         } catch is DecodingError {
             throw APIError.unexpectedResponse
         } catch {

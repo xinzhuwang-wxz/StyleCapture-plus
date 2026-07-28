@@ -58,17 +58,14 @@ struct AppFeature {
         Reduce { state, action in
             switch action {
             case .launch:
-                return .concatenate(
-                    .send(.auth(.task)),
-                    launchApplication()
-                )
+                return launchApplication()
 
             case let .launchResponse(.success(snapshot)):
                 state.hasMigratedDatabase = true
                 if let snapshot {
                     Self.apply(snapshot, to: &state)
                 }
-                return .none
+                return .send(.auth(.task))
 
             case .launchResponse(.failure):
                 state.hasMigratedDatabase = false

@@ -42,6 +42,7 @@ final class AuthClientLiveTests: XCTestCase {
         let requestCountAfterLogout = await requests.count
         XCTAssertEqual(requestCountAfterLogout, requestCountBeforeLogout)
 
+        await events.removeAll()
         try await tokenStore.save(Self.rotatedTokens)
         try await authClient.deleteAccount()
         let storedAfterDeletion = await tokenStore.currentTokens()
@@ -354,9 +355,6 @@ private actor RecordedProductAuthRequests {
         body: HTTPBody?,
         operationID: String
     ) async throws {
-        if operationID == Operations.DeleteAccountV1AccountDeletePost.id {
-            await events?.record("server-delete")
-        }
         let bodyText: String?
         if let body {
             bodyText = try await String(collecting: body, upTo: 4_096)
@@ -383,6 +381,9 @@ private actor RecordedProductAuthRequests {
                 operationID: operationID
             )
         )
+        if operationID == Operations.DeleteAccountV1AccountDeletePost.id {
+            await events?.record("server-delete")
+        }
     }
 
     func onlyRequest(operationID: String) throws -> RecordedProductAuthRequest {
@@ -463,6 +464,10 @@ private actor EventLog {
 
     func snapshot() -> [String] {
         events
+    }
+
+    func removeAll() {
+        events.removeAll()
     }
 }
 
