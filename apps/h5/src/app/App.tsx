@@ -562,9 +562,21 @@ export function App() {
   ) {
     if (entries.length < 2) return;
     try {
+      /*
+       * 只把选中的这几件交给规划器，其余全部排除。
+       *
+       * planOutfits 的职责是「补全一整套」，只给 mustInclude 的话它会自作
+       * 主张往里塞外套、鞋子、配饰——用户明明没选，存下来却多出几件。
+       * 排除掉其余单品之后，补不上的位置会留成空缺（待补齐），而不是被
+       * 别的衣服填满。
+       */
+      const chosen = new Set(entries.map((entry) => entry.itemId));
       const plans = await wardrobeApi.planOutfits({
         scene: "自由组合",
-        mustIncludeItemIds: entries.map((entry) => entry.itemId)
+        mustIncludeItemIds: [...chosen],
+        excludeItemIds: items
+          .map((item) => item.id)
+          .filter((id) => !chosen.has(id))
       });
       const plan = plans.plans?.[0];
       if (!plan) {

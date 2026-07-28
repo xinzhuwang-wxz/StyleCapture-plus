@@ -111,6 +111,22 @@ TEMPLATES: tuple[tuple[OutfitCategory, ...], ...] = (
         OutfitCategory.OUTERWEAR,
         OutfitCategory.ACCESSORY,
     ),
+    # 以下三个不带外套。原来八个模板里只有两个不带，炎热高温想凑四套
+    # 不重样就只能把外套塞回来。
+    (
+        OutfitCategory.TOP,
+        OutfitCategory.BOTTOM,
+        OutfitCategory.SHOES,
+    ),
+    (
+        OutfitCategory.TOP,
+        OutfitCategory.BOTTOM,
+        OutfitCategory.ACCESSORY,
+    ),
+    (
+        OutfitCategory.DRESS,
+        OutfitCategory.SHOES,
+    ),
 )
 
 ACCESSORY_CATEGORIES = {"bags", "headwear", "accessories"}
@@ -634,6 +650,23 @@ def _build_plans(
             )
         )
     )
+    # 大热天不该硬凑一件外套。八个模板里有六个带 OUTERWEAR，所以只要不管，
+    # 炎热高温下几乎每套都会塞一件——真机上表现为同一件针织开衫出现在所有
+    # 推荐里，连炎热高温也不例外。
+    #
+    # 这里是排序而不是筛除：直接把带外套的模板全删掉，小衣橱会凑不出四套
+    # 不重样的方案。排在后面就够了——前几套自然不带外套，衣橱够大时后面
+    # 那几套也轮不到。用户点名要外套时不动它。
+    if _is_hot(request.weather) and OutfitCategory.OUTERWEAR not in required_categories:
+        without_outerwear = tuple(
+            template
+            for template in compatible_templates
+            if OutfitCategory.OUTERWEAR not in template
+        )
+        # 只有还凑得出四套不重样时才真的筛掉，否则宁可保留变化——
+        # 小衣橱下强行剔除会让四套方案塌成一套。
+        if len(without_outerwear) >= 4:
+            compatible_templates = without_outerwear
     if not compatible_templates:
         raise OutfitPlanInvalidError("必须使用的单品无法组成不冲突的完整穿搭")
     if OutfitCategory.DRESS in required_categories:
@@ -956,6 +989,14 @@ def _attribute_text(item: WardrobeItem) -> str:
     return " ".join(
         str(field.value) for field in item.attributes.fields.values() if field.value is not None
     ).lower()
+
+
+
+def _is_hot(weather: str | None) -> bool:
+    return any(
+        token in (weather or "").lower()
+        for token in ("炎热", "高温", "盛夏", "闷热")
+    )
 
 
 def _hard_compatible(item: WardrobeItem, request: OutfitRequest) -> bool:

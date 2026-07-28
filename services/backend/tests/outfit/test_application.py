@@ -906,3 +906,19 @@ async def test_selected_plan_becomes_ready_look_and_queues_default_presentation(
             reasoning_trace=result.reasoning_trace,
             idempotency_key="save-plan-programming-defect",
         )
+
+
+def test_hot_weather_does_not_force_an_outer_layer() -> None:
+    """大热天不该硬凑一件外套。
+
+    八个模板里有六个带 OUTERWEAR，所以只要不特别排除，炎热高温下几乎每套
+    都会塞一件外套——真机上表现为同一件针织开衫出现在所有推荐里，连炎热
+    高温也不例外。
+    """
+    from stylecapture_backend.features.outfit.application import _is_hot
+
+    assert _is_hot("炎热高温")
+    assert _is_hot("盛夏闷热")
+    assert not _is_hot("寒冷低温")
+    assert not _is_hot("温和")
+    assert not _is_hot(None)
