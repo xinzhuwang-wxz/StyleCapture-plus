@@ -9,6 +9,7 @@ struct AppFeature {
         var selectedTab: Tab = .journey
         var restoredJourneyID: String?
         var navigationPersistenceStatus: NavigationPersistenceStatus = .idle
+        var auth = AuthFeature.State()
         var journey = JourneyFeature.State()
     }
 
@@ -34,6 +35,7 @@ struct AppFeature {
         case restoreNavigation(NavigationSnapshot)
         case selectedTabChanged(Tab)
         case deepLink(URL)
+        case auth(AuthFeature.Action)
         case journey(JourneyFeature.Action)
     }
 
@@ -47,26 +49,19 @@ struct AppFeature {
     @Dependency(\.appLogger) var appLogger
 
     var body: some ReducerOf<Self> {
+        Scope(state: \.auth, action: \.auth) {
+            AuthFeature()
+        }
         Scope(state: \.journey, action: \.journey) {
             JourneyFeature()
         }
         Reduce { state, action in
             switch action {
             case .launch:
-                return .run { send in
-                    do {
-                        try await databaseClient.migrate()
-                    } catch {
-                        await send(.launchResponse(.failure(.databaseMigrationFailed)))
-                        return
-                    }
-                    do {
-                        let snapshot = try await navigationSnapshotClient.load()
-                        await send(.launchResponse(.success(snapshot)))
-                    } catch {
-                        await send(.launchResponse(.failure(.navigationPersistenceFailed)))
-                    }
-                }
+                return .concatenate(
+                    .send(.auth(.task)),
+                    launchApplication()
+                )
 
             case let .launchResponse(.success(snapshot)):
                 state.hasMigratedDatabase = true
@@ -103,7 +98,7 @@ struct AppFeature {
                 }
                 return .none
 
-            case .journey:
+            case .auth, .journey:
                 return .none
             }
         }
@@ -126,6 +121,23 @@ struct AppFeature {
             } catch {
                 appLogger.userRecoverableError("navigation persistence failed")
                 await send(.navigationPersistenceResponse(.failure(.navigationPersistenceFailed)))
+            }
+        }
+    }
+
+    private func launchApplication() -> Effect<Action> {
+        .run { send in
+            do {
+                try await databaseClient.migrate()
+            } catch {
+                await send(.launchResponse(.failure(.databaseMigrationFailed)))
+                return
+            }
+            do {
+                let snapshot = try await navigationSnapshotClient.load()
+                await send(.launchResponse(.success(snapshot)))
+            } catch {
+                await send(.launchResponse(.failure(.navigationPersistenceFailed)))
             }
         }
     }

@@ -1,6 +1,7 @@
 name: StyleCaptureJourney
 options:
   bundleIdPrefix: com.stylecapture
+  postGenCommand: python3 "$(git rev-parse --show-toplevel)/scripts/patch_ios_system_capabilities.py"
   deploymentTarget:
     iOS: "17.0"
   groupSortPosition: top
@@ -70,6 +71,15 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    entitlements:
+      path: StyleCaptureJourney/Resources/StyleCaptureJourney.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+    attributes:
+      SystemCapabilities:
+        com.apple.SignInWithApple:
+          enabled: 1
     sources:
       - path: StyleCaptureJourney
     dependencies:
@@ -92,6 +102,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.stylecapture.journey
         PRODUCT_NAME: StyleCaptureJourney
         INFOPLIST_FILE: StyleCaptureJourney/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: StyleCaptureJourney/Resources/StyleCaptureJourney.entitlements
         CODE_SIGN_STYLE: Automatic
   StyleCaptureJourneyTests:
     type: bundle.unit-test

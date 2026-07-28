@@ -20,17 +20,13 @@ final class AppFeatureTests: XCTestCase {
             $0.authClient.restore = { nil }
         }
 
-        await store.send(.launch) {
-            $0.auth.phase = .restoring
-            $0.journey.isAuthenticated = false
+        await store.send(.launch)
+        await store.receive(.auth(.task))
+        await store.receive(.auth(.restoreResponse(.signedOut))) {
+            $0.auth.phase = .signedOut
         }
         await store.receive(.launchResponse(.success(nil))) {
             $0.hasMigratedDatabase = true
-            $0.journey.isAuthenticated = false
-        }
-        await store.receive(.auth(.restoreResponse(.signedOut))) {
-            $0.auth.phase = .signedOut
-            $0.journey.isAuthenticated = false
         }
     }
 
@@ -42,13 +38,9 @@ final class AppFeatureTests: XCTestCase {
             $0.authClient.restore = { tokens }
         }
 
-        await store.send(.auth(.task)) {
-            $0.auth.phase = .restoring
-            $0.journey.isAuthenticated = false
-        }
+        await store.send(.auth(.task))
         await store.receive(.auth(.restoreResponse(.signedIn(tokens)))) {
             $0.auth.phase = .signedIn(tokens)
-            $0.journey.isAuthenticated = true
         }
     }
 
@@ -65,9 +57,14 @@ final class AppFeatureTests: XCTestCase {
                 load: { nil },
                 save: { _ in }
             )
+            $0.authClient.restore = { nil }
         }
 
         await store.send(.launch)
+        await store.receive(.auth(.task))
+        await store.receive(.auth(.restoreResponse(.signedOut))) {
+            $0.auth.phase = .signedOut
+        }
         await store.receive(.launchResponse(.success(nil))) {
             $0.hasMigratedDatabase = true
         }
@@ -134,6 +131,7 @@ final class AppFeatureTests: XCTestCase {
                 load: { await persistence.load() },
                 save: { await persistence.save($0) }
             )
+            $0.authClient.restore = { nil }
         }
 
         let firstStore = TestStore(initialState: AppFeature.State()) {
@@ -153,6 +151,10 @@ final class AppFeatureTests: XCTestCase {
         } withDependencies: { dependencies(&$0) }
 
         await secondStore.send(.launch)
+        await secondStore.receive(.auth(.task))
+        await secondStore.receive(.auth(.restoreResponse(.signedOut))) {
+            $0.auth.phase = .signedOut
+        }
         await secondStore.receive(
             .launchResponse(
                 .success(.init(selectedTab: "journey", journeyID: "journey-44"))

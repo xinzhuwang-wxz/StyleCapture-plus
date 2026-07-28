@@ -108,6 +108,9 @@ final class AuthFeatureTests: XCTestCase {
         }
 
         await store.send(.deleteAccountButtonTapped) {
+            $0.phase = .confirmingAccountDeletion(Self.tokens)
+        }
+        await store.send(.confirmDeleteAccountTapped) {
             $0.phase = .deleting
         }
         await store.receive(
@@ -119,6 +122,34 @@ final class AuthFeatureTests: XCTestCase {
             $0.phase = .clearingLocalCredentials
         }
         await store.receive(.localCleanupResponse(.success)) {
+            $0.phase = .signedOut
+        }
+    }
+
+    func testDeleteConfirmationCanBeCancelledWithoutLosingSignedInSession() async {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+            AuthFeature()
+        }
+
+        await store.send(.deleteAccountButtonTapped) {
+            $0.phase = .confirmingAccountDeletion(Self.tokens)
+        }
+        await store.send(.cancelDeleteAccountTapped) {
+            $0.phase = .signedIn(Self.tokens)
+        }
+    }
+
+    func testLogoutClearsLocalSessionAndReturnsToSignedOut() async {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.logout = {}
+        }
+
+        await store.send(.logoutButtonTapped) {
+            $0.phase = .signingOut
+        }
+        await store.receive(.logoutResponse(.success)) {
             $0.phase = .signedOut
         }
     }

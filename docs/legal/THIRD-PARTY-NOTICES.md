@@ -13,3 +13,9 @@ StyleCapture-plus prefers audited reuse over reimplementing mature capabilities.
 Grounded-SAM-2, SAM 2, FashionSigLIP, FASHN VTON, FastFit, and product-taxonomy sources remain isolated under `_ref`. Their code is not part of the Issue #1 production bundle. Any later reuse must preserve the corresponding upstream license, pin the reviewed revision, and stay behind a StyleCapture-owned API boundary.
 
 `_ref` is excluded from Docker build context and production modules. This prevents accidental shipping or deep imports from reference projects.
+
+## iOS application bundle
+
+The iOS target distributes `StyleCaptureJourney/Resources/ThirdPartyNotices.txt` in the application bundle. It contains the exact version and revision for all 25 identities in `Config/Package.resolved`, the copyright notices found in the reviewed package roots, the full MIT and Apache-2.0 terms, and the Swift Runtime Library Exception used by the applicable Swift packages.
+
+The package graph validator fails when the lock identity set or an exact version/revision drifts, when the notices resource omits a pin, or when the generated Xcode project does not include the notices resource. No reviewed package checkout contained a root `NOTICE` file requiring an additional attribution block.

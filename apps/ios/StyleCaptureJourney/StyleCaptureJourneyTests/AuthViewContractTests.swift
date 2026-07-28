@@ -46,7 +46,22 @@ final class AuthViewContractTests: XCTestCase {
             [
                 "auth.shell.signedIn",
                 "auth.account.controls",
+                "auth.logout.button",
                 "auth.deleteAccount.button",
+            ]
+        )
+    }
+
+    func testDeleteConfirmationStateExposesConfirmAndCancelIdentifiers() {
+        XCTAssertEqual(
+            AuthViewContract.accessibilityIdentifiers(
+                for: AuthFeature.State(phase: .confirmingAccountDeletion(Self.tokens))
+            ),
+            [
+                "auth.shell.confirmDelete",
+                "auth.delete.confirmation",
+                "auth.cancelDelete.button",
+                "auth.confirmDelete.button",
             ]
         )
     }

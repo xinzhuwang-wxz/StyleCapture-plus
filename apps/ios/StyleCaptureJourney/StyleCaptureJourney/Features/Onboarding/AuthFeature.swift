@@ -14,6 +14,8 @@ struct AuthFeature {
         case signingIn
         case signedIn(AuthTokens)
         case refreshing(AuthTokens)
+        case signingOut
+        case confirmingAccountDeletion(AuthTokens)
         case deleting
         case clearingLocalCredentials
         case localCredentialCleanupRequired
@@ -42,7 +44,11 @@ struct AuthFeature {
         case signInButtonTapped
         case retrySignInTapped
         case signInResponse(SessionResponse)
+        case logoutButtonTapped
+        case logoutResponse(OperationResponse)
         case deleteAccountButtonTapped
+        case cancelDeleteAccountTapped
+        case confirmDeleteAccountTapped
         case deleteAccountResponse(OperationResponse)
         case retryLocalCleanupTapped
         case localCleanupResponse(OperationResponse)
@@ -101,6 +107,21 @@ struct AuthFeature {
                 return .none
 
             case .deleteAccountButtonTapped:
+                switch state.phase {
+                case let .signedIn(tokens), let .refreshing(tokens):
+                    state.phase = .confirmingAccountDeletion(tokens)
+                default:
+                    return .none
+                }
+                return .none
+
+            case .cancelDeleteAccountTapped:
+                if case let .confirmingAccountDeletion(tokens) = state.phase {
+                    state.phase = .signedIn(tokens)
+                }
+                return .none
+
+            case .confirmDeleteAccountTapped:
                 state.phase = .deleting
                 return .run { send in
                     do {
@@ -120,6 +141,25 @@ struct AuthFeature {
                 return .none
 
             case let .deleteAccountResponse(.failure(error)):
+                state.phase = .failed(error)
+                return .none
+
+            case .logoutButtonTapped:
+                state.phase = .signingOut
+                return .run { send in
+                    do {
+                        try await authClient.logout()
+                        await send(.logoutResponse(.success))
+                    } catch {
+                        await send(.logoutResponse(.failure(Self.map(error))))
+                    }
+                }
+
+            case .logoutResponse(.success):
+                state.phase = .signedOut
+                return .none
+
+            case let .logoutResponse(.failure(error)):
                 state.phase = .failed(error)
                 return .none
 
