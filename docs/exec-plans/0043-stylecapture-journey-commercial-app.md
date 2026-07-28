@@ -86,6 +86,8 @@ Acceptance:
 
 Outcome: a user can anonymously preview, bind with Sign in with Apple, import selected photos, correct recognition, resume failed uploads, and delete an item without cross-user access or sensitive local leakage.
 
+Task 3 preflight and reuse decision (2026-07-28): preserve the current anonymous UUID as a compatibility input only, then atomically map it to one canonical account subject; do not replace ownership IDs piecemeal or allow cookie and account principals to remain independent truths. Continue the exact TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` pin because no reproducible public stable TCA 2.0 release exists yet and the current app already avoids the high-risk 1.x deprecated APIs. For Sign in with Apple, directly depend on PyJWT `[crypto]` `2.13.0` / `7144e4534c34810f4525dc4578a32addd8212cff` (MIT), reuse the already locked `cryptography 46.0.7` and `httpx 0.28.1`, keep Apple protocol/replay/binding/session policy behind `AppleIdentityVerifier`, and do not introduce or hand-write a second JOSE stack.
+
 Acceptance:
 
 - SIWA issuer/audience/nonce/signature/time and replay are verified server-side.
@@ -169,7 +171,7 @@ Every milestone copies this table into its branch-local ExecPlan and adds exact 
 
 | Capability | Candidates inspected | Decision | Constraint |
 |---|---|---|---|
-| App shell/state/effects/navigation/tests | TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` | Direct reuse | MIT; exact pin; current non-deprecated APIs; pre-M2 2.0 migration/deprecation audit |
+| App shell/state/effects/navigation/tests | TCA `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978` | Direct reuse | MIT; exact pin; pre-M2 audit completed 2026-07-28 and found no public stable 2.0 release or local high-risk deprecated API; revisit on a reproducible public 2.0 tag or new deprecation pressure |
 | UI/rendering/concurrency | SwiftUI, Observation, Swift Concurrency | Direct reuse | iOS 17+; rendering/lifecycle only, not custom app shell |
 | Xcode project | XcodeGen `2.46.0` / `8445e77` | Direct reuse | MIT; generated project, reviewable spec |
 | Navigation | TCA navigation state over NavigationStack/NavigationPath | Direct reuse | No custom Router/navigation framework; reducer tests prove restoration/deep-link behavior |
@@ -179,7 +181,7 @@ Every milestone copies this table into its branch-local ExecPlan and adds exact 
 | Itinerary OCR | Apple Vision `VNRecognizeTextRequest` | Direct reuse | Device-side extraction; user confirms structured truth; raw screenshot stays local by default |
 | Weather | Apple WeatherKit / WeatherKit REST | Candidate adapt | Gate on China city coverage, attribution, quota, server signing and degradation smoke; never invent forecasts |
 | Purchase client/server | StoreKit 2 + Apple server Python `v3.1.2` / `4eaa224` | Direct reuse | Server ledger owns entitlement |
-| Apple identity verification | AuthenticationServices + PyJWT `[crypto]` + Apple JWKS | Candidate direct/adapt | Re-audit stable release/license; never hand-write JOSE |
+| Apple identity verification | AuthenticationServices + PyJWT `[crypto]` `2.13.0` / `7144e4534c34810f4525dc4578a32addd8212cff` + Apple fixed JWKS endpoint; existing `cryptography 46.0.7` and `httpx 0.28.1` | Direct/adapt reuse | Apple SDK + MIT/BSD-3-Clause; fixed issuer/audience/RS256 allowlist, explicit JWKS refresh/cache policy, nonce/code replay and canonical-subject policy remain behind the application port; never hand-write or add a second JOSE stack |
 | COS object client | boto3 S3 client + COS compatible endpoint | Candidate adapt | Re-audit version/license and checksum/SSE/lifecycle/signing smoke; compare Tencent SDK only on measured incompatibility |
 | Hosted purchase platform | RevenueCat SDK + official DPA | Rejected P0 | Duplicates backend entitlement ledger and adds US/AWS vendor/data surface for China-first; revisit after measured cross-platform/remote-paywall need plus in-region controls |
 | Analytics | First-party events + App Store Connect | Direct reuse/adapt | No autocapture/session replay; Sensors Data needs commercial license |
@@ -260,7 +262,9 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 - [x] Hosted Xcode trust gate: non-interactive CI uses `-skipPackagePluginValidation` and `-skipMacroValidation` only after exact Package.resolved seeding and post-build byte verification; final green hosted run `30317565521` proves this gate no longer blocks Task 2.
 - [x] Task 2 review-fix round 1 RED: commit `2708778b74d9d499ec17dee3068a890462068204` added a failing navigation-persistence regression and executable iOS privacy-manifest validator before implementation. Hosted run `30318648806` confirmed the privacy validator failed against the old manifest. The first navigation RED was invalid as behavior evidence because `Result<Void, AppError>` blocked `Action: Equatable` synthesis before XCTest could execute; GREEN replaces it with a compile-safe explicit response enum.
 - [x] Task 2 review-fix round 1 GREEN: hosted GitHub Actions run `30319519482` at HEAD `045974480dc82d53ddc546a97850b8c6859e5277` passed `product` job `90152256536` in 3m27s and `ios` job `90152256473` in 12m23s. Superseded run `30319082666` at HEAD `e738da598a2f740630b6a7da1a471cd47f0d4310` was intentionally cancelled by the agent after `product` passed because the old iOS step was monolithic and had been replaced by split dependency, package-graph, test, lock and privacy/boundary steps; its log records cancellation, not timeout, test failure, or Swift compile failure.
-- [ ] Pre-M2 TCA 2.0 audit: before expanding Journey feature behavior, re-check TCA 2.0 migration/deprecation guidance against the current 1.26.1 pin and decide whether the P0 branch stays pinned or performs a dedicated migration slice.
+- [x] Pre-M2 TCA 2.0 audit: official release/migration evidence and the local API surface were re-checked on 2026-07-28. Keep the exact `1.26.1` pin for Task 3/P0 because 2.0 has no reproducible public stable tag and current code already avoids the high-risk deprecated APIs; reopen on a public 2.0 tag/beta package or new local deprecation pressure.
+- [x] Task 3 reuse/security preflight: select PyJWT `[crypto]` `2.13.0` / `7144e4534c34810f4525dc4578a32addd8212cff` (MIT), reuse existing `cryptography 46.0.7` and `httpx 0.28.1`, fix Apple issuer/JWKS/algorithm inputs, and preserve one canonical subject through atomic anonymous-account binding.
+- [ ] Task 3 revocable account vertical slice: behavior-first backend identity/session/tombstone migration, dual-mode compatibility, generated Product API, AuthenticationServices/Keychain integration, hosted iOS compile/tests, and independent security/privacy/spec/architecture/reuse/UX review.
 - [ ] Collect real M0 recruitment, payments/deposits, complete plans, refunds, post-trip follow-up, and maturity evidence outside Git.
 - [ ] Record a real `GO`, `PIVOT`, or `STOP` in `docs/research/journey-validation/decision-log.md` only after at least 15 plan recipients reach `trip_end+7d`.
 
@@ -288,6 +292,8 @@ Each independent review persists a record using `docs/engineering/STYLECAPTURE-J
 
 ## Decision Log
 
+- 2026-07-28: Keep TCA exact-pinned at public stable `1.26.1` for Task 3/P0 after the required pre-M2 audit. The current app already uses modern 1.x reducers/stores/dependencies and no public reproducible stable TCA 2.0 tag exists; do not make the account milestone depend on beta/private APIs. Reopen when Point-Free publishes a public reproducible 2.0 package or local deprecated APIs create measured pressure.
+- 2026-07-28: Use PyJWT `[crypto]` `2.13.0` / `7144e4534c34810f4525dc4578a32addd8212cff` as the sole JOSE implementation for Apple RS256 identity-token verification and ES256 client-secret signing. Reuse the existing locked cryptography/httpx stack; forbid token-controlled key URLs/algorithms, keep the JWKS endpoint fixed, and keep nonce, authorization-code replay, canonical binding, rotating sessions, revocation and deletion as application/domain policy behind `AppleIdentityVerifier`.
 - 2026-07-28: Correct the iOS OpenAPI runtime exact pin from 1.9.0 to 1.11.0 for SwiftPM traits compatibility with Apple Swift OpenAPI Generator 1.13.0. This preserves the required generator 1.13.0 pin and exact dependency policy without broadening to ranges or branches.
 - 2026-07-28: Product-owner correction: M0 repository infrastructure is implemented locally and the market decision remains `BLOCKED_FOR_REAL_EVIDENCE`, but Task 2 native iOS work is admissible for local development, Apple sandbox, staging, and TestFlight technical verification. Real cohort, ¥12 refundable deposits/payments, refunds, complete concierge plan outcomes, and `trip_end+7d` execution evidence remain mandatory before any M0 `GO`/`PIVOT`/`STOP`, production commercialization, scale, or aggregate-completion claim.
 - 2026-07-28: Record external execution readiness separately from product validation. Missing authorized account, legal-subject/contact, merchant/refund, reserve and controlled-data-store evidence prevents safe recruitment or deposit collection; it is not a failed product experiment and does not authorize `PIVOT` or `STOP`.
