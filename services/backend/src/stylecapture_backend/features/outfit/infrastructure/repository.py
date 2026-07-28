@@ -125,12 +125,17 @@ class SqlAlchemyPurchaseDemandRepository:
         look_id: UUID,
         plan: OutfitPlan,
     ) -> tuple[PurchaseDemand, ...]:
-        async with self._subject_writes.subject_write(user_id) as canonical:
-            return await self._ensure_for_plan(
-                user_id=canonical,
-                look_id=look_id,
-                plan=plan,
-            )
+        try:
+            async with self._subject_writes.subject_write(user_id) as canonical:
+                return await self._ensure_for_plan(
+                    user_id=canonical,
+                    look_id=look_id,
+                    plan=plan,
+                )
+        except OperationalError as error:
+            raise OutfitPostSaveUnavailable(
+                "purchase demand persistence is temporarily unavailable"
+            ) from error
 
     async def _ensure_for_plan(
         self,
