@@ -73,8 +73,9 @@ final class PrivacyAndBackgroundTests: XCTestCase {
             )
         )
 
+        let events = await recorder.events()
         XCTAssertEqual(
-            await recorder.events(),
+            events,
             [
                 .registered(.outboxRefresh),
                 .launched(.outboxRefresh),
