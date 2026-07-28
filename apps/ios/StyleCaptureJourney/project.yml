@@ -80,6 +80,8 @@ targets:
         product: CasePaths
       - package: swift-dependencies
         product: Dependencies
+      - package: swift-openapi-runtime
+        product: OpenAPIRuntime
       - package: GRDB
         product: GRDB
       - package: Nuke
