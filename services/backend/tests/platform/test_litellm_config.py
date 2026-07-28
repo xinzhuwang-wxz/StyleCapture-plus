@@ -30,9 +30,7 @@ def test_litellm_config_exposes_capability_alias_without_embedded_credentials() 
     assert vision["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
     assert grounding["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
     assert outfit_analysis["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
-    assert models["outfit_analysis_fallback"]["model"] == (
-        "os.environ/STYLECAPTURE_TEXT_MODEL"
-    )
+    assert models["outfit_analysis_fallback"]["model"] == ("os.environ/STYLECAPTURE_TEXT_MODEL")
     assert image_generation["model"] == "os.environ/STYLECAPTURE_IMAGE_MODEL"
     assert models["candidate_doubao_seed_2_0_lite_260428"]["model"] == (
         "openai/doubao-seed-2-0-lite-260428"
@@ -50,9 +48,7 @@ def test_litellm_config_exposes_capability_alias_without_embedded_credentials() 
     assert vision["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
     assert grounding["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
     assert outfit_analysis["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
-    assert models["outfit_analysis_fallback"]["api_key"] == (
-        "os.environ/STYLECAPTURE_AI_API_KEY"
-    )
+    assert models["outfit_analysis_fallback"]["api_key"] == ("os.environ/STYLECAPTURE_AI_API_KEY")
     assert image_generation["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
     assert vision["api_base"] == "os.environ/STYLECAPTURE_AI_API_BASE"
     assert "sk-" not in raw
