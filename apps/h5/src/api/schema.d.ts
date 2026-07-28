@@ -38,6 +38,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete Account */
+        post: operations["delete_account_v1_account_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account/deletion-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deletion Status */
+        get: operations["deletion_status_v1_account_deletion_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/apple": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authenticate With Apple */
+        post: operations["authenticate_with_apple_v1_auth_apple_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Session */
+        post: operations["refresh_session_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/captures": {
         parameters: {
             query?: never;
@@ -684,6 +752,36 @@ export interface components {
         AdvancePurchaseDemandBody: {
             status: components["schemas"]["PurchaseDemandStatus"];
         };
+        /** AppleAuthBody */
+        AppleAuthBody: {
+            /** Authorization Code */
+            authorization_code: string;
+            /** Device Name */
+            device_name?: string | null;
+            /** Identity Token */
+            identity_token: string;
+            /** Nonce */
+            nonce: string;
+        };
+        /** AuthTokenResponse */
+        AuthTokenResponse: {
+            /**
+             * Access Expires At
+             * Format: date-time
+             */
+            access_expires_at: string;
+            /** Access Token */
+            access_token: string;
+            /**
+             * Account Subject
+             * Format: uuid
+             */
+            account_subject: string;
+            /** Refresh Token */
+            refresh_token: string;
+            /** Token Type */
+            token_type: string;
+        };
         /** CaptureAcceptedResponse */
         CaptureAcceptedResponse: {
             /**
@@ -724,6 +822,26 @@ export interface components {
             kind: components["schemas"]["RenderArtifactKind"];
             /** Subject Object Key */
             subject_object_key?: string | null;
+        };
+        /** DeletionResponse */
+        DeletionResponse: {
+            /**
+             * Account Subject
+             * Format: uuid
+             */
+            account_subject: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** ErrorBody */
         ErrorBody: {
@@ -1317,6 +1435,11 @@ export interface components {
          * @enum {string}
          */
         PurchaseDemandStatus: "wanted" | "purchased_pending" | "owned";
+        /** RefreshBody */
+        RefreshBody: {
+            /** Refresh Token */
+            refresh_token: string;
+        };
         /**
          * RenderArtifactKind
          * @enum {string}
@@ -1499,11 +1622,436 @@ export interface operations {
             };
         };
     };
+    delete_account_v1_account_delete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deletion_status_v1_account_deletion_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    authenticate_with_apple_v1_auth_apple_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                stylecapture_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleAuthBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokenResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    refresh_session_v1_auth_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokenResponse"];
+                };
+            };
+            /** @description The request cannot be processed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A valid product session is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with stored state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload token has expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upload exceeds the allowed size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The media type is not supported */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request violates the API contract */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Processing is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     submit_capture_v1_captures_post: {
         parameters: {
             query?: never;
             header: {
                 "Idempotency-Key": string;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: {
@@ -1611,7 +2159,9 @@ export interface operations {
     get_item_presentation_v1_item_presentations__asset_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 asset_id: string;
             };
@@ -1716,7 +2266,9 @@ export interface operations {
     get_item_presentation_image_v1_item_presentations__asset_id__image_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 asset_id: string;
             };
@@ -1821,7 +2373,9 @@ export interface operations {
     list_items_v1_items_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: {
                 stylecapture_session?: string | null;
@@ -1924,7 +2478,9 @@ export interface operations {
     get_item_v1_items__item_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2029,7 +2585,9 @@ export interface operations {
     update_item_v1_items__item_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2138,7 +2696,9 @@ export interface operations {
     get_item_image_v1_items__item_id__image_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2245,6 +2805,7 @@ export interface operations {
             query?: never;
             header?: {
                 "Idempotency-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 item_id: string;
@@ -2350,7 +2911,9 @@ export interface operations {
     retry_item_pixel_presentation_v1_items__item_id__presentations_pixel_retry_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2455,7 +3018,9 @@ export interface operations {
     retry_item_v1_items__item_id__retry_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2560,7 +3125,9 @@ export interface operations {
     get_item_source_v1_items__item_id__source_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2665,7 +3232,9 @@ export interface operations {
     delete_item_source_v1_items__item_id__source_delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 item_id: string;
             };
@@ -2768,7 +3337,9 @@ export interface operations {
     get_job_v1_jobs__job_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 job_id: string;
             };
@@ -2873,7 +3444,9 @@ export interface operations {
     job_events_v1_jobs__job_id__events_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 job_id: string;
             };
@@ -2978,7 +3551,9 @@ export interface operations {
     retry_job_v1_jobs__job_id__retry_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 job_id: string;
             };
@@ -3083,7 +3658,9 @@ export interface operations {
     list_looks_v1_looks_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: {
                 stylecapture_session?: string | null;
@@ -3186,7 +3763,9 @@ export interface operations {
     get_look_v1_looks__look_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 look_id: string;
             };
@@ -3293,6 +3872,7 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
+                Authorization?: string | null;
             };
             path: {
                 look_id: string;
@@ -3402,7 +3982,9 @@ export interface operations {
     get_look_image_v1_looks__look_id__image_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 look_id: string;
             };
@@ -3507,7 +4089,9 @@ export interface operations {
     list_render_artifacts_v1_looks__look_id__renders_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 look_id: string;
             };
@@ -3614,6 +4198,7 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
+                Authorization?: string | null;
             };
             path: {
                 look_id: string;
@@ -3723,7 +4308,9 @@ export interface operations {
     retry_look_v1_looks__look_id__retry_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 look_id: string;
             };
@@ -3828,7 +4415,9 @@ export interface operations {
     get_look_source_v1_looks__look_id__source_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 look_id: string;
             };
@@ -3933,7 +4522,9 @@ export interface operations {
     create_outfit_plans_v1_outfit_plans_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: {
                 stylecapture_session?: string | null;
@@ -4040,7 +4631,9 @@ export interface operations {
     advance_purchase_demand_v1_outfit_plans_purchase_demands__demand_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 demand_id: string;
             };
@@ -4149,7 +4742,9 @@ export interface operations {
     list_purchase_demands_v1_outfit_plans_saved_looks__look_id__purchase_list_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 look_id: string;
             };
@@ -4254,7 +4849,9 @@ export interface operations {
     stream_outfit_plans_v1_outfit_plans_stream_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: {
                 stylecapture_session?: string | null;
@@ -4361,7 +4958,9 @@ export interface operations {
     get_outfit_workflow_trace_v1_outfit_plans_traces__trace_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 trace_id: string;
             };
@@ -4466,7 +5065,9 @@ export interface operations {
     replace_outfit_slot_v1_outfit_plans__plan_id__replace_slot_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 plan_id: string;
             };
@@ -4577,6 +5178,7 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
+                Authorization?: string | null;
             };
             path: {
                 plan_id: string;
@@ -4688,6 +5290,7 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: {
@@ -4795,7 +5398,9 @@ export interface operations {
     get_pixel_trial_v1_pixel_trials__trial_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 trial_id: string;
             };
@@ -4900,7 +5505,9 @@ export interface operations {
     delete_pixel_trial_v1_pixel_trials__trial_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 trial_id: string;
             };
@@ -5003,7 +5610,9 @@ export interface operations {
     get_pixel_trial_image_v1_pixel_trials__trial_id__image_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 trial_id: string;
             };
@@ -5108,7 +5717,9 @@ export interface operations {
     get_render_artifact_v1_render_artifacts__artifact_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 artifact_id: string;
             };
@@ -5213,7 +5824,9 @@ export interface operations {
     get_render_image_v1_render_artifacts__artifact_id__image_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 artifact_id: string;
             };
@@ -5318,7 +5931,9 @@ export interface operations {
     delete_render_subject_v1_render_artifacts__artifact_id__subject_delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 artifact_id: string;
             };
@@ -5559,7 +6174,9 @@ export interface operations {
     prepare_upload_v1_uploads_prepare_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: {
                 stylecapture_session?: string | null;
@@ -5666,7 +6283,9 @@ export interface operations {
     discard_private_upload_v1_uploads__object_key__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path: {
                 object_key: string;
             };
