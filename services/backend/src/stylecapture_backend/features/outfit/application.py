@@ -111,6 +111,23 @@ TEMPLATES: tuple[tuple[OutfitCategory, ...], ...] = (
         OutfitCategory.OUTERWEAR,
         OutfitCategory.ACCESSORY,
     ),
+    # The three below carry no outer layer. Only two of the original eight did,
+    # which is too few to build four distinct plans, so hot weather had to put
+    # the coat back in.
+    (
+        OutfitCategory.TOP,
+        OutfitCategory.BOTTOM,
+        OutfitCategory.SHOES,
+    ),
+    (
+        OutfitCategory.TOP,
+        OutfitCategory.BOTTOM,
+        OutfitCategory.ACCESSORY,
+    ),
+    (
+        OutfitCategory.DRESS,
+        OutfitCategory.SHOES,
+    ),
 )
 
 ACCESSORY_CATEGORIES = {"bags", "headwear", "accessories"}
@@ -634,6 +651,23 @@ def _build_plans(
             )
         )
     )
+    # Hot weather should not force an outer layer. Six of the eight templates
+    # carry OUTERWEAR, so without this nearly every plan gained a coat, and on
+    # a real wardrobe that showed up as the same knit cardigan in every single
+    # recommendation - even at "炎热高温".
+    #
+    # Only drop them when four distinct plans still remain: a small wardrobe
+    # would otherwise collapse from four suggestions to one. An explicitly
+    # required coat is left alone.
+    if _is_hot(request.weather) and OutfitCategory.OUTERWEAR not in required_categories:
+        without_outerwear = tuple(
+            template
+            for template in compatible_templates
+            if OutfitCategory.OUTERWEAR not in template
+        )
+        # Keep the variety when there is not enough left without a coat.
+        if len(without_outerwear) >= 4:
+            compatible_templates = without_outerwear
     if not compatible_templates:
         raise OutfitPlanInvalidError("必须使用的单品无法组成不冲突的完整穿搭")
     if OutfitCategory.DRESS in required_categories:
@@ -956,6 +990,10 @@ def _attribute_text(item: WardrobeItem) -> str:
     return " ".join(
         str(field.value) for field in item.attributes.fields.values() if field.value is not None
     ).lower()
+
+
+def _is_hot(weather: str | None) -> bool:
+    return any(token in (weather or "").lower() for token in ("炎热", "高温", "盛夏", "闷热"))
 
 
 def _hard_compatible(item: WardrobeItem, request: OutfitRequest) -> bool:

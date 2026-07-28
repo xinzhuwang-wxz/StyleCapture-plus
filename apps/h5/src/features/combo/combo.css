@@ -1,178 +1,224 @@
-/* 组合衣柜：常驻底部的落点抽屉，沿用 pixel-theme 的记号笔风格。 */
+/* ─── 组合衣柜 ─── */
 
-.combo-door {
-  position: fixed;
-  right: 0;
-  bottom: 92px;
-  left: 0;
-  z-index: 40;
-  width: min(100%, 32rem);
-  margin: 0 auto;
-  padding: 0 var(--px-3);
-  pointer-events: none;
+/*
+ * 挂在 .pixel-screen 里定位，不是 fixed 到视口。
+ * 从前是一条通栏，用 fixed + 100% 宽，而演示外壳里屏幕只有 390px，
+ * 于是左右都顶出了手机边框。
+ */
+.combo-cabinet {
+  position: absolute;
+  right: var(--px-3);
+  bottom: 6.2rem;
+  z-index: 46;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
 }
 
-.combo-door > * {
-  pointer-events: auto;
-}
-
-.combo-door__handle {
-  display: flex;
-  align-items: center;
-  gap: var(--px-2);
-  width: 100%;
-  padding: 10px var(--px-4);
-  font-family: var(--font-pixel);
-  font-size: 0.82rem;
-  color: var(--pixel-text);
-  background: #fff;
-  border: 2px solid var(--pixel-border);
-  border-radius: 999px;
+.combo-cabinet__body {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 76px;
+  padding: 0;
+  background: linear-gradient(160deg, #b98a5e, #8a5f3a);
+  border: 3px solid #6d4a2c;
+  border-radius: 10px 10px 8px 8px;
   box-shadow: var(--pixel-shadow-lg);
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
-.combo-door__handle strong {
+/* 有东西正拖过来时，柜子稍微迎上去一点。 */
+.combo-cabinet[data-receiving="true"] .combo-cabinet__body {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.35), var(--pixel-shadow-lg);
+}
+
+.combo-cabinet__doors {
+  position: absolute;
+  inset: 6px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #5a3c24;
+}
+
+.combo-cabinet__door {
   flex: 1;
-  text-align: left;
+  background: linear-gradient(150deg, #d8a973, #a97747);
+  border: 1px solid #6d4a2c;
+  transition: transform 0.28s cubic-bezier(0.3, 0.9, 0.4, 1);
 }
 
-.combo-door__count {
+.combo-cabinet__door--left { transform-origin: left center; }
+.combo-cabinet__door--right { transform-origin: right center; }
+
+/* 门开一下再关上：不然「放进去了没有」只能靠角标数字猜。 */
+.combo-cabinet[data-swallowing="true"] .combo-cabinet__door--left,
+.combo-cabinet[data-receiving="true"] .combo-cabinet__door--left {
+  transform: perspective(120px) rotateY(-72deg);
+}
+
+.combo-cabinet[data-swallowing="true"] .combo-cabinet__door--right,
+.combo-cabinet[data-receiving="true"] .combo-cabinet__door--right {
+  transform: perspective(120px) rotateY(72deg);
+}
+
+.combo-cabinet__count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
   display: grid;
   min-width: 22px;
   height: 22px;
   place-items: center;
-  padding: 0 6px;
-  font-size: 0.7rem;
+  padding: 0 5px;
   color: #fff;
-  background: var(--pixel-primary);
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  background: var(--pixel-primary-fill);
+  border: 2px solid #fff;
   border-radius: 999px;
 }
 
-/* 有东西正被拖过来时，落点要明显长大一圈。 */
-.combo-door[data-receiving="true"] .combo-door__handle {
-  border-color: var(--pixel-primary);
-  background: linear-gradient(135deg, #f3edfd, #fdeef5);
-  transform: scale(1.03);
-}
-
-.combo-door__panel {
-  margin-top: var(--px-2);
-  padding: var(--px-4);
-  background: #fff;
-  border: 2px solid var(--pixel-border);
-  border-radius: 18px;
-  box-shadow: var(--pixel-shadow-lg);
-}
-
-.combo-door__list {
-  display: flex;
-  gap: var(--px-2);
-  margin: 0 0 var(--px-3);
-  padding: 0 0 var(--px-2);
-  overflow-x: auto;
-  list-style: none;
-  scrollbar-width: none;
-}
-
-.combo-door__list::-webkit-scrollbar {
-  display: none;
-}
-
-.combo-door__list li {
-  position: relative;
-  flex: 0 0 68px;
-}
-
-.combo-door__list img,
-.combo-door__blank {
-  display: block;
-  width: 68px;
-  aspect-ratio: 3 / 4;
-  object-fit: cover;
-  background: #f4f0fb;
-  border: 2px solid var(--pixel-border);
-  border-radius: 12px;
-}
-
-.combo-door__label {
-  display: block;
-  margin-top: 2px;
-  overflow: hidden;
+.combo-cabinet__label {
   font-family: var(--font-pixel);
-  font-size: 0.56rem;
-  color: var(--pixel-text-dim);
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.combo-door__list li > button {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  color: #fff;
-  background: var(--pixel-text);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  line-height: 1;
-}
-
-.combo-door__empty,
-.combo-door__audit {
-  margin: 0 0 var(--px-3);
-  font-family: var(--font-pixel);
-  font-size: 0.7rem;
-  line-height: 1.6;
+  font-size: 0.6rem;
   color: var(--pixel-text-muted);
+  text-shadow: 0 1px 0 #fff;
 }
 
-.combo-door__actions {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: var(--px-2);
-}
+/* ─── 拖影 ─── */
 
-/* 拖起来的那张卡片的影子，跟着手指走。 */
+/*
+ * 挂在 document.body 上。卡片是 motion.article 带 transform，
+ * 有 transform 的祖先会成为 fixed 的包含块，拖影会被困在卡片那一小块里。
+ */
 .combo-ghost {
   position: fixed;
-  z-index: 60;
+  top: 0;
+  left: 0;
+  z-index: 120;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.combo-ghost img {
   width: 84px;
   aspect-ratio: 3 / 4;
   object-fit: cover;
+  background: #fff;
   border: 3px solid var(--pixel-primary);
   border-radius: 14px;
   box-shadow: var(--pixel-shadow-lg);
-  opacity: 0.92;
-  pointer-events: none;
-  transform: translate(-50%, -50%) rotate(-4deg);
+  opacity: 0.95;
 }
 
-/* 卡片上的「加入组合」——拖拽的等价入口，键盘和读屏都能用。 */
-.combo-add {
-  width: 100%;
-  margin-top: 6px;
-  padding: 5px 8px;
+.combo-ghost__hint {
+  padding: 2px 8px;
+  color: #fff;
   font-family: var(--font-pixel);
   font-size: 0.6rem;
-  color: var(--pixel-primary-dark);
-  background: #f3edfd;
-  border: 2px solid var(--pixel-secondary);
+  white-space: nowrap;
+  background: rgba(61, 44, 94, 0.82);
   border-radius: 999px;
 }
 
-.combo-add[data-in-basket="true"] {
-  color: #fff;
-  background: var(--pixel-primary);
-  border-color: var(--pixel-primary-dark);
+/* ─── 二级页 ─── */
+.combo-detail__list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 var(--px-3);
+  padding: 0;
+  list-style: none;
+}
+
+.combo-detail__list li {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 2rem;
+  align-items: center;
+  gap: var(--px-3);
+  padding: 0.5rem 0.6rem;
+  background: var(--pixel-surface);
+  border: 2px solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+}
+
+.combo-detail__list img,
+.combo-detail__blank {
+  width: 46px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: #f4edfb;
+  border-radius: 8px;
+}
+
+.combo-detail__label {
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+}
+
+.combo-detail__list li button {
+  width: 2rem;
+  height: 2rem;
+  color: var(--pixel-text-muted);
+  background: none;
+  border: 2px solid var(--pixel-border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.combo-detail__audit {
+  margin: 0 0 var(--px-3);
+  color: var(--pixel-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .combo-door[data-receiving="true"] .combo-door__handle {
-    transform: none;
+  .combo-cabinet__body,
+  .combo-cabinet__door {
+    transition: none;
   }
-  .combo-ghost {
-    transform: translate(-50%, -50%);
-  }
+}
+
+/* ─── 卡片上的「加入组合」 ─── */
+
+/*
+ * 这个按钮一直没有任何样式，所以显示成浏览器默认按钮——方框、系统字体，
+ * 跟整屏的圆体胶囊完全不搭。这里让它跟卡片上其他控件说同一种话。
+ */
+.combo-add {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.42rem 0.6rem;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: var(--pixel-primary-dark);
+  background: var(--pixel-surface);
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
+  box-shadow: 0 2px 0 #ece5f8;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.combo-add:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* 已经在组合里：实心，一眼能跟「还没加」分开。 */
+.combo-add[data-in-basket="true"] {
+  color: #fff;
+  background: var(--pixel-primary-fill);
+  border-color: var(--pixel-primary-dark);
+  box-shadow: 0 2px 0 var(--pixel-primary-dark);
 }

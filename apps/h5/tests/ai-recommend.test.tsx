@@ -75,4 +75,51 @@ describe("AI recommendation recovery", () => {
       expect.any(Function)
     );
   });
+
+  it("treats the preset chips as shortcuts into the box, not as send", async () => {
+    const user = userEvent.setup();
+    renderAI();
+
+    // 点场景和条件都只是帮你少打字。以前点一下就直接开始生成，用户还没
+    // 来得及选天气就拿到了方案。
+    await user.click(screen.getByRole("button", { name: /通勤面试/ }));
+    await user.click(screen.getByRole("button", { name: "温和" }));
+
+    const box = screen.getByLabelText("穿搭需求") as HTMLInputElement;
+    expect(box.value).toContain("通勤面试");
+    expect(box.value).toContain("温和");
+    expect(api.planOutfitsProgressively).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "生成穿搭推荐" }));
+    expect(api.planOutfitsProgressively).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the thread open so the next message can adjust the last answer", async () => {
+    const user = userEvent.setup();
+    api.planOutfitsProgressively.mockResolvedValue({
+      request_id: "r1",
+      trace_id: "t1",
+      plans: [],
+      degraded: false,
+      degradation_reason: null,
+      explanation_state: "llm_ranked"
+    } as never);
+    renderAI();
+
+    const box = screen.getByLabelText("穿搭需求");
+    await user.type(box, "周五面试");
+    await user.click(screen.getByRole("button", { name: "生成穿搭推荐" }));
+    await screen.findByText("周五面试");
+
+    // 发完输入框要空出来，否则没法说下一句——这正是用户说的「只能发一次」。
+    expect((box as HTMLInputElement).value).toBe("");
+
+    await user.type(box, "鞋子换平底");
+    await user.click(screen.getByRole("button", { name: "生成穿搭推荐" }));
+    await screen.findByText("鞋子换平底");
+
+    // 第二句要带着第一句一起发，AI 才知道是在调整而不是重开。
+    const lastCall = api.planOutfitsProgressively.mock.calls.at(-1);
+    expect(lastCall?.[0].scene).toBe("周五面试；鞋子换平底");
+  });
 });

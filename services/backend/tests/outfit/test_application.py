@@ -910,3 +910,19 @@ async def test_selected_plan_becomes_ready_look_and_queues_default_presentation(
             reasoning_trace=result.reasoning_trace,
             idempotency_key="save-plan-programming-defect",
         )
+
+
+def test_hot_weather_does_not_force_an_outer_layer() -> None:
+    """Hot weather must not force an outer layer.
+
+    Six of the eight templates carry OUTERWEAR, so without a rule nearly every
+    plan gained a coat. On a real wardrobe that showed up as the same knit
+    cardigan in every recommendation, hot weather included.
+    """
+    from stylecapture_backend.features.outfit.application import _is_hot
+
+    assert _is_hot("炎热高温")
+    assert _is_hot("盛夏闷热")
+    assert not _is_hot("寒冷低温")
+    assert not _is_hot("温和")
+    assert not _is_hot(None)

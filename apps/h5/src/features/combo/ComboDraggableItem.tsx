@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type { Item } from "../../api/client";
 import { garmentLabel } from "../wardrobe/localization";
 import { WardrobeItemCard } from "../wardrobe/ItemCard";
+import { DragGhost } from "./DragGhost";
 import { useLongPressDrag } from "./useLongPressDrag";
 
 type ComboDraggableItemProps = {
@@ -34,12 +35,19 @@ export function ComboDraggableItem({
     item.attributes.subcategory?.value ?? item.attributes.category?.value
   );
 
-  const { handlers, dragging, point } = useLongPressDrag({
+  const { handlers, dragging, origin } = useLongPressDrag({
     onDragStart: () => onDragActive(true),
     onDrop: () => {
       onDragActive(false);
       if (!inBasket) onToggleBasket(label);
-    }
+    },
+    // 落点必须在衣柜上才算放进去；落在别处是「不想放了」。
+    isOverTarget: (x, y) =>
+      Boolean(
+        document
+          .elementFromPoint(x, y)
+          ?.closest?.("[data-combo-drop-target='true']")
+      )
   });
 
   // 拖拽被系统打断（来电、切后台）时也要把落点高亮收回去。
@@ -63,13 +71,15 @@ export function ComboDraggableItem({
           }
         }}
       />
-      {dragging && point ? (
-        <img
-          className="combo-ghost"
-          src={item.display_image_url ?? ""}
-          alt=""
-          aria-hidden="true"
-          style={{ left: point.x, top: point.y }}
+      {dragging && origin ? (
+        <DragGhost
+          imageUrl={
+            item.pixel_image_url
+              ? `${item.pixel_image_url}?v=${encodeURIComponent(item.updated_at)}`
+              : item.display_image_url
+          }
+          startX={origin.x}
+          startY={origin.y}
         />
       ) : null}
     </>

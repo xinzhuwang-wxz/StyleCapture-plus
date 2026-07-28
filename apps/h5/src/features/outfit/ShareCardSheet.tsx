@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 import { PixelButton } from "../../components/PixelUI";
 
@@ -45,7 +46,18 @@ export function ShareCardSheet({
     }
   }
 
-  return (
+  /*
+   * 这层是 position:absolute，它找的是最近的定位祖先。原地渲染时那个祖先在
+   * 详情页的滚动内容里，于是弹层落在了卡片下方、跟着内容滚。挂到 .pixel-screen
+   * 上才会真的浮在整屏之上，同时不会跑出演示手机的外壳（fixed 会）。
+   * 拿不到宿主时（单测里直接渲染组件）就地渲染，行为不变。
+   */
+  const host =
+    typeof document === "undefined"
+      ? null
+      : document.querySelector(".pixel-screen");
+
+  const sheet = (
     <div className="share-card" role="dialog" aria-label="分享图鉴" aria-modal="true">
       <div className="share-card__inner">
         <div className="share-card__paper">
@@ -106,4 +118,6 @@ export function ShareCardSheet({
       </div>
     </div>
   );
+
+  return host ? createPortal(sheet, host) : sheet;
 }

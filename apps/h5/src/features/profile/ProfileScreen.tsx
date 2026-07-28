@@ -167,35 +167,30 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
 
   return (
     <div className="profile-page">
-      <section className="profile__card" aria-label="我的资料">
-        <img
-          src={profilePortraitUrl}
-          alt="我的 StyleCapture 形象"
-        />
+      {/*
+        身材资料原本另起了一个板块，但这张卡本来就装得下。两处并存只是让
+        「改我的资料」有了两个入口，整张卡就是那个入口。
+      */}
+      <button
+        type="button"
+        className="profile__card profile__card--button"
+        aria-label="编辑我的个人信息"
+        onClick={() => setEditingBody(true)}
+      >
+        <img src={profilePortraitUrl} alt="我的 StyleCapture 形象" />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 className="pixel-title profile__name">我的 StyleCapture</h1>
+          <h1 className="pixel-title profile__name">{bodyProfile.nickname}</h1>
           <span className="profile__level">
             {itemCount > 0 ? `已收录 ${itemCount} 件单品` : "数字衣橱新用户"}
           </span>
+          <span className="profile__body" aria-label="身材资料">
+            {isDefaultBodyProfile(bodyProfile)
+              ? "补全身材数据，上身效果更准 ›"
+              : `${bodyProfile.height} cm · ${bodyProfile.weight} kg · ${bodyProfile.bust}/${bodyProfile.waist}/${bodyProfile.hip} · ${bodyProfile.shape}`}
+          </span>
         </div>
         <span className="profile__edit">{statusCopy}</span>
-      </section>
-
-      <PixelSectionHeader
-        kicker="我的个人信息"
-        title={bodyProfile.nickname}
-        action={
-          <PixelButton variant="ghost" onClick={() => setEditingBody(true)}>
-            编辑资料 ›
-          </PixelButton>
-        }
-      />
-
-      <section className="profile__summary" aria-label="身材资料">
-        {isDefaultBodyProfile(bodyProfile)
-          ? "补全身材数据，AI 生成的上身效果更准。只保存在这台设备上。"
-          : `${bodyProfile.height} cm · ${bodyProfile.weight} kg · ${bodyProfile.bust}/${bodyProfile.waist}/${bodyProfile.hip} · ${bodyProfile.shape}`}
-      </section>
+      </button>
 
       <PixelSectionHeader
         kicker="AI 真人试穿参考"

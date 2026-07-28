@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ProductApiError,
@@ -10,6 +10,13 @@ import {
 } from "../../api/client";
 import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
 import { sourceKindLabel } from "../wardrobe/localization";
+import { ChatHistorySheet } from "./ChatHistorySheet";
+import {
+  readChatHistory,
+  saveChatHistory,
+  upsertChatRecord,
+  type ChatRecord
+} from "./chatHistory";
 
 interface AIRecommendScreenProps {
   onGoWardrobe: () => void;
@@ -18,6 +25,9 @@ interface AIRecommendScreenProps {
   presetPrompt?: string | null;
   anchorItemId?: string | null;
   onClearAnchor?: () => void;
+  /** 对话记录的开关由顶栏按钮控制，所以受控于外部。 */
+  historyOpen?: boolean;
+  onHistoryOpenChange?: (open: boolean) => void;
 }
 
 const SCENE_PRESETS = [
@@ -40,6 +50,11 @@ const OWNERSHIP_LABELS: Record<string, string> = {
   owned: "我有",
   inspiration: "已收藏",
 };
+
+/** 一轮对话。AI 那一轮带着它当时给出的方案，回看时不会张冠李戴。 */
+type Turn =
+  | { role: "user"; text: string }
+  | { role: "ai"; text: string; result: OutfitPlanSet | null };
 
 const WEATHER_OPTIONS = ["炎热高温", "温和", "寒冷低温"];
 const FORMALITY_OPTIONS = ["轻松休闲", "日常得体", "正式商务"];
@@ -252,7 +267,9 @@ export function AIRecommendScreen({
   onOpenLook,
   presetPrompt,
   anchorItemId,
-  onClearAnchor
+  onClearAnchor,
+  historyOpen = false,
+  onHistoryOpenChange
 }: AIRecommendScreenProps) {
   const [input, setInput] = useState("");
   const [weather, setWeather] = useState("");
@@ -262,6 +279,20 @@ export function AIRecommendScreen({
   const [progressiveResult, setProgressiveResult] =
     useState<OutfitPlanSet | null>(null);
   const [reasoningComplete, setReasoningComplete] = useState(false);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [history, setHistory] = useState<ChatRecord[]>(() => readChatHistory());
+  // 一次对话一个 id，多聊几轮只更新同一条记录，不会在列表里刷屏。
+  const [conversationId, setConversationId] = useState<string>(() =>
+    crypto.randomUUID()
+  );
+  /*
+   * 这次对话的主题和最后一句用 ref 而不是从 turns 里算。
+   * mutation 的 onSuccess 拿到的是创建它那一轮的闭包，那时 setTurns 还没生效，
+   * 读出来的是上一轮的 turns——主题会算成空的，于是什么都没记下来。
+   */
+  const themeRef = useRef("");
+  const turnsRef = useRef<Turn[]>([]);
+  const lastReplyRef = useRef("");
   const planning = useMutation({
     mutationFn: (scene: string) =>
       wardrobeApi.planOutfitsProgressively(
@@ -285,6 +316,22 @@ export function AIRecommendScreen({
     onSuccess: (result) => {
       setProgressiveResult(result);
       setReasoningComplete(true);
+      // 说模型自己的话。之前这里是一句写死的模板，把 LLM 真正给出的理由
+      // 盖掉了——所以看起来「不像在聊天」，其实它一直在推理。
+      const spoken = result.plans.find((plan) => plan.rationale?.trim());
+      const reply = spoken?.rationale?.trim()
+        ? `${spoken.rationale.trim()}。挑了 ${result.plans.length} 套，想调哪里直接说。`
+        : result.degraded
+          ? `AI 解释这次没跟上，先按稳定规则排了 ${result.plans.length} 套。`
+          : `挑了 ${result.plans.length} 套，想调哪里直接说。`;
+      setTurns((current) => {
+        const next: Turn[] = [...current, { role: "ai", text: reply, result }];
+        turnsRef.current = next;
+        return next;
+      });
+      // 聊过就算数，不必等到存下某一套——很多次对话本来就不会以保存收尾。
+      lastReplyRef.current = reply;
+      rememberConversation();
     }
   });
   const saving = useMutation({
@@ -295,6 +342,11 @@ export function AIRecommendScreen({
         ...current,
         [variables.plan.id]: result.look_id
       }));
+      // 「那天最终选定的搭配」就是在这里定下来的。
+      rememberConversation({
+        outfitTitle: variables.plan.title,
+        outfitLookId: result.look_id
+      });
       onSavedLook(result);
     }
   });
@@ -324,16 +376,143 @@ export function AIRecommendScreen({
     if (presetPrompt) setInput(presetPrompt);
   }, [presetPrompt]);
 
+  /**
+   * 把一段话追加到输入框，而不是直接发出去。
+   *
+   * 快捷场景和天气/正式度/舒适偏好都走这里：它们是「帮你少打几个字」，
+   * 不是「替你做决定」。以前点一下就直接开始生成，用户还没来得及补充
+   * 天气就拿到了方案。
+   */
+  function appendToInput(fragment: string) {
+    setInput((current) => {
+      const text = current.trim();
+      if (!text) return fragment;
+      if (text.includes(fragment)) return text;
+      return `${text}，${fragment}`;
+    });
+  }
+
   function submit(scene: string) {
     const trimmed = scene.trim();
     if (!trimmed || planning.isPending) return;
-    setInput(trimmed);
+    // 输入框清空，好接着说下一句——这是多轮对话和单发表单的区别。
+    setInput("");
     setProgressiveResult(null);
     setReasoningComplete(false);
-    planning.mutate(trimmed);
+    setTurns((current) => {
+      const next: Turn[] = [...current, { role: "user", text: trimmed }];
+      turnsRef.current = next;
+      return next;
+    });
+    if (!themeRef.current) themeRef.current = trimmed;
+    // 把之前说过的一并带上，AI 才知道这句是在调整上一套，而不是重新开始。
+    const said = turns
+      .filter((turn): turn is Turn & { role: "user" } => turn.role === "user")
+      .map((turn) => turn.text);
+    planning.mutate([...said, trimmed].join("；"));
+  }
+
+  /**
+   * 重试用的是「上次说过的话」，不是输入框。
+   *
+   * 发送后输入框会清空好接着说下一句，所以失败重试不能再依赖它——
+   * 否则按钮永远是禁用的。也不重复追加一轮，那次已经说过了。
+   */
+  const lastSaid =
+    [...turns].reverse().find((turn) => turn.role === "user")?.text ?? "";
+
+  function retryLast() {
+    if (!lastSaid || planning.isPending) return;
+    const said = turns
+      .filter((turn): turn is Turn & { role: "user" } => turn.role === "user")
+      .map((turn) => turn.text);
+    setProgressiveResult(null);
+    setReasoningComplete(false);
+    planning.mutate(said.join("；"));
+  }
+
+  function startNewConversation() {
+    setTurns([]);
+    turnsRef.current = [];
+    setProgressiveResult(null);
+    setReasoningComplete(false);
+    setInput("");
+    setWeather("");
+    setFormality("");
+    setComfort("");
+    // 换一个 id，这样下一次对话是列表里新的一条，而不是接着改上一条。
+    setConversationId(crypto.randomUUID());
+    themeRef.current = "";
+    lastReplyRef.current = "";
+  }
+
+  /** 这一轮的落点：主题取第一句，最后一句取 AI 的收尾。 */
+  function rememberConversation(patch?: Partial<ChatRecord>) {
+    const theme = themeRef.current;
+    if (!theme) return;
+    setHistory((current) => {
+      /*
+       * 先把这条已有的内容读出来再覆盖。
+       *
+       * 从前这里无条件写 outfitLookId: null，于是「存了一套穿搭之后又多聊
+       * 了一句」就把那条链接抹掉了，点对话记录只能进到新对话——正是用户
+       * 报的那个现象。存过的搭配是这条记录里最有价值的东西，只能被显式
+       * 传进来的 patch 覆盖。
+       *
+       * 用函数式更新是因为这个函数会从 mutation 的 onSuccess 里被调，
+       * 那里拿到的 history 是创建 mutation 那一轮的旧值。
+       */
+      const existing = current.find((entry) => entry.id === conversationId);
+      const next = upsertChatRecord(current, {
+        outfitTitle: existing?.outfitTitle ?? null,
+        outfitLookId: existing?.outfitLookId ?? null,
+        ...existing,
+        id: conversationId,
+        date: new Date().toISOString(),
+        theme,
+        last: lastReplyRef.current,
+        messages: turnsRef.current.map((turn) => ({
+          role: turn.role,
+          text: turn.text
+        })),
+        ...patch
+      });
+      saveChatHistory(next);
+      return next;
+    });
   }
 
   const displayedResult = progressiveResult ?? planning.data ?? null;
+
+  if (historyOpen) {
+    return (
+      <ChatHistorySheet
+        records={history}
+        onOpenLook={(lookId) => {
+          onHistoryOpenChange?.(false);
+          onOpenLook(lookId);
+        }}
+        onReopen={(record) => {
+          // 回到那次对话：把说过的话铺回线程，并接着用同一条记录，
+          // 免得同一次聊天在列表里裂成两条。
+          const restored: Turn[] = record.messages.map((message) =>
+            message.role === "ai"
+              ? { role: "ai", text: message.text, result: null }
+              : { role: "user", text: message.text }
+          );
+          setTurns(restored);
+          turnsRef.current = restored;
+          themeRef.current = record.theme;
+          lastReplyRef.current = record.last;
+          setConversationId(record.id);
+          setProgressiveResult(null);
+          setReasoningComplete(false);
+          onHistoryOpenChange?.(false);
+        }}
+        onClose={() => onHistoryOpenChange?.(false)}
+      />
+    );
+  }
 
   return (
     <div
@@ -385,7 +564,7 @@ export function AIRecommendScreen({
           <button
             key={scene}
             type="button"
-            onClick={() => submit(scene)}
+            onClick={() => appendToInput(scene)}
             disabled={planning.isPending}
             style={{
               flex: "0 0 auto",
@@ -421,7 +600,12 @@ export function AIRecommendScreen({
                   type="button"
                   className={selected === option ? "is-selected" : ""}
                   aria-pressed={selected === option}
-                  onClick={() => setSelected(selected === option ? "" : option)}
+                  onClick={() => {
+                    const next = selected === option ? "" : option;
+                    setSelected(next);
+                    // 同时填进输入框：用户要能在发送前看见自己将要说什么。
+                    if (next) appendToInput(option);
+                  }}
                 >
                   {option}
                 </button>
@@ -451,6 +635,28 @@ export function AIRecommendScreen({
           paddingBottom: "7rem"
         }}
       >
+        {turns.map((turn, index) => (
+          <div
+            key={`${turn.role}-${index}`}
+            className={
+              turn.role === "user"
+                ? "pixel-chat-bubble pixel-chat-bubble--user"
+                : "pixel-chat-bubble pixel-chat-bubble--ai"
+            }
+          >
+            {turn.role === "ai" ? "◇ " : ""}
+            {turn.text}
+          </div>
+        ))}
+
+        {turns.length > 0 && !planning.isPending ? (
+          <div style={{ alignSelf: "flex-start" }}>
+            <PixelButton variant="ghost" onClick={startNewConversation}>
+              重新开始一次
+            </PixelButton>
+          </div>
+        ) : null}
+
         {planning.isPending && !displayedResult ? (
           <div className="pixel-chat-bubble pixel-chat-bubble--ai" role="status">
             ◇ 正在读取真实衣橱，并从拥有、收藏和待补齐三个层次组织方案…
@@ -463,8 +669,8 @@ export function AIRecommendScreen({
             <div style={{ marginTop: "var(--px-2)", display: "flex", gap: "var(--px-2)", flexWrap: "wrap" }}>
               <PixelButton
                 variant="primary"
-                disabled={planning.isPending || !input.trim()}
-                onClick={() => submit(input)}
+                disabled={planning.isPending || !lastSaid}
+                onClick={retryLast}
               >
                 重试当前需求
               </PixelButton>

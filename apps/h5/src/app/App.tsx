@@ -228,6 +228,7 @@ export function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<PendingItem[]>(restorePendingItems);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [aiHistoryOpen, setAiHistoryOpen] = useState(false);
   const [selectedLookId, setSelectedLookId] = useState<string | null>(
     restoredLookId.current
   );
@@ -545,21 +546,57 @@ export function App() {
    * 走的是既有的搭配接口：把选中的单品作为必选项交给后端出方案，再保存该方案。
    * 没有为此新增任何端点，也没有在前端凭空拼一个 Look——衣橱资产必须由后端产生。
    */
-  async function saveCombo(entries: readonly { itemId: string }[]) {
+  /**
+   * 把组合衣柜存成一套穿搭，然后按用户点的那个按钮接着做一件事。
+   *
+   * 两件都只在手动点击后发生：各要跑一次真实模型调用，自动触发等于每放
+   * 一件衣服就烧一次额度。
+   *
+   * 试穿这条不在这里直接生成——它需要一张已上传的照片对象，而形象照存在
+   * 本机是 data URL。详情页里已经有一条能正常工作的上传+试穿流程，所以
+   * 这里存完就把那套打开，让用户在那里选照片，而不是另造一条半成品。
+   */
+  async function saveCombo(
+    entries: readonly { itemId: string }[],
+    intent: "cover" | "try_on" = "cover"
+  ) {
     if (entries.length < 2) return;
     try {
+      /*
+       * 只把选中的这几件交给规划器，其余全部排除。
+       *
+       * planOutfits 的职责是「补全一整套」，只给 mustInclude 的话它会自作
+       * 主张往里塞外套、鞋子、配饰——用户明明没选，存下来却多出几件。
+       * 排除掉其余单品之后，补不上的位置会留成空缺（待补齐），而不是被
+       * 别的衣服填满。
+       */
+      const chosen = new Set(entries.map((entry) => entry.itemId));
       const plans = await wardrobeApi.planOutfits({
         scene: "自由组合",
-        mustIncludeItemIds: entries.map((entry) => entry.itemId)
+        mustIncludeItemIds: [...chosen],
+        excludeItemIds: items
+          .map((item) => item.id)
+          .filter((id) => !chosen.has(id))
       });
       const plan = plans.plans?.[0];
       if (!plan) {
         setNotice("这套组合暂时没能生成方案，换一件再试");
         return;
       }
-      await wardrobeApi.saveOutfitPlan(plan, crypto.randomUUID());
-      setNotice("已存为新的穿搭，正在后台生成拼贴");
+      const saved = await wardrobeApi.saveOutfitPlan(plan, crypto.randomUUID());
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+
+      if (intent === "cover") {
+        await wardrobeApi.createRender(
+          saved.look_id,
+          "pixel_cover",
+          crypto.randomUUID()
+        );
+        setNotice("已存为新的穿搭，效果封面正在生成");
+      } else {
+        setNotice("已存为新的穿搭，选一张形象照就能试穿");
+      }
+      setSelectedLookId(saved.look_id);
     } catch (error) {
       setNotice(errorMessage(error));
     }
@@ -971,13 +1008,25 @@ export function App() {
               拥有的和喜欢的，<br />
               都是可搭配的数字资产
             </p>
-            <button
-              type="button"
-              className="wardrobe-header__feed"
-              onClick={() => setDestination("feed")}
-            >
-              刷灵感 Feed
-            </button>
+            {/* AI 页的右上角是这次聊天的出口，不是再去刷 Feed——
+                正在跟闺蜜聊搭配的人，想回看的是聊过什么。 */}
+            {destination === "ai" ? (
+              <button
+                type="button"
+                className="wardrobe-header__feed"
+                onClick={() => setAiHistoryOpen(true)}
+              >
+                对话记录 ›
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="wardrobe-header__feed"
+                onClick={() => setDestination("feed")}
+              >
+                刷灵感 Feed
+              </button>
+            )}
           </header>
         ) : null}
 
@@ -1035,6 +1084,8 @@ export function App() {
         {destination === "ai" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
             <AIRecommendScreen
+              historyOpen={aiHistoryOpen}
+              onHistoryOpenChange={setAiHistoryOpen}
               onGoWardrobe={() => setDestination("wardrobe")}
               onSavedLook={(result) => {
                 const lookId = result.look_id;
@@ -1139,6 +1190,12 @@ export function App() {
           ) : null}
           {selectedLookId ? (
             <LookDetail
+              onOpenItem={(itemId) => {
+                // 从套装的单品条点进来。衣橱列表还没加载好时不硬跳，
+                // 免得开出一个空详情。
+                const target = items.find((item) => item.id === itemId);
+                if (target) setSelectedItem(target);
+              }}
               detail={lookQuery.data ?? null}
               loading={lookQuery.isLoading}
               renders={rendersQuery.data ?? []}
