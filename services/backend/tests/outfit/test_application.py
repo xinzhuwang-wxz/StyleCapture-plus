@@ -909,11 +909,11 @@ async def test_selected_plan_becomes_ready_look_and_queues_default_presentation(
 
 
 def test_hot_weather_does_not_force_an_outer_layer() -> None:
-    """大热天不该硬凑一件外套。
+    """Hot weather must not force an outer layer.
 
-    八个模板里有六个带 OUTERWEAR，所以只要不特别排除，炎热高温下几乎每套
-    都会塞一件外套——真机上表现为同一件针织开衫出现在所有推荐里，连炎热
-    高温也不例外。
+    Six of the eight templates carry OUTERWEAR, so without a rule nearly every
+    plan gained a coat. On a real wardrobe that showed up as the same knit
+    cardigan in every recommendation, hot weather included.
     """
     from stylecapture_backend.features.outfit.application import _is_hot
 

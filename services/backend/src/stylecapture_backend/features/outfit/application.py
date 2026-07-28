@@ -111,8 +111,9 @@ TEMPLATES: tuple[tuple[OutfitCategory, ...], ...] = (
         OutfitCategory.OUTERWEAR,
         OutfitCategory.ACCESSORY,
     ),
-    # 以下三个不带外套。原来八个模板里只有两个不带，炎热高温想凑四套
-    # 不重样就只能把外套塞回来。
+    # The three below carry no outer layer. Only two of the original eight did,
+    # which is too few to build four distinct plans, so hot weather had to put
+    # the coat back in.
     (
         OutfitCategory.TOP,
         OutfitCategory.BOTTOM,
@@ -650,21 +651,21 @@ def _build_plans(
             )
         )
     )
-    # 大热天不该硬凑一件外套。八个模板里有六个带 OUTERWEAR，所以只要不管，
-    # 炎热高温下几乎每套都会塞一件——真机上表现为同一件针织开衫出现在所有
-    # 推荐里，连炎热高温也不例外。
+    # Hot weather should not force an outer layer. Six of the eight templates
+    # carry OUTERWEAR, so without this nearly every plan gained a coat, and on
+    # a real wardrobe that showed up as the same knit cardigan in every single
+    # recommendation - even at "炎热高温".
     #
-    # 这里是排序而不是筛除：直接把带外套的模板全删掉，小衣橱会凑不出四套
-    # 不重样的方案。排在后面就够了——前几套自然不带外套，衣橱够大时后面
-    # 那几套也轮不到。用户点名要外套时不动它。
+    # Only drop them when four distinct plans still remain: a small wardrobe
+    # would otherwise collapse from four suggestions to one. An explicitly
+    # required coat is left alone.
     if _is_hot(request.weather) and OutfitCategory.OUTERWEAR not in required_categories:
         without_outerwear = tuple(
             template
             for template in compatible_templates
             if OutfitCategory.OUTERWEAR not in template
         )
-        # 只有还凑得出四套不重样时才真的筛掉，否则宁可保留变化——
-        # 小衣橱下强行剔除会让四套方案塌成一套。
+        # Keep the variety when there is not enough left without a coat.
         if len(without_outerwear) >= 4:
             compatible_templates = without_outerwear
     if not compatible_templates:
