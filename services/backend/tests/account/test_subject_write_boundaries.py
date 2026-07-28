@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from stylecapture_backend.features.account.domain import SubjectDeletedError
@@ -60,7 +60,7 @@ from stylecapture_backend.platform.database import build_session_factory
 TEST_DATABASE_URL = "postgresql+asyncpg://unused:unused@127.0.0.1:1/unused"
 
 
-async def _deleted_accounts(user_id):
+async def _deleted_accounts(user_id: UUID) -> InMemoryAccountRepository:
     accounts = InMemoryAccountRepository()
     await accounts.tombstone_subject(user_id, reason="account_deletion")
     return accounts

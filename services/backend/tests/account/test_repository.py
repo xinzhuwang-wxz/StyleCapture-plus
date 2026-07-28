@@ -124,9 +124,7 @@ async def test_concurrent_different_apple_bindings_allow_only_one_canonical_owne
     )
 
     accounts = [result for result in results if isinstance(result, Account)]
-    conflicts = [
-        result for result in results if isinstance(result, AccountBindingConflictError)
-    ]
+    conflicts = [result for result in results if isinstance(result, AccountBindingConflictError)]
     assert len(accounts) == 1
     assert len(conflicts) == 1
     canonical = accounts[0].subject_id
@@ -136,9 +134,7 @@ async def test_concurrent_different_apple_bindings_allow_only_one_canonical_owne
             text("SELECT user_id FROM captures WHERE id = :capture_id"),
             {"capture_id": capture_id},
         )
-        identity_count = await session.scalar(
-            text("SELECT count(*) FROM external_identities")
-        )
+        identity_count = await session.scalar(text("SELECT count(*) FROM external_identities"))
     assert capture_owner == canonical
     assert identity_count == 1
 
@@ -178,9 +174,9 @@ async def test_concurrent_replay_is_typed_and_does_not_move_losing_ownership() -
     )
 
     assert len([result for result in results if isinstance(result, Account)]) == 1
-    assert len(
-        [result for result in results if isinstance(result, AuthorizationCodeReplayError)]
-    ) == 1
+    assert (
+        len([result for result in results if isinstance(result, AuthorizationCodeReplayError)]) == 1
+    )
     losing_capture, losing_subject = (
         (first_capture, first_subject)
         if isinstance(results[0], AuthorizationCodeReplayError)
@@ -191,9 +187,7 @@ async def test_concurrent_replay_is_typed_and_does_not_move_losing_ownership() -
             text("SELECT user_id FROM captures WHERE id = :capture_id"),
             {"capture_id": losing_capture},
         )
-        code_count = await session.scalar(
-            text("SELECT count(*) FROM apple_authorization_codes")
-        )
+        code_count = await session.scalar(text("SELECT count(*) FROM apple_authorization_codes"))
     assert losing_owner == losing_subject
     assert code_count == 1
 
@@ -235,20 +229,21 @@ async def test_concurrent_same_apple_identity_unifies_both_anonymous_owners() ->
     assert first.subject_id == second.subject_id == canonical_subject
     async with sessions() as session:
         owners = (
-            await session.execute(
-                text(
-                    "SELECT user_id FROM captures "
-                    "WHERE id IN (:first_capture, :second_capture)"
-                ),
-                {
-                    "first_capture": first_capture,
-                    "second_capture": second_capture,
-                },
+            (
+                await session.execute(
+                    text(
+                        "SELECT user_id FROM captures WHERE id IN (:first_capture, :second_capture)"
+                    ),
+                    {
+                        "first_capture": first_capture,
+                        "second_capture": second_capture,
+                    },
+                )
             )
-        ).scalars().all()
-        identity_count = await session.scalar(
-            text("SELECT count(*) FROM external_identities")
+            .scalars()
+            .all()
         )
+        identity_count = await session.scalar(text("SELECT count(*) FROM external_identities"))
     assert owners == [canonical_subject, canonical_subject]
     assert identity_count == 1
 
@@ -287,9 +282,7 @@ async def test_binding_to_deleted_existing_identity_does_not_move_anonymous_owne
             text("SELECT user_id FROM captures WHERE id = :capture_id"),
             {"capture_id": capture_id},
         )
-        code_count = await session.scalar(
-            text("SELECT count(*) FROM apple_authorization_codes")
-        )
+        code_count = await session.scalar(text("SELECT count(*) FROM apple_authorization_codes"))
     assert capture_owner == second_subject
     assert code_count == 1
 

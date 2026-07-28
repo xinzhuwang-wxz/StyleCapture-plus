@@ -302,9 +302,7 @@ class SqlAlchemyLookRepository:
 
     async def save(self, look: Look) -> Look:
         async with self._subject_writes.subject_write(look.user_id) as canonical:
-            canonical_look = (
-                look if look.user_id == canonical else replace(look, user_id=canonical)
-            )
+            canonical_look = look if look.user_id == canonical else replace(look, user_id=canonical)
             return await self._save(canonical_look)
 
     async def _save(self, look: Look) -> Look:

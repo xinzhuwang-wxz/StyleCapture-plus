@@ -111,8 +111,9 @@ class OwnerScopedMemoryObjects:
         accounts: InMemoryAccountRepository,
     ) -> None:
         self._objects = MemoryObjects(source)
+        blocking_objects = BlockingMemoryObjects(self._objects)
         self._writer = OwnerScopedObjectWriter(
-            objects=self._objects,
+            objects=blocking_objects,
             subject_writes=accounts,
         )
 
@@ -131,6 +132,31 @@ class OwnerScopedMemoryObjects:
             owner_id=owner_id,
             prefix=prefix,
         )
+
+
+class BlockingMemoryObjects:
+    def __init__(self, objects: MemoryObjects) -> None:
+        self._objects = objects
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self._objects.read_image(object_key)
+
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        del owner_id
+        stored = ImagePayload(
+            object_key=f"{prefix}/{image.sha256}.png",
+            content_type=image.content_type,
+            body=image.body,
+            sha256=image.sha256,
+        )
+        self._objects.images[stored.object_key] = stored
+        return stored
 
 
 class SuccessfulGenerator:

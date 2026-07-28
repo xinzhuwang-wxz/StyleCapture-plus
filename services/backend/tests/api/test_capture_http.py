@@ -135,6 +135,7 @@ class SlowObjectStore(LocalObjectStore):
         *,
         body: bytes,
         content_type: str,
+        canonical_owner_id: UUID | None = None,
     ) -> StoredObject:
         with self._activity_lock:
             self.active_uploads += 1
@@ -142,7 +143,12 @@ class SlowObjectStore(LocalObjectStore):
         try:
             time.sleep(0.05)
             self.saw_heartbeat_during_parse = bool(self.heartbeat and self.heartbeat.is_set())
-            return super().accept_upload(token, body=body, content_type=content_type)
+            return super().accept_upload(
+                token,
+                body=body,
+                content_type=content_type,
+                canonical_owner_id=canonical_owner_id,
+            )
         finally:
             with self._activity_lock:
                 self.active_uploads -= 1

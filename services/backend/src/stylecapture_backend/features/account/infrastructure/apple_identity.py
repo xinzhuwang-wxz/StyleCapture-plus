@@ -118,20 +118,23 @@ class HttpAppleAuthorizationCodeExchange:
 
     async def exchange(self, authorization_code: str) -> str:
         try:
-            async with httpx.AsyncClient(
-                transport=self._transport,
-                timeout=self._timeout_seconds,
-                follow_redirects=False,
-            ) as client, client.stream(
-                "POST",
-                APPLE_TOKEN_URL,
-                data={
-                    "client_id": self._client_id,
-                    "client_secret": self._client_secret(),
-                    "code": authorization_code,
-                    "grant_type": "authorization_code",
-                },
-            ) as response:
+            async with (
+                httpx.AsyncClient(
+                    transport=self._transport,
+                    timeout=self._timeout_seconds,
+                    follow_redirects=False,
+                ) as client,
+                client.stream(
+                    "POST",
+                    APPLE_TOKEN_URL,
+                    data={
+                        "client_id": self._client_id,
+                        "client_secret": self._client_secret(),
+                        "code": authorization_code,
+                        "grant_type": "authorization_code",
+                    },
+                ) as response,
+            ):
                 if response.status_code != 200:
                     raise AccountError(
                         "apple_authorization_failed",
@@ -181,6 +184,7 @@ class HttpAppleAuthorizationCodeExchange:
             )
         return identity_token
 
+
 class AppleJWKSProvider:
     def __init__(
         self,
@@ -204,11 +208,14 @@ class AppleJWKSProvider:
         if not force_refresh and self._cached and now < self._cached_until:
             return self._cached
         try:
-            async with httpx.AsyncClient(
-                transport=self._transport,
-                timeout=self._timeout_seconds,
-                follow_redirects=False,
-            ) as client, client.stream("GET", APPLE_JWKS_URL) as response:
+            async with (
+                httpx.AsyncClient(
+                    transport=self._transport,
+                    timeout=self._timeout_seconds,
+                    follow_redirects=False,
+                ) as client,
+                client.stream("GET", APPLE_JWKS_URL) as response,
+            ):
                 response.raise_for_status()
                 declared_length = response.headers.get("content-length")
                 if declared_length is not None and int(declared_length) > self._max_response_bytes:
@@ -235,7 +242,9 @@ class AppleJWKSProvider:
         try:
             payload = json.loads(body)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise AccountError("apple_identity_invalid", "Apple JWKS response is invalid") from error
+            raise AccountError(
+                "apple_identity_invalid", "Apple JWKS response is invalid"
+            ) from error
         keys = payload.get("keys")
         if not isinstance(keys, list):
             raise AccountError("apple_identity_invalid", "Apple JWKS response is invalid")

@@ -30,7 +30,6 @@ class SubjectResolver(Protocol):
 
 
 class AccountRepository(SubjectWriteLease, SubjectResolver, Protocol):
-
     async def assert_can_write(self, subject_id: UUID) -> None: ...
 
     async def bind_apple_identity(

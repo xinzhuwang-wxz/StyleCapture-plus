@@ -233,6 +233,31 @@ class MemoryDerivedImages:
         return self.images[object_key]
 
 
+class BlockingMemoryDerivedImages:
+    def __init__(self) -> None:
+        self.images: dict[str, ImagePayload] = {}
+
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        del owner_id
+        stored = ImagePayload(
+            object_key=f"{prefix}/{image.sha256}.png",
+            content_type=image.content_type,
+            body=image.body,
+            sha256=image.sha256,
+        )
+        self.images[stored.object_key] = stored
+        return stored
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self.images[object_key]
+
+
 def make_capture_job() -> tuple[Capture, ProcessingJob]:
     capture = Capture.create(
         user_id=uuid4(),
@@ -374,7 +399,7 @@ async def test_capture_cannot_persist_derived_asset_after_account_tombstone() ->
     work = MemoryWorkRepository(capture, job)
     accounts = InMemoryAccountRepository()
     await accounts.tombstone_subject(capture.user_id, reason="account_deletion")
-    display_assets = MemoryDerivedImages()
+    display_assets = BlockingMemoryDerivedImages()
     processor = CaptureProcessor(
         captures=work,
         jobs=work,

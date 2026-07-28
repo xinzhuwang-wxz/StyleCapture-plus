@@ -162,6 +162,10 @@ async def test_render_http_uses_look_artifact_contract_without_provider_leak(
     )
     renders = RenderApplication(artifacts=MemoryRenderRepository())
     app = FastAPI()
+
+    async def current_user() -> UUID:
+        return user_id
+
     app.include_router(
         build_render_router(
             RenderHttpServices(
@@ -170,7 +174,7 @@ async def test_render_http_uses_look_artifact_contract_without_provider_leak(
                 captures=MemoryCaptureReader(capture),
                 objects=objects,
             ),
-            current_user=lambda: user_id,
+            current_user=current_user,
         )
     )
 
@@ -261,6 +265,10 @@ async def test_user_can_delete_private_try_on_photo_without_deleting_result(
     )
     renders = RenderApplication(artifacts=MemoryRenderRepository())
     app = FastAPI()
+
+    async def current_user() -> UUID:
+        return user_id
+
     app.include_router(
         build_render_router(
             RenderHttpServices(
@@ -269,7 +277,7 @@ async def test_user_can_delete_private_try_on_photo_without_deleting_result(
                 captures=MemoryCaptureReader(capture),
                 objects=objects,
             ),
-            current_user=lambda: user_id,
+            current_user=current_user,
         )
     )
 

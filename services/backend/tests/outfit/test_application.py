@@ -732,13 +732,17 @@ async def test_stream_returns_each_real_draft_before_final_ai_refinement() -> No
         traces=traces,
     )
     app = FastAPI()
+
+    async def current_user() -> UUID:
+        return user_id
+
     app.include_router(
         build_outfit_router(
             OutfitHttpServices(
                 outfits=application,
                 tickets=OutfitPlanTicketSigner("test-outfit-signing-secret-with-enough-entropy"),
             ),
-            current_user=lambda: user_id,
+            current_user=current_user,
         )
     )
 

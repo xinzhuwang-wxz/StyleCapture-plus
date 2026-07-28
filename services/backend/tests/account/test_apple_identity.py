@@ -304,9 +304,7 @@ async def test_verifier_rejects_exchange_for_a_different_allowed_client_id() -> 
     verifier = PyJWTAppleIdentityVerifier(
         jwks=StaticJWKProvider([AppleJWK.from_public_key("kid-1", key.public_key())]),
         authorization_codes=StaticAuthorizationCodeExchange(exchanged_identity_token),
-        allowed_audiences=frozenset(
-            {"com.stylecapture.journey", "com.stylecapture.web"}
-        ),
+        allowed_audiences=frozenset({"com.stylecapture.journey", "com.stylecapture.web"}),
         now=lambda: now,
     )
 

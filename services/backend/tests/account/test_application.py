@@ -64,9 +64,6 @@ def build_app(
 ) -> tuple[AccountApplication, InMemoryAccountRepository]:
     repository = repository or InMemoryAccountRepository()
     clock = clock or MutableClock(datetime(2026, 7, 28, 1, 0, tzinfo=UTC))
-    options: dict[str, object] = {}
-    if refresh_lifetime is not None:
-        options["refresh_lifetime"] = refresh_lifetime
     app = AccountApplication(
         repository=repository,
         apple_identity=apple_identity
@@ -83,7 +80,7 @@ def build_app(
         allowed_audiences=frozenset({"com.stylecapture.journey"}),
         token_secret="account-session-secret-with-enough-entropy",
         now=clock,
-        **options,
+        refresh_lifetime=refresh_lifetime or timedelta(days=30),
     )
     return app, repository
 
@@ -351,9 +348,7 @@ async def test_refresh_remains_valid_after_short_access_token_expires() -> None:
     )
     clock.advance(timedelta(minutes=16))
 
-    rotated = await app.refresh_session(
-        RefreshSessionCommand(refresh_token=session.refresh_token)
-    )
+    rotated = await app.refresh_session(RefreshSessionCommand(refresh_token=session.refresh_token))
 
     assert rotated.refresh_token != session.refresh_token
     assert rotated.access_expires_at == datetime(2026, 7, 28, 1, 31, tzinfo=UTC)

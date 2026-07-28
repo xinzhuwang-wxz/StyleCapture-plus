@@ -143,8 +143,9 @@ class OwnerScopedRenderObjects:
         accounts: InMemoryAccountRepository,
     ) -> None:
         self._objects = objects
+        blocking_objects = BlockingRenderObjectStore(objects)
         self._writer = OwnerScopedObjectWriter(
-            objects=objects,
+            objects=blocking_objects,
             subject_writes=accounts,
         )
 
@@ -166,6 +167,31 @@ class OwnerScopedRenderObjects:
             owner_id=owner_id,
             prefix=prefix,
         )
+
+
+class BlockingRenderObjectStore:
+    def __init__(self, objects: MemoryObjectStore) -> None:
+        self._objects = objects
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self._objects.read_image(object_key)
+
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        del owner_id
+        stored = ImagePayload(
+            object_key=f"{prefix}/{image.sha256}.png",
+            content_type=image.content_type,
+            body=image.body,
+            sha256=image.sha256,
+        )
+        self._objects.images[stored.object_key] = stored
+        return stored
 
 
 class SuccessfulPixelGenerator:
