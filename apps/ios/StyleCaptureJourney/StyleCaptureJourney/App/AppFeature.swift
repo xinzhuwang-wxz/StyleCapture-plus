@@ -58,7 +58,7 @@ struct AppFeature {
             case let .launchResponse(.success(snapshot)):
                 state.hasMigratedDatabase = true
                 if let snapshot {
-                    apply(snapshot, to: &state)
+                    Self.apply(snapshot, to: &state)
                 }
                 return .none
 
@@ -70,7 +70,7 @@ struct AppFeature {
                 return .none
 
             case let .restoreNavigation(snapshot):
-                apply(snapshot, to: &state)
+                Self.apply(snapshot, to: &state)
                 return persistNavigation(state)
 
             case let .selectedTabChanged(tab):
