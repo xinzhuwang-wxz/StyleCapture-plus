@@ -82,6 +82,15 @@ def test_xcodegen_system_capability_is_normalized_to_pbx_dictionary(tmp_path: Pa
     assert 'SystemCapabilities = "' not in normalized
 
 
+def test_application_target_explicitly_links_http_types() -> None:
+    project_spec = PROJECT_SPEC.read_text(encoding="utf-8")
+    application_target = project_spec.split("  StyleCaptureJourney:\n", maxsplit=1)[1].split(
+        "  StyleCaptureJourneyTests:\n", maxsplit=1
+    )[0]
+
+    assert "- package: swift-http-types\n        product: HTTPTypes" in application_target
+
+
 def test_dependency_privacy_evidence_records_packaged_sdk_manifests() -> None:
     evidence = PRIVACY_EVIDENCE.read_text(encoding="utf-8")
 

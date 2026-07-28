@@ -92,6 +92,8 @@ targets:
         product: Dependencies
       - package: swift-openapi-runtime
         product: OpenAPIRuntime
+      - package: swift-http-types
+        product: HTTPTypes
       - package: GRDB
         product: GRDB
       - package: Nuke
