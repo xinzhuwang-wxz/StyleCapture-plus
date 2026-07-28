@@ -36,7 +36,7 @@ It does not prove real-device behavior, Apple sandbox commerce, TestFlight insta
 
 ## Failure-to-green convergence chain
 
-Raw logs were not committed to avoid bulky transient evidence files. The failure chain is recorded by run/job IDs and summarized here.
+Bulky raw logs are not tracked; the failure chain is recorded by run/job IDs and summarized here. Earlier raw iOS job logs were removed in review-fix round 1 because they were ~20MB of transient CI output and contradicted this evidence policy.
 
 1. `30314994452` / iOS job `90138576607` failed before compile because Xcode rejected the exact-pinned Apple OpenAPI build plugin in non-interactive CI. Fix: allow non-interactive plugin/macro validation bypass only after exact `Package.resolved` seeding and post-resolution byte checking.
 2. `30316514572` / iOS job `90143100108` failed in `Test iOS foundation` with:
@@ -52,3 +52,20 @@ Raw logs were not committed to avoid bulky transient evidence files. The failure
 - A source-only iOS review cannot be marked clear before a hosted or local Swift compile/test run proves the source compiles.
 - After three consecutive hosted iOS failures, further changes require a fresh debugger pass with full-log root-cause mapping before any fix.
 - Dependency-boundary fixes that expose package products must receive independent dependency review before being treated as architectural precedent.
+
+## Review-fix round 1 RED / GREEN chain
+
+- RED commit: `2708778b74d9d499ec17dee3068a890462068204`.
+- RED run: `30318648806`, URL `https://github.com/xinzhuwang-wxz/StyleCapture-plus/actions/runs/30318648806`.
+- Confirmed RED failure: `product` job `90149673962` failed in `Verify Python architecture and behavior` after `scripts/check_ios_privacy_manifest.py` detected that `NavigationSnapshotClient.swift` uses `UserDefaults` while `PrivacyInfo.xcprivacy` lacked `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1`.
+- Navigation RED test was committed before the reducer fix, but the first RED action shape used `Result<Void, AppError>` and failed Swift `Equatable` synthesis before behavior execution. The GREEN fix replaces it with an explicit `NavigationPersistenceResponse` enum so the regression is a compile-safe behavior test going forward. The root behavior being guarded remains the old reducer sending `.navigationPersisted` after `try? await navigationSnapshotClient.save(snapshot)`.
+- GREEN run: pending after review-fix implementation.
+
+## Xcode-project SwiftPM evidence policy
+
+This project intentionally has no `Package.swift`; dependencies are declared in XcodeGen `project.yml` and resolved by Xcode. Task 2 therefore uses the following deployment-equivalent evidence instead of `swift package show-dependencies`:
+
+- hosted `xcodebuild -resolvePackageDependencies` on the generated `.xcodeproj`;
+- exact top-level package versions and revisions in `apps/ios/StyleCaptureJourney/Config/Package.resolved`;
+- generated `project.pbxproj` product-reference checks for TCA, direct Point-Free support packages, GRDB, Nuke and Apple OpenAPI products/plugins;
+- post-resolution `scripts/bootstrap_ios.sh --check-package-resolved` byte check.

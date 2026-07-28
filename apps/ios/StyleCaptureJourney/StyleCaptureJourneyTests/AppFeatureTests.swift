@@ -34,7 +34,9 @@ final class AppFeatureTests: XCTestCase {
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-42"
         }
-        await store.receive(.navigationPersisted)
+        await store.receive(.navigationPersistenceResponse(.success)) {
+            $0.navigationPersistenceStatus = .persisted
+        }
     }
 
     func testDeepLinkSelectsJourneyWithoutCustomRouter() async {
@@ -46,7 +48,9 @@ final class AppFeatureTests: XCTestCase {
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-43"
         }
-        await store.receive(.navigationPersisted)
+        await store.receive(.navigationPersistenceResponse(.success)) {
+            $0.navigationPersistenceStatus = .persisted
+        }
     }
 
     func testNavigationSaveFailureIsVisibleAndDoesNotAcknowledgePersistence() async {
@@ -92,7 +96,9 @@ final class AppFeatureTests: XCTestCase {
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-44"
         }
-        await firstStore.receive(.navigationPersisted)
+        await firstStore.receive(.navigationPersistenceResponse(.success)) {
+            $0.navigationPersistenceStatus = .persisted
+        }
 
         let secondStore = TestStore(initialState: AppFeature.State()) {
             AppFeature()

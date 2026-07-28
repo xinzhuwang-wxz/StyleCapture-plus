@@ -1,3 +1,4 @@
+import ComposableArchitecture
 import Foundation
 import OSLog
 
@@ -14,5 +15,17 @@ public struct AppLogger: Sendable {
 
     public func userRecoverableError(_ message: String) {
         logger.error("Recoverable error: \(message, privacy: .private)")
+    }
+}
+
+extension AppLogger: DependencyKey {
+    public static let liveValue = AppLogger(category: "app")
+    public static let testValue = AppLogger(subsystem: "com.stylecapture.journey.tests", category: "test")
+}
+
+public extension DependencyValues {
+    var appLogger: AppLogger {
+        get { self[AppLogger.self] }
+        set { self[AppLogger.self] = newValue }
     }
 }

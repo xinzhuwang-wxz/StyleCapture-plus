@@ -22,11 +22,15 @@ struct AppFeature {
         case failed(AppError)
     }
 
+    enum NavigationPersistenceResponse: Equatable, Sendable {
+        case success
+        case failure(AppError)
+    }
+
     enum Action: Equatable {
         case launch
         case launchResponse(Result<NavigationSnapshot?, AppError>)
-        case navigationPersisted
-        case navigationPersistenceResponse(Result<Void, AppError>)
+        case navigationPersistenceResponse(NavigationPersistenceResponse)
         case restoreNavigation(NavigationSnapshot)
         case selectedTabChanged(Tab)
         case deepLink(URL)
@@ -40,6 +44,7 @@ struct AppFeature {
 
     @Dependency(\.databaseClient) var databaseClient
     @Dependency(\.navigationSnapshotClient) var navigationSnapshotClient
+    @Dependency(\.appLogger) var appLogger
 
     var body: some ReducerOf<Self> {
         Scope(state: \.journey, action: \.journey) {
@@ -74,10 +79,12 @@ struct AppFeature {
                 state.hasMigratedDatabase = false
                 return .none
 
-            case .navigationPersisted:
+            case .navigationPersistenceResponse(.success):
+                state.navigationPersistenceStatus = .persisted
                 return .none
 
-            case .navigationPersistenceResponse:
+            case let .navigationPersistenceResponse(.failure(error)):
+                state.navigationPersistenceStatus = .failed(error)
                 return .none
 
             case let .restoreNavigation(snapshot):
@@ -113,8 +120,13 @@ struct AppFeature {
             journeyID: state.restoredJourneyID
         )
         return .run { send in
-            try? await navigationSnapshotClient.save(snapshot)
-            await send(.navigationPersisted)
+            do {
+                try await navigationSnapshotClient.save(snapshot)
+                await send(.navigationPersistenceResponse(.success))
+            } catch {
+                appLogger.userRecoverableError("navigation persistence failed")
+                await send(.navigationPersistenceResponse(.failure(.navigationPersistenceFailed)))
+            }
         }
     }
 

@@ -98,7 +98,7 @@
 10. Keep existing Python/H5/Compose job on Ubuntu. Add a separate pinned macOS/Xcode `ios` job for bootstrap, generate, test and privacy-manifest inspection; add Xcode Cloud `ci_post_clone.sh` to validate/install XcodeGen, generate the project and fail if the expected project/scheme is absent before archive. Record a clean-checkout Xcode Cloud discovery/archive result; if an uncommitted generated project cannot be selected, use the documented GitHub macOS signed-archive fallback or commit only a minimal reviewed workspace/shared scheme.
 11. Register only the technical-design allowlist (`com.stylecapture.journey.outbox-refresh`, `...upload-resume`, `...image-preprocess`) in both `BGTaskSchedulerPermittedIdentifiers` and scheduling code, add `processing` mode only for the two `BGProcessingTask` entries, and prove permitted, expiration, denied, app-termination and relaunch behavior through dependency clients instead of adding a custom background runner.
 12. Add a lightweight Swift boundary check in CI that forbids feature UI importing infrastructure or generated transport DTOs directly, forbids cross-feature internal imports, forbids custom Router/Environment/ViewModel shell files, and allows `StyleCaptureAPI` generated DTO imports only in `Core/API` adapter code and its tests. Reducers, domain rules and application-like policies see explicit local protocols/types, domain values and typed errors.
-13. Run `swift package show-dependencies` after project generation, archive the output with the Task 2 evidence, and audit transitive package licenses plus SDK privacy manifests before any new SDK reaches release gates.
+13. For this XcodeGen/Xcode project, use the Xcode-project SwiftPM equivalent rather than `swift package show-dependencies`: run hosted `xcodebuild -resolvePackageDependencies`, byte-check the committed `Config/Package.resolved`, and validate the generated `project.pbxproj` contains the expected package product graph. Archive those command URLs/check summaries with the Task 2 evidence, and audit transitive package licenses plus SDK privacy manifests before any new SDK reaches release gates.
 
 **Verification commands:**
 
@@ -108,7 +108,7 @@
 - `xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj -scheme StyleCaptureJourney -destination 'platform=iOS Simulator,name=iPhone 16' test`
 - TCA `TestStore` coverage passes for `AppFeatureTests` and `JourneyFeatureTests` inside the xcodebuild run.
 - Source scan has zero custom `AppRouter`, `AppEnvironment`, ViewModel app-shell or DI container files, and `StyleCaptureAPI` imports appear only in `Core/API` adapter files or their tests.
-- `swift package show-dependencies` evidence is captured; transitive license and privacy manifest audit has no P0/P1 blocker.
+- Xcode-project SwiftPM evidence is captured through hosted `xcodebuild -resolvePackageDependencies`, exact `Config/Package.resolved` pin/revision checks and generated `project.pbxproj` package-product checks; transitive license and privacy manifest audit has no P0/P1 blocker.
 - `uv run python scripts/check_boundaries.py services/backend/src`
 - `pnpm test`
 - `uv run pytest -q`

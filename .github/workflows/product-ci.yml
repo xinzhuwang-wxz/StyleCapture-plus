@@ -95,6 +95,12 @@ jobs:
 
       - name: Test iOS foundation
         run: |
+          xcodebuild -resolvePackageDependencies \
+            -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj \
+            -scheme StyleCaptureJourney \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+          uv run python scripts/check_ios_package_graph.py --require-generated-project
           xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj \
             -scheme StyleCaptureJourney \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \

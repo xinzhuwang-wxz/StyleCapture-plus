@@ -82,7 +82,7 @@ Local xcodebuild/SwiftPM/Simulator/Docker verification was intentionally not run
 - `git diff --check` -> passed.
 - `xcodebuild ... -only-testing:StyleCaptureJourneyTests/AppDatabaseTests test` with `-jobs 2 -parallel-testing-enabled NO` -> package resolution passed after runtime 1.11.0, then failed before compile/test because no simulator destination exists.
 - `xcodebuild ... build-for-testing` with `-jobs 2 -parallel-testing-enabled NO` -> failed before compile for the same missing simulator destination.
-- `swift package show-dependencies` -> not applicable; no Package.swift in the XcodeGen project. Resolved dependency graph is preserved in `Config/Package.resolved` and xcodebuild resolution logs.
+- `swift package show-dependencies` -> not applicable; no Package.swift in the XcodeGen project. The accepted Xcode-project equivalent is hosted `xcodebuild -resolvePackageDependencies`, exact `Config/Package.resolved` version/revision checks, generated `project.pbxproj` package-product checks and post-resolution lock byte checking.
 - `uv run ruff format scripts/journey_validation_metrics.py services/backend/tests/scripts/test_journey_validation_metrics.py` -> 2 pre-existing M0 files reformatted as prerequisite CI cleanup; not Task 2 behavior evidence.
 - Hosted GitHub Actions `product-ci` run `30317565521`:
   - `product` job `90146355217` -> success; Python architecture/behavior, generated API contract, H5/mobile typecheck/test/build, Docker Compose config and backend image passed.
@@ -97,6 +97,7 @@ Local xcodebuild/SwiftPM/Simulator/Docker verification was intentionally not run
 - Background task seams now expose typed request kinds, typed scheduling/registration failures, and registration/execution/expiration/completion lifecycle hooks without a custom scheduler.
 - CI now has `workflow_dispatch` so the iOS compile/test gate can be run on GitHub-hosted macOS rather than this overheated local machine.
 - TCA 2.0 audit note: before M2 feature expansion, re-audit TCA 2.0 migration/deprecation guidance and decide whether to stay pinned on 1.26.1 for P0 or upgrade with a dedicated migration slice.
+- Review fix round 1 RED commit `2708778b74d9d499ec17dee3068a890462068204` added a failing navigation-persistence test and iOS privacy-manifest validator before implementation. Hosted RED run `30318648806` confirmed the privacy validator fails against the old manifest. The navigation RED was invalid as behavior evidence because `Result<Void, AppError>` blocked `Action: Equatable` synthesis before XCTest could execute; GREEN replaces it with an explicit `NavigationPersistenceResponse` enum.
 
 ## Hosted CI Fix Chain
 
