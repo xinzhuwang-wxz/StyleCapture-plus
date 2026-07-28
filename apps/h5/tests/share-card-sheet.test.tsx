@@ -90,4 +90,19 @@ describe("share card sheet", () => {
     await user.click(screen.getByRole("button", { name: "关闭" }));
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("floats above the whole screen instead of sitting inside the page flow", () => {
+    // 弹层是 absolute，原地渲染时定位祖先在详情页的滚动内容里，结果落到卡片
+    // 下方还跟着滚。挂到 .pixel-screen 上才是真的浮层。
+    const screen_ = document.createElement("div");
+    screen_.className = "pixel-screen";
+    document.body.appendChild(screen_);
+    try {
+      renderSheet();
+      const dialog = screen.getByRole("dialog", { name: "分享图鉴" });
+      expect(screen_.contains(dialog)).toBe(true);
+    } finally {
+      screen_.remove();
+    }
+  });
 });
