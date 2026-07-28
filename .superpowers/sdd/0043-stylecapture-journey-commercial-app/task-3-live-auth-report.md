@@ -40,3 +40,7 @@ The tests were introduced as the required hosted RED checkpoint in commit `ed4f1
 The frozen RED originally passed a prebuilt generated `Client` into `ProductAuthAPI`. That client keeps its underlying `UniversalClient` and middleware list private, while the generated account-delete input has no `Authorization` field. The required official per-delete bearer middleware was therefore unrepresentable with that construction.
 
 `ProductAuthAPI` now receives a feature-local generated-client factory. It creates the unauthenticated client with no middleware for Apple authentication and refresh, and creates the deletion client with exactly one `BearerAuthorizationMiddleware`. `ProductAuthAPITests` supplies the server URL and test transport through the factory while preserving the transport-level header assertions. This correction does not introduce handwritten network DTOs, routes, or transport code.
+
+## Hosted decoding-failure correction
+
+Run `30373358421` showed that malformed successful JSON reaches `ProductAuthAPI` as the generated runtime's public `ClientError`, rather than as a bare `DecodingError`. The runtime attaches a non-nil HTTP response when deserialization fails; transport failures have no response. The boundary therefore maps `ClientError` values with a response to `unexpectedResponse` and preserves response-less client errors as `transportFailure`.
