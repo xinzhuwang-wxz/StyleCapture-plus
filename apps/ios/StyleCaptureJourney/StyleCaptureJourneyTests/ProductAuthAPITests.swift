@@ -8,6 +8,8 @@ import XCTest
 final class ProductAuthAPITests: XCTestCase {
     func testBearerMiddlewareAddsAuthorizationHeader() async throws {
         let middleware = BearerAuthorizationMiddleware(accessToken: "access-token")
+        let body = HTTPBody("request-body")
+        let baseURL = URL(string: "https://api.stylecapture.test")!
         let request = HTTPRequest(
             method: .delete,
             scheme: "https",
@@ -17,14 +19,20 @@ final class ProductAuthAPITests: XCTestCase {
 
         _ = try await middleware.intercept(
             request,
-            body: nil,
-            baseURL: URL(string: "https://api.stylecapture.test")!,
+            body: body,
+            baseURL: baseURL,
             operationID: "delete_account_v1_account_delete_post"
-        ) { forwardedRequest, _, _ in
+        ) { forwardedRequest, forwardedBody, forwardedBaseURL in
             XCTAssertEqual(
                 forwardedRequest.headerFields[.authorization],
                 "Bearer access-token"
             )
+            XCTAssertEqual(forwardedBaseURL, baseURL)
+            let forwardedBytes = try await String(
+                collecting: try XCTUnwrap(forwardedBody),
+                upTo: 1_024
+            )
+            XCTAssertEqual(forwardedBytes, "request-body")
             return (HTTPResponse(status: .accepted), nil)
         }
     }
