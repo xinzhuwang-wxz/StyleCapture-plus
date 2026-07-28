@@ -450,21 +450,36 @@ export function AIRecommendScreen({
   function rememberConversation(patch?: Partial<ChatRecord>) {
     const theme = themeRef.current;
     if (!theme) return;
-    const next = upsertChatRecord(history, {
-      id: conversationId,
-      date: new Date().toISOString(),
-      theme,
-      last: lastReplyRef.current,
-      outfitTitle: null,
-      outfitLookId: null,
-      messages: turnsRef.current.map((turn) => ({
-        role: turn.role,
-        text: turn.text
-      })),
-      ...patch
+    setHistory((current) => {
+      /*
+       * 先把这条已有的内容读出来再覆盖。
+       *
+       * 从前这里无条件写 outfitLookId: null，于是「存了一套穿搭之后又多聊
+       * 了一句」就把那条链接抹掉了，点对话记录只能进到新对话——正是用户
+       * 报的那个现象。存过的搭配是这条记录里最有价值的东西，只能被显式
+       * 传进来的 patch 覆盖。
+       *
+       * 用函数式更新是因为这个函数会从 mutation 的 onSuccess 里被调，
+       * 那里拿到的 history 是创建 mutation 那一轮的旧值。
+       */
+      const existing = current.find((entry) => entry.id === conversationId);
+      const next = upsertChatRecord(current, {
+        outfitTitle: existing?.outfitTitle ?? null,
+        outfitLookId: existing?.outfitLookId ?? null,
+        ...existing,
+        id: conversationId,
+        date: new Date().toISOString(),
+        theme,
+        last: lastReplyRef.current,
+        messages: turnsRef.current.map((turn) => ({
+          role: turn.role,
+          text: turn.text
+        })),
+        ...patch
+      });
+      saveChatHistory(next);
+      return next;
     });
-    setHistory(next);
-    saveChatHistory(next);
   }
 
   const displayedResult = progressiveResult ?? planning.data ?? null;

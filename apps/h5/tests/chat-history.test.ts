@@ -100,4 +100,23 @@ describe("ai chat history", () => {
     // 坏掉的几句丢掉，整条记录还留着——不该因为一句话读不出来就整条消失。
     expect(readChatHistory()[0].messages).toEqual([{ role: "user", text: "在" }]);
   });
+
+  it("never loses the saved outfit just because the chat went on", () => {
+    // 存过的搭配是这条记录里最有价值的东西。从前每写一轮都把它抹成 null，
+    // 于是点对话记录只能进到新对话。
+    const saved: ChatRecord = {
+      ...record("c1"),
+      outfitTitle: "棕黄复古通勤",
+      outfitLookId: "look-1"
+    };
+    let history = upsertChatRecord([], saved);
+    history = upsertChatRecord(history, {
+      ...saved,
+      outfitTitle: saved.outfitTitle,
+      outfitLookId: saved.outfitLookId,
+      last: "又聊了一句"
+    });
+    expect(history[0].outfitLookId).toBe("look-1");
+    expect(history[0].last).toBe("又聊了一句");
+  });
 });

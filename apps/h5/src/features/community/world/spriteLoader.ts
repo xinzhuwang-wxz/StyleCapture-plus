@@ -23,16 +23,6 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-function isBackdrop(red: number, green: number, blue: number, alpha: number) {
-  if (alpha < 20) return true;
-  const maximum = Math.max(red, green, blue);
-  const minimum = Math.min(red, green, blue);
-  return (
-    (red > 242 && green > 230 && blue > 230) ||
-    (maximum > 232 && maximum - minimum < 30)
-  );
-}
-
 /** Keeps the biggest solid shape, dropping card frames and sparkle specks. */
 function keepLargestOpaqueShape(imageData: ImageData) {
   const { data, width, height } = imageData;
@@ -90,6 +80,75 @@ function keepLargestOpaqueShape(imageData: ImageData) {
 
 const CUTOUT_HEIGHT = 360;
 
+
+/** 相邻两像素算不算「同一片背景」。 */
+const BACKDROP_SPREAD_TOLERANCE = 26;
+
+/**
+ * 从画面四边往里漫水，把跟边缘连通的一律清成透明。
+ *
+ * 原来只按颜色判断（近白、低饱和），可是衣橱的像素封面底是**饱和的粉紫
+ * 渐变**：浅的那部分勉强被认出来，深的直接留下，于是人物脚下拖着一块
+ * 有色底走进像素世界，跟地图格格不入。
+ *
+ * 换成从边框漫水之后，背景是什么颜色都无所谓——人物不会碰到卡片边缘，
+ * 凡是跟边缘连通的就是背景。容差按「相邻像素之间」比较而不是跟起点比，
+ * 所以渐变能一路走下去，而人物边缘的突变会把它挡住。
+ */
+function clearBackdropFromBorder(imageData: ImageData) {
+  const { data, width, height } = imageData;
+  const visited = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+
+  const push = (index: number) => {
+    if (visited[index]) return;
+    visited[index] = 1;
+    queue[tail++] = index;
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    push(x);
+    push((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    push(y * width);
+    push(y * width + width - 1);
+  }
+
+  while (head < tail) {
+    const index = queue[head++];
+    const offset = index * 4;
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    data[offset + 3] = 0;
+
+    const x = index % width;
+    const y = (index - x) / width;
+    const neighbours = [
+      x > 0 ? index - 1 : -1,
+      x < width - 1 ? index + 1 : -1,
+      y > 0 ? index - width : -1,
+      y < height - 1 ? index + width : -1
+    ];
+    for (const neighbour of neighbours) {
+      if (neighbour < 0 || visited[neighbour]) continue;
+      const next = neighbour * 4;
+      if (data[next + 3] < 20) {
+        push(neighbour);
+        continue;
+      }
+      const spread =
+        Math.abs(data[next] - red) +
+        Math.abs(data[next + 1] - green) +
+        Math.abs(data[next + 2] - blue);
+      if (spread <= BACKDROP_SPREAD_TOLERANCE) push(neighbour);
+    }
+  }
+}
+
 function cutOut(image: HTMLImageElement): CharacterSprite {
   const scale = CUTOUT_HEIGHT / image.naturalHeight;
   const width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -101,18 +160,7 @@ function cutOut(image: HTMLImageElement): CharacterSprite {
 
   context.drawImage(image, 0, 0, width, CUTOUT_HEIGHT);
   const imageData = context.getImageData(0, 0, width, CUTOUT_HEIGHT);
-  for (let index = 0; index < imageData.data.length; index += 4) {
-    if (
-      isBackdrop(
-        imageData.data[index],
-        imageData.data[index + 1],
-        imageData.data[index + 2],
-        imageData.data[index + 3]
-      )
-    ) {
-      imageData.data[index + 3] = 0;
-    }
-  }
+  clearBackdropFromBorder(imageData);
   keepLargestOpaqueShape(imageData);
   context.putImageData(imageData, 0, 0);
 

@@ -186,3 +186,39 @@
     transition: none;
   }
 }
+
+/* ─── 卡片上的「加入组合」 ─── */
+
+/*
+ * 这个按钮一直没有任何样式，所以显示成浏览器默认按钮——方框、系统字体，
+ * 跟整屏的圆体胶囊完全不搭。这里让它跟卡片上其他控件说同一种话。
+ */
+.combo-add {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.42rem 0.6rem;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: var(--pixel-primary-dark);
+  background: var(--pixel-surface);
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
+  box-shadow: 0 2px 0 #ece5f8;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.combo-add:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* 已经在组合里：实心，一眼能跟「还没加」分开。 */
+.combo-add[data-in-basket="true"] {
+  color: #fff;
+  background: var(--pixel-primary-fill);
+  border-color: var(--pixel-primary-dark);
+  box-shadow: 0 2px 0 var(--pixel-primary-dark);
+}

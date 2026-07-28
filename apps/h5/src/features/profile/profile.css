@@ -116,18 +116,6 @@
   object-fit: cover;
 }
 
-.profile__photo span {
-  position: absolute;
-  top: 7px;
-  left: 7px;
-  padding: 2px 9px;
-  font-family: var(--font-pixel);
-  font-size: 0.62rem;
-  color: #fff;
-  background: var(--pixel-primary);
-  border-radius: 999px;
-}
-
 .profile__photo-add {
   flex: 0 0 122px;
   aspect-ratio: 3 / 4;
