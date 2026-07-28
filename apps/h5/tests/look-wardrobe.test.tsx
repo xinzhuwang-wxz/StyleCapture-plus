@@ -792,4 +792,93 @@ describe("Look wardrobe states", () => {
       "owned"
     );
   });
+
+  it("opens the owned item, and sends a missing one to a real search", () => {
+    const onOpenItem = vi.fn();
+    const detail = readyDetail();
+    detail.components = [
+      ...detail.components,
+      {
+        component_key: "shoes",
+        status: "ready",
+        item_id: null,
+        item_image_url: null,
+        role: "shoes",
+        layer: "base",
+        display_order: 1,
+        confidence: 0.9
+      }
+    ];
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        retrying={false}
+        saving={false}
+        onOpenItem={onOpenItem}
+        purchaseDemands={[
+          {
+            id: "d1",
+            look_id: detail.look.id,
+            item_id: null,
+            role: "shoes",
+            status: "wanted",
+            can_mark_owned: true,
+            search_query: "白色小星板鞋",
+            search_url: "https://www.douyin.com/search/%E7%99%BD%E8%89%B2"
+          }
+        ]}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /打开单品/ }));
+    expect(onOpenItem).toHaveBeenCalledWith(
+      "44444444-4444-4444-8444-444444444444"
+    );
+
+    // 衣橱里没有的那件走真实搜索词，不是拿「鞋子」这种角色名去搜。
+    const shop = screen.getByRole("link", { name: /白色小星板鞋/ });
+    expect(shop).toHaveAttribute(
+      "href",
+      "https://www.douyin.com/search/%E7%99%BD%E8%89%B2"
+    );
+    expect(shop).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+  });
+
+  it("leaves a missing item unclickable when there is no real query for it", () => {
+    const detail = readyDetail();
+    detail.components = [
+      {
+        component_key: "shoes",
+        status: "ready",
+        item_id: null,
+        item_image_url: null,
+        role: "shoes",
+        layer: "base",
+        display_order: 0,
+        confidence: 0.9
+      }
+    ];
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        retrying={false}
+        saving={false}
+        onOpenItem={vi.fn()}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    // 没有搜索词时不给出口：一个点了搜不到东西的按钮比不给更糟。
+    expect(screen.queryByRole("link", { name: /抖音/ })).not.toBeInTheDocument();
+    expect(screen.getByText("保留中，等待补全")).toBeInTheDocument();
+  });
 });

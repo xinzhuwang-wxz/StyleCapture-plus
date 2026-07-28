@@ -1168,9 +1168,34 @@ p {
   padding-bottom: 0.35rem;
 }
 
-.look-component-strip article {
+.look-component-strip article,
+.look-component-strip__link {
   display: grid;
   gap: 0.2rem;
+}
+
+/* 可点的两种（进单品详情 / 去搜同款）视觉上仍是同一条，只是能按下去。 */
+.look-component-strip__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.look-component-strip__link:active { transform: scale(0.97); }
+
+/* 衣橱里没有的单品照设计稿压暗，一眼能看出这件要另外买。 */
+.look-component-strip__link--shop img,
+.look-component-strip__link--shop .item-image-placeholder {
+  filter: grayscale(0.45) opacity(0.9);
+}
+
+.look-component-strip__link--shop small {
+  color: var(--pixel-pink-dark);
 }
 
 .look-component-strip img,
@@ -1540,4 +1565,118 @@ p {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ─── 对话记录 ─── */
+.chat-history {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-history li {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--pixel-surface);
+  border: 2px solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  box-shadow: var(--pixel-shadow);
+}
+
+.chat-history__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.chat-history__date {
+  flex: none;
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  color: var(--pixel-text-dim);
+  letter-spacing: 0.08em;
+}
+
+.chat-history__head strong {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.chat-history__last {
+  margin: 0;
+  color: var(--pixel-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.chat-history__outfit {
+  justify-self: start;
+  padding: 0.3rem 0.7rem;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--pixel-primary-dark);
+  background: #f3edfd;
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chat-history__outfit--none {
+  margin: 0;
+  color: var(--pixel-text-dim);
+  background: none;
+  border: 0;
+  cursor: default;
+}
+
+/* ─── 整屏兜底 ─── */
+.screen-boundary {
+  display: grid;
+  gap: 0.8rem;
+  place-content: center;
+  min-height: 100dvh;
+  padding: 2rem;
+  text-align: center;
+  color: var(--pixel-text);
+}
+
+.screen-boundary button {
+  justify-self: center;
+  padding: 0.6rem 1.2rem;
+  font-family: var(--font-pixel);
+  color: #fff;
+  background: var(--pixel-primary-fill);
+  border: 2px solid var(--pixel-primary-dark);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* 整行是按钮：清掉按钮默认样式，观感不变。 */
+.chat-history__row {
+  display: grid;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-history__row:active { transform: scale(0.99); }
+
+.chat-history__outfit {
+  justify-self: start;
+  padding: 0.3rem 0.7rem;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--pixel-primary-dark);
+  background: #f3edfd;
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
 }

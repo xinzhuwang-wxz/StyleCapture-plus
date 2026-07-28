@@ -14,7 +14,6 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
         <span className="pixel-frame__key pixel-frame__key--up" aria-hidden="true" />
         <span className="pixel-frame__key pixel-frame__key--down" aria-hidden="true" />
         <span className="pixel-frame__key pixel-frame__key--power" aria-hidden="true" />
-        <span className="pixel-frame__island" aria-hidden="true" />
         <div className="pixel-screen">{children}</div>
       </div>
     </div>

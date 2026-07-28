@@ -198,5 +198,13 @@ def costly_capability(method: str, path: str) -> str | None:
     if path.startswith("/v1/looks/") and path.endswith("/renders"):
         return "image_generation"
     if path.startswith("/v1/outfit-plans") and not path.endswith("/purchase-list"):
+        # Saving a plan calls no model: the signed ticket already carries the plan
+        # and its reasoning trace, so the handler only verifies and persists.
+        # Charging it to the reasoning budget also charged it against
+        # per-actor concurrency (1), so a save issued right after the planning
+        # stream was refused while that stream's lease was still unwinding —
+        # the user saw "暂时没有保存" for a pure database write.
+        if path.endswith("/save-look"):
+            return None
         return "reasoning"
     return None

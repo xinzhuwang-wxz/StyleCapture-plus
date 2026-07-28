@@ -33,9 +33,7 @@ def upgrade() -> None:
           AND look.source = 'ai_generated'
         """
     )
-    op.execute(
-        "UPDATE looks SET capture_id = NULL WHERE source = 'ai_generated'"
-    )
+    op.execute("UPDATE looks SET capture_id = NULL WHERE source = 'ai_generated'")
     op.create_check_constraint(
         "look_source_capture_provenance",
         "looks",
@@ -61,7 +59,5 @@ def downgrade() -> None:
         "looks",
         type_="check",
     )
-    op.execute(
-        "DELETE FROM looks WHERE source = 'ai_generated' AND capture_id IS NULL"
-    )
+    op.execute("DELETE FROM looks WHERE source = 'ai_generated' AND capture_id IS NULL")
     op.alter_column("looks", "capture_id", existing_type=sa.Uuid(), nullable=False)

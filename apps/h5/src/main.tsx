@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app/App";
+import { ScreenBoundary } from "./components/ScreenBoundary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +22,9 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ScreenBoundary>
+        <App />
+      </ScreenBoundary>
     </QueryClientProvider>
   </StrictMode>
 );
