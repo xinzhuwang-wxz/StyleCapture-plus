@@ -56,11 +56,4 @@ test("capture the restyled screens", async ({ page }) => {
   await expect(page.getByLabel("我的个人信息")).toBeVisible();
   await shot(page, "06-body-metrics");
 
-  const report = [
-    "# 换皮截图",
-    "",
-    "全部 390×844，等 document.fonts.ready 之后才拍，确保 ZCOOL KuaiLe 已就位。",
-    ""
-  ].join("\n");
-  fs.writeFileSync(path.join(outDir, "README.md"), report);
 });

@@ -315,7 +315,14 @@ export function AIRecommendScreen({
     onSuccess: (result) => {
       setProgressiveResult(result);
       setReasoningComplete(true);
-      const reply = `按你说的挑了 ${result.plans.length} 套，想调哪里直接说。`;
+      // 说模型自己的话。之前这里是一句写死的模板，把 LLM 真正给出的理由
+      // 盖掉了——所以看起来「不像在聊天」，其实它一直在推理。
+      const spoken = result.plans.find((plan) => plan.rationale?.trim());
+      const reply = spoken?.rationale?.trim()
+        ? `${spoken.rationale.trim()}。挑了 ${result.plans.length} 套，想调哪里直接说。`
+        : result.degraded
+          ? `AI 解释这次没跟上，先按稳定规则排了 ${result.plans.length} 套。`
+          : `挑了 ${result.plans.length} 套，想调哪里直接说。`;
       setTurns((current) => [...current, { role: "ai", text: reply, result }]);
       // 聊过就算数，不必等到存下某一套——很多次对话本来就不会以保存收尾。
       lastReplyRef.current = reply;

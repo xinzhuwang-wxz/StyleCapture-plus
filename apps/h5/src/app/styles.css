@@ -1631,3 +1631,25 @@ p {
   border: 0;
   cursor: default;
 }
+
+/* ─── 整屏兜底 ─── */
+.screen-boundary {
+  display: grid;
+  gap: 0.8rem;
+  place-content: center;
+  min-height: 100dvh;
+  padding: 2rem;
+  text-align: center;
+  color: var(--pixel-text);
+}
+
+.screen-boundary button {
+  justify-self: center;
+  padding: 0.6rem 1.2rem;
+  font-family: var(--font-pixel);
+  color: #fff;
+  background: var(--pixel-primary-fill);
+  border: 2px solid var(--pixel-primary-dark);
+  border-radius: 999px;
+  cursor: pointer;
+}

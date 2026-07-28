@@ -119,8 +119,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   height: 100dvh;
 }
 
-.pixel-frame__key,
-.pixel-frame__island {
+.pixel-frame__key {
   display: none;
 }
 
@@ -212,27 +211,6 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .pixel-frame__key--up { left: -2px; top: 212px; height: 54px; }
   .pixel-frame__key--down { left: -2px; top: 282px; height: 54px; }
   .pixel-frame__key--power { right: -2px; top: 236px; height: 80px; }
-
-  .pixel-frame__island {
-    position: absolute;
-    top: 21px;
-    left: 50%;
-    z-index: 3;
-    display: block;
-    width: 104px;
-    height: 30px;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 72px 50%, #34313d 0 4px, transparent 5px),
-      linear-gradient(180deg, #17151c, #050507);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.16),
-      0 1px 0 rgba(255, 255, 255, 0.18),
-      0 8px 18px rgba(0, 0, 0, 0.32),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-    transform: translateX(-50%);
-    pointer-events: none;
-  }
 
   .pixel-screen {
     z-index: 2;

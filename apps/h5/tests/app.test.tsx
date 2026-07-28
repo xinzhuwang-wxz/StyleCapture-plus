@@ -282,12 +282,23 @@ describe("StyleCapture garment ingest", () => {
         }
       ])
     );
-    api.getJob.mockRejectedValue(
-      new ProductApiError("job_not_found", "处理任务不存在")
+    // 满载并行时，「任务不存在」会抢在下面这句同步断言之前跑完，卡片已经被
+    // 移走了。稍微推迟拒绝，好让「先出现、后移除」这两步都可观测——测的是
+    // 顺序，不是速度。
+    api.getJob.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) =>
+          setTimeout(
+            () => reject(new ProductApiError("job_not_found", "处理任务不存在")),
+            50
+          )
+        )
     );
     renderApp();
 
-    expect(screen.getByText("正在理解这件衣服")).toBeInTheDocument();
+    // 衣橱屏是 lazy 的，同步断言时分块还没解析完，屏上还是 Suspense 兜底。
+    // 上面推迟了拒绝，所以这里等到卡片出现是确定的，不是碰运气。
+    await screen.findByText("正在理解这件衣服");
 
     await waitFor(
       () => expect(screen.queryByText("正在理解这件衣服")).not.toBeInTheDocument(),
