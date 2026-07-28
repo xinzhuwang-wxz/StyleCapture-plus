@@ -64,7 +64,11 @@ const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
   source_deleted_not_retryable: "原始图片已删除，无法再次识别",
   item_update_invalid: "修改内容不符合衣橱要求",
   outfit_wardrobe_empty: "衣橱里还没有可搭配的真实单品",
-  outfit_plan_invalid: "这套穿搭中的单品已变化，请重新生成"
+  outfit_plan_invalid: "这套穿搭中的单品已变化，请重新生成",
+  // 没有这两条时，限流会被调用方的兜底文案盖掉，用户看到的是「失败了」而不是
+  // 「稍等再试」——后者才是能照着做的。
+  ai_quota_exceeded: "AI 请求有点密集，稍等几秒再试就好",
+  ai_capacity_unavailable: "AI 服务正忙，请稍后重试"
 };
 
 export class ProductApiError extends Error {

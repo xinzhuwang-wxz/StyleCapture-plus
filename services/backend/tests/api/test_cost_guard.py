@@ -12,7 +12,10 @@ from stylecapture_backend.features.capture.application import (
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
-from stylecapture_backend.platform.cost_guard import CostGuardLease
+from stylecapture_backend.platform.cost_guard import (
+    CostGuardLease,
+    costly_capability,
+)
 
 
 class RecordingCostGuard:
@@ -110,3 +113,20 @@ async def test_untrusted_peer_cannot_spoof_forwarded_client_address() -> None:
 
     assert response.status_code in {401, 422}
     assert guard.requests[0][0] == "8.8.8.8"
+
+
+def test_saving_a_plan_is_not_charged_to_the_ai_budget() -> None:
+    """Saving verifies a signed ticket and writes rows — it calls no model.
+
+    Charging it to `reasoning` also charged it against per-actor concurrency
+    (1), so a save issued straight after the planning stream was refused while
+    that stream's lease was still unwinding, and the user was told the outfit
+    "暂时没有保存" for what is a pure database write.
+    """
+
+    assert costly_capability("POST", "/v1/outfit-plans") == "reasoning"
+    assert costly_capability("POST", "/v1/outfit-plans/stream") == "reasoning"
+    assert (
+        costly_capability("POST", "/v1/outfit-plans/abc/replace-slot") == "reasoning"
+    )
+    assert costly_capability("POST", "/v1/outfit-plans/abc/save-look") is None
