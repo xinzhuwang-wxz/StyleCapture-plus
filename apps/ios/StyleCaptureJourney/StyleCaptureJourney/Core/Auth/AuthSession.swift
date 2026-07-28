@@ -30,13 +30,13 @@ struct AuthSession: Sendable {
     var tokenStore: any TokenStore
     var authenticateWithApple: @Sendable (AppleSignInRequest) async throws -> AuthTokens
     var refreshSession: @Sendable (String) async throws -> AuthTokens
-    var requestAccountDeletion: @Sendable () async throws -> Void
+    var requestAccountDeletion: @Sendable (String) async throws -> Void
 
     init(
         tokenStore: any TokenStore,
         authenticateWithApple: @escaping @Sendable (AppleSignInRequest) async throws -> AuthTokens,
         refreshSession: @escaping @Sendable (String) async throws -> AuthTokens,
-        deleteAccount: @escaping @Sendable () async throws -> Void
+        deleteAccount: @escaping @Sendable (String) async throws -> Void
     ) {
         self.tokenStore = tokenStore
         self.authenticateWithApple = authenticateWithApple
@@ -78,7 +78,10 @@ struct AuthSession: Sendable {
     }
 
     func deleteAccount() async throws {
-        try await requestAccountDeletion()
+        guard let current = try await tokenStore.load() else {
+            throw AuthSessionError.missingToken
+        }
+        try await requestAccountDeletion(current.accessToken)
         try await tokenStore.clear()
     }
 }

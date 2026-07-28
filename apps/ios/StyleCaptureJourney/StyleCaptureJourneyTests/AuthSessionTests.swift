@@ -35,7 +35,7 @@ final class AuthSessionTests: XCTestCase {
                     tokenType: "Bearer"
                 )
             },
-            deleteAccount: {}
+            deleteAccount: { _ in }
         )
 
         let signedIn = try await session.completeAppleSignIn(
@@ -69,7 +69,7 @@ final class AuthSessionTests: XCTestCase {
             tokenStore: store,
             authenticateWithApple: { _ in throw AuthSessionError.missingToken },
             refreshSession: { _ in throw AuthSessionError.missingToken },
-            deleteAccount: { await deletion.record() }
+            deleteAccount: { accessToken in await deletion.record(accessToken) }
         )
 
         try await session.logout()
@@ -89,6 +89,8 @@ final class AuthSessionTests: XCTestCase {
 
         let didDelete = await deletion.didDelete
         XCTAssertTrue(didDelete)
+        let deletedAccessToken = await deletion.accessToken
+        XCTAssertEqual(deletedAccessToken, "access-1")
         let afterDeletion = try await store.load()
         XCTAssertNil(afterDeletion)
     }
@@ -99,7 +101,7 @@ final class AuthSessionTests: XCTestCase {
             tokenStore: store,
             authenticateWithApple: { _ in authTokensFixture },
             refreshSession: { _ in authTokensFixture },
-            deleteAccount: {}
+            deleteAccount: { _ in }
         )
 
         do {
@@ -121,7 +123,7 @@ final class AuthSessionTests: XCTestCase {
             tokenStore: store,
             authenticateWithApple: { _ in authTokensFixture },
             refreshSession: { _ in authTokensFixture },
-            deleteAccount: { await deletion.record() }
+            deleteAccount: { accessToken in await deletion.record(accessToken) }
         )
 
         do {
@@ -132,6 +134,25 @@ final class AuthSessionTests: XCTestCase {
         }
         let didDelete = await deletion.didDelete
         XCTAssertTrue(didDelete)
+    }
+
+    func testDeletionWithoutStoredCredentialNeverCallsServer() async {
+        let deletion = DeletionRecorder()
+        let session = AuthSession(
+            tokenStore: MemoryTokenStore(),
+            authenticateWithApple: { _ in authTokensFixture },
+            refreshSession: { _ in authTokensFixture },
+            deleteAccount: { accessToken in await deletion.record(accessToken) }
+        )
+
+        do {
+            try await session.deleteAccount()
+            XCTFail("Deletion must require an authenticated local session")
+        } catch {
+            XCTAssertEqual(error as? AuthSessionError, .missingToken)
+        }
+        let didDelete = await deletion.didDelete
+        XCTAssertFalse(didDelete)
     }
 }
 
@@ -179,10 +200,14 @@ private actor FailingTokenStore: TokenStore {
 }
 
 private actor DeletionRecorder {
-    private(set) var didDelete = false
+    private(set) var accessToken: String?
 
-    func record() {
-        didDelete = true
+    var didDelete: Bool {
+        accessToken != nil
+    }
+
+    func record(_ accessToken: String) {
+        self.accessToken = accessToken
     }
 }
 
