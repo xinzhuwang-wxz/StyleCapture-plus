@@ -41,6 +41,15 @@ struct ProductAuthAPI {
         }
     }
 
+    static let live = ProductAuthAPI(
+        clientFactory: { middlewares in
+            GeneratedClientFactory.make(
+                serverURL: APIClientConfiguration.live.serverURL,
+                middlewares: middlewares
+            )
+        }
+    )
+
     func authenticate(_ request: AppleSignInRequest) async throws -> AuthTokens {
         do {
             let output = try await client.authenticateWithAppleV1AuthApplePost(

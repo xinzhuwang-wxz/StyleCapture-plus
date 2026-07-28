@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import StyleCaptureAPI
 
 enum AuthClientError: Error, Equatable, Sendable {
     case authorizationCancelled
@@ -146,14 +145,7 @@ extension AuthClient {
 
 extension AuthClient: DependencyKey {
     static let liveValue = AuthClient.live(
-        productAuthAPI: ProductAuthAPI(
-            clientFactory: { middlewares in
-                GeneratedClientFactory.make(
-                    serverURL: APIClientConfiguration.live.serverURL,
-                    middlewares: middlewares
-                )
-            }
-        ),
+        productAuthAPI: .live,
         tokenStore: KeychainTokenStore(),
         deviceName: { nil }
     )
