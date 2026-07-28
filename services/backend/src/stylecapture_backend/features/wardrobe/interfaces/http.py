@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -178,7 +178,7 @@ class ItemSourceNotFoundError(FileNotFoundError):
 def build_wardrobe_router(
     application: WardrobeApplication,
     *,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
     presentations: ItemPresentationHttpServices | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/items")

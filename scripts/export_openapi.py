@@ -6,11 +6,16 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import cast
 
+from stylecapture_backend.features.account.application import AccountApplication
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     JobRetryApplication,
 )
-from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.capture.ports import (
+    JobRepository,
+    ObjectStore,
+    UploadAcceptor,
+)
 from stylecapture_backend.features.item_presentation.interfaces.http import (
     ItemPresentationHttpServices,
 )
@@ -40,6 +45,8 @@ def openapi_schema() -> dict:
             tickets=cast(OutfitPlanTickets, None),
         ),
         demo_wardrobe=None,
+        accounts=cast(AccountApplication, object()),
+        uploads=cast(UploadAcceptor, object()),
     )
     return create_app(services).openapi()
 

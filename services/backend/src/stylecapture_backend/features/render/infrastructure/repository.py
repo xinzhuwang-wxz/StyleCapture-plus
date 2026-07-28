@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import cast
 from uuid import UUID
 
@@ -9,6 +10,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.look.infrastructure.models import LookRecord
 from stylecapture_backend.features.render.domain import (
     RenderArtifact,
@@ -27,10 +32,23 @@ from stylecapture_backend.features.render.ports import (
 
 
 class SqlAlchemyRenderArtifactRepository:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        *,
+        subject_writes: SubjectWriteLease | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
 
     async def ensure_requested(self, artifact: RenderArtifact) -> RenderArtifact:
+        async with self._subject_writes.subject_write(artifact.user_id) as canonical:
+            canonical_artifact = (
+                artifact if artifact.user_id == canonical else replace(artifact, user_id=canonical)
+            )
+            return await self._ensure_requested(canonical_artifact)
+
+    async def _ensure_requested(self, artifact: RenderArtifact) -> RenderArtifact:
         try:
             async with self._sessions() as session:
                 await _lock_owned_look(session, artifact.look_id, artifact.user_id)
@@ -99,6 +117,13 @@ class SqlAlchemyRenderArtifactRepository:
             ) from error
 
     async def save(self, artifact: RenderArtifact) -> RenderArtifact:
+        async with self._subject_writes.subject_write(artifact.user_id) as canonical:
+            canonical_artifact = (
+                artifact if artifact.user_id == canonical else replace(artifact, user_id=canonical)
+            )
+            return await self._save(canonical_artifact)
+
+    async def _save(self, artifact: RenderArtifact) -> RenderArtifact:
         try:
             async with self._sessions() as session:
                 await _raise_if_look_owner_mismatch(session, artifact.look_id, artifact.user_id)

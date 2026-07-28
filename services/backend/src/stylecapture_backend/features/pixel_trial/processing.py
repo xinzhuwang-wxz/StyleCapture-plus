@@ -19,7 +19,7 @@ class RetryablePixelTrialError(RuntimeError):
 class PixelTrialObjectStore(Protocol):
     def read_image(self, object_key: str) -> ImagePayload: ...
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -100,7 +100,7 @@ class PixelTrialProcessor:
                 images=(subject,),
                 size=PIXEL_TRIAL_OUTPUT_SIZE,
             )
-            stored = self._objects.write_derived_image(
+            stored = await self._objects.write_derived_image(
                 ImagePayload(
                     object_key=f"derived/pixel-trials/{trial_id}",
                     content_type=generated.content_type,

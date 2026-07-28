@@ -16,7 +16,7 @@
 4. 每个决定的简短解释和可局部替换入口。
 5. 计划执行后的像素邮戳、明信片与衣装收藏。
 
-North Star 是付费旅行 Verified Scene Success（paid VSS），并拆成两个不可混用的层级：`packing_proxy_vss` 是付费用户锁定计划且完成至少 70% 打包，只可用于 D30 早期信号；`confirmed_worn_vss` 是旅行结束后确认至少一天采用计划主 Look、备选 Look，或完成可追踪的局部替换且仍满足原计划硬约束，是 D90 扩量门槛。单日婚礼、面试、约会属于后续独立实验，不能与旅行样本合并。
+上线后的 North Star 经营观测是付费旅行 Verified Scene Success（paid VSS），并拆成两个不可混用的层级：`packing_proxy_vss` 是付费用户锁定计划且完成至少 70% 打包；`confirmed_worn_vss` 是旅行结束后确认至少一天采用计划主 Look、备选 Look，或完成可追踪的局部替换且仍满足原计划硬约束。两者用于后续产品优化，不是 Tasks 2–10 或 aggregate Goal 完成硬门。单日婚礼、面试、约会属于后续独立实验，不能与旅行样本合并。
 
 ## 2. 核心旅程
 
@@ -24,7 +24,7 @@ North Star 是付费旅行 Verified Scene Success（paid VSS），并拆成两�
 2. 输入城市日期、活动、dress code、步行强度、行李限制和体感偏好；也可上传行程截图，经 OCR/AI 结构化后必须人工确认。
 3. App 要求至少 8 件能覆盖本次必要槽位的衣物，推荐选择 12–30 件；使用 PhotosPicker 批量导入，自动识别后由用户确认或纠正，不承诺固定纠错时长。
 4. 免费生成第 1 天完整主 Look，并显示第 2–7 天、全部备选、跨日去重打包、缺口与天气修订的锁定摘要。
-5. 用户以 ¥12 购买本次旅行包；购买失败、AI 失败和重复通知不会扣权益。订阅在首发技术上可配置，但在 60 天第二次独立付费 Journey 达到 25% 前不作为默认 CTA 或扩量依据。
+5. 用户以 ¥12 购买本次旅行包；购买失败、AI 失败和重复通知不会扣权益。订阅可保留技术配置，但不是 P0 默认 CTA。
 6. 用户局部替换、锁定计划、勾选打包；天气或行程变化只重算受影响日。
 7. 当天通过本地通知确认“穿了/换了”；记录替换原因。
 8. Journey 结束生成“12 件搭 8 套”结果卡和不含精确行程/人脸的像素明信片。
@@ -80,9 +80,9 @@ North Star 是付费旅行 Verified Scene Success（paid VSS），并拆成两�
 - AI observability 只保存经过字段 allowlist 的脱敏元数据，并有明确 TTL；prompt/completion、照片、行程原文、HTTP body、cookie/token 和自由文本不进入 trace、评测、CI artifact 或备份。
 - 中国大陆公开发布前完成 APP 备案，并根据实际模型与服务形态完成生成式 AI 备案或登记判断和展示要求。
 
-## 4. 指标口径、服务质量与商业门槛
+## 4. 指标口径、服务质量与上线后经营目标
 
-所有商业指标只使用互斥、可复算的唯一用户分母：
+以下商业指标保留为上线后的经营观测与迭代信号，不是开发、TestFlight、发布就绪或 aggregate Goal 完成硬门。任何真实商业报告只使用互斥、可复算的唯一用户分母：
 
 - `qualified_install`：符合 ICP、未来 30 天有真实 3–7 天旅行的唯一生产用户；排除员工、测试账号、重复设备/主体和非目标行程。
 - `preview_eligible`：完成旅行约束输入且拥有至少 8 件覆盖必要槽位的可用衣物；`preview_completion = unique(preview_ready) / unique(preview_eligible)`。
@@ -141,9 +141,7 @@ North Star 是付费旅行 Verified Scene Success（paid VSS），并拆成两�
 
 首发必须同时满足：
 
-- M0 在 7 天内完成招募/报价，最终 GO 只在至少 15 名 plan recipients 达到 `trip_end+7d` 后判断并记录实际 maturity cutoff：`pain_rate = 痛点评分≥7 的 qualified interviewees / 完成痛点题的全部 qualified interviewees`，denominator ≥20 且 rate ≥60%；`real_paid_rate = 实际支付或可退款订金的唯一用户 / 收到完整计划并看到唯一 ¥12 offer 的全部合格用户`，denominator ≥15、rate ≥33% 且 payer ≥5；`execution_rate = 至少一天采用计划主/备选 Look 或符合原硬约束的可追踪局部替换的用户 / trip_end+7d 已成熟的全部 plan recipients`，未回访按未执行，denominator ≥15 且 rate ≥50%。三项同时通过才 GO；`real_paid` 不接受意愿、口头或“等价承诺”。
 - TestFlight 仅验证 activation、preview、plan quality、lock、restore 和技术购买链路；sandbox/TestFlight 交易不得计入 willingness-to-pay、生产转化、收入、退款或毛利。
-- 商业软启动至少获得 200 个生产 `eligible_paywall` 与 20 个真实付款后才可声称初步付费验证；扩量门槛使用至少 500 个生产 `eligible_paywall` 与 50 个真实付款的成熟 D90 cohort。
 - StoreKit sandbox、TestFlight 与 App Store Server Notifications V2 恢复演练通过。
 - 无效 SIWA audience/nonce/replay 全部拒绝；账号删除后旧 token 立即失效。
 - 账号删除、照片/行程删除、处理者删除、订阅恢复、AI 失败返权益、离线重试通过。
@@ -156,4 +154,4 @@ North Star 是付费旅行 Verified Scene Success（paid VSS），并拆成两�
 - 无 P0/P1 安全、隐私、数据丢失、付费或严重穿搭约束缺陷。
 - 现有单场景、拼贴或 provider-bound Skill 输出不得替代 iOS Journey 证据。任何未来 Skill/App Intent 必须走与 App 相同的 Product API/domain/provider、权益、成本、删除和观测路径；P0 不发布可下载 Agent Skill。
 
-任何一个 kill trigger 成立即停止扩量并 PIVOT/STOP 当前旅行楔子：两轮各至少 100 个生产 `eligible_paywall` 且质量门通过后，合并首次付费转化仍 <3%；至少 50 个成熟付费锁定 Journey 的 `paid_confirmed_worn_vss` <30%；至少 100 个付费 Journey 且做过一次成本优化后毛利仍 <40%；或至少 20 个流失访谈中 ≥60% 的首要原因是结果没有货币价值。迭代区间采用不重叠半开边界：`3% ≤ conversion <8%`、`30% ≤ confirmed VSS <55%`、`10% ≤ 60d repeat <25%`、`40% ≤ gross margin <65%`。Scale 只有在成熟样本和所有 scale gate 同时满足时成立。
+上线后若形成足够成熟的真实样本，以下阈值可用于投放/定价/产品迭代决策，但不得停止 Tasks 2–10、阻断发布就绪或把 Goal 标记 blocked：两轮各至少 100 个生产 `eligible_paywall` 且质量门通过后合并首次付费转化 <3%；至少 50 个成熟付费锁定 Journey 的 `paid_confirmed_worn_vss` <30%；至少 100 个付费 Journey 且做过一次成本优化后毛利 <40%；或至少 20 个流失访谈中 ≥60% 的首要原因是结果没有货币价值。技术证据不得冒充这些真实生产样本。

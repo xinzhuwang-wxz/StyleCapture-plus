@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import cast
 from uuid import UUID
 
@@ -8,6 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.item_presentation.domain import (
     ItemPresentationAsset,
     ItemPresentationKind,
@@ -28,10 +33,26 @@ from stylecapture_backend.features.render.domain import (
 
 
 class SqlAlchemyItemPresentationRepository:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        *,
+        subject_writes: SubjectWriteLease | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
 
     async def ensure_requested(
+        self,
+        asset: ItemPresentationAsset,
+    ) -> ItemPresentationAsset:
+        async with self._subject_writes.subject_write(asset.user_id) as canonical:
+            canonical_asset = (
+                asset if asset.user_id == canonical else replace(asset, user_id=canonical)
+            )
+            return await self._ensure_requested(canonical_asset)
+
+    async def _ensure_requested(
         self,
         asset: ItemPresentationAsset,
     ) -> ItemPresentationAsset:
@@ -82,6 +103,13 @@ class SqlAlchemyItemPresentationRepository:
             ) from error
 
     async def save(self, asset: ItemPresentationAsset) -> ItemPresentationAsset:
+        async with self._subject_writes.subject_write(asset.user_id) as canonical:
+            canonical_asset = (
+                asset if asset.user_id == canonical else replace(asset, user_id=canonical)
+            )
+            return await self._save(canonical_asset)
+
+    async def _save(self, asset: ItemPresentationAsset) -> ItemPresentationAsset:
         try:
             async with self._sessions() as session:
                 record = (

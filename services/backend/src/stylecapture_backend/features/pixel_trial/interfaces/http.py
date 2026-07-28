@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Protocol
@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Response, status
 from pydantic import BaseModel
+from stylecapture_backend.features.account.ports import SubjectResolver
 from stylecapture_backend.features.capture.ports import ObjectStore
 from stylecapture_backend.features.pixel_trial.application import (
     PixelTrialApplication,
@@ -27,6 +28,7 @@ class PixelTrialHttpServices:
     trials: PixelTrialApplication
     objects: ObjectStore
     dispatcher: PixelTrialDispatcher | None = None
+    subjects: SubjectResolver | None = None
 
 
 class CreatePixelTrialBody(BaseModel):
@@ -66,7 +68,7 @@ class PixelTrialResponse(BaseModel):
 def build_pixel_trial_router(
     services: PixelTrialHttpServices,
     *,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
 ) -> APIRouter:
     router = APIRouter()
     principal = Depends(current_user)
@@ -86,14 +88,18 @@ def build_pixel_trial_router(
             subject = services.objects.describe(body.subject_object_key)
         except (FileNotFoundError, KeyError) as error:
             raise PixelTrialNotFound("Pixel trial subject photo does not exist") from error
-        if subject.owner_id != user_id:
+        subject_owner = subject.owner_id
+        if subject_owner is not None and services.subjects is not None:
+            subject_owner = await services.subjects.resolve_subject(subject_owner)
+        if subject_owner != user_id:
             raise PixelTrialNotFound("Pixel trial subject photo does not exist")
         view = await services.trials.create_or_get(
             user_id=user_id,
             subject_object_key=body.subject_object_key,
             request_key=idempotency_key,
         )
-        services.objects.mark_attached(body.subject_object_key, user_id)
+        assert subject.owner_id is not None
+        services.objects.mark_attached(body.subject_object_key, subject.owner_id)
         if (
             services.dispatcher is not None
             and view.dispatch_required

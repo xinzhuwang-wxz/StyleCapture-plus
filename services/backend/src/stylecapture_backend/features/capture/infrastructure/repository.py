@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureIntent,
@@ -27,8 +32,14 @@ from stylecapture_backend.features.capture.ports import CaptureSubmission
 
 
 class SqlAlchemyCaptureRepository:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        *,
+        subject_writes: SubjectWriteLease | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
 
     async def find_by_idempotency(
         self,
@@ -63,18 +74,22 @@ class SqlAlchemyCaptureRepository:
         job: ProcessingJob,
         idempotency_key: str,
     ) -> CaptureSubmission:
-        async with self._sessions() as session:
-            session.add(_capture_record(capture, idempotency_key))
-            session.add(_job_record(job))
-            try:
-                await session.commit()
-            except IntegrityError:
-                await session.rollback()
-                existing = await self.find_by_idempotency(capture.user_id, idempotency_key)
-                if existing is None:
-                    raise
-                return existing
-        return CaptureSubmission(capture=capture, job=job)
+        async with self._subject_writes.subject_write(capture.user_id) as canonical:
+            canonical_capture = (
+                capture if capture.user_id == canonical else replace(capture, user_id=canonical)
+            )
+            async with self._sessions() as session:
+                session.add(_capture_record(canonical_capture, idempotency_key))
+                session.add(_job_record(job))
+                try:
+                    await session.commit()
+                except IntegrityError:
+                    await session.rollback()
+                    existing = await self.find_by_idempotency(canonical, idempotency_key)
+                    if existing is None:
+                        raise
+                    return existing
+            return CaptureSubmission(capture=canonical_capture, job=job)
 
     async def get_for_user(self, job_id: UUID, user_id: UUID) -> ProcessingJob | None:
         async with self._sessions() as session:
@@ -109,7 +124,21 @@ class SqlAlchemyCaptureRepository:
             return _job_from_record(record) if record is not None else None
 
     async def update(self, job: ProcessingJob) -> ProcessingJob:
-        async with self._sessions() as session:
+        async with self._sessions() as lookup:
+            owner_id = await lookup.scalar(
+                select(CaptureRecord.user_id)
+                .join(
+                    ProcessingJobRecord,
+                    ProcessingJobRecord.capture_id == CaptureRecord.id,
+                )
+                .where(ProcessingJobRecord.id == job.id)
+            )
+        if owner_id is None:
+            raise KeyError(job.id)
+        async with (
+            self._subject_writes.subject_write(owner_id),
+            self._sessions() as session,
+        ):
             record = await session.get(ProcessingJobRecord, job.id, with_for_update=True)
             if record is None:
                 raise KeyError(job.id)

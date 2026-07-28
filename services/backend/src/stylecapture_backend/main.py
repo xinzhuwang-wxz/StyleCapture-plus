@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Annotated, cast
 from uuid import UUID, uuid4
 
-from fastapi import Cookie, FastAPI, Request, Response, status
+from fastapi import Cookie, FastAPI, Header, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -14,6 +14,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 
+from stylecapture_backend.features.account.application import AccountApplication, AccountError
+from stylecapture_backend.features.account.interfaces.http import build_account_router
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     CaptureError,
@@ -24,7 +26,7 @@ from stylecapture_backend.features.capture.interfaces.http import (
     JobNotFoundError,
     build_capture_router,
 )
-from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore, UploadAcceptor
 from stylecapture_backend.features.item_presentation.interfaces.http import (
     ItemPresentationHttpServices,
     build_item_presentation_router,
@@ -108,6 +110,8 @@ class BackendServices:
     pixel_trials: PixelTrialHttpServices | None = None
     item_presentations: ItemPresentationHttpServices | None = None
     demo_wardrobe: DemoWardrobeBootstrapper | None = None
+    accounts: AccountApplication | None = None
+    uploads: UploadAcceptor | None = None
 
 
 CAPTURE_ERROR_STATUS = {
@@ -128,7 +132,7 @@ CAPTURE_ERROR_STATUS = {
     "job_not_retryable": status.HTTP_409_CONFLICT,
 }
 
-CurrentUser = Callable[..., UUID]
+CurrentUser = Callable[..., Awaitable[UUID]]
 ReadinessCheck = Callable[[], Awaitable[Mapping[str, bool]]]
 DEFAULT_DEMO_SEED_NEW_SESSION_QUOTA = 64
 
@@ -181,6 +185,8 @@ def create_app(
     cost_guard: CostGuard | None = None,
     readiness_check: ReadinessCheck | None = None,
 ) -> FastAPI:
+    if services.accounts is not None and services.uploads is None:
+        raise RuntimeError("account-enabled deployments require owner-scoped upload acceptance")
     if demo_seed_new_session_quota < 0:
         raise ValueError("demo seed new-session quota must not be negative")
     sessions = SessionSigner(session_signing_secret)
@@ -229,15 +235,31 @@ def create_app(
             expose_headers=["X-Request-ID"],
         )
 
-    def current_user(
+    async def current_user(
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
         session_token: Annotated[
             str | None,
             Cookie(alias=SESSION_COOKIE_NAME),
         ] = None,
     ) -> UUID:
+        if authorization is not None and services.accounts is not None:
+            scheme, _, token = authorization.partition(" ")
+            if scheme.lower() == "bearer" and token:
+                try:
+                    return await services.accounts.resolve_access_token(token)
+                except AccountError as error:
+                    raise InvalidSessionError(error.message) from error
         if session_token is None:
             raise InvalidSessionError("Session is required")
-        return sessions.verify(session_token)
+        subject_id = sessions.verify(session_token)
+        if services.accounts is not None:
+            try:
+                return await services.accounts.resolve_cookie_subject(subject_id)
+            except AccountError as error:
+                raise InvalidSessionError(error.message) from error
+            except ValueError as error:
+                raise InvalidSessionError(str(error)) from error
+        return subject_id
 
     @app.middleware("http")
     async def request_identity(
@@ -330,6 +352,33 @@ def create_app(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="session_invalid",
             message=str(error),
+        )
+
+    @app.exception_handler(AccountError)
+    async def account_error_handler(request: Request, error: AccountError) -> JSONResponse:
+        account_status = {
+            "authorization_code_replayed": status.HTTP_409_CONFLICT,
+            "refresh_token_reused": status.HTTP_409_CONFLICT,
+            "apple_audience_invalid": status.HTTP_401_UNAUTHORIZED,
+            "apple_authorization_failed": status.HTTP_401_UNAUTHORIZED,
+            "apple_authorization_mismatch": status.HTTP_401_UNAUTHORIZED,
+            "apple_authorization_invalid_response": status.HTTP_502_BAD_GATEWAY,
+            "apple_authorization_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "apple_identity_invalid": status.HTTP_401_UNAUTHORIZED,
+            "apple_identity_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "apple_nonce_invalid": status.HTTP_401_UNAUTHORIZED,
+            "account_binding_conflict": status.HTTP_409_CONFLICT,
+            "account_deleted": status.HTTP_410_GONE,
+            "refresh_token_expired": status.HTTP_401_UNAUTHORIZED,
+            "session_invalid": status.HTTP_401_UNAUTHORIZED,
+            "session_revoked": status.HTTP_401_UNAUTHORIZED,
+        }
+        return _error_response(
+            request,
+            status_code=account_status.get(error.code, status.HTTP_400_BAD_REQUEST),
+            code=error.code,
+            message=error.message,
+            details=error.details,
         )
 
     @app.exception_handler(JobNotFoundError)
@@ -628,6 +677,14 @@ def create_app(
         response.headers["Cache-Control"] = "private, no-store"
         return {"user_id": user_id}
 
+    if services.accounts is not None:
+        app.include_router(
+            build_account_router(
+                services.accounts,
+                current_user=current_user,
+            )
+        )
+
     app.include_router(
         build_capture_router(
             CaptureHttpServices(
@@ -635,6 +692,8 @@ def create_app(
                 jobs=services.jobs,
                 objects=services.objects,
                 retries=services.retries,
+                uploads=services.uploads,
+                subjects=services.accounts,
             ),
             sse_poll_interval=sse_poll_interval,
             max_upload_bytes=max_upload_bytes,

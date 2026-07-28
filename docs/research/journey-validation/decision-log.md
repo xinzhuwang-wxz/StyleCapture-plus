@@ -1,4 +1,4 @@
-# M0 decision log
+# Optional M0 research decision log
 
 Status: `BLOCKED_FOR_REAL_EVIDENCE`
 
@@ -36,4 +36,4 @@ Record objections after real interviews:
 
 ## Next falsifiable hypothesis
 
-Unset until real evidence exists. Task 2 local implementation and Apple sandbox/staging/TestFlight technical verification may proceed, but no M0 `GO`, `PIVOT`, `STOP`, production commercialization, scale, or aggregate Goal completion claim is allowed until real evidence satisfies this log's decision rules.
+Unset until real evidence exists. This optional research record does not block Tasks 2–10, Apple sandbox/staging/TestFlight, release readiness or aggregate Goal completion. If used later, only real mature evidence may support an M0 `GO`, `PIVOT` or `STOP`; technical evidence must not be counted as market evidence.

@@ -8,7 +8,14 @@ from uuid import UUID, uuid4
 import pytest
 from PIL import Image
 from pillow_heif import from_pillow
+from stylecapture_backend.features.account.domain import SubjectDeletedError
+from stylecapture_backend.features.account.infrastructure.repository import (
+    InMemoryAccountRepository,
+)
 from stylecapture_backend.features.capture.domain import ImagePayload
+from stylecapture_backend.features.capture.infrastructure.object_store import (
+    OwnerScopedObjectWriter,
+)
 from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
 from stylecapture_backend.features.pixel_trial.domain import PixelTrial, PixelTrialStatus
 from stylecapture_backend.features.pixel_trial.processing import (
@@ -46,7 +53,7 @@ class MemoryObjects:
     def read_image(self, object_key: str) -> ImagePayload:
         return self.images[object_key]
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -61,6 +68,36 @@ class MemoryObjects:
         )
         self.images[stored.object_key] = stored
         return stored
+
+
+class OwnerScopedMemoryObjects:
+    def __init__(
+        self,
+        source: ImagePayload,
+        *,
+        accounts: InMemoryAccountRepository,
+    ) -> None:
+        self._objects = MemoryObjects(source)
+        self._writer = OwnerScopedObjectWriter(
+            objects=self._objects,
+            subject_writes=accounts,
+        )
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self._objects.read_image(object_key)
+
+    async def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        return await self._writer.write_derived_image(
+            image,
+            owner_id=owner_id,
+            prefix=prefix,
+        )
 
 
 class SuccessfulGenerator:
@@ -93,6 +130,36 @@ class SuccessfulGenerator:
                 parameters={"size": size},
             ),
         )
+
+
+@pytest.mark.asyncio
+async def test_pixel_trial_cannot_finalize_output_after_account_tombstone() -> None:
+    user_id = uuid4()
+    source_body = b"private-full-body-photo"
+    source = ImagePayload(
+        object_key="originals/upload/deleted-full-body.png",
+        content_type="image/png",
+        body=source_body,
+        sha256=sha256(source_body).hexdigest(),
+    )
+    trial = PixelTrial.queued(
+        user_id=user_id,
+        subject_object_key=source.object_key,
+        request_key="deleted-pixel-trial",
+    )
+    repository = MemoryTrials(trial)
+    accounts = InMemoryAccountRepository()
+    await accounts.tombstone_subject(user_id, reason="account_deletion")
+    processor = PixelTrialProcessor(
+        trials=PixelTrialApplication(trials=repository),
+        objects=OwnerScopedMemoryObjects(source, accounts=accounts),
+        generator=SuccessfulGenerator(),
+    )
+
+    with pytest.raises(SubjectDeletedError):
+        await processor.process(user_id=user_id, trial_id=trial.id)
+
+    assert repository.trials[trial.id].status is not PixelTrialStatus.SUCCEEDED
 
 
 @pytest.mark.asyncio

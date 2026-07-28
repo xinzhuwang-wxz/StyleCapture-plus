@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -7,6 +8,10 @@ from uuid import UUID
 from sqlalchemy import case, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.capture.domain import CaptureSourceKind, OwnershipState
 from stylecapture_backend.features.capture.infrastructure.models import CaptureRecord
 from stylecapture_backend.features.outfit.domain import (
@@ -25,8 +30,14 @@ from stylecapture_backend.features.wardrobe.infrastructure.models import ItemRec
 
 
 class SqlAlchemyWardrobeRepository:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        *,
+        subject_writes: SubjectWriteLease | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
 
     async def get_by_capture(
         self,
@@ -123,90 +134,104 @@ class SqlAlchemyWardrobeRepository:
             return _item_from_record(row[0], row[1]) if row is not None else None
 
     async def save(self, item: WardrobeItem) -> WardrobeItem:
-        async with self._sessions() as session:
-            existing = (
-                await session.execute(
-                    select(ItemRecord)
-                    .where(
-                        or_(
-                            ItemRecord.id == item.id,
-                            (
-                                (ItemRecord.capture_id == item.capture_id)
-                                & (ItemRecord.selection_key == item.selection_key)
-                            ),
+        async with self._subject_writes.subject_write(item.user_id) as canonical:
+            canonical_item = item if item.user_id == canonical else replace(item, user_id=canonical)
+            async with self._sessions() as session:
+                existing = (
+                    await session.execute(
+                        select(ItemRecord)
+                        .where(
+                            or_(
+                                ItemRecord.id == canonical_item.id,
+                                (
+                                    (ItemRecord.capture_id == canonical_item.capture_id)
+                                    & (ItemRecord.selection_key == canonical_item.selection_key)
+                                ),
+                            )
                         )
+                        .with_for_update()
                     )
-                    .with_for_update()
+                ).scalar_one_or_none()
+                incoming = _item_record(canonical_item)
+                if existing is None:
+                    session.add(incoming)
+                else:
+                    attributes = _merge_worker_attributes(existing.attributes, incoming.attributes)
+                    existing.source_available = (
+                        existing.source_available and incoming.source_available
+                    )
+                    if incoming.display_object_key is not None:
+                        existing.display_object_key = incoming.display_object_key
+                    existing.status = incoming.status
+                    existing.category = _json_text_field(attributes, "category")
+                    existing.subcategory = _json_text_field(attributes, "subcategory")
+                    existing.description = _json_text_field(attributes, "description")
+                    existing.attributes = attributes
+                    existing.model_metadata = {
+                        **existing.model_metadata,
+                        **incoming.model_metadata,
+                    }
+                    if incoming.embedding is not None:
+                        existing.embedding = incoming.embedding
+                    existing.updated_at = incoming.updated_at
+                await session.commit()
+            stored = await self.get_by_capture(
+                canonical_item.capture_id,
+                canonical_item.selection_key,
+            )
+            if stored is None:
+                raise RuntimeError("saved wardrobe item could not be reloaded")
+            return stored
+
+    async def save_user_state(self, item: WardrobeItem) -> WardrobeItem:
+        async with self._subject_writes.subject_write(item.user_id) as canonical:
+            canonical_item = item if item.user_id == canonical else replace(item, user_id=canonical)
+            async with self._sessions() as session:
+                existing = (
+                    await session.execute(
+                        select(ItemRecord)
+                        .where(
+                            ItemRecord.id == canonical_item.id,
+                            ItemRecord.user_id == canonical_item.user_id,
+                        )
+                        .with_for_update()
+                    )
+                ).scalar_one_or_none()
+                if existing is None:
+                    raise LookupError(canonical_item.id)
+
+                incoming_attributes = _attributes_to_json(canonical_item.attributes)
+                attributes = _merge_user_attributes(
+                    existing.attributes,
+                    incoming_attributes,
                 )
-            ).scalar_one_or_none()
-            incoming = _item_record(item)
-            if existing is None:
-                session.add(incoming)
-            else:
-                attributes = _merge_worker_attributes(existing.attributes, incoming.attributes)
-                existing.source_available = existing.source_available and incoming.source_available
-                if incoming.display_object_key is not None:
-                    existing.display_object_key = incoming.display_object_key
-                existing.status = incoming.status
+                existing.ownership = canonical_item.ownership.value
+                existing.source_available = (
+                    existing.source_available and canonical_item.source_available
+                )
                 existing.category = _json_text_field(attributes, "category")
                 existing.subcategory = _json_text_field(attributes, "subcategory")
                 existing.description = _json_text_field(attributes, "description")
                 existing.attributes = attributes
-                existing.model_metadata = {
-                    **existing.model_metadata,
-                    **incoming.model_metadata,
-                }
-                if incoming.embedding is not None:
-                    existing.embedding = incoming.embedding
-                existing.updated_at = incoming.updated_at
-            await session.commit()
-        stored = await self.get_by_capture(item.capture_id, item.selection_key)
-        if stored is None:
-            raise RuntimeError("saved wardrobe item could not be reloaded")
-        return stored
-
-    async def save_user_state(self, item: WardrobeItem) -> WardrobeItem:
-        async with self._sessions() as session:
-            existing = (
-                await session.execute(
-                    select(ItemRecord)
-                    .where(
-                        ItemRecord.id == item.id,
-                        ItemRecord.user_id == item.user_id,
+                existing.updated_at = canonical_item.updated_at
+                if not canonical_item.source_available:
+                    await session.execute(
+                        update(ItemRecord)
+                        .where(ItemRecord.capture_id == canonical_item.capture_id)
+                        .values(
+                            source_available=False,
+                            updated_at=canonical_item.updated_at,
+                        )
                     )
-                    .with_for_update()
-                )
-            ).scalar_one_or_none()
-            if existing is None:
-                raise LookupError(item.id)
+                await session.commit()
 
-            incoming_attributes = _attributes_to_json(item.attributes)
-            attributes = _merge_user_attributes(
-                existing.attributes,
-                incoming_attributes,
+            stored = await self.get_by_capture(
+                canonical_item.capture_id,
+                canonical_item.selection_key,
             )
-            existing.ownership = item.ownership.value
-            existing.source_available = existing.source_available and item.source_available
-            existing.category = _json_text_field(attributes, "category")
-            existing.subcategory = _json_text_field(attributes, "subcategory")
-            existing.description = _json_text_field(attributes, "description")
-            existing.attributes = attributes
-            existing.updated_at = item.updated_at
-            if not item.source_available:
-                await session.execute(
-                    update(ItemRecord)
-                    .where(ItemRecord.capture_id == item.capture_id)
-                    .values(
-                        source_available=False,
-                        updated_at=item.updated_at,
-                    )
-                )
-            await session.commit()
-
-        stored = await self.get_by_capture(item.capture_id, item.selection_key)
-        if stored is None:
-            raise RuntimeError("saved wardrobe item could not be reloaded")
-        return stored
+            if stored is None:
+                raise RuntimeError("saved wardrobe item could not be reloaded")
+            return stored
 
     async def set_ownership_in_transaction(
         self,

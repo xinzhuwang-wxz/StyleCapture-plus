@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from uuid import UUID
 
+from stylecapture_backend.features.account.ports import SubjectResolver
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureIntent,
@@ -60,11 +61,13 @@ class CaptureApplication:
         objects: ObjectLookup,
         dispatcher: JobDispatcher,
         whole_outfits: WholeOutfitRegistrar | None = None,
+        subject_resolver: SubjectResolver | None = None,
     ) -> None:
         self._captures = captures
         self._objects = objects
         self._dispatcher = dispatcher
         self._whole_outfits = whole_outfits
+        self._subject_resolver = subject_resolver
 
     async def submit(self, command: SubmitCaptureCommand) -> CaptureSubmission:
         idempotency_key = command.idempotency_key.strip()
@@ -89,7 +92,10 @@ class CaptureApplication:
                 "The prepared upload does not exist",
                 details={"object_key": command.object_key},
             ) from error
-        if stored.owner_id != command.user_id:
+        stored_owner = stored.owner_id
+        if stored_owner is not None and self._subject_resolver is not None:
+            stored_owner = await self._subject_resolver.resolve_subject(stored_owner)
+        if stored_owner != command.user_id:
             raise CaptureError(
                 "upload_not_found",
                 "The prepared upload does not exist",

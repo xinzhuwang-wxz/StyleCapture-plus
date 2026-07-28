@@ -6,6 +6,7 @@ from math import isclose, sqrt
 from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
 
+from stylecapture_backend.features.account.domain import SubjectDeletedError
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureIntent,
@@ -160,7 +161,7 @@ class ImageReader(Protocol):
 
 
 class DerivedImageWriter(Protocol):
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -412,7 +413,7 @@ class CaptureProcessor:
                 source_image,
                 garment_selection,
             )
-            display_image = self._display_assets.write_derived_image(
+            display_image = await self._display_assets.write_derived_image(
                 selected_image,
                 owner_id=capture.user_id,
                 prefix="derived/items",
@@ -433,6 +434,8 @@ class CaptureProcessor:
             if persist:
                 item = await self._wardrobe.save(item)
             return item, selected_image, None
+        except SubjectDeletedError:
+            raise
         except ProviderError as error:
             item = item.with_model_metadata(
                 {
@@ -524,7 +527,7 @@ class CaptureProcessor:
                         "Wardrobe display asset storage is temporarily unavailable",
                         retryable=True,
                     )
-                display_image = self._display_assets.write_derived_image(
+                display_image = await self._display_assets.write_derived_image(
                     selected_image,
                     owner_id=capture.user_id,
                     prefix="derived/items",
@@ -748,7 +751,7 @@ class CaptureProcessor:
                     frame,
                     component_selection,
                 )
-                display_image = self._display_assets.write_derived_image(
+                display_image = await self._display_assets.write_derived_image(
                     selected_image,
                     owner_id=capture.user_id,
                     prefix="derived/items",
@@ -856,7 +859,7 @@ class CaptureProcessor:
         assert self._display_assets is not None
         assert self._looks is not None
         selected_image, _ = self._prepare_feed_selection(frame, selection)
-        display_image = self._display_assets.write_derived_image(
+        display_image = await self._display_assets.write_derived_image(
             selected_image,
             owner_id=user_id,
             prefix="derived/looks",

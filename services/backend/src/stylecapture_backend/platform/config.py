@@ -24,6 +24,10 @@ class BackendSettings(BaseSettings):
     upload_root: Path
     upload_signing_secret: SecretStr
     session_signing_secret: SecretStr
+    apple_client_ids: list[str] = ["com.stylecapture.journey"]
+    apple_team_id: str | None = None
+    apple_key_id: str | None = None
+    apple_private_key_pem: SecretStr = SecretStr("")
     session_cookie_secure: bool = False
     public_upload_prefix: str = "/v1/uploads"
     cors_origins: list[str] = ["http://localhost:5173"]
@@ -103,6 +107,13 @@ class BackendSettings(BaseSettings):
             raise ValueError("capture queue must contain between 1 and 80 characters")
         return value
 
+    @field_validator("apple_client_ids")
+    @classmethod
+    def validate_apple_client_ids(cls, value: list[str]) -> list[str]:
+        if not value or any(not client_id.strip() for client_id in value):
+            raise ValueError("at least one Apple client ID is required")
+        return [client_id.strip() for client_id in value]
+
     @field_validator(
         "render_request_timeout_seconds",
         "render_poll_interval_seconds",
@@ -124,6 +135,13 @@ class BackendSettings(BaseSettings):
 
     @model_validator(mode="after")
     def reject_production_placeholders(self) -> BackendSettings:
+        apple_credentials = (
+            bool(self.apple_team_id and self.apple_team_id.strip()),
+            bool(self.apple_key_id and self.apple_key_id.strip()),
+            bool(self.apple_private_key_pem.get_secret_value().strip()),
+        )
+        if any(apple_credentials) and not all(apple_credentials):
+            raise ValueError("Apple server credentials must be configured together")
         if self.environment == "production":
             if "demo_seed_enabled" not in self.model_fields_set:
                 self.demo_seed_enabled = False
@@ -135,4 +153,6 @@ class BackendSettings(BaseSettings):
                 raise ValueError("production session cookies must be secure")
             if self.litellm_api_key.get_secret_value() == PLACEHOLDER_GATEWAY_SECRET:
                 raise ValueError("production gateway secret cannot use the local placeholder")
+            if not all(apple_credentials):
+                raise ValueError("Apple server credentials are required in production")
         return self

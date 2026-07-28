@@ -2,7 +2,7 @@
 
 > **For Codex:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan one milestone at a time. Use `superpowers:test-driven-development` for each behavior and `superpowers:verification-before-completion` before every completion claim.
 
-**Goal:** Ship a China-first native iPhone app that converts one upcoming 3–7 day trip plus at least 8 slot-covering owned garments (12–30 recommended) into a purchased, executable outfit and packing plan, and prove production paid/verified use before scaling.
+**Goal:** Ship a China-first native iPhone app that converts one upcoming 3–7 day trip plus at least 8 slot-covering owned garments (12–30 recommended) into a purchased, executable outfit and packing plan with verified purchase, recovery, refund, offline, deletion and release behavior.
 
 **Architecture:** Add a SwiftUI iOS 17+ client over the existing FastAPI modular monolith. Keep Item/Look/Outfit/Render as existing truths; add revocable accounts, Trip/Occasion/Packing orchestration, StoreKit entitlement ledger, deletion state machine and minimal product events. Generate the Swift API client from FastAPI OpenAPI, keep an offline GRDB projection/outbox, and route intelligent work through existing LiteLLM capability ports.
 
@@ -12,14 +12,14 @@
 
 ## Execution rules
 
-- Task 2–9 local iOS/backend development, Apple sandbox, staging, and TestFlight technical verification may proceed before a real M0 decision. Task 1's M0 paid-problem gate still controls any market-validation `GO`/`PIVOT`/`STOP` claim, production commercialization decision, paid production rollout/scale claim, or aggregate Goal completion after the seven-day recruiting/offer window and at least 15 plan recipients reach `trip_end+7d`; record the actual maturity cutoff. Technical/sandbox/TestFlight evidence must never enter M0 or production commercial denominators.
+- Task 2–10 and M1–M7 proceed continuously to release readiness. Task 1's M0 assets are optional future market-research tooling and do not control development, TestFlight, release readiness or aggregate Goal completion. Technical/sandbox/TestFlight evidence must still never be presented as real production revenue or user behavior.
 - Before every task, update the matching milestone section in `docs/exec-plans/0043-stylecapture-journey-commercial-app.md` and copy in the exact reuse audit.
 - Start with one failing public-behavior test, add the minimum implementation, then continue behavior by behavior.
 - After a public API change, regenerate OpenAPI and compile the generated Swift client before continuing.
 - Every user-visible task requires real iPhone simulator/device operation and screenshots for initial, interaction, processing, success, failure and recovery states.
 - Every task ends with independent spec, architecture, reuse/license, security/privacy and conversion/UX review. Fix P0/P1 in the same task.
 
-## Task 1: Validate the paid problem before product build
+## Optional Task 1 archive: paid-problem research tooling (not a prerequisite)
 
 **Files:**
 
@@ -32,7 +32,7 @@
 - Modify: `docs/research/STYLECAPTURE-JOURNEY-MARKET-AND-REUSE-AUDIT.md`
 - Modify: `docs/exec-plans/0043-stylecapture-journey-commercial-app.md`
 
-**Behavior to prove:** A qualifying user with a real 3–7 day trip can understand the deliverable, receive a complete plan from her own clothes, accept or reject one ¥12 offer without pixel-world priming, and later report whether she actually executed it.
+**Optional behavior if this research is run:** A qualifying user with a real 3–7 day trip can understand the deliverable, receive a complete plan from her own clothes, accept or reject one ¥12 offer without pixel-world priming, and later report whether she actually executed it. Absence of this external study does not block Tasks 2–10.
 
 **Steps:**
 
@@ -40,7 +40,7 @@
 2. Define a de-identified metrics schema; keep raw contact details and photos outside Git. The committed `.gitignore` must reject `participants/`, raw photos, recordings and exports.
 3. Produce at least 15 complete concierge plans with a repeatable template: confirmed constraints, selected garments, day/activity looks, alternatives, deduplicated packing, gaps, user corrections and post-trip outcome. Offer every recipient the same ¥12 result and record at least five real, refundable payments or deposits; willingness, oral promises and “equivalent commitments” are not `real_paid`. Keep this research collection outside any App binary and never use it as an external payment link from iOS.
 4. Calculate the M0 thresholds exactly as defined in the PRD/research audit. Pain and payment denominators are the qualified cohort/at-least-15 complete-plan recipients as specified; post-trip execution uses those same at-least-15 recipients, requires at least one planned main/alternative Look or traceable hard-constraint-preserving replacement, and counts non-response as not executed. Record exclusions and denominator for each percentage.
-5. Write a `GO`, `PIVOT`, or `STOP` decision with objections and the next falsifiable hypothesis only after real M0 evidence matures. A missing decision does not block Task 2 local implementation or technical verification, but only a real `GO` can support market-validation, commercialization, scale, or aggregate-completion claims.
+5. If the optional study runs, write a truthful `GO`, `PIVOT`, or `STOP` research decision only after evidence matures. A missing decision does not block implementation, TestFlight, release readiness or aggregate Goal completion.
 
 **Verification:** JSON Schema validates every de-identified record; secret/PII pattern scan is clean; an independent product reviewer can recompute all ratios from the committed aggregate; no participant photo/contact/raw transcript is tracked.
 
@@ -443,10 +443,10 @@
 8. Inject privacy canaries and query FastAPI/Celery/LiteLLM structured logs, Langfuse stores/blob, Collector queues/local spool, Prometheus labels, DLQ/retry payloads, exception/crash systems, ingress/WAF logs, Promptfoo database/cache/stdout/stderr/output and CI artifacts, plus a provider mock/receiver packet capture, for zero sensitive hits. A positive-control allowed metadata event must arrive so disabling all telemetry cannot pass. Exercise sanitizer crash/exporter retry and prove the telemetry-leak incident runbook. Every OTel semantic-convention or Langfuse/LiteLLM upgrade runs a field-schema diff.
 9. Prove migration, rolling deploy, rollback, backup restore to RPO ≤24h/RTO ≤4h, provider outage, Redis restart, Langfuse/Collector outage, notification replay and budget-degrade runbooks in staging.
 10. Configure App Store Connect metadata, privacy, IAP and travel-only Custom Product Pages/Product Page Optimization; use Xcode Cloud/TestFlight for signed archives. Save release evidence under `docs/evidence/app-store/task-10/` with subdirectories/checklists for `screenshots/`, `preview/`, `review-notes.md`, `demo-account-credentials-delivery.md` process only, `age-rating.md`, `privacy-nutrition.md`, `iap-review-package.md`, `localization.md`, and `cpp-ppo.md`. Demo account credentials or secrets must be delivered through App Store Connect or the approved secret channel and never committed to Git. Optimize against production paid VSS/CAC, never downloads alone.
-11. Treat TestFlight as technical evidence only. Run production cohorts using the frozen metric dictionary: at least 200 eligible paywalls/20 payers for initial validation and 500/50 plus mature D90 outcomes for scale. Apply any-trigger kill rules, not a conjunctive kill rule.
+11. Treat TestFlight as technical evidence only. Instrument the frozen production metric dictionary for post-launch conversion/VSS/refund/margin learning without making cohort thresholds a Task 10 or aggregate Goal completion gate.
 
-**Verification:** clean-environment deploy; restore drill with RPO/RTO evidence; load test to the next threshold; chaos/provider failure recovery; TestFlight/App Review checklist; D30/D90 decision record; final independent APPROVE + CLEAR review.
+**Verification:** clean-environment deploy; restore drill with RPO/RTO evidence; load test to the next capacity threshold; chaos/provider failure recovery; TestFlight/App Review checklist; final independent APPROVE + CLEAR review.
 
 ## Completion claim
 
-The Goal is complete only when Tasks 1–10 satisfy their observable outcomes with fresh evidence, the China-first release has no unresolved P0/P1, paid conversion and VSS pass the D90 gate, production restore/reconciliation are proven, and final product/spec, architecture, reuse/license, security/privacy, code-quality and conversion/UX reviewers all return clean verdicts. If the paid wedge fails its defined gates, a documented stop/pivot is a valid research outcome but is not permission to claim the original launch Goal complete.
+The Goal is complete only when Tasks 2–10 satisfy their observable outcomes with fresh evidence, the China-first release has no unresolved P0/P1, purchase/restore/refund/deletion/reconciliation/rollback and observability privacy canaries are proven, and final product/spec, architecture, reuse/license, security/privacy, code-quality and conversion/UX reviewers all return `APPROVE + CLEAR`. Optional M0 or post-launch commercial cohort metrics do not block this completion claim.

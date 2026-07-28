@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Protocol
@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Response, status
 from pydantic import BaseModel
 
+from stylecapture_backend.features.account.ports import SubjectResolver
 from stylecapture_backend.features.capture.domain import Capture
 from stylecapture_backend.features.capture.ports import ObjectStore
 from stylecapture_backend.features.look.application import LookApplication, LookNotFoundError
@@ -42,6 +43,7 @@ class RenderHttpServices:
     captures: CaptureReader
     objects: ObjectStore
     dispatcher: RenderDispatcher | None = None
+    subjects: SubjectResolver | None = None
 
 
 class RenderArtifactResponse(BaseModel):
@@ -106,7 +108,7 @@ class CreateRenderArtifactBody(BaseModel):
 def build_render_router(
     services: RenderHttpServices,
     *,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
 ) -> APIRouter:
     router = APIRouter()
     principal = Depends(current_user)
@@ -123,11 +125,18 @@ def build_render_router(
             raise LookNotFoundError("Look source not found")
         return detail, capture
 
-    def look_display_hash(detail: LookDetail, user_id: UUID) -> str | None:
+    async def owner_matches(owner_id: UUID | None, user_id: UUID) -> bool:
+        if owner_id is None:
+            return False
+        if services.subjects is not None:
+            owner_id = await services.subjects.resolve_subject(owner_id)
+        return owner_id == user_id
+
+    async def look_display_hash(detail: LookDetail, user_id: UUID) -> str | None:
         if detail.look.display_object_key is None:
             return None
         stored = services.objects.describe(detail.look.display_object_key)
-        if stored.owner_id != user_id:
+        if not await owner_matches(stored.owner_id, user_id):
             raise LookNotFoundError("Look display image not found")
         return stored.sha256
 
@@ -166,14 +175,14 @@ def build_render_router(
             if body.kind is not RenderArtifactKind.TRY_ON:
                 raise ValueError("only try-on renders accept a subject photo")
             subject = services.objects.describe(body.subject_object_key)
-            if subject.owner_id != user_id:
+            if not await owner_matches(subject.owner_id, user_id):
                 raise LookNotFoundError("Try-on photo not found")
             subject_source_hash = subject.sha256
         base_signature = build_render_input_signature(
             detail,
             capture,
             RenderArtifactKind.COLLAGE,
-            look_display_hash=look_display_hash(detail, user_id),
+            look_display_hash=await look_display_hash(detail, user_id),
         )
         source_artifact: RenderArtifactView | None = None
         if body.kind is not RenderArtifactKind.COLLAGE:
@@ -198,7 +207,7 @@ def build_render_router(
                 body.kind,
                 source_artifact=source_artifact,
                 subject_source_hash=subject_source_hash,
-                look_display_hash=look_display_hash(detail, user_id),
+                look_display_hash=await look_display_hash(detail, user_id),
             ),
             request_key=idempotency_key,
             privacy=(
@@ -270,7 +279,7 @@ def build_render_router(
                 artifact_id=artifact_id,
             )
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if stored.owner_id != user_id:
+        if not await owner_matches(stored.owner_id, user_id):
             raise RenderArtifactNotFound("Try-on subject photo does not exist")
         await services.renders.forget_subject_photo(
             user_id=user_id,

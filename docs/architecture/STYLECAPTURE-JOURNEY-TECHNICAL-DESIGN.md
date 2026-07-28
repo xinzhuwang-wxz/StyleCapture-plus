@@ -232,7 +232,7 @@ P0 只发布原生 iOS App，不发布可下载 Journey Agent Skill。后续 App
 
 P0 使用一方 `/v1/product-events`、App Store Connect Analytics、StoreKit 交易和服务端 AI 成本表。事件由客户端批量写 outbox，不采集 IDFA、精确位置、自由文本、照片或 session replay。
 
-Feature flags 与实验分配在服务端完成，sticky assignment 写入主体；事件携带冻结的 eligibility/offer/maturity 字段。M0/M1 只有统一 ¥12 旅行包 offer，不运行 pack-first vs subscription-first 混合实验。订阅仅在 60 天第二个独立付费 Journey 达到 25% 后进入生产主 CTA 实验。App Store 获客使用旅行意图 Custom Product Pages 与 Product Page Optimization，不自建商店页实验平台，并以生产 paid VSS/CAC 而非下载量判断胜负。
+Feature flags 与实验分配在服务端完成，sticky assignment 写入主体；事件携带冻结的 eligibility/offer/maturity 字段。P0 只有统一 ¥12 旅行包主 offer，不运行 pack-first vs subscription-first 混合实验；订阅不是 P0 默认 CTA，未来进入主 CTA 需单独产品决策。App Store 获客使用旅行意图 Custom Product Pages 与 Product Page Optimization，不自建商店页实验平台，并以上线后的生产 paid VSS/CAC 而非下载量判断优化方向。
 
 当自建事件查询成为产品迭代瓶颈时，再评估国内可部署的成熟分析平台。神策 SDK 商业使用需采购许可；Firebase/Amplitude/PostHog Cloud 不作为 China-first 默认依赖。
 
@@ -253,13 +253,13 @@ Feature flags 与实验分配在服务端完成，sticky assignment 写入主体
 - 境内 Langfuse edition/control gate 通过后才接收 metadata-only AI OTLP，Promptfoo 隔离数据集/红队作为部署门；Langfuse 或 Collector 故障不得阻断用户主链路。
 - 软启动备份目标：业务数据库 RPO ≤24 小时、RTO ≤4 小时；上线前用隔离环境完成一次全量恢复。DB connection >75% 时先检查泄漏/查询并采用 pooler，再扩规格。
 - CI 产出 secrets scan、SBOM、依赖审计、SAST、iOS archive privacy report 与第三方 SDK 签名/manifest 检查；发布使用 Xcode Cloud 的签名 archive 和受保护环境 secret。
-- 商业初验至少需要 200 个生产 eligible paywalls 和 20 个真实付款；未满样本只报告方向性信号，不扩投。
+- 生产 eligible paywall、付款、VSS、退款与毛利样本只用于上线后的经营与投放决策，不是基础设施交付、Task 10 或 aggregate Goal 完成硬门。
 
 ### 阶段 C：规模化
 
 仍保持模块化单体与共享数据库。达到以下条件才扩容/分区/拆服务：
 
-- 商业侧在同一冻结决策记录中同时达到至少 500 个生产 eligible paywalls、50 个真实付款、首次付费转化 ≥8%、付费完整计划 delivered→lock ≥75%、PRD 最小成熟分母上的 confirmed-worn VSS ≥55% 与 60 天第二次付费 Journey ≥25%、毛利 ≥65% 和退款 <5%；技术容量阈值不能替代商业门槛。
+- 商业指标不触发开发停止或 Goal blocked；真实生产数据只能指导上线后的产品、投放和容量优先级，不能由 sandbox/TestFlight 代替。
 
 - API 非 AI p95 >300ms 持续 10 分钟或 CPU >70% 持续 15 分钟：加 replica。
 - DB 连接 >75%、CPU >70%、读 p95 >100ms 或写 p95 >250ms：先索引/查询计划，再 pooler/规格升级。

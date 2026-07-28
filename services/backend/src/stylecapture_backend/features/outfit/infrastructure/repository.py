@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID, uuid5
 
 from sqlalchemy import select
@@ -7,6 +8,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.capture.domain import OwnershipState
 from stylecapture_backend.features.outfit.domain import (
     OutfitCategory,
@@ -29,10 +34,23 @@ PURCHASE_NAMESPACE = UUID("de4ebf5b-dc5e-453b-bd99-9cbb2796621a")
 
 
 class SqlAlchemyOutfitWorkflowTraceRepository:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        *,
+        subject_writes: SubjectWriteLease | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
 
     async def save(self, trace: OutfitWorkflowTrace) -> OutfitWorkflowTrace:
+        async with self._subject_writes.subject_write(trace.user_id) as canonical:
+            canonical_trace = (
+                trace if trace.user_id == canonical else replace(trace, user_id=canonical)
+            )
+            return await self._save(canonical_trace)
+
+    async def _save(self, trace: OutfitWorkflowTrace) -> OutfitWorkflowTrace:
         async with self._sessions() as session:
             statement = (
                 insert(OutfitWorkflowTraceRecord)
@@ -91,11 +109,30 @@ class SqlAlchemyPurchaseDemandRepository:
         sessions: async_sessionmaker[AsyncSession],
         *,
         wardrobe: SqlAlchemyWardrobeRepository | None = None,
+        subject_writes: SubjectWriteLease | None = None,
     ) -> None:
         self._sessions = sessions
-        self._wardrobe = wardrobe or SqlAlchemyWardrobeRepository(sessions)
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
+        self._wardrobe = wardrobe or SqlAlchemyWardrobeRepository(
+            sessions,
+            subject_writes=self._subject_writes,
+        )
 
     async def ensure_for_plan(
+        self,
+        *,
+        user_id: UUID,
+        look_id: UUID,
+        plan: OutfitPlan,
+    ) -> tuple[PurchaseDemand, ...]:
+        async with self._subject_writes.subject_write(user_id) as canonical:
+            return await self._ensure_for_plan(
+                user_id=canonical,
+                look_id=look_id,
+                plan=plan,
+            )
+
+    async def _ensure_for_plan(
         self,
         *,
         user_id: UUID,
@@ -188,6 +225,20 @@ class SqlAlchemyPurchaseDemandRepository:
             return _from_record(record) if record is not None else None
 
     async def advance(
+        self,
+        *,
+        user_id: UUID,
+        demand_id: UUID,
+        target: PurchaseDemandStatus,
+    ) -> PurchaseDemand:
+        async with self._subject_writes.subject_write(user_id) as canonical:
+            return await self._advance(
+                user_id=canonical,
+                demand_id=demand_id,
+                target=target,
+            )
+
+    async def _advance(
         self,
         *,
         user_id: UUID,

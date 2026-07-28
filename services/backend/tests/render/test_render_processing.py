@@ -8,6 +8,10 @@ from uuid import UUID, uuid4
 import pytest
 from PIL import Image
 from pillow_heif import from_pillow
+from stylecapture_backend.features.account.domain import SubjectDeletedError
+from stylecapture_backend.features.account.infrastructure.repository import (
+    InMemoryAccountRepository,
+)
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
@@ -15,6 +19,9 @@ from stylecapture_backend.features.capture.domain import (
     ImagePayload,
     NormalizedPoint,
     OwnershipState,
+)
+from stylecapture_backend.features.capture.infrastructure.object_store import (
+    OwnerScopedObjectWriter,
 )
 from stylecapture_backend.features.capture.ports import StoredObject
 from stylecapture_backend.features.look.domain import Look, LookComponent, LookDetail
@@ -111,7 +118,7 @@ class MemoryObjectStore:
     def read_image(self, object_key: str) -> ImagePayload:
         return self.images[object_key]
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -126,6 +133,39 @@ class MemoryObjectStore:
         )
         self.images[stored.object_key] = stored
         return stored
+
+
+class OwnerScopedRenderObjects:
+    def __init__(
+        self,
+        objects: MemoryObjectStore,
+        *,
+        accounts: InMemoryAccountRepository,
+    ) -> None:
+        self._objects = objects
+        self._writer = OwnerScopedObjectWriter(
+            objects=objects,
+            subject_writes=accounts,
+        )
+
+    def describe(self, object_key: str) -> StoredObject:
+        return self._objects.describe(object_key)
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self._objects.read_image(object_key)
+
+    async def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        return await self._writer.write_derived_image(
+            image,
+            owner_id=owner_id,
+            prefix=prefix,
+        )
 
 
 class SuccessfulPixelGenerator:
@@ -402,6 +442,36 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert len(pixel_generator.images) == 2
     assert pixel_generator.size == "1728x2304"
     assert pixel_generator.images[0].object_key == look_source.object_key
+
+
+@pytest.mark.asyncio
+async def test_render_cannot_finalize_output_after_account_tombstone() -> None:
+    user_id, detail, item, objects = fixture()
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="deleted-collage",
+    )
+    repository = MemoryRenderRepository([collage])
+    accounts = InMemoryAccountRepository()
+    await accounts.tombstone_subject(user_id, reason="account_deletion")
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=OwnerScopedRenderObjects(objects, accounts=accounts),
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=None,
+        try_on_generator=None,
+        fixed_model_object_key=None,
+    )
+
+    with pytest.raises(SubjectDeletedError):
+        await processor.process(user_id=user_id, artifact_id=collage.id)
+
+    assert repository.artifacts[collage.id].status is not RenderArtifactStatus.SUCCEEDED
 
 
 @pytest.mark.asyncio

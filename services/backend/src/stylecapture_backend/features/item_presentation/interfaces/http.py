@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Protocol
@@ -67,7 +67,7 @@ class ItemPresentationResponse(BaseModel):
 def build_item_presentation_router(
     services: ItemPresentationHttpServices,
     *,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
 ) -> APIRouter:
     router = APIRouter()
     principal = Depends(current_user)

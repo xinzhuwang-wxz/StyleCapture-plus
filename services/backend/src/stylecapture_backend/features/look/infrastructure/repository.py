@@ -12,6 +12,10 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.elements import ColumnElement
 
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.capture.domain import NormalizedPoint
 from stylecapture_backend.features.look.domain import (
     Look,
@@ -40,10 +44,27 @@ from stylecapture_backend.features.wardrobe.infrastructure.models import ItemRec
 
 
 class SqlAlchemyLookRepository:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        *,
+        subject_writes: SubjectWriteLease | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._subject_writes = subject_writes or SqlAlchemyAccountRepository(sessions)
 
     async def ensure_placeholder(
+        self,
+        look: Look,
+        signal: PreferenceSignal,
+    ) -> Look:
+        async with self._subject_writes.subject_write(look.user_id) as canonical:
+            return await self._ensure_placeholder(
+                look if look.user_id == canonical else replace(look, user_id=canonical),
+                signal if signal.user_id == canonical else replace(signal, user_id=canonical),
+            )
+
+    async def _ensure_placeholder(
         self,
         look: Look,
         signal: PreferenceSignal,
@@ -88,6 +109,19 @@ class SqlAlchemyLookRepository:
             ) from error
 
     async def save_bundle(
+        self,
+        look: Look,
+        components: tuple[LookComponent, ...],
+        signal: PreferenceSignal,
+    ) -> Look:
+        async with self._subject_writes.subject_write(look.user_id) as canonical:
+            return await self._save_bundle(
+                look if look.user_id == canonical else replace(look, user_id=canonical),
+                components,
+                signal if signal.user_id == canonical else replace(signal, user_id=canonical),
+            )
+
+    async def _save_bundle(
         self,
         look: Look,
         components: tuple[LookComponent, ...],
@@ -238,6 +272,16 @@ class SqlAlchemyLookRepository:
         self,
         signal: PreferenceSignal,
     ) -> PreferenceSignal:
+        async with self._subject_writes.subject_write(signal.user_id) as canonical:
+            canonical_signal = (
+                signal if signal.user_id == canonical else replace(signal, user_id=canonical)
+            )
+            return await self._append_preference(canonical_signal)
+
+    async def _append_preference(
+        self,
+        signal: PreferenceSignal,
+    ) -> PreferenceSignal:
         async with self._sessions() as session:
             await session.execute(
                 insert(PreferenceSignalRecord)
@@ -257,6 +301,13 @@ class SqlAlchemyLookRepository:
             return _preference_from_record(stored)
 
     async def save(self, look: Look) -> Look:
+        async with self._subject_writes.subject_write(look.user_id) as canonical:
+            canonical_look = (
+                look if look.user_id == canonical else replace(look, user_id=canonical)
+            )
+            return await self._save(canonical_look)
+
+    async def _save(self, look: Look) -> Look:
         async with self._sessions() as session:
             values = _look_values(look)
             statement = insert(LookRecord).values(**values)
@@ -286,6 +337,16 @@ class SqlAlchemyLookRepository:
             return _look_from_record(stored)
 
     async def save_component(self, component: LookComponent) -> LookComponent:
+        async with self._sessions() as lookup:
+            owner_id = await lookup.scalar(
+                select(LookRecord.user_id).where(LookRecord.id == component.look_id)
+            )
+        if owner_id is None:
+            raise LookupError(component.look_id)
+        async with self._subject_writes.subject_write(owner_id):
+            return await self._save_component(component)
+
+    async def _save_component(self, component: LookComponent) -> LookComponent:
         async with self._sessions() as session:
             if component.item_id is not None:
                 owners = (

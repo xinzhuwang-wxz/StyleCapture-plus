@@ -11,11 +11,24 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from stylecapture_backend.features.account.application import AccountApplication
+from stylecapture_backend.features.account.infrastructure.apple_identity import (
+    AppleClientSecretSigner,
+    AppleJWKSProvider,
+    HttpAppleAuthorizationCodeExchange,
+    PyJWTAppleIdentityVerifier,
+)
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     JobRetryApplication,
 )
-from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
+from stylecapture_backend.features.capture.infrastructure.object_store import (
+    LocalObjectStore,
+    OwnerScopedUploadAcceptor,
+)
 from stylecapture_backend.features.capture.infrastructure.repository import (
     SqlAlchemyCaptureRepository,
 )
@@ -116,17 +129,50 @@ def build_app() -> FastAPI:
     database_url = settings.database_url.get_secret_value()
     redis_url = settings.redis_url.get_secret_value()
     sessions = build_session_factory(database_url)
-    repository = SqlAlchemyCaptureRepository(sessions)
-    wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
-    look_repository = SqlAlchemyLookRepository(sessions)
-    render_repository = SqlAlchemyRenderArtifactRepository(sessions)
-    pixel_trial_repository = SqlAlchemyPixelTrialRepository(sessions)
-    item_presentation_repository = SqlAlchemyItemPresentationRepository(sessions)
+    account_repository = SqlAlchemyAccountRepository(sessions)
+    repository = SqlAlchemyCaptureRepository(sessions, subject_writes=account_repository)
+    apple_authorization_codes = None
+    if (
+        settings.apple_team_id is not None
+        and settings.apple_key_id is not None
+        and settings.apple_private_key_pem.get_secret_value()
+    ):
+        apple_client_id = settings.apple_client_ids[0]
+        apple_authorization_codes = HttpAppleAuthorizationCodeExchange(
+            client_id=apple_client_id,
+            client_secret=AppleClientSecretSigner(
+                team_id=settings.apple_team_id,
+                key_id=settings.apple_key_id,
+                client_id=apple_client_id,
+                private_key_pem=settings.apple_private_key_pem.get_secret_value(),
+            ),
+        )
+    wardrobe_repository = SqlAlchemyWardrobeRepository(
+        sessions,
+        subject_writes=account_repository,
+    )
+    look_repository = SqlAlchemyLookRepository(sessions, subject_writes=account_repository)
+    render_repository = SqlAlchemyRenderArtifactRepository(
+        sessions,
+        subject_writes=account_repository,
+    )
+    pixel_trial_repository = SqlAlchemyPixelTrialRepository(
+        sessions,
+        subject_writes=account_repository,
+    )
+    item_presentation_repository = SqlAlchemyItemPresentationRepository(
+        sessions,
+        subject_writes=account_repository,
+    )
     purchase_repository = SqlAlchemyPurchaseDemandRepository(
         sessions,
         wardrobe=wardrobe_repository,
+        subject_writes=account_repository,
     )
-    outfit_trace_repository = SqlAlchemyOutfitWorkflowTraceRepository(sessions)
+    outfit_trace_repository = SqlAlchemyOutfitWorkflowTraceRepository(
+        sessions,
+        subject_writes=account_repository,
+    )
     looks = LookApplication(looks=look_repository)
     renders = RenderApplication(artifacts=render_repository)
     pixel_trials = PixelTrialApplication(trials=pixel_trial_repository)
@@ -136,6 +182,10 @@ def build_app() -> FastAPI:
         public_upload_prefix=settings.public_upload_prefix,
         max_upload_bytes=settings.max_upload_bytes,
         max_image_pixels=settings.max_image_pixels,
+    )
+    uploads = OwnerScopedUploadAcceptor(
+        objects=objects,
+        subject_writes=account_repository,
     )
     demo_wardrobe = (
         CuratedDemoWardrobeBootstrapper(
@@ -177,6 +227,7 @@ def build_app() -> FastAPI:
                 objects=objects,
                 dispatcher=dispatcher,
                 whole_outfits=looks,
+                subject_resolver=account_repository,
             ),
             jobs=repository,
             objects=objects,
@@ -200,11 +251,13 @@ def build_app() -> FastAPI:
                 captures=repository,
                 objects=objects,
                 dispatcher=render_dispatcher,
+                subjects=account_repository,
             ),
             pixel_trials=PixelTrialHttpServices(
                 trials=pixel_trials,
                 objects=objects,
                 dispatcher=pixel_trial_dispatcher,
+                subjects=account_repository,
             ),
             item_presentations=ItemPresentationHttpServices(
                 presentations=ItemPresentationApplication(
@@ -235,6 +288,7 @@ def build_app() -> FastAPI:
                         objects=objects,
                         renders=renders,
                         dispatcher=render_dispatcher,
+                        subjects=account_repository,
                     ),
                     purchases=purchase_repository,
                     traces=outfit_trace_repository,
@@ -242,6 +296,17 @@ def build_app() -> FastAPI:
                 tickets=OutfitPlanTicketSigner(settings.session_signing_secret.get_secret_value()),
             ),
             demo_wardrobe=demo_wardrobe,
+            accounts=AccountApplication(
+                repository=account_repository,
+                apple_identity=PyJWTAppleIdentityVerifier(
+                    jwks=AppleJWKSProvider(),
+                    authorization_codes=apple_authorization_codes,
+                    allowed_audiences=frozenset(settings.apple_client_ids),
+                ),
+                allowed_audiences=frozenset(settings.apple_client_ids),
+                token_secret=settings.session_signing_secret.get_secret_value(),
+            ),
+            uploads=uploads,
         ),
         max_upload_bytes=settings.max_upload_bytes,
         cors_origins=settings.cors_origins,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from stylecapture_backend.features.account.ports import SubjectResolver
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     CaptureError,
@@ -32,6 +33,7 @@ from stylecapture_backend.features.capture.domain import (
 from stylecapture_backend.features.capture.ports import (
     JobRepository,
     ObjectStore,
+    UploadAcceptor,
     UploadRequest,
 )
 from stylecapture_backend.platform.errors import STABLE_ERROR_RESPONSES
@@ -154,6 +156,8 @@ class CaptureHttpServices:
     jobs: JobRepository
     objects: ObjectStore
     retries: JobRetryApplication
+    uploads: UploadAcceptor | None = None
+    subjects: SubjectResolver | None = None
 
 
 def build_capture_router(
@@ -161,7 +165,7 @@ def build_capture_router(
     *,
     sse_poll_interval: float,
     max_upload_bytes: int,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1")
     principal = Depends(current_user)
@@ -221,12 +225,19 @@ def build_capture_router(
                         f"Image size must be between 1 and {max_upload_bytes} bytes",
                         details={"max_bytes": max_upload_bytes},
                     )
-            stored = await asyncio.to_thread(
-                services.objects.accept_upload,
-                upload_token,
-                body=bytes(body),
-                content_type=content_type,
-            )
+            if services.uploads is None:
+                stored = await asyncio.to_thread(
+                    services.objects.accept_upload,
+                    upload_token,
+                    body=bytes(body),
+                    content_type=content_type,
+                )
+            else:
+                stored = await services.uploads.accept_upload(
+                    upload_token,
+                    body=bytes(body),
+                    content_type=content_type,
+                )
         return StoredObjectResponse(
             object_key=stored.object_key,
             content_type=stored.content_type,
@@ -245,7 +256,24 @@ def build_capture_router(
         object_key: str,
         user_id: UUID = principal,
     ) -> Response:
-        services.objects.discard_unattached_upload(object_key, user_id)
+        try:
+            stored = services.objects.describe(object_key)
+        except KeyError as error:
+            raise CaptureError(
+                "upload_not_found",
+                "The private upload is unavailable",
+            ) from error
+        stored_owner = stored.owner_id
+        if stored_owner is None:
+            raise CaptureError("upload_not_found", "The private upload is unavailable")
+        resolved_owner = (
+            await services.subjects.resolve_subject(stored_owner)
+            if services.subjects is not None
+            else stored_owner
+        )
+        if resolved_owner != user_id:
+            raise CaptureError("upload_not_found", "The private upload is unavailable")
+        services.objects.discard_unattached_upload(object_key, stored_owner)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.post(
@@ -273,7 +301,10 @@ def build_capture_router(
                 ),
             )
         )
-        services.objects.mark_attached(body.object_key, user_id)
+        stored_owner = services.objects.describe(body.object_key).owner_id
+        if stored_owner is None:
+            raise CaptureError("upload_not_found", "The private upload is unavailable")
+        services.objects.mark_attached(body.object_key, stored_owner)
         return CaptureAcceptedResponse(
             capture_id=submission.capture.id,
             job_id=submission.job.id,

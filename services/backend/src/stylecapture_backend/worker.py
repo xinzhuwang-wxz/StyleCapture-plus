@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from stylecapture_backend.features.account.infrastructure.repository import (
+    SqlAlchemyAccountRepository,
+)
 from stylecapture_backend.features.capture.infrastructure.fashion_embedding import (
     DisabledImageEmbedder,
     FashionSiglipEmbedder,
@@ -13,7 +16,10 @@ from stylecapture_backend.features.capture.infrastructure.grounding import (
 from stylecapture_backend.features.capture.infrastructure.hosted_embedding import (
     LiteLLMMultimodalEmbedder,
 )
-from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
+from stylecapture_backend.features.capture.infrastructure.object_store import (
+    LocalObjectStore,
+    OwnerScopedObjectWriter,
+)
 from stylecapture_backend.features.capture.infrastructure.providers import LiteLLMVisionTagger
 from stylecapture_backend.features.capture.infrastructure.repository import (
     SqlAlchemyCaptureRepository,
@@ -73,18 +79,38 @@ sessions = build_session_factory(
     settings.database_url.get_secret_value(),
     pooled=False,
 )
-capture_repository = SqlAlchemyCaptureRepository(sessions)
-wardrobe_repository = SqlAlchemyWardrobeRepository(sessions)
-look_repository = SqlAlchemyLookRepository(sessions)
-render_repository = SqlAlchemyRenderArtifactRepository(sessions)
-pixel_trial_repository = SqlAlchemyPixelTrialRepository(sessions)
-item_presentation_repository = SqlAlchemyItemPresentationRepository(sessions)
+account_repository = SqlAlchemyAccountRepository(sessions)
+capture_repository = SqlAlchemyCaptureRepository(
+    sessions,
+    subject_writes=account_repository,
+)
+wardrobe_repository = SqlAlchemyWardrobeRepository(
+    sessions,
+    subject_writes=account_repository,
+)
+look_repository = SqlAlchemyLookRepository(sessions, subject_writes=account_repository)
+render_repository = SqlAlchemyRenderArtifactRepository(
+    sessions,
+    subject_writes=account_repository,
+)
+pixel_trial_repository = SqlAlchemyPixelTrialRepository(
+    sessions,
+    subject_writes=account_repository,
+)
+item_presentation_repository = SqlAlchemyItemPresentationRepository(
+    sessions,
+    subject_writes=account_repository,
+)
 object_store = LocalObjectStore(
     root=settings.upload_root,
     signing_secret=settings.upload_signing_secret.get_secret_value(),
     public_upload_prefix=settings.public_upload_prefix,
     max_upload_bytes=settings.max_upload_bytes,
     max_image_pixels=settings.max_image_pixels,
+)
+owner_scoped_objects = OwnerScopedObjectWriter(
+    objects=object_store,
+    subject_writes=account_repository,
 )
 vision = LiteLLMVisionTagger(
     capability_alias=settings.vision_model_alias,
@@ -117,7 +143,7 @@ processor = CaptureProcessor(
     embedder=embedder,
     segmenter=build_promptable_segmenter(settings),
     selection_images=PillowSelectionImageRenderer(),
-    display_assets=object_store,
+    display_assets=owner_scoped_objects,
     looks=look_repository,
     grounder=grounder,
     outfit_analyzer=outfit_analyzer,
@@ -133,7 +159,7 @@ render_processor = RenderProcessor(
     renders=RenderApplication(artifacts=render_repository),
     looks=look_repository,
     wardrobe=wardrobe_repository,
-    objects=object_store,
+    objects=owner_scoped_objects,
     collages=PillowLookCollageRenderer(),
     pixel_generator=LiteLLMImageGenerator(
         capability_alias=settings.image_generation_model_alias,
@@ -158,7 +184,7 @@ render_task = register_render_task(
 )
 pixel_trial_processor = PixelTrialProcessor(
     trials=PixelTrialApplication(trials=pixel_trial_repository),
-    objects=object_store,
+    objects=owner_scoped_objects,
     generator=LiteLLMImageGenerator(
         capability_alias=settings.image_generation_model_alias,
         gateway_base_url=settings.litellm_base_url,
@@ -178,7 +204,7 @@ item_presentation_processor = ItemPresentationProcessor(
         wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
     ),
     wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
-    objects=object_store,
+    objects=owner_scoped_objects,
     generator=LiteLLMImageGenerator(
         capability_alias=settings.image_generation_model_alias,
         gateway_base_url=settings.litellm_base_url,

@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
+from stylecapture_backend.features.account.infrastructure.repository import (
+    InMemoryAccountRepository,
+)
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
     CaptureError,
@@ -217,3 +220,39 @@ async def test_submit_cannot_claim_another_sessions_prepared_upload() -> None:
         )
 
     assert error.value.code == "upload_not_found"
+
+
+@pytest.mark.asyncio
+async def test_bound_account_can_submit_anonymous_upload_without_rewriting_metadata() -> None:
+    anonymous_subject = uuid4()
+    canonical_subject = uuid4()
+    stored = StoredObject(
+        owner_id=anonymous_subject,
+        object_key="originals/u/pre-auth.png",
+        content_type="image/png",
+        byte_size=123,
+        sha256="a" * 64,
+        width=640,
+        height=960,
+    )
+    accounts = InMemoryAccountRepository()
+    accounts.aliases[anonymous_subject] = canonical_subject
+    application = CaptureApplication(
+        captures=MemoryCaptureRepository(),
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=RecordingDispatcher(),
+        subject_resolver=accounts,
+    )
+
+    submission = await application.submit(
+        SubmitCaptureCommand(
+            user_id=canonical_subject,
+            object_key=stored.object_key,
+            sha256=stored.sha256,
+            source_kind=CaptureSourceKind.UPLOAD,
+            ownership=OwnershipState.OWNED,
+            idempotency_key="post-bind-submit",
+        )
+    )
+
+    assert submission.capture.user_id == canonical_subject

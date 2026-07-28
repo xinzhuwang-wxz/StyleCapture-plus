@@ -32,7 +32,7 @@ class RetryableItemPresentationError(RuntimeError):
 class ItemPresentationObjectStore(Protocol):
     def read_image(self, object_key: str) -> ImagePayload: ...
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -130,7 +130,7 @@ class ItemPresentationProcessor:
                 images=(source,),
                 size="2K",
             )
-            stored = self._objects.write_derived_image(
+            stored = await self._objects.write_derived_image(
                 ImagePayload(
                     object_key=f"derived/items/pixel/{asset.item_id}",
                     content_type=generated.content_type,

@@ -7,8 +7,13 @@ from uuid import UUID
 
 import pytest
 from PIL import Image
+from stylecapture_backend.features.account.domain import SubjectDeletedError
+from stylecapture_backend.features.account.infrastructure.repository import (
+    InMemoryAccountRepository,
+)
 from stylecapture_backend.features.capture.application import CaptureError
 from stylecapture_backend.features.capture.domain import ImagePayload
+from stylecapture_backend.features.capture.infrastructure import object_store as object_store_module
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
 from stylecapture_backend.features.capture.ports import UploadRequest
 
@@ -86,6 +91,64 @@ def test_derived_display_asset_is_content_addressed_and_readable(tmp_path: Path)
     assert stored.object_key == f"derived/items/{sha256(body).hexdigest()}.png"
     assert store.describe(stored.object_key).owner_id == OWNER_ID
     assert store.read_image(stored.object_key) == stored
+
+
+@pytest.mark.asyncio
+async def test_owner_scoped_writer_rejects_derived_asset_after_tombstone(
+    tmp_path: Path,
+) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    accounts = InMemoryAccountRepository()
+    await accounts.tombstone_subject(OWNER_ID, reason="account_deletion")
+    writer_type = object_store_module.OwnerScopedObjectWriter
+    writer = writer_type(objects=store, subject_writes=accounts)
+    body = png_bytes()
+    image = ImagePayload(
+        object_key="originals/deleted/source.png",
+        content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
+
+    with pytest.raises(SubjectDeletedError):
+        await writer.write_derived_image(
+            image,
+            owner_id=OWNER_ID,
+            prefix="derived/deleted",
+        )
+
+    assert not (tmp_path / "derived").exists()
+
+
+@pytest.mark.asyncio
+async def test_owner_scoped_upload_rejects_prepared_token_after_tombstone(
+    tmp_path: Path,
+) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    body = png_bytes()
+    prepared = store.prepare_upload(request_for(body))
+    accounts = InMemoryAccountRepository()
+    await accounts.tombstone_subject(OWNER_ID, reason="account_deletion")
+    acceptor = object_store_module.OwnerScopedUploadAcceptor(
+        objects=store,
+        subject_writes=accounts,
+    )
+
+    with pytest.raises(SubjectDeletedError):
+        await acceptor.accept_upload(
+            prepared.token,
+            body=body,
+            content_type="image/png",
+        )
+
+    assert not (tmp_path / prepared.object_key).exists()
+    assert not (tmp_path / ".upload-tokens").exists()
 
 
 def test_private_source_asset_uses_originals_prefix_and_is_readable(tmp_path: Path) -> None:

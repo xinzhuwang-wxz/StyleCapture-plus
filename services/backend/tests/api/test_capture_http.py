@@ -824,3 +824,16 @@ async def test_capture_rejects_upload_prepared_by_another_session(
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "upload_not_found"
+
+
+@pytest.mark.asyncio
+async def test_discarding_missing_private_upload_returns_stable_not_found(
+    api: tuple[AsyncClient, MemoryRepository, RecordingDispatcher],
+) -> None:
+    client, _, _ = api
+    async with client:
+        await start_session(client)
+        response = await client.delete("/v1/uploads/users/missing/private.png")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "upload_not_found"

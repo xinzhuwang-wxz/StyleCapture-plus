@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from stylecapture_backend.features.account.ports import SubjectResolver
 from stylecapture_backend.features.capture.domain import Capture
 from stylecapture_backend.features.capture.ports import ObjectStore
 from stylecapture_backend.features.look.application import LookApplication, LookNotFoundError
@@ -38,12 +39,14 @@ class DefaultOutfitPresentationScheduler:
         objects: ObjectStore,
         renders: RenderApplication,
         dispatcher: RenderDispatcher,
+        subjects: SubjectResolver | None = None,
     ) -> None:
         self._looks = looks
         self._captures = captures
         self._objects = objects
         self._renders = renders
         self._dispatcher = dispatcher
+        self._subjects = subjects
 
     async def enqueue_default_presentation(
         self,
@@ -73,7 +76,10 @@ class DefaultOutfitPresentationScheduler:
         display_hash: str | None = None
         if detail.look.display_object_key is not None:
             stored = self._objects.describe(detail.look.display_object_key)
-            if stored.owner_id != user_id:
+            stored_owner = stored.owner_id
+            if stored_owner is not None and self._subjects is not None:
+                stored_owner = await self._subjects.resolve_subject(stored_owner)
+            if stored_owner != user_id:
                 raise LookNotFoundError("Look display image not found")
             display_hash = stored.sha256
         request_key = f"outfit-save:{look_id}"

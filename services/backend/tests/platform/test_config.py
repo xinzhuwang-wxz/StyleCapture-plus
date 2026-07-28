@@ -77,6 +77,28 @@ def test_production_settings_reject_every_local_compose_placeholder(
             session_signing_secret=values["session_signing_secret"],
             session_cookie_secure=True,
             litellm_api_key=values["litellm_api_key"],
+            apple_team_id="TEAMID1234",
+            apple_key_id="KEYID12345",
+            apple_private_key_pem=SecretStr("production-apple-private-key"),
+        )
+
+
+def test_production_settings_require_complete_apple_server_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValidationError, match="Apple server credentials"):
+        BackendSettings(
+            environment="production",
+            database_url=SecretStr("postgresql+asyncpg://user:pass@postgres/stylecapture"),
+            redis_url=SecretStr("redis://redis:6379/0"),
+            upload_root=tmp_path,
+            upload_signing_secret=SecretStr("production-upload-signing-secret-with-entropy"),
+            session_signing_secret=SecretStr("production-session-signing-secret-with-entropy"),
+            session_cookie_secure=True,
+            litellm_api_key=SecretStr("production-gateway-signing-secret-with-entropy"),
         )
 
 
@@ -115,6 +137,9 @@ def test_demo_seed_defaults_on_locally_but_off_in_production(
         "upload_signing_secret": SecretStr("production-upload-signing-secret-with-entropy"),
         "session_signing_secret": SecretStr("production-session-signing-secret-with-entropy"),
         "litellm_api_key": SecretStr("production-gateway-signing-secret-with-entropy"),
+        "apple_team_id": "TEAMID1234",
+        "apple_key_id": "KEYID12345",
+        "apple_private_key_pem": SecretStr("production-apple-private-key"),
     }
 
     development = BackendSettings(**common)

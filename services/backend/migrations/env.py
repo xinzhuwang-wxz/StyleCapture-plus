@@ -7,6 +7,16 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+from stylecapture_backend.features.account.infrastructure.models import (
+    AccountRecord,
+    AppleAuthorizationCodeRecord,
+    DeletionRequestRecord,
+    DeviceSessionRecord,
+    ExternalIdentityRecord,
+    SubjectAliasRecord,
+    SubjectTombstoneRecord,
+    UsedRefreshTokenRecord,
+)
 from stylecapture_backend.features.capture.infrastructure.models import (
     CaptureRecord,
     ProcessingJobRecord,
@@ -30,6 +40,14 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 _MODELS = (
+    AccountRecord,
+    ExternalIdentityRecord,
+    SubjectAliasRecord,
+    DeviceSessionRecord,
+    UsedRefreshTokenRecord,
+    AppleAuthorizationCodeRecord,
+    SubjectTombstoneRecord,
+    DeletionRequestRecord,
     CaptureRecord,
     ProcessingJobRecord,
     ItemRecord,

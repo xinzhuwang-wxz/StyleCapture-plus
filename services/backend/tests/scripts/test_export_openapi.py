@@ -24,6 +24,15 @@ def _load_export_openapi() -> ModuleType:
 export_openapi = _load_export_openapi()
 
 
+def test_schema_includes_revocable_account_contract() -> None:
+    paths = export_openapi.openapi_schema()["paths"]
+
+    assert "/v1/auth/apple" in paths
+    assert "/v1/auth/refresh" in paths
+    assert "/v1/account/delete" in paths
+    assert "/v1/account/deletion-status" in paths
+
+
 def test_check_mode_fails_when_output_is_missing_without_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

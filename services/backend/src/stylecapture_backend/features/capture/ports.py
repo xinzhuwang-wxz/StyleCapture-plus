@@ -90,6 +90,16 @@ class ObjectStore(Protocol):
     def discard_unattached_upload(self, object_key: str, owner_id: UUID) -> None: ...
 
 
+class UploadAcceptor(Protocol):
+    async def accept_upload(
+        self,
+        token: str,
+        *,
+        body: bytes,
+        content_type: str,
+    ) -> StoredObject: ...
+
+
 class ObjectLookup(Protocol):
     def describe(self, object_key: str) -> StoredObject: ...
 

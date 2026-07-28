@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import fcntl
 import hmac
@@ -11,12 +12,13 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 
+from stylecapture_backend.features.account.ports import SubjectWriteLease
 from stylecapture_backend.features.capture.application import CaptureError
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.ports import (
@@ -44,6 +46,95 @@ FORMAT_MIME_TYPES = {
     "WEBP": frozenset({"image/webp"}),
 }
 HEIF_BRANDS = frozenset({b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1"})
+
+
+class DerivedImageObjectStore(Protocol):
+    def read_image(self, object_key: str) -> ImagePayload: ...
+
+    def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload: ...
+
+
+class ObjectDescriber(Protocol):
+    def describe(self, object_key: str) -> StoredObject: ...
+
+
+class UploadTokenObjectStore(Protocol):
+    def upload_owner(self, token: str) -> UUID: ...
+
+    def accept_upload(
+        self,
+        token: str,
+        *,
+        body: bytes,
+        content_type: str,
+        canonical_owner_id: UUID | None = None,
+    ) -> StoredObject: ...
+
+
+class OwnerScopedUploadAcceptor:
+    def __init__(
+        self,
+        *,
+        objects: UploadTokenObjectStore,
+        subject_writes: SubjectWriteLease,
+    ) -> None:
+        self._objects = objects
+        self._subject_writes = subject_writes
+
+    async def accept_upload(
+        self,
+        token: str,
+        *,
+        body: bytes,
+        content_type: str,
+    ) -> StoredObject:
+        token_owner = self._objects.upload_owner(token)
+        async with self._subject_writes.subject_write(token_owner) as canonical:
+            return await asyncio.to_thread(
+                self._objects.accept_upload,
+                token,
+                body=body,
+                content_type=content_type,
+                canonical_owner_id=canonical,
+            )
+
+
+class OwnerScopedObjectWriter:
+    def __init__(
+        self,
+        *,
+        objects: DerivedImageObjectStore,
+        subject_writes: SubjectWriteLease,
+    ) -> None:
+        self._objects = objects
+        self._subject_writes = subject_writes
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self._objects.read_image(object_key)
+
+    def describe(self, object_key: str) -> StoredObject:
+        return cast(ObjectDescriber, self._objects).describe(object_key)
+
+    async def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        async with self._subject_writes.subject_write(owner_id) as canonical:
+            return await asyncio.to_thread(
+                self._objects.write_derived_image,
+                image,
+                owner_id=canonical,
+                prefix=prefix,
+            )
 
 
 def _base64url_encode(value: bytes) -> str:
@@ -154,6 +245,7 @@ class LocalObjectStore:
         *,
         body: bytes,
         content_type: str,
+        canonical_owner_id: UUID | None = None,
     ) -> StoredObject:
         payload = self._decode_token(token)
         expected_type = str(payload["content_type"])
@@ -177,7 +269,7 @@ class LocalObjectStore:
         width, height = self._validate_image(body, expected_type)
         token_claim_path = self._claim_upload_token(token)
         stored = StoredObject(
-            owner_id=UUID(str(payload["owner_id"])),
+            owner_id=canonical_owner_id or UUID(str(payload["owner_id"])),
             object_key=str(payload["object_key"]),
             content_type=expected_type,
             byte_size=len(body),
@@ -203,6 +295,9 @@ class LocalObjectStore:
             token_claim_path.unlink(missing_ok=True)
             raise
         return stored
+
+    def upload_owner(self, token: str) -> UUID:
+        return UUID(str(self._decode_token(token)["owner_id"]))
 
     def mark_attached(self, object_key: str, owner_id: UUID) -> None:
         metadata_path = self._metadata_path(object_key)

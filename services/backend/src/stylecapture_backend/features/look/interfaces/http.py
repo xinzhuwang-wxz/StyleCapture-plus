@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Protocol
@@ -211,7 +211,7 @@ class LookRetryResponse(BaseModel):
 def build_look_router(
     services: LookHttpServices,
     *,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/looks")
     principal = Depends(current_user)

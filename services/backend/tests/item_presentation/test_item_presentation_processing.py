@@ -9,10 +9,17 @@ from uuid import UUID, uuid4
 import pytest
 from PIL import Image
 from pillow_heif import from_pillow
+from stylecapture_backend.features.account.domain import SubjectDeletedError
+from stylecapture_backend.features.account.infrastructure.repository import (
+    InMemoryAccountRepository,
+)
 from stylecapture_backend.features.capture.domain import (
     CaptureSourceKind,
     ImagePayload,
     OwnershipState,
+)
+from stylecapture_backend.features.capture.infrastructure.object_store import (
+    OwnerScopedObjectWriter,
 )
 from stylecapture_backend.features.item_presentation.application import (
     ItemPresentationApplication,
@@ -79,7 +86,7 @@ class MemoryObjects:
     def read_image(self, object_key: str) -> ImagePayload:
         return self.images[object_key]
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -94,6 +101,36 @@ class MemoryObjects:
         )
         self.images[stored.object_key] = stored
         return stored
+
+
+class OwnerScopedMemoryObjects:
+    def __init__(
+        self,
+        source: ImagePayload,
+        *,
+        accounts: InMemoryAccountRepository,
+    ) -> None:
+        self._objects = MemoryObjects(source)
+        self._writer = OwnerScopedObjectWriter(
+            objects=self._objects,
+            subject_writes=accounts,
+        )
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self._objects.read_image(object_key)
+
+    async def write_derived_image(
+        self,
+        image: ImagePayload,
+        *,
+        owner_id: UUID,
+        prefix: str,
+    ) -> ImagePayload:
+        return await self._writer.write_derived_image(
+            image,
+            owner_id=owner_id,
+            prefix=prefix,
+        )
 
 
 class SuccessfulGenerator:
@@ -121,6 +158,58 @@ class SuccessfulGenerator:
                 parameters={"size": size},
             ),
         )
+
+
+@pytest.mark.asyncio
+async def test_item_presentation_cannot_finalize_output_after_account_tombstone() -> None:
+    user_id = uuid4()
+    now = datetime.now(UTC)
+    source_body = b"normalized-deleted-item-image"
+    source = ImagePayload(
+        object_key="derived/items/display/deleted-top.png",
+        content_type="image/png",
+        body=source_body,
+        sha256=sha256(source_body).hexdigest(),
+    )
+    item = WardrobeItem(
+        id=uuid4(),
+        user_id=user_id,
+        capture_id=uuid4(),
+        selection_key="top",
+        source_object_key="originals/upload/deleted-outfit.png",
+        display_object_key=source.object_key,
+        source_available=True,
+        source_kind=CaptureSourceKind.UPLOAD,
+        ownership=OwnershipState.OWNED,
+        status=ItemStatus.READY,
+        attributes=ItemAttributes(),
+        model_metadata={},
+        embedding=None,
+        created_at=now,
+        updated_at=now,
+    )
+    asset = ItemPresentationAsset.queued(
+        user_id=user_id,
+        item_id=item.id,
+        kind=ItemPresentationKind.PIXEL_ITEM,
+        input_signature=pixel_item_signature(item),
+        request_key="deleted-item-pixel",
+    )
+    repository = MemoryPresentations(asset)
+    wardrobe = OneItemWardrobe(item)
+    accounts = InMemoryAccountRepository()
+    await accounts.tombstone_subject(user_id, reason="account_deletion")
+    processor = ItemPresentationProcessor(
+        presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
+        wardrobe=wardrobe,
+        objects=OwnerScopedMemoryObjects(source, accounts=accounts),
+        generator=SuccessfulGenerator(),
+    )
+
+    with pytest.raises(SubjectDeletedError):
+        await processor.process(user_id=user_id, asset_id=asset.id)
+
+    assert repository.assets[asset.id].status is not ItemPresentationStatus.SUCCEEDED
 
 
 @pytest.mark.asyncio

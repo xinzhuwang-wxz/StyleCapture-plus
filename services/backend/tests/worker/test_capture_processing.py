@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
+from stylecapture_backend.features.account.domain import SubjectDeletedError
+from stylecapture_backend.features.account.infrastructure.repository import (
+    InMemoryAccountRepository,
+)
 from stylecapture_backend.features.capture.domain import (
     Capture,
     CaptureSource,
@@ -23,6 +27,9 @@ from stylecapture_backend.features.capture.grounding import (
     GroundingAnalysis,
     GroundingCandidate,
     NormalizedBox,
+)
+from stylecapture_backend.features.capture.infrastructure.object_store import (
+    OwnerScopedObjectWriter,
 )
 from stylecapture_backend.features.capture.processing import (
     CaptureProcessor,
@@ -205,7 +212,7 @@ class MemoryDerivedImages:
     def __init__(self) -> None:
         self.images: dict[str, ImagePayload] = {}
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
@@ -221,6 +228,9 @@ class MemoryDerivedImages:
         )
         self.images[stored.object_key] = stored
         return stored
+
+    def read_image(self, object_key: str) -> ImagePayload:
+        return self.images[object_key]
 
 
 def make_capture_job() -> tuple[Capture, ProcessingJob]:
@@ -356,6 +366,35 @@ async def test_upload_cache_miss_generates_transparent_display_before_tagging() 
     assert display_assets.images[wardrobe.item.display_object_key].body == (
         b"transparent-garment-pixels"
     )
+
+
+@pytest.mark.asyncio
+async def test_capture_cannot_persist_derived_asset_after_account_tombstone() -> None:
+    capture, job = make_capture_job()
+    work = MemoryWorkRepository(capture, job)
+    accounts = InMemoryAccountRepository()
+    await accounts.tombstone_subject(capture.user_id, reason="account_deletion")
+    display_assets = MemoryDerivedImages()
+    processor = CaptureProcessor(
+        captures=work,
+        jobs=work,
+        wardrobe=MemoryWardrobeRepository(),
+        objects=MemoryObjects(image_for(capture)),
+        vision=FixedVision(result=analysis()),
+        embedder=FixedEmbedder(result=embedding()),
+        grounder=RecordingGrounder((garment_candidate(),)),
+        segmenter=RecordingSegmenter(),
+        selection_images=SelectionImages(),
+        display_assets=OwnerScopedObjectWriter(
+            objects=display_assets,
+            subject_writes=accounts,
+        ),
+    )
+
+    with pytest.raises(SubjectDeletedError):
+        await processor.process(capture.id, job.id)
+
+    assert display_assets.images == {}
 
 
 @pytest.mark.asyncio

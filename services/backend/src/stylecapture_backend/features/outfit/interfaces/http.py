@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
@@ -247,7 +247,7 @@ class OutfitWorkflowTraceResponse(BaseModel):
 def build_outfit_router(
     services: OutfitHttpServices,
     *,
-    current_user: Callable[..., UUID],
+    current_user: Callable[..., Awaitable[UUID]],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/outfit-plans")
     principal = Depends(current_user)

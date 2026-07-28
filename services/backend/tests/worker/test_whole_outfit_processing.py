@@ -179,7 +179,7 @@ class MemoryObjects:
             raise KeyError(object_key)
         return self.payload
 
-    def write_derived_image(
+    async def write_derived_image(
         self,
         image: ImagePayload,
         *,
