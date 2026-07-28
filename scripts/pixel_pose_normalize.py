@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+from typing import Any, cast
 
 from PIL import Image
 
@@ -37,11 +38,8 @@ TOLERANCE = 1.01
 def measure(image: Image.Image) -> tuple[int, int] | None:
     """Return (head_top_row, feet_row) for the drawn body."""
     width, height = image.size
-    alpha = image.getchannel("A").tobytes()
-    runs = [
-        sum(value > ALPHA_FLOOR for value in alpha[y * width : (y + 1) * width])
-        for y in range(height)
-    ]
+    alpha = cast(Any, image.getchannel("A").load())
+    runs = [sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR) for y in range(height)]
     widest = max(runs) or 1
     floor = max(MIN_SOLID_RUN, SOLID_RUN_RATIO * widest)
     solid = [y for y, run in enumerate(runs) if run >= floor]
@@ -98,8 +96,8 @@ def main() -> int:
         if not reference_path.exists():
             print(f"{character.name}: no {REFERENCE_POSE} frame, skipped")
             continue
-        with Image.open(reference_path) as reference_image:
-            target = body_height(reference_image.convert("RGBA"))
+        with Image.open(reference_path) as image:
+            target = body_height(image.convert("RGBA"))
         if not target:
             print(f"{character.name}: {REFERENCE_POSE} frame is empty, skipped")
             continue
@@ -108,8 +106,8 @@ def main() -> int:
             if pose_path.stem == REFERENCE_POSE:
                 continue
             with Image.open(pose_path) as opened:
-                pose_image = opened.convert("RGBA")
-                current = body_height(pose_image)
+                frame = opened.convert("RGBA")
+                current = body_height(frame)
                 if not current:
                     continue
                 drift = max(current, target) / min(current, target)
@@ -120,7 +118,7 @@ def main() -> int:
                 if args.check:
                     print(f"{label}: {current}px vs {REFERENCE_POSE} {target}px")
                     continue
-                fixed = rescale_to(pose_image, target / current)
+                fixed = rescale_to(frame, target / current)
                 fixed.save(pose_path)
                 print(f"{label}: {current}px -> {body_height(fixed)}px")
 
