@@ -1566,3 +1566,68 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─── 对话记录 ─── */
+.chat-history {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-history li {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--pixel-surface);
+  border: 2px solid var(--pixel-border);
+  border-radius: var(--pixel-border-radius);
+  box-shadow: var(--pixel-shadow);
+}
+
+.chat-history__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.chat-history__date {
+  flex: none;
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  color: var(--pixel-text-dim);
+  letter-spacing: 0.08em;
+}
+
+.chat-history__head strong {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.chat-history__last {
+  margin: 0;
+  color: var(--pixel-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.chat-history__outfit {
+  justify-self: start;
+  padding: 0.3rem 0.7rem;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--pixel-primary-dark);
+  background: #f3edfd;
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chat-history__outfit--none {
+  margin: 0;
+  color: var(--pixel-text-dim);
+  background: none;
+  border: 0;
+  cursor: default;
+}

@@ -228,6 +228,7 @@ export function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<PendingItem[]>(restorePendingItems);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [aiHistoryOpen, setAiHistoryOpen] = useState(false);
   const [selectedLookId, setSelectedLookId] = useState<string | null>(
     restoredLookId.current
   );
@@ -971,13 +972,25 @@ export function App() {
               拥有的和喜欢的，<br />
               都是可搭配的数字资产
             </p>
-            <button
-              type="button"
-              className="wardrobe-header__feed"
-              onClick={() => setDestination("feed")}
-            >
-              刷灵感 Feed
-            </button>
+            {/* AI 页的右上角是这次聊天的出口，不是再去刷 Feed——
+                正在跟闺蜜聊搭配的人，想回看的是聊过什么。 */}
+            {destination === "ai" ? (
+              <button
+                type="button"
+                className="wardrobe-header__feed"
+                onClick={() => setAiHistoryOpen(true)}
+              >
+                对话记录 ›
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="wardrobe-header__feed"
+                onClick={() => setDestination("feed")}
+              >
+                刷灵感 Feed
+              </button>
+            )}
           </header>
         ) : null}
 
@@ -1035,6 +1048,8 @@ export function App() {
         {destination === "ai" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
             <AIRecommendScreen
+              historyOpen={aiHistoryOpen}
+              onHistoryOpenChange={setAiHistoryOpen}
               onGoWardrobe={() => setDestination("wardrobe")}
               onSavedLook={(result) => {
                 const lookId = result.look_id;

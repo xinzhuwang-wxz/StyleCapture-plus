@@ -1,0 +1,73 @@
+import {
+  MAX_CHAT_RECORDS,
+  chatHistoryStore,
+  displayDate,
+  readChatHistory,
+  saveChatHistory,
+  upsertChatRecord,
+  type ChatRecord
+} from "../src/features/ai/chatHistory";
+
+function record(id: string, theme = "通勤"): ChatRecord {
+  return {
+    id,
+    date: "2026-07-21T09:00:00.000Z",
+    theme,
+    last: "那就用棕黄这套",
+    outfitTitle: null,
+    outfitLookId: null
+  };
+}
+
+describe("ai chat history", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("keeps one entry per conversation instead of one per round", () => {
+    // 多聊几轮会反复保存同一次对话；按 id 覆盖，否则一次对话会刷屏。
+    let history = upsertChatRecord([], record("c1", "通勤"));
+    history = upsertChatRecord(history, {
+      ...record("c1", "通勤"),
+      last: "换成平底鞋更好走"
+    });
+    expect(history).toHaveLength(1);
+    expect(history[0].last).toBe("换成平底鞋更好走");
+  });
+
+  it("puts the newest conversation first", () => {
+    let history = upsertChatRecord([], record("old", "上周"));
+    history = upsertChatRecord(history, record("new", "今天"));
+    expect(history.map((entry) => entry.theme)).toEqual(["今天", "上周"]);
+  });
+
+  it("stops growing so it cannot squeeze out the profile and photos", () => {
+    let history: ChatRecord[] = [];
+    for (let index = 0; index < MAX_CHAT_RECORDS + 6; index += 1) {
+      history = upsertChatRecord(history, record(`c${index}`));
+    }
+    expect(history).toHaveLength(MAX_CHAT_RECORDS);
+  });
+
+  it("survives a hand-corrupted store instead of blocking startup", () => {
+    window.localStorage.setItem(chatHistoryStore.key, "{ not json");
+    expect(readChatHistory()).toEqual([]);
+  });
+
+  it("drops entries that lost the fields the list needs", () => {
+    window.localStorage.setItem(
+      chatHistoryStore.key,
+      JSON.stringify([{ id: "c1" }, record("c2")])
+    );
+    const read = readChatHistory();
+    expect(read.map((entry) => entry.id)).toEqual(["c2"]);
+  });
+
+  it("round-trips through storage", () => {
+    saveChatHistory([record("c1", "面试")]);
+    expect(readChatHistory()[0].theme).toBe("面试");
+  });
+
+  it("shows the date the way the list does, and does not invent one", () => {
+    expect(displayDate("2026-07-21T09:00:00.000Z")).toMatch(/^\d{2}-\d{2}$/);
+    expect(displayDate("说不清")).toBe("说不清");
+  });
+});
