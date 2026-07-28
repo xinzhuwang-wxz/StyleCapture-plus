@@ -37,8 +37,11 @@ TOLERANCE = 1.01
 def measure(image: Image.Image) -> tuple[int, int] | None:
     """Return (head_top_row, feet_row) for the drawn body."""
     width, height = image.size
-    alpha = image.getchannel("A").load()
-    runs = [sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR) for y in range(height)]
+    alpha = image.getchannel("A").tobytes()
+    runs = [
+        sum(value > ALPHA_FLOOR for value in alpha[y * width : (y + 1) * width])
+        for y in range(height)
+    ]
     widest = max(runs) or 1
     floor = max(MIN_SOLID_RUN, SOLID_RUN_RATIO * widest)
     solid = [y for y, run in enumerate(runs) if run >= floor]
@@ -66,7 +69,7 @@ def rescale_to(image: Image.Image, ratio: float) -> Image.Image:
 
     scaled = image.resize(
         (max(1, round(width * ratio)), max(1, round(height * ratio))),
-        Image.LANCZOS,
+        Image.Resampling.LANCZOS,
     )
     canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     # Keep the feet where they were so the shadow and ground contact do not move.
@@ -95,8 +98,8 @@ def main() -> int:
         if not reference_path.exists():
             print(f"{character.name}: no {REFERENCE_POSE} frame, skipped")
             continue
-        with Image.open(reference_path) as image:
-            target = body_height(image.convert("RGBA"))
+        with Image.open(reference_path) as reference_image:
+            target = body_height(reference_image.convert("RGBA"))
         if not target:
             print(f"{character.name}: {REFERENCE_POSE} frame is empty, skipped")
             continue
@@ -105,8 +108,8 @@ def main() -> int:
             if pose_path.stem == REFERENCE_POSE:
                 continue
             with Image.open(pose_path) as opened:
-                image = opened.convert("RGBA")
-                current = body_height(image)
+                pose_image = opened.convert("RGBA")
+                current = body_height(pose_image)
                 if not current:
                     continue
                 drift = max(current, target) / min(current, target)
@@ -117,7 +120,7 @@ def main() -> int:
                 if args.check:
                     print(f"{label}: {current}px vs {REFERENCE_POSE} {target}px")
                     continue
-                fixed = rescale_to(image, target / current)
+                fixed = rescale_to(pose_image, target / current)
                 fixed.save(pose_path)
                 print(f"{label}: {current}px -> {body_height(fixed)}px")
 

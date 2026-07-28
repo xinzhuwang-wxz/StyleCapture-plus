@@ -27,8 +27,11 @@ def _body_height(path: pathlib.Path) -> int | None:
     with Image.open(path) as opened:
         image = opened.convert("RGBA")
         width, height = image.size
-        alpha = image.getchannel("A").load()
-        runs = [sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR) for y in range(height)]
+        alpha = image.getchannel("A").tobytes()
+        runs = [
+            sum(value > ALPHA_FLOOR for value in alpha[y * width : (y + 1) * width])
+            for y in range(height)
+        ]
     widest = max(runs) or 1
     floor = max(MIN_SOLID_RUN, SOLID_RUN_RATIO * widest)
     solid = [y for y, run in enumerate(runs) if run >= floor]
