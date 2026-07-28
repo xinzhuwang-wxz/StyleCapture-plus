@@ -18,7 +18,7 @@ struct AppFeature {
     enum Action: Equatable {
         case launch
         case launchResponse(Result<NavigationSnapshot?, AppError>)
-        case navigationPersisted(Result<Void, AppError>)
+        case navigationPersisted
         case restoreNavigation(NavigationSnapshot)
         case selectedTabChanged(Tab)
         case deepLink(URL)
@@ -102,12 +102,8 @@ struct AppFeature {
             journeyID: state.restoredJourneyID
         )
         return .run { send in
-            do {
-                try await navigationSnapshotClient.save(snapshot)
-                await send(.navigationPersisted(.success(())))
-            } catch {
-                await send(.navigationPersisted(.failure(.navigationPersistenceFailed)))
-            }
+            try? await navigationSnapshotClient.save(snapshot)
+            await send(.navigationPersisted)
         }
     }
 

@@ -34,7 +34,7 @@ final class AppFeatureTests: XCTestCase {
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-42"
         }
-        await store.receive(.navigationPersisted(.success(())))
+        await store.receive(.navigationPersisted)
     }
 
     func testDeepLinkSelectsJourneyWithoutCustomRouter() async {
@@ -46,7 +46,7 @@ final class AppFeatureTests: XCTestCase {
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-43"
         }
-        await store.receive(.navigationPersisted(.success(())))
+        await store.receive(.navigationPersisted)
     }
 
     func testDeepLinkNavigationPersistsAndRestoresAfterRelaunch() async {
@@ -71,7 +71,7 @@ final class AppFeatureTests: XCTestCase {
             $0.selectedTab = .journey
             $0.restoredJourneyID = "journey-44"
         }
-        await firstStore.receive(.navigationPersisted(.success(())))
+        await firstStore.receive(.navigationPersisted)
 
         let secondStore = TestStore(initialState: AppFeature.State()) {
             AppFeature()
