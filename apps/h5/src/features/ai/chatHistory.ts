@@ -18,7 +18,17 @@ export type ChatRecord = {
   /** 这次最终存进衣橱的那套；没存就是 null。 */
   outfitTitle: string | null;
   outfitLookId: string | null;
+  /**
+   * 说过的话，按顺序。没存下搭配的那些次，点开要能看回当时聊了什么——
+   * 只留主题和最后一句的话，点进去是空的，这个功能就没意义了。
+   */
+  messages: ChatMessage[];
 };
+
+export type ChatMessage = { role: "user" | "ai"; text: string };
+
+/** 一次对话留多少句。够回看，又不至于把配额吃光。 */
+export const MAX_MESSAGES_PER_RECORD = 40;
 
 /**
  * 只留最近这些条。对话记录是给人回看的，不是日志；
@@ -42,13 +52,26 @@ export const chatHistoryStore: LocalStoreDefinition<ChatRecord[]> = {
       const date = asTrimmedString(record.date, 32);
       const theme = asTrimmedString(record.theme, MAX_TEXT);
       if (!id || !date || !theme) continue;
+      const messages: ChatMessage[] = [];
+      if (Array.isArray(record.messages)) {
+        for (const raw of record.messages.slice(0, MAX_MESSAGES_PER_RECORD)) {
+          const message = asRecord(raw);
+          const text = message ? asTrimmedString(message.text, 400) : null;
+          if (!text) continue;
+          messages.push({
+            role: message?.role === "ai" ? "ai" : "user",
+            text
+          });
+        }
+      }
       records.push({
         id,
         date,
         theme,
         last: asTrimmedString(record.last, MAX_TEXT) ?? "",
         outfitTitle: asTrimmedString(record.outfitTitle, MAX_TEXT),
-        outfitLookId: asTrimmedString(record.outfitLookId, 64)
+        outfitLookId: asTrimmedString(record.outfitLookId, 64),
+        messages
       });
     }
     return records.slice(0, MAX_CHAT_RECORDS);

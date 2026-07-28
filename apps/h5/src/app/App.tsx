@@ -546,7 +546,20 @@ export function App() {
    * 走的是既有的搭配接口：把选中的单品作为必选项交给后端出方案，再保存该方案。
    * 没有为此新增任何端点，也没有在前端凭空拼一个 Look——衣橱资产必须由后端产生。
    */
-  async function saveCombo(entries: readonly { itemId: string }[]) {
+  /**
+   * 把组合衣柜存成一套穿搭，然后按用户点的那个按钮接着做一件事。
+   *
+   * 两件都只在手动点击后发生：各要跑一次真实模型调用，自动触发等于每放
+   * 一件衣服就烧一次额度。
+   *
+   * 试穿这条不在这里直接生成——它需要一张已上传的照片对象，而形象照存在
+   * 本机是 data URL。详情页里已经有一条能正常工作的上传+试穿流程，所以
+   * 这里存完就把那套打开，让用户在那里选照片，而不是另造一条半成品。
+   */
+  async function saveCombo(
+    entries: readonly { itemId: string }[],
+    intent: "cover" | "try_on" = "cover"
+  ) {
     if (entries.length < 2) return;
     try {
       const plans = await wardrobeApi.planOutfits({
@@ -558,9 +571,20 @@ export function App() {
         setNotice("这套组合暂时没能生成方案，换一件再试");
         return;
       }
-      await wardrobeApi.saveOutfitPlan(plan, crypto.randomUUID());
-      setNotice("已存为新的穿搭，正在后台生成拼贴");
+      const saved = await wardrobeApi.saveOutfitPlan(plan, crypto.randomUUID());
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+
+      if (intent === "cover") {
+        await wardrobeApi.createRender(
+          saved.look_id,
+          "pixel_cover",
+          crypto.randomUUID()
+        );
+        setNotice("已存为新的穿搭，效果封面正在生成");
+      } else {
+        setNotice("已存为新的穿搭，选一张形象照就能试穿");
+      }
+      setSelectedLookId(saved.look_id);
     } catch (error) {
       setNotice(errorMessage(error));
     }

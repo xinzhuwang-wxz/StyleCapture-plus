@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { Item, Look, RenderArtifact } from "../../api/client";
 import { ComboBasket } from "../combo/ComboBasket";
+import { ComboDetailSheet } from "../combo/ComboDetailSheet";
 import {
   addToBasket,
   basketEntryOf,
@@ -53,7 +54,14 @@ export function WardrobeScreen({
   onRetryPixel: (item: Item) => void;
   onRetryPending: (pending: PendingItem) => void;
   onDismissPending: (pending: PendingItem) => void;
-  onSaveCombo?: (entries: readonly BasketEntry[]) => Promise<void> | void;
+  /**
+   * 存成穿搭。intent 决定存完接着生成什么——两者都由用户手动点，
+   * 各要跑一次真实模型调用，不该自动触发。
+   */
+  onSaveCombo?: (
+    entries: readonly BasketEntry[],
+    intent: "cover" | "try_on"
+  ) => Promise<void> | void;
   onNotice?: (message: string) => void;
 }) {
   const [basket, setBasket] = useState<readonly BasketEntry[]>([]);
@@ -65,8 +73,9 @@ export function WardrobeScreen({
     setBasket((current) => {
       if (isInBasket(current, item.id)) return removeFromBasket(current, item.id);
       const next = addToBasket(current, basketEntryOf(item, label));
+      // 放进去只演一下柜门，不要抢着把二级页顶到脸上——进去看是点击才该
+      // 发生的事，拖到一半被弹走反而没法接着拖下一件。
       if (next === current) onNotice?.("组合衣柜放满了，先拿出一件再加");
-      else setBasketOpen(true);
       return next;
     });
   }
@@ -89,6 +98,38 @@ export function WardrobeScreen({
     (view === "looks"
       ? looks.length === 0
       : visible.length === 0 && pending.length === 0);
+
+  async function composeCombo(intent: "cover" | "try_on") {
+    if (!onSaveCombo) {
+      // 没接保存能力时说实话，而不是假装存好了。
+      onNotice?.("这套组合还不能保存，稍后再试");
+      return;
+    }
+    setSavingCombo(true);
+    try {
+      await onSaveCombo(basket, intent);
+      setBasket([]);
+      setBasketOpen(false);
+    } finally {
+      setSavingCombo(false);
+    }
+  }
+
+  if (basketOpen) {
+    return (
+      <ComboDetailSheet
+        basket={basket}
+        busy={savingCombo}
+        onRemove={(itemId) =>
+          setBasket((current) => removeFromBasket(current, itemId))
+        }
+        onClear={() => setBasket([])}
+        onCompose={() => void composeCombo("cover")}
+        onTryOn={() => void composeCombo("try_on")}
+        onClose={() => setBasketOpen(false)}
+      />
+    );
+  }
 
   return (
     <section className="wardrobe-section" aria-labelledby="wardrobe-title">
@@ -222,29 +263,8 @@ export function WardrobeScreen({
       {view === "items" ? (
         <ComboBasket
           basket={basket}
-          open={basketOpen}
           receiving={receiving}
-          saving={savingCombo}
-          onToggle={() => setBasketOpen((open) => !open)}
-          onRemove={(itemId: string) =>
-            setBasket((current) => removeFromBasket(current, itemId))
-          }
-          onClear={() => setBasket([])}
-          onSave={async () => {
-            if (!onSaveCombo) {
-              // 没接保存能力时说实话，而不是假装存好了。
-              onNotice?.("这套组合还不能保存，稍后再试");
-              return;
-            }
-            setSavingCombo(true);
-            try {
-              await onSaveCombo(basket);
-              setBasket([]);
-              setBasketOpen(false);
-            } finally {
-              setSavingCombo(false);
-            }
-          }}
+          onOpen={() => setBasketOpen(true)}
         />
       ) : null}
     </section>

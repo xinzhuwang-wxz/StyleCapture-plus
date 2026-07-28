@@ -1653,3 +1653,30 @@ p {
   border-radius: 999px;
   cursor: pointer;
 }
+
+/* 整行是按钮：清掉按钮默认样式，观感不变。 */
+.chat-history__row {
+  display: grid;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-history__row:active { transform: scale(0.99); }
+
+.chat-history__outfit {
+  justify-self: start;
+  padding: 0.3rem 0.7rem;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--pixel-primary-dark);
+  background: #f3edfd;
+  border: 2px solid var(--pixel-secondary);
+  border-radius: 999px;
+}

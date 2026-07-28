@@ -1,111 +1,65 @@
-import { PixelButton } from "../../components/PixelUI";
-import {
-  MAX_BASKET_ITEMS,
-  auditBasket,
-  type BasketEntry
-} from "./basketRules";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
+import type { BasketEntry } from "./basketRules";
 import "./combo.css";
 
 type ComboBasketProps = {
   basket: readonly BasketEntry[];
-  open: boolean;
-  /** 有人正在拖东西过来，把落点放大提示。 */
+  /** 有人正在拖东西过来，把柜门打开等着接。 */
   receiving?: boolean;
-  saving?: boolean;
-  onToggle: () => void;
-  onRemove: (itemId: string) => void;
-  onClear: () => void;
-  onSave: () => void;
+  /** 点柜子进二级页看具体单品。 */
+  onOpen: () => void;
 };
 
 /**
- * 「我的组合衣柜」——一个常驻的落点。
+ * 「我的组合衣柜」——屏幕角上的一个柜子，也是拖拽的落点。
  *
- * 拖拽只是把东西放进来的一种方式，卡片上还有「加入组合」按钮走同一条路径；
- * 所以这个抽屉不依赖任何指针手势也能用完。
+ * 从前它是一条通栏。通栏用的是 position:fixed 加 100% 宽，而演示外壳里
+ * 屏幕只有 390px，于是左右都顶出了手机边框。现在挂进 .pixel-screen 里
+ * 定位，宽度由内容决定，怎么也溢不出去。
+ *
+ * 柜门会在东西放进来时开一下再关上——不然「放进去了没有」只能靠角标数字
+ * 猜。放进来的动作本身要看得见。
  */
-export function ComboBasket({
-  basket,
-  open,
-  receiving,
-  saving,
-  onToggle,
-  onRemove,
-  onClear,
-  onSave
-}: ComboBasketProps) {
-  const audit = auditBasket(basket);
+export function ComboBasket({ basket, receiving, onOpen }: ComboBasketProps) {
+  const [justReceived, setJustReceived] = useState(false);
 
-  return (
-    <aside
-      className="combo-door"
-      data-open={open ? "true" : undefined}
+  // 件数变多＝刚放进来一件，开门再关上。
+  useEffect(() => {
+    if (!basket.length) return;
+    setJustReceived(true);
+    const timer = window.setTimeout(() => setJustReceived(false), 620);
+    return () => window.clearTimeout(timer);
+  }, [basket.length]);
+
+  const host =
+    typeof document === "undefined"
+      ? null
+      : document.querySelector(".pixel-screen");
+
+  const cabinet = (
+    <div
+      className="combo-cabinet"
+      data-combo-drop-target="true"
       data-receiving={receiving ? "true" : undefined}
+      data-swallowing={justReceived ? "true" : undefined}
     >
       <button
         type="button"
-        className="combo-door__handle"
-        aria-expanded={open}
-        aria-label={`我的组合衣柜，已放入 ${basket.length} 件`}
-        onClick={onToggle}
+        className="combo-cabinet__body"
+        aria-label={`我的组合衣柜，已放入 ${basket.length} 件，点开查看`}
+        onClick={onOpen}
       >
-        <span aria-hidden="true">🚪</span>
-        <strong>我的组合衣柜</strong>
-        <span className="combo-door__count">{basket.length}</span>
+        <span className="combo-cabinet__doors" aria-hidden="true">
+          <span className="combo-cabinet__door combo-cabinet__door--left" />
+          <span className="combo-cabinet__door combo-cabinet__door--right" />
+        </span>
+        <span className="combo-cabinet__count">{basket.length}</span>
       </button>
-
-      {open ? (
-        <div className="combo-door__panel">
-          {basket.length ? (
-            <ul className="combo-door__list">
-              {basket.map((entry) => (
-                <li key={entry.itemId}>
-                  {entry.imageUrl ? (
-                    <img src={entry.imageUrl} alt="" />
-                  ) : (
-                    <span className="combo-door__blank" aria-hidden="true" />
-                  )}
-                  <span className="combo-door__label">{entry.label}</span>
-                  <button
-                    type="button"
-                    aria-label={`把${entry.label}移出组合`}
-                    onClick={() => onRemove(entry.itemId)}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="combo-door__empty">
-              长按单品拖进来，或点卡片上的「加入组合」
-            </p>
-          )}
-
-          <p className="combo-door__audit" role="status">
-            {audit.ok
-              ? `可以存成一套（最多 ${MAX_BASKET_ITEMS} 件）`
-              : audit.reason}
-          </p>
-
-          <div className="combo-door__actions">
-            <PixelButton
-              variant="primary"
-              disabled={!audit.ok || saving}
-              onClick={onSave}
-            >
-              {saving ? "保存中…" : "保存为新的穿搭 ✨"}
-            </PixelButton>
-            <PixelButton
-              variant="ghost"
-              disabled={!basket.length || saving}
-              onClick={onClear}
-            >
-              清空
-            </PixelButton>
-          </div>
-        </div>
-      ) : null}
-    </aside>
+      <span className="combo-cabinet__label">组合衣柜</span>
+    </div>
   );
+
+  return host ? createPortal(cabinet, host) : cabinet;
 }

@@ -15,7 +15,8 @@ function record(id: string, theme = "通勤"): ChatRecord {
     theme,
     last: "那就用棕黄这套",
     outfitTitle: null,
-    outfitLookId: null
+    outfitLookId: null,
+    messages: [{ role: "user", text: theme }]
   };
 }
 
@@ -69,5 +70,34 @@ describe("ai chat history", () => {
   it("shows the date the way the list does, and does not invent one", () => {
     expect(displayDate("2026-07-21T09:00:00.000Z")).toMatch(/^\d{2}-\d{2}$/);
     expect(displayDate("说不清")).toBe("说不清");
+  });
+
+  it("keeps what was said, so a conversation without a saved outfit is still worth opening", () => {
+    // 只留主题和最后一句的话，点进去是空的，这个功能就没意义了。
+    window.localStorage.setItem(
+      chatHistoryStore.key,
+      JSON.stringify([
+        {
+          ...record("c1"),
+          messages: [
+            { role: "user", text: "周末约会" },
+            { role: "ai", text: "配色柔和一点更好" }
+          ]
+        }
+      ])
+    );
+    expect(readChatHistory()[0].messages).toEqual([
+      { role: "user", text: "周末约会" },
+      { role: "ai", text: "配色柔和一点更好" }
+    ]);
+  });
+
+  it("survives a record whose messages were mangled", () => {
+    window.localStorage.setItem(
+      chatHistoryStore.key,
+      JSON.stringify([{ ...record("c1"), messages: [null, 7, { text: "在" }] }])
+    );
+    // 坏掉的几句丢掉，整条记录还留着——不该因为一句话读不出来就整条消失。
+    expect(readChatHistory()[0].messages).toEqual([{ role: "user", text: "在" }]);
   });
 });

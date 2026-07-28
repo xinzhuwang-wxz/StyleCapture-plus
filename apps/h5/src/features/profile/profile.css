@@ -23,6 +23,23 @@
   border-radius: 18px;
 }
 
+/* 整张卡现在是按钮：清掉按钮默认样式，保持原来的观感。 */
+.profile__card--button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.profile__card--button:active { transform: scale(0.99); }
+
+.profile__body {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--pixel-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
 .profile__card img {
   grid-row: 1 / span 2;
   width: 70px;

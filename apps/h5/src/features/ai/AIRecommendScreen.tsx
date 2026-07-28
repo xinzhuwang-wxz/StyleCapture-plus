@@ -282,7 +282,7 @@ export function AIRecommendScreen({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [history, setHistory] = useState<ChatRecord[]>(() => readChatHistory());
   // 一次对话一个 id，多聊几轮只更新同一条记录，不会在列表里刷屏。
-  const [conversationId, setConversationId] = useState(() =>
+  const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID()
   );
   /*
@@ -291,6 +291,7 @@ export function AIRecommendScreen({
    * 读出来的是上一轮的 turns——主题会算成空的，于是什么都没记下来。
    */
   const themeRef = useRef("");
+  const turnsRef = useRef<Turn[]>([]);
   const lastReplyRef = useRef("");
   const planning = useMutation({
     mutationFn: (scene: string) =>
@@ -323,7 +324,11 @@ export function AIRecommendScreen({
         : result.degraded
           ? `AI 解释这次没跟上，先按稳定规则排了 ${result.plans.length} 套。`
           : `挑了 ${result.plans.length} 套，想调哪里直接说。`;
-      setTurns((current) => [...current, { role: "ai", text: reply, result }]);
+      setTurns((current) => {
+        const next: Turn[] = [...current, { role: "ai", text: reply, result }];
+        turnsRef.current = next;
+        return next;
+      });
       // 聊过就算数，不必等到存下某一套——很多次对话本来就不会以保存收尾。
       lastReplyRef.current = reply;
       rememberConversation();
@@ -394,7 +399,11 @@ export function AIRecommendScreen({
     setInput("");
     setProgressiveResult(null);
     setReasoningComplete(false);
-    setTurns((current) => [...current, { role: "user", text: trimmed }]);
+    setTurns((current) => {
+      const next: Turn[] = [...current, { role: "user", text: trimmed }];
+      turnsRef.current = next;
+      return next;
+    });
     if (!themeRef.current) themeRef.current = trimmed;
     // 把之前说过的一并带上，AI 才知道这句是在调整上一套，而不是重新开始。
     const said = turns
@@ -424,6 +433,7 @@ export function AIRecommendScreen({
 
   function startNewConversation() {
     setTurns([]);
+    turnsRef.current = [];
     setProgressiveResult(null);
     setReasoningComplete(false);
     setInput("");
@@ -447,6 +457,10 @@ export function AIRecommendScreen({
       last: lastReplyRef.current,
       outfitTitle: null,
       outfitLookId: null,
+      messages: turnsRef.current.map((turn) => ({
+        role: turn.role,
+        text: turn.text
+      })),
       ...patch
     });
     setHistory(next);
@@ -462,6 +476,23 @@ export function AIRecommendScreen({
         onOpenLook={(lookId) => {
           onHistoryOpenChange?.(false);
           onOpenLook(lookId);
+        }}
+        onReopen={(record) => {
+          // 回到那次对话：把说过的话铺回线程，并接着用同一条记录，
+          // 免得同一次聊天在列表里裂成两条。
+          const restored: Turn[] = record.messages.map((message) =>
+            message.role === "ai"
+              ? { role: "ai", text: message.text, result: null }
+              : { role: "user", text: message.text }
+          );
+          setTurns(restored);
+          turnsRef.current = restored;
+          themeRef.current = record.theme;
+          lastReplyRef.current = record.last;
+          setConversationId(record.id);
+          setProgressiveResult(null);
+          setReasoningComplete(false);
+          onHistoryOpenChange?.(false);
         }}
         onClose={() => onHistoryOpenChange?.(false)}
       />

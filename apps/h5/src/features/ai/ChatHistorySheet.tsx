@@ -3,8 +3,10 @@ import { displayDate, type ChatRecord } from "./chatHistory";
 
 type ChatHistorySheetProps = {
   records: readonly ChatRecord[];
-  /** 打开那次最终存进衣橱的穿搭。没存过的那几条没有这个出口。 */
+  /** 打开那次最终存进衣橱的穿搭。 */
   onOpenLook: (lookId: string) => void;
+  /** 没存下搭配的那几次，回到当时说过的话。 */
+  onReopen: (record: ChatRecord) => void;
   onClose: () => void;
 };
 
@@ -17,6 +19,7 @@ type ChatHistorySheetProps = {
 export function ChatHistorySheet({
   records,
   onOpenLook,
+  onReopen,
   onClose
 }: ChatHistorySheetProps) {
   return (
@@ -43,28 +46,40 @@ export function ChatHistorySheet({
         <ul className="chat-history">
           {records.map((record) => (
             <li key={record.id}>
-              <div className="chat-history__head">
-                <span className="chat-history__date">
-                  {displayDate(record.date)}
+              {/*
+                看历史的目的就是「那天穿了什么」，所以整行可点：存过搭配就
+                直接开那套，没存就回到当时说过的话。只有一个小按钮可点等于
+                大部分行点不动。
+              */}
+              <button
+                type="button"
+                className="chat-history__row"
+                aria-label={
+                  record.outfitLookId
+                    ? `打开 ${displayDate(record.date)} 选定的搭配：${record.outfitTitle}`
+                    : `回看 ${displayDate(record.date)} 的对话：${record.theme}`
+                }
+                onClick={() =>
+                  record.outfitLookId
+                    ? onOpenLook(record.outfitLookId)
+                    : onReopen(record)
+                }
+              >
+                <span className="chat-history__head">
+                  <span className="chat-history__date">
+                    {displayDate(record.date)}
+                  </span>
+                  <strong>{record.theme}</strong>
                 </span>
-                <strong>{record.theme}</strong>
-              </div>
-              {record.last ? (
-                <p className="chat-history__last">{record.last}</p>
-              ) : null}
-              {record.outfitLookId && record.outfitTitle ? (
-                <button
-                  type="button"
-                  className="chat-history__outfit"
-                  onClick={() => onOpenLook(record.outfitLookId as string)}
-                >
-                  最终选定：{record.outfitTitle} ›
-                </button>
-              ) : (
-                <p className="chat-history__outfit chat-history__outfit--none">
-                  这次没有存下搭配
-                </p>
-              )}
+                {record.last ? (
+                  <span className="chat-history__last">{record.last}</span>
+                ) : null}
+                <span className="chat-history__outfit">
+                  {record.outfitTitle
+                    ? `最终选定：${record.outfitTitle} ›`
+                    : "这次没存下搭配 · 回看聊了什么 ›"}
+                </span>
+              </button>
             </li>
           ))}
         </ul>
