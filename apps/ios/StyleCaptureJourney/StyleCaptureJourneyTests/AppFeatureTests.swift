@@ -4,6 +4,54 @@ import XCTest
 
 @MainActor
 final class AppFeatureTests: XCTestCase {
+    func testAppLaunchRestoresAuthenticationBeforeJourneyIsAvailable() async {
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.databaseClient = DatabaseClient(
+                migrate: {},
+                insertOutbox: { _ in },
+                pendingOutbox: { [] }
+            )
+            $0.navigationSnapshotClient = NavigationSnapshotClient(
+                load: { nil },
+                save: { _ in }
+            )
+            $0.authClient.restore = { nil }
+        }
+
+        await store.send(.launch) {
+            $0.auth.phase = .restoring
+            $0.journey.isAuthenticated = false
+        }
+        await store.receive(.launchResponse(.success(nil))) {
+            $0.hasMigratedDatabase = true
+            $0.journey.isAuthenticated = false
+        }
+        await store.receive(.auth(.restoreResponse(.signedOut))) {
+            $0.auth.phase = .signedOut
+            $0.journey.isAuthenticated = false
+        }
+    }
+
+    func testAppScopesAuthReducerAndUnlocksJourneyOnlyAfterRestoreSucceeds() async {
+        let tokens = Self.tokens
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature()
+        } withDependencies: {
+            $0.authClient.restore = { tokens }
+        }
+
+        await store.send(.auth(.task)) {
+            $0.auth.phase = .restoring
+            $0.journey.isAuthenticated = false
+        }
+        await store.receive(.auth(.restoreResponse(.signedIn(tokens)))) {
+            $0.auth.phase = .signedIn(tokens)
+            $0.journey.isAuthenticated = true
+        }
+    }
+
     func testLaunchMigratesDatabaseAndMarksAppReady() async {
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
@@ -115,6 +163,16 @@ final class AppFeatureTests: XCTestCase {
             $0.restoredJourneyID = "journey-44"
         }
     }
+}
+
+private extension AppFeatureTests {
+    static let tokens = AuthTokens(
+        accountSubject: "account-123",
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        accessExpiresAt: Date(timeIntervalSince1970: 1_900_000_000),
+        tokenType: "Bearer"
+    )
 }
 
 private actor NavigationSnapshotPersistence {

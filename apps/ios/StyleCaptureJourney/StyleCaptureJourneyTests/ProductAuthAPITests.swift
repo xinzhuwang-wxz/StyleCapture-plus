@@ -281,12 +281,13 @@ private extension ProductAuthAPITests {
     """
 
     static func makeAPI(handler: @escaping TestProductAuthTransport.Handler) -> ProductAuthAPI {
-        ProductAuthAPI(
-            client: Client(
+        ProductAuthAPI { middlewares in
+            Client(
                 serverURL: URL(string: "https://api.stylecapture.test")!,
-                transport: TestProductAuthTransport(handler: handler)
+                transport: TestProductAuthTransport(handler: handler),
+                middlewares: middlewares
             )
-        )
+        }
     }
 
     static func authTokenResponse() -> (HTTPResponse, HTTPBody?) {

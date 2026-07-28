@@ -1,11 +1,12 @@
 import XCTest
 
 final class LaunchTests: XCTestCase {
-    func testLaunchShowsEmptyJourneyShell() {
+    func testLaunchShowsRestoringThenSignedOutAuthenticationShell() {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["journey.title"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["journey.emptyState"].exists)
+        XCTAssertTrue(app.otherElements["auth.shell.restoring"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["auth.cta.apple"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["journey.emptyState"].exists)
     }
 }

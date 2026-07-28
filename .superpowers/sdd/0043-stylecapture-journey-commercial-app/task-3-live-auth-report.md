@@ -12,6 +12,7 @@ This report is committed with the implementation as the single corrected local c
 - `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/API/ProductAuthAPI.swift`
   - Maps `AppleSignInRequest` to generated `Components.Schemas.AppleAuthBody`.
   - Maps generated `AuthTokenResponse` to domain `AuthTokens`.
+  - Owns generated-client calls for Apple authentication, session refresh, and account deletion, including operation-specific generated-error mapping.
 
 ## Test intent and failure modes
 
@@ -32,4 +33,10 @@ The tests were introduced as the required hosted RED checkpoint in commit `ed4f1
 ## Concerns
 
 - Hosted iPhone CI is still required to compile and run `ProductAuthAPITests` against the generated client; no local Xcode or Simulator build was run.
-- Live authenticate, refresh, delete, error mapping, Keychain composition, and AuthenticationServices UI remain deliberately out of scope.
+- Keychain composition and AuthenticationServices UI remain deliberately out of scope.
+
+## Generated-client factory boundary correction
+
+The frozen RED originally passed a prebuilt generated `Client` into `ProductAuthAPI`. That client keeps its underlying `UniversalClient` and middleware list private, while the generated account-delete input has no `Authorization` field. The required official per-delete bearer middleware was therefore unrepresentable with that construction.
+
+`ProductAuthAPI` now receives a feature-local generated-client factory. It creates the unauthenticated client with no middleware for Apple authentication and refresh, and creates the deletion client with exactly one `BearerAuthorizationMiddleware`. `ProductAuthAPITests` supplies the server URL and test transport through the factory while preserving the transport-level header assertions. This correction does not introduce handwritten network DTOs, routes, or transport code.
