@@ -38,10 +38,7 @@ def measure(image: Image.Image) -> tuple[int, int] | None:
     """Return (head_top_row, feet_row) for the drawn body."""
     width, height = image.size
     alpha = image.getchannel("A").load()
-    runs = [
-        sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR)
-        for y in range(height)
-    ]
+    runs = [sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR) for y in range(height)]
     widest = max(runs) or 1
     floor = max(MIN_SOLID_RUN, SOLID_RUN_RATIO * widest)
     solid = [y for y, run in enumerate(runs) if run >= floor]

@@ -126,7 +126,5 @@ def test_saving_a_plan_is_not_charged_to_the_ai_budget() -> None:
 
     assert costly_capability("POST", "/v1/outfit-plans") == "reasoning"
     assert costly_capability("POST", "/v1/outfit-plans/stream") == "reasoning"
-    assert (
-        costly_capability("POST", "/v1/outfit-plans/abc/replace-slot") == "reasoning"
-    )
+    assert costly_capability("POST", "/v1/outfit-plans/abc/replace-slot") == "reasoning"
     assert costly_capability("POST", "/v1/outfit-plans/abc/save-look") is None

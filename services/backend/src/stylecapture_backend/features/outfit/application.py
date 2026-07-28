@@ -992,12 +992,8 @@ def _attribute_text(item: WardrobeItem) -> str:
     ).lower()
 
 
-
 def _is_hot(weather: str | None) -> bool:
-    return any(
-        token in (weather or "").lower()
-        for token in ("炎热", "高温", "盛夏", "闷热")
-    )
+    return any(token in (weather or "").lower() for token in ("炎热", "高温", "盛夏", "闷热"))
 
 
 def _hard_compatible(item: WardrobeItem, request: OutfitRequest) -> bool:

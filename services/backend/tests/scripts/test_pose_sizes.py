@@ -28,10 +28,7 @@ def _body_height(path: pathlib.Path) -> int | None:
         image = opened.convert("RGBA")
         width, height = image.size
         alpha = image.getchannel("A").load()
-        runs = [
-            sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR)
-            for y in range(height)
-        ]
+        runs = [sum(1 for x in range(width) if alpha[x, y] > ALPHA_FLOOR) for y in range(height)]
     widest = max(runs) or 1
     floor = max(MIN_SOLID_RUN, SOLID_RUN_RATIO * widest)
     solid = [y for y, run in enumerate(runs) if run >= floor]
@@ -50,9 +47,7 @@ def _characters() -> list[pathlib.Path]:
     return sorted(path for path in POSE_ROOT.iterdir() if path.is_dir())
 
 
-@pytest.mark.parametrize(
-    "character", _characters(), ids=lambda path: path.name
-)
+@pytest.mark.parametrize("character", _characters(), ids=lambda path: path.name)
 def test_every_pose_matches_the_idle_body_size(character: pathlib.Path) -> None:
     reference = character / "idle.png"
     if not reference.exists():
