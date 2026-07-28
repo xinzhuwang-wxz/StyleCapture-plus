@@ -93,14 +93,23 @@ jobs:
           uv run python scripts/export_openapi.py --output apps/h5/openapi.json --output apps/ios/StyleCaptureJourney/OpenAPI/openapi.json --check
           bash scripts/generate_ios_openapi_client.sh --check
 
-      - name: Test iOS foundation
+      - name: Resolve iOS package dependencies
+        timeout-minutes: 12
         run: |
           xcodebuild -resolvePackageDependencies \
             -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj \
             -scheme StyleCaptureJourney \
             -skipPackagePluginValidation \
             -skipMacroValidation
+
+      - name: Verify iOS package graph
+        timeout-minutes: 3
+        run: |
           uv run python scripts/check_ios_package_graph.py --require-generated-project
+
+      - name: Test iOS foundation
+        timeout-minutes: 20
+        run: |
           xcodebuild -project apps/ios/StyleCaptureJourney/StyleCaptureJourney.xcodeproj \
             -scheme StyleCaptureJourney \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
@@ -109,6 +118,10 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             test
+
+      - name: Verify iOS package lock
+        timeout-minutes: 2
+        run: |
           bash scripts/bootstrap_ios.sh --check-package-resolved
 
       - name: Inspect iOS privacy manifest and boundaries
