@@ -2,7 +2,7 @@
 
 ## Current implementation checkpoint
 
-The current correction is still an uncommitted branch-local GREEN candidate. It must not be described as a final implementation commit until the files below, the generated contracts and this report are committed together and hosted PostgreSQL/Xcode evidence passes.
+The durable deletion implementation is committed on the branch, but Task 3 remains a milestone candidate until a matching hosted PostgreSQL/Xcode run and a fresh local Simulator walkthrough pass. Repository and sandbox evidence in this report must not be described as TestFlight, production, market, payment or real-user evidence.
 
 ## Changed files
 
@@ -70,6 +70,12 @@ One deliberately unavailable dummy PostgreSQL port produced seven connection fai
 - Hosted PostgreSQL execution/migration proof and hosted Xcode compile/test are pending for this exact worktree.
 - No fresh local Simulator build/walkthrough has been run for this correction. Existing untracked Simulator artifacts are stale and cannot be counted.
 - No signed archive, TestFlight processed build, real Sign in with Apple account run, account deletion run, production run, M0 market evidence, or revenue evidence exists in this report.
+
+## Hosted run `30393350600` correction
+
+- Product job `90390187901` stopped at the unchanged full-tree Ruff format gate. The correction is formatting-only across six Python files; AST equivalence, Ruff format/check and the affected database-independent tests pass locally.
+- iOS job `90390187981` compiled the application and test sources, then failed to link direct `Sharing.FileStorageKey` / `Shared` symbols before XCTest execution. `AppFeature` directly uses TCA Sharing state restoration, so `project.yml` now exact-pins `swift-sharing` `2.9.1`, explicitly links the `Sharing` product into the application target and imports the defining module. The generated-project and release-surface validators freeze that dependency boundary.
+- This failed run is diagnosis evidence only. A replacement run must pass the PostgreSQL, iPhone simulator, package-lock and privacy/boundary stages before hosted GREEN can be claimed.
 
 ## Generated-client factory boundary correction
 

@@ -21,19 +21,11 @@ PRIVACY_MANIFEST = IOS_ROOT / "StyleCaptureJourney" / "Resources" / "PrivacyInfo
 NOTICES = IOS_ROOT / "StyleCaptureJourney" / "Resources" / "ThirdPartyNotices.txt"
 APP_FEATURE = IOS_ROOT / "StyleCaptureJourney" / "App" / "AppFeature.swift"
 APPLE_SIGN_IN_BUTTON = (
-    IOS_ROOT
-    / "StyleCaptureJourney"
-    / "Features"
-    / "Onboarding"
-    / "AppleSignInTriggerButton.swift"
+    IOS_ROOT / "StyleCaptureJourney" / "Features" / "Onboarding" / "AppleSignInTriggerButton.swift"
 )
 AUTH_SESSION = IOS_ROOT / "StyleCaptureJourney" / "Core" / "Auth" / "AuthSession.swift"
 NAVIGATION_CLIENT = (
-    IOS_ROOT
-    / "StyleCaptureJourney"
-    / "Core"
-    / "Navigation"
-    / "NavigationSnapshotClient.swift"
+    IOS_ROOT / "StyleCaptureJourney" / "Core" / "Navigation" / "NavigationSnapshotClient.swift"
 )
 PRIVACY_EVIDENCE = (
     REPOSITORY_ROOT
@@ -110,6 +102,15 @@ def test_application_target_explicitly_links_http_types() -> None:
     )[0]
 
     assert "- package: swift-http-types\n        product: HTTPTypes" in application_target
+
+
+def test_application_target_explicitly_links_tca_shared_state() -> None:
+    project_spec = PROJECT_SPEC.read_text(encoding="utf-8")
+    application_target = project_spec.split("  StyleCaptureJourney:\n", maxsplit=1)[1].split(
+        "  StyleCaptureJourneyTests:\n", maxsplit=1
+    )[0]
+
+    assert "- package: swift-sharing\n        product: Sharing" in application_target
 
 
 def test_native_shell_reuses_tca_and_apple_surfaces_without_duplicate_infrastructure() -> None:
@@ -206,9 +207,7 @@ def test_reducers_and_views_do_not_expose_secret_tokens_in_observable_state() ->
 
             for line_number, line in enumerate(source.splitlines(), start=1):
                 if "accessToken" in line or "refreshToken" in line:
-                    violations.append(
-                        f"{relative_path}:{line_number} references raw token field"
-                    )
+                    violations.append(f"{relative_path}:{line_number} references raw token field")
 
                 if "case signedIn(AuthTokens)" in line:
                     violations.append(

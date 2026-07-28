@@ -21,6 +21,9 @@ packages:
   swift-dependencies:
     url: https://github.com/pointfreeco/swift-dependencies
     exactVersion: 1.14.1
+  swift-sharing:
+    url: https://github.com/pointfreeco/swift-sharing
+    exactVersion: 2.9.1
   GRDB:
     url: https://github.com/groue/GRDB.swift.git
     exactVersion: 7.11.1
@@ -90,6 +93,8 @@ targets:
         product: CasePaths
       - package: swift-dependencies
         product: Dependencies
+      - package: swift-sharing
+        product: Sharing
       - package: swift-openapi-runtime
         product: OpenAPIRuntime
       - package: swift-http-types

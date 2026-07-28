@@ -24,9 +24,7 @@ def _decode_canonical_fernet_key(value: SecretStr) -> bytes:
     except (UnicodeEncodeError, binascii.Error) as error:
         raise ValueError("Apple provider grant encryption key must be a Fernet key") from error
     if base64.urlsafe_b64encode(decoded) != encoded:
-        raise ValueError(
-            "Apple provider grant encryption key must use canonical URL-safe base64"
-        )
+        raise ValueError("Apple provider grant encryption key must use canonical URL-safe base64")
     try:
         Fernet(encoded)
     except (ValueError, TypeError) as error:

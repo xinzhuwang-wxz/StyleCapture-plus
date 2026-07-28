@@ -27,6 +27,7 @@ class MaintenanceOnlyAppleIdentity:
     ) -> AppleIdentityClaims:
         raise RuntimeError("account maintenance worker does not authenticate Apple users")
 
+
 settings = BackendSettings()  # type: ignore[call-arg]
 sessions = build_session_factory(
     settings.database_url.get_secret_value(),

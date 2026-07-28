@@ -129,9 +129,7 @@ class SubjectTombstoneRecord(Base):
 
 class AccountDeletionIdempotencyRecord(Base):
     __tablename__ = "account_deletion_idempotency"
-    __table_args__ = (
-        Index("ix_account_deletion_idempotency_access", "access_token_hash"),
-    )
+    __table_args__ = (Index("ix_account_deletion_idempotency_access", "access_token_hash"),)
 
     idempotency_key_hash: Mapped[str] = mapped_column(String(128), primary_key=True)
     access_token_hash: Mapped[str] = mapped_column(String(128), nullable=False)

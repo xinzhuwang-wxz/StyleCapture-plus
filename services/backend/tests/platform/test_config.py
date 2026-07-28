@@ -228,9 +228,7 @@ def test_production_settings_reject_local_apple_provider_grant_key(
             apple_team_id="TEAMID1234",
             apple_key_id="KEYID12345",
             apple_private_key_pem=SecretStr("production-apple-private-key"),
-            apple_provider_grant_encryption_key=SecretStr(
-                PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY
-            ),
+            apple_provider_grant_encryption_key=SecretStr(PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY),
         )
 
 
@@ -279,7 +277,5 @@ def test_production_apple_provider_grant_key_rejects_public_placeholder_bytes(
             apple_team_id="TEAMID1234",
             apple_key_id="KEYID12345",
             apple_private_key_pem=SecretStr("production-apple-private-key"),
-            apple_provider_grant_encryption_key=SecretStr(
-                PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY
-            ),
+            apple_provider_grant_encryption_key=SecretStr(PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY),
         )

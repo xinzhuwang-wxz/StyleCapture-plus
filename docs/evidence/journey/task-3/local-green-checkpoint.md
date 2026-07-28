@@ -31,6 +31,10 @@ This is repository and database-independent development evidence for the durable
 
 The SQL tests were also pointed once at a deliberately unavailable dummy PostgreSQL port and failed only while establishing the migration connection. That probe is excluded from the pass count and is not a product regression. Execution of all 21 SQL tests plus migration up/down remains a hosted PostgreSQL gate.
 
+## Hosted candidate correction
+
+GitHub Actions run `30393350600` at `db1d5a2` was a truthful failed candidate, not GREEN evidence. The product job stopped at the full-tree Ruff format gate; the six affected Python files are now formatter-only changes, with identical parsed ASTs, `200 files already formatted`, targeted Ruff checks passing and the affected database-independent suite passing. The iOS job reached linking but could not link the `Sharing.FileStorageKey` symbols used directly by `AppFeature`'s TCA `@Shared(.fileStorage)` state restoration. The app target now exact-pins and explicitly links `swift-sharing` `2.9.1`, imports its defining module, and has executable package/release-surface assertions. A replacement hosted run is still required before either correction counts as hosted GREEN.
+
 ## Independent read-only reviews
 
 - Backend revocation outbox, races and cryptographic lifecycle: CLEAN, no P0/P1/P2.

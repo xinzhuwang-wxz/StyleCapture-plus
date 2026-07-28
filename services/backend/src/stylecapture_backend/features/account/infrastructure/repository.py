@@ -254,13 +254,19 @@ class InMemoryAccountRepository(AccountRepository):
             )
             self.deletions[canonical] = deletion
             for session_id, session in list(self.sessions.items()):
-                if UUID(session.account_subject) == canonical and session.state is SessionState.ACTIVE:
+                if (
+                    UUID(session.account_subject) == canonical
+                    and session.state is SessionState.ACTIVE
+                ):
                     revoked = session.revoke(now)
                     self.sessions[session_id] = revoked
                     self.refresh_index.pop(revoked.refresh_token_hash, None)
             attempt = None
             grant = self.apple_provider_grants.get(canonical)
-            if grant is not None and self.apple_provider_revocation_status.get(canonical) != "revoked":
+            if (
+                grant is not None
+                and self.apple_provider_revocation_status.get(canonical) != "revoked"
+            ):
                 self.apple_provider_revocation_status[canonical] = "pending"
                 self.apple_provider_revocation_failure_code.pop(canonical, None)
                 attempt = AppleProviderGrantRevocationAttempt(
@@ -271,7 +277,10 @@ class InMemoryAccountRepository(AccountRepository):
                 )
             if access_token_hash is not None and idempotency_key_hash is not None:
                 existing_replay = self.deletion_idempotency_by_key.get(idempotency_key_hash)
-                if existing_replay is not None and existing_replay != (access_token_hash, canonical):
+                if existing_replay is not None and existing_replay != (
+                    access_token_hash,
+                    canonical,
+                ):
                     raise AccountBindingConflictError("deletion idempotency key conflict")
                 self.deletion_idempotency_by_key[idempotency_key_hash] = (
                     access_token_hash,
@@ -403,7 +412,10 @@ class InMemoryAppleProviderGrantRepository(AppleProviderGrantRepository):
         attempt: AppleProviderGrantRevocationAttempt,
     ) -> UUID | None:
         for canonical, grant_id in self.grant_ids.items():
-            if grant_id == attempt.grant_id and self.grant_generations.get(canonical) == attempt.generation:
+            if (
+                grant_id == attempt.grant_id
+                and self.grant_generations.get(canonical) == attempt.generation
+            ):
                 return canonical
         return None
 
@@ -1043,10 +1055,15 @@ class SqlAlchemyAppleProviderGrantRepository(AppleProviderGrantRepository):
         lock: bool,
     ) -> AppleProviderGrantRecord | None:
         canonical = await self._resolve_subject(session, subject_id)
-        statement = select(AppleProviderGrantRecord).where(
-            AppleProviderGrantRecord.provider == "apple",
-            AppleProviderGrantRecord.account_subject == canonical,
-        ).order_by(AppleProviderGrantRecord.generation.desc()).limit(1)
+        statement = (
+            select(AppleProviderGrantRecord)
+            .where(
+                AppleProviderGrantRecord.provider == "apple",
+                AppleProviderGrantRecord.account_subject == canonical,
+            )
+            .order_by(AppleProviderGrantRecord.generation.desc())
+            .limit(1)
+        )
         if lock:
             statement = statement.with_for_update()
         return (await session.execute(statement)).scalar_one_or_none()
@@ -1061,6 +1078,7 @@ class SqlAlchemyAppleProviderGrantRepository(AppleProviderGrantRepository):
                 return current
             current = alias.canonical_subject_id
         return current
+
 
 def _session_record(session: DeviceSession) -> DeviceSessionRecord:
     return DeviceSessionRecord(

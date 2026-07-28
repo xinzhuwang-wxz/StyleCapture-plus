@@ -68,6 +68,7 @@ EXPECTED_DIRECT_PINS = {
     "swift-openapi-generator",
     "swift-openapi-runtime",
     "swift-openapi-urlsession",
+    "swift-sharing",
 }
 
 PROJECT_PRODUCT_REFERENCES = (
@@ -81,6 +82,7 @@ PROJECT_PRODUCT_REFERENCES = (
     "OpenAPIRuntime",
     "OpenAPIURLSession",
     "OpenAPIGenerator",
+    "Sharing",
 )
 
 
