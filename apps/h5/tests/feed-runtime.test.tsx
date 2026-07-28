@@ -211,24 +211,23 @@ async function drawAndConfirm(intent: "item" | "whole_outfit" = "item") {
     clientX: 40,
     clientY: 80
   });
-  await act(async () => {
-    await new Promise((resolve) => window.setTimeout(resolve, 710));
-  });
   if (intent === "whole_outfit") {
+    const wholeOutfitButton = await screen.findByRole("button", {
+      name: "存整套"
+    });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "存整套" }));
+      fireEvent.click(wholeOutfitButton);
       await Promise.resolve();
     });
   }
+  const confirmButton = await screen.findByRole("button", {
+    name:
+      intent === "whole_outfit"
+        ? "保存整套到数字衣橱"
+        : "保存圈选到数字衣橱"
+  });
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", {
-        name:
-          intent === "whole_outfit"
-            ? "保存整套到数字衣橱"
-            : "保存圈选到数字衣橱"
-      })
-    );
+    fireEvent.click(confirmButton);
     await Promise.resolve();
   });
 }
