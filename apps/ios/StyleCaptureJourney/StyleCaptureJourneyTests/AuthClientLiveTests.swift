@@ -49,7 +49,8 @@ final class AuthClientLiveTests: XCTestCase {
         XCTAssertEqual(acknowledgement, Self.deletionAcknowledgement)
         let storedAfterDeletionAcknowledgement = await tokenStore.currentSession()
         XCTAssertEqual(storedAfterDeletionAcknowledgement.accountDeletionIntent?.phase, .accepted)
-        XCTAssertNil(await tokenStore.tokensForRetry())
+        let tokensForRetryAfterDeletionAcknowledgement = await tokenStore.tokensForRetry()
+        XCTAssertNil(tokensForRetryAfterDeletionAcknowledgement)
 
         try await authClient.clearLocalCredentials()
         let storedAfterLocalCleanup = await tokenStore.currentSession()
@@ -123,7 +124,8 @@ final class AuthClientLiveTests: XCTestCase {
         XCTAssertEqual(deletionAttemptsAfterAcknowledgement, 1)
         let storedAfterAcknowledgement = await tokenStore.currentSession()
         XCTAssertEqual(storedAfterAcknowledgement.accountDeletionIntent?.phase, .accepted)
-        XCTAssertNil(await tokenStore.tokensForRetry())
+        let tokensForRetryAfterAcknowledgement = await tokenStore.tokensForRetry()
+        XCTAssertNil(tokensForRetryAfterAcknowledgement)
 
         await XCTAssertThrowsAuthClientError(.localCredentialCleanupRequired) {
             try await authClient.clearLocalCredentials()
@@ -157,7 +159,8 @@ final class AuthClientLiveTests: XCTestCase {
             eventSnapshot.isOrdered(before: "token-deletion-marker", after: "server-delete"),
             "A crash after submission must leave a deletion-pending marker before network deletion."
         )
-        XCTAssertEqual((await tokenStore.currentSession()).accountDeletionIntent?.phase, .accepted)
+        let storedAfterDeletion = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterDeletion.accountDeletionIntent?.phase, .accepted)
     }
 
     func testLiveRestoreSurfacesDeletionReconciliationAfterRestartAndNeverRestoresAccount() async throws {
@@ -175,8 +178,10 @@ final class AuthClientLiveTests: XCTestCase {
         await XCTAssertThrowsAuthClientError(.accountDeletionReconciliationRequired) {
             _ = try await authClient.restore()
         }
-        XCTAssertEqual(await tokenStore.currentSession(), .accountDeletionPending(intent))
-        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+        let storedAfterRestore = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterRestore, .accountDeletionPending(intent))
+        let tokensForRetryAfterRestore = await tokenStore.tokensForRetry()
+        XCTAssertEqual(tokensForRetryAfterRestore, Self.storedTokens)
     }
 
     func testLiveDeleteRetryPreservesIntentAndTokensAfterNetworkFailure() async throws {
@@ -192,7 +197,7 @@ final class AuthClientLiveTests: XCTestCase {
                 shouldFail = false
                 throw OfflineProductAuthTransportError()
             }
-            return Self.jsonResponse(status: .accepted, body: deletionAcceptedBody)
+            return Self.jsonResponse(status: .accepted, body: Self.deletionAcceptedBody)
         }
         let tokenStore = RecordingTokenStore(initial: Self.storedTokens, events: events)
         let authClient = AuthClient.live(
@@ -204,22 +209,27 @@ final class AuthClientLiveTests: XCTestCase {
         await XCTAssertThrowsAuthClientError(.networkUnavailable) {
             try await authClient.deleteAccount()
         }
-        let pendingIntent = try XCTUnwrap(
-            (await tokenStore.currentSession()).accountDeletionIntent
-        )
+        let storedAfterFailedDelete = await tokenStore.currentSession()
+        let pendingIntent = try XCTUnwrap(storedAfterFailedDelete.accountDeletionIntent)
         XCTAssertEqual(pendingIntent.phase, .pendingSubmission)
-        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+        let tokensForRetryAfterFailure = await tokenStore.tokensForRetry()
+        XCTAssertEqual(tokensForRetryAfterFailure, Self.storedTokens)
 
         _ = try await authClient.deleteAccount()
 
+        let storedAfterRetry = await tokenStore.currentSession()
         XCTAssertEqual(
-            (await tokenStore.currentSession()).accountDeletionIntent?.idempotencyKey,
+            storedAfterRetry.accountDeletionIntent?.idempotencyKey,
             pendingIntent.idempotencyKey
         )
-        XCTAssertEqual((await tokenStore.currentSession()).accountDeletionIntent?.phase, .accepted)
-        XCTAssertNil(await tokenStore.tokensForRetry())
+        XCTAssertEqual(storedAfterRetry.accountDeletionIntent?.phase, .accepted)
+        let tokensForRetryAfterAcceptedRetry = await tokenStore.tokensForRetry()
+        XCTAssertNil(tokensForRetryAfterAcceptedRetry)
+        let deletionAttemptsAfterRetry = await requests.count(
+            operationID: Operations.DeleteAccountV1AccountDeletePost.id
+        )
         XCTAssertEqual(
-            await requests.count(operationID: Operations.DeleteAccountV1AccountDeletePost.id),
+            deletionAttemptsAfterRetry,
             2
         )
     }
@@ -240,15 +250,20 @@ final class AuthClientLiveTests: XCTestCase {
             try await authClient.deleteAccount()
         }
 
+        let deletionAttemptsAfterAcceptedMarkerWriteFailure = await requests.count(
+            operationID: Operations.DeleteAccountV1AccountDeletePost.id
+        )
         XCTAssertEqual(
-            await requests.count(operationID: Operations.DeleteAccountV1AccountDeletePost.id),
+            deletionAttemptsAfterAcceptedMarkerWriteFailure,
             1
         )
+        let storedAfterAcceptedMarkerWriteFailure = await tokenStore.currentSession()
         XCTAssertEqual(
-            (await tokenStore.currentSession()).accountDeletionIntent?.phase,
+            storedAfterAcceptedMarkerWriteFailure.accountDeletionIntent?.phase,
             .pendingSubmission
         )
-        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+        let tokensForRetryAfterAcceptedMarkerWriteFailure = await tokenStore.tokensForRetry()
+        XCTAssertEqual(tokensForRetryAfterAcceptedMarkerWriteFailure, Self.storedTokens)
     }
 
     func testLiveDeleteUnknownAcceptedStatusRequiresDeletionReconciliationAndKeepsMarker() async throws {
@@ -275,15 +290,20 @@ final class AuthClientLiveTests: XCTestCase {
             try await authClient.deleteAccount()
         }
 
+        let deletionAttemptsAfterUnknownAcceptedStatus = await requests.count(
+            operationID: Operations.DeleteAccountV1AccountDeletePost.id
+        )
         XCTAssertEqual(
-            await requests.count(operationID: Operations.DeleteAccountV1AccountDeletePost.id),
+            deletionAttemptsAfterUnknownAcceptedStatus,
             1
         )
+        let storedAfterUnknownAcceptedStatus = await tokenStore.currentSession()
         XCTAssertEqual(
-            (await tokenStore.currentSession()).accountDeletionIntent?.phase,
+            storedAfterUnknownAcceptedStatus.accountDeletionIntent?.phase,
             .pendingSubmission
         )
-        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+        let tokensForRetryAfterUnknownAcceptedStatus = await tokenStore.tokensForRetry()
+        XCTAssertEqual(tokensForRetryAfterUnknownAcceptedStatus, Self.storedTokens)
     }
 
     func testLiveDeletePropagatesAcceptedMarkerWriteCancellationUnchanged() async throws {
@@ -316,8 +336,10 @@ final class AuthClientLiveTests: XCTestCase {
         await XCTAssertThrowsAuthClientError(.localCredentialPersistenceFailed) {
             try await authClient.deleteAccount()
         }
-        XCTAssertEqual(await requests.count, 0)
-        XCTAssertEqual(await tokenStore.currentSession(), .authenticated(Self.storedTokens))
+        let requestCountAfterMarkerWriteFailure = await requests.count
+        XCTAssertEqual(requestCountAfterMarkerWriteFailure, 0)
+        let storedAfterMarkerWriteFailure = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterMarkerWriteFailure, .authenticated(Self.storedTokens))
     }
 
     func testLiveClientKeepsMissingTokensProductFailuresAndKeychainFailuresTyped() async throws {
@@ -627,7 +649,7 @@ private extension AuthClientLiveTests {
             case Operations.RefreshSessionV1AuthRefreshPost.id:
                 return jsonResponse(status: .ok, body: tokenResponseBody(Self.rotatedTokens))
             case Operations.DeleteAccountV1AccountDeletePost.id:
-                return jsonResponse(status: .accepted, body: deletionAcceptedBody)
+                return jsonResponse(status: .accepted, body: Self.deletionAcceptedBody)
             default:
                 XCTFail("Unexpected Product auth operation: \(operationID)")
                 return errorResponse(status: .internalServerError, code: "unexpected_operation")

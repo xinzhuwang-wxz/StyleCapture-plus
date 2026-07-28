@@ -110,7 +110,8 @@ final class AppleCredentialStateDependencyTests: XCTestCase {
         let task = Task {
             var events = provider.revocationEvents().makeAsyncIterator()
             subscribed.fulfill()
-            XCTAssertNil(await events.next())
+            let nextEvent = await events.next()
+            XCTAssertNil(nextEvent)
             terminated.fulfill()
         }
 
@@ -126,7 +127,8 @@ final class AppleCredentialStateDependencyTests: XCTestCase {
         var revocations = client.revocationEvents().makeAsyncIterator()
 
         XCTAssertEqual(state, .unavailable)
-        XCTAssertNil(await revocations.next())
+        let nextRevocation = await revocations.next()
+        XCTAssertNil(nextRevocation)
     }
 }
 
@@ -175,11 +177,11 @@ private final class DelayedCredentialStateLookup: @unchecked Sendable {
         lock.lock()
         requestedUserIDs.append(userID)
         self.completion = completion
-        let waiters = waiters
+        let pendingWaiters = waiters
         waiters.removeAll()
         lock.unlock()
 
-        waiters.forEach { $0.resume() }
+        pendingWaiters.forEach { $0.resume() }
     }
 
     func waitUntilRequested() async {
@@ -252,11 +254,11 @@ private final class DeterministicRevocationEventSource: @unchecked Sendable {
     private func markSubscribed() {
         lock.lock()
         subscribed = true
-        let waiters = waiters
+        let pendingWaiters = waiters
         waiters.removeAll()
         lock.unlock()
 
-        waiters.forEach { $0.resume() }
+        pendingWaiters.forEach { $0.resume() }
     }
 }
 

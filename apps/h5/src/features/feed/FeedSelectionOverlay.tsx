@@ -138,11 +138,29 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
       return;
     }
 
-    const timeout = window.setTimeout(() => {
-      setSession((current) => settleSelectionSession(current, Date.now()));
-    }, Math.max(0, session.settleAtMs - Date.now()));
+    const settleAtMs = session.settleAtMs;
+    let timeout: number | undefined;
 
-    return () => window.clearTimeout(timeout);
+    const settleWhenReady = () => {
+      const remainingMs = settleAtMs - Date.now();
+      if (remainingMs > 0) {
+        timeout = window.setTimeout(settleWhenReady, remainingMs);
+        return;
+      }
+
+      setSession((current) => settleSelectionSession(current, Date.now()));
+    };
+
+    timeout = window.setTimeout(
+      settleWhenReady,
+      Math.max(0, settleAtMs - Date.now())
+    );
+
+    return () => {
+      if (timeout !== undefined) {
+        window.clearTimeout(timeout);
+      }
+    };
   }, [session.phase, session.settleAtMs]);
 
   useEffect(() => {

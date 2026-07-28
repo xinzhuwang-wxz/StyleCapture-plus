@@ -90,12 +90,15 @@ final class KeychainTokenStoreTests: XCTestCase {
         )
 
         try await store.save(Self.tokens)
-        XCTAssertEqual(try await store.load(), .authenticated(Self.tokens))
+        let savedSession = try await store.load()
+        XCTAssertEqual(savedSession, .authenticated(Self.tokens))
 
         let intent = try await store.markAccountDeletionPending()
 
-        XCTAssertEqual(try await store.load(), .accountDeletionPending(intent))
-        XCTAssertEqual(try await store.loadTokensForAccountDeletionRetry(), Self.tokens)
+        let deletionPendingSession = try await store.load()
+        let deletionRetryTokens = try await store.loadTokensForAccountDeletionRetry()
+        XCTAssertEqual(deletionPendingSession, .accountDeletionPending(intent))
+        XCTAssertEqual(deletionRetryTokens, Self.tokens)
         let markerText = String(
             data: try XCTUnwrap(item.dataByAccount["stylecapture-session.account-deletion-intent"]),
             encoding: .utf8
@@ -134,7 +137,8 @@ final class KeychainTokenStoreTests: XCTestCase {
                 .operationFailed(.add, errSecInteractionNotAllowed)
             )
         }
-        XCTAssertEqual(try await store.load(), .authenticated(Self.tokens))
+        let readableSession = try await store.load()
+        XCTAssertEqual(readableSession, .authenticated(Self.tokens))
     }
 
     func testDuplicateDeletionMarkerUpdateUsesExactMarkerAccountQuery() async throws {
@@ -159,7 +163,7 @@ final class KeychainTokenStoreTests: XCTestCase {
                 update: { query, attributes in
                     updatedAccount = query[kSecAttrAccount as String] as? String
                     item.setData(
-                        attributes.merging(query) { attributesValue, _ in attributesValue }
+                        attributes.merging(query, uniquingKeysWith: { attributesValue, _ in attributesValue })
                     )
                     return errSecSuccess
                 },
@@ -173,7 +177,8 @@ final class KeychainTokenStoreTests: XCTestCase {
         let intent = try await store.markAccountDeletionPending()
 
         XCTAssertEqual(updatedAccount, "stylecapture-session.account-deletion-intent")
-        XCTAssertEqual(try await store.load(), .accountDeletionPending(intent))
+        let deletionPendingSession = try await store.load()
+        XCTAssertEqual(deletionPendingSession, .accountDeletionPending(intent))
         XCTAssertNil(item.dataByAccount["stylecapture-session"])
     }
 

@@ -26,6 +26,7 @@ This is repository and database-independent development evidence for the durable
 | Swift OpenAPI freshness | `bash scripts/generate_ios_openapi_client.sh --check` passed |
 | Canonical/projected OpenAPI freshness | `scripts/export_openapi.py --check` passed |
 | H5 generated types | TypeScript typecheck passed |
+| H5 behavior after early-timer correction | `247 passed` across all 30 files with one worker; the focused early-wakeup regression first failed, then passed after the production timer re-armed to the exact deadline |
 | Compose | base and production-overlay config resolution passed; no container started |
 | Worktree whitespace | `git diff --check` passed |
 
@@ -34,6 +35,8 @@ The SQL tests were also pointed once at a deliberately unavailable dummy Postgre
 ## Hosted candidate correction
 
 GitHub Actions run `30393350600` at `db1d5a2` was a truthful failed candidate, not GREEN evidence. The product job stopped at the full-tree Ruff format gate; the six affected Python files are now formatter-only changes, with identical parsed ASTs, `200 files already formatted`, targeted Ruff checks passing and the affected database-independent suite passing. The iOS job reached linking but could not link the `Sharing.FileStorageKey` symbols used directly by `AppFeature`'s TCA `@Shared(.fileStorage)` state restoration. The app target now exact-pins and explicitly links `swift-sharing` `2.9.1`, imports its defining module, and has executable package/release-surface assertions. A replacement hosted run is still required before either correction counts as hosted GREEN.
+
+Replacement run `30394425892` at `4c045dd` proved that the full Python/PostgreSQL architecture-and-behavior step, generated API contract, iOS dependency resolution, package graph, and direct `Sharing` link boundary all progress successfully. It still is not GREEN evidence: the product job exposed a real Feed race where an early platform timer could leave a closed lasso permanently in `collecting`, and the iOS job exposed Swift 6/Xcode 26 test-source errors from awaiting actor values inside XCTest autoclosures plus two fixture call/mutability mistakes. The Feed effect now re-arms only for the remaining wall-clock interval, a deterministic 699ms/700ms regression test passes, and all 247 H5 tests pass with one worker. The three iOS test files now evaluate awaited values before assertions, preserve the same expected values, and pass Swift parsing. A new hosted candidate must prove the complete fixes.
 
 ## Independent read-only reviews
 

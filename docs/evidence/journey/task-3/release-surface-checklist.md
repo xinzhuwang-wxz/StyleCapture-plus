@@ -40,7 +40,7 @@ This checklist separates repository-verifiable release configuration from Apple-
 
 ## Current verification gaps
 
-- Hosted PostgreSQL execution/migration proof and hosted Xcode compile/test for the current auth surface are pending.
+- Run `30394425892` passed the hosted Python/PostgreSQL architecture-and-behavior step plus iOS dependency resolution/package graph, but it is not a complete GREEN run: H5 exposed an early settle-timer race and iOS reached test-source compilation before Swift 6 rejected awaited actor reads inside XCTest autoclosures. Both corrections are local and a replacement hosted run is pending.
 - Fresh local Simulator execution for the current correction is pending; the existing untracked screenshots/video are stale and excluded from evidence.
 - No signed archive, exported build, App Store Connect processing result, TestFlight install, real Sign in with Apple account run, or account deletion run has been produced for this surface.
 - This checklist does not provide production evidence, M0 market evidence, App Review evidence, or revenue evidence.

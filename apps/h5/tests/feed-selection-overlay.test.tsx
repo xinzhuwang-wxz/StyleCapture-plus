@@ -129,6 +129,33 @@ describe("FeedSelectionOverlay", () => {
     ).toHaveAttribute("data-selection-count", "2");
   });
 
+  it("re-arms an early platform timer until the full quiet window elapses", () => {
+    const { overlay } = renderOverlay();
+    const startedAt = Date.now();
+    const now = vi.spyOn(Date, "now").mockReturnValue(startedAt);
+
+    drawLoop(overlay, 1, [
+      { x: 40, y: 80 },
+      { x: 160, y: 80 },
+      { x: 160, y: 260 },
+      { x: 40, y: 80 }
+    ]);
+
+    now.mockReturnValue(startedAt + 699);
+    act(() => vi.advanceTimersByTime(700));
+    expect(
+      screen.queryByRole("group", { name: "已圈选的穿搭主体" })
+    ).not.toBeInTheDocument();
+
+    now.mockReturnValue(startedAt + 700);
+    act(() => vi.advanceTimersByTime(1));
+    expect(
+      screen.getByRole("group", { name: "已圈选的穿搭主体" })
+    ).toBeInTheDocument();
+
+    now.mockRestore();
+  });
+
   it("shows a live colorful trail and lifts pixels from the supplied frame", () => {
     const { overlay } = renderOverlay();
 

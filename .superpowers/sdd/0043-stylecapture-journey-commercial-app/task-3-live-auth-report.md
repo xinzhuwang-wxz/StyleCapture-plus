@@ -77,6 +77,13 @@ One deliberately unavailable dummy PostgreSQL port produced seven connection fai
 - iOS job `90390187981` compiled the application and test sources, then failed to link direct `Sharing.FileStorageKey` / `Shared` symbols before XCTest execution. `AppFeature` directly uses TCA Sharing state restoration, so `project.yml` now exact-pins `swift-sharing` `2.9.1`, explicitly links the `Sharing` product into the application target and imports the defining module. The generated-project and release-surface validators freeze that dependency boundary.
 - This failed run is diagnosis evidence only. A replacement run must pass the PostgreSQL, iPhone simulator, package-lock and privacy/boundary stages before hosted GREEN can be claimed.
 
+## Hosted run `30394425892` correction
+
+- Product job `90393739068` passed Python architecture/behavior and the generated API contract, proving the prior Ruff correction and hosted PostgreSQL path. It then failed in the H5 Feed runtime because the production lasso settle timeout could fire slightly before `Date.now()` reached its stored deadline; the unchanged collecting state never changed the effect dependencies, so no second timer was scheduled.
+- The Feed effect now schedules the remaining interval until the exact deadline. A behavior-first regression wakes the platform timer at wall-clock `699ms`, proves that the UI remains collecting, then advances to `700ms` and proves that the selection settles. The complete H5 suite passes `247/247` with one worker, and an independent review found no P0/P1/P2.
+- iOS job `90393738942` passed bootstrap, OpenAPI inputs, package resolution, package graph, and the explicit `Sharing` boundary. It reached test-source compilation and failed on Swift 6/Xcode 26 rules that prohibit awaited actor reads inside XCTest assertion autoclosures, plus two test-fixture syntax/mutability mistakes. The three affected test files now await into named values before asserting, keep the same assertions, and pass `swiftc -parse`.
+- This run remains failed diagnosis evidence. A new frozen hosted candidate must pass both jobs before Task 3 hosted GREEN is claimed.
+
 ## Generated-client factory boundary correction
 
 The frozen RED originally passed a prebuilt generated `Client` into `ProductAuthAPI`. That client keeps its underlying `UniversalClient` and middleware list private, while the generated account-delete input has no `Authorization` field. The required official per-delete bearer middleware was therefore unrepresentable with that construction.
