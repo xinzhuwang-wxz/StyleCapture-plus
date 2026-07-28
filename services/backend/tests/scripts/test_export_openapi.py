@@ -81,20 +81,16 @@ def test_swift_projection_preserves_optional_fields_without_null_union() -> None
 
     projected = export_openapi.swift_openapi_schema(canonical)
 
-    assert canonical["components"]["schemas"]["AppleAuthBody"]["properties"][
-        "device_name"
-    ]["anyOf"][1] == {"type": "null"}
-    device_name = projected["components"]["schemas"]["AppleAuthBody"]["properties"][
-        "device_name"
-    ]
+    assert canonical["components"]["schemas"]["AppleAuthBody"]["properties"]["device_name"][
+        "anyOf"
+    ][1] == {"type": "null"}
+    device_name = projected["components"]["schemas"]["AppleAuthBody"]["properties"]["device_name"]
     assert device_name == {
         "type": "string",
         "maxLength": 120,
         "title": "Device Name",
     }
-    authorization = projected["paths"]["/v1/account/delete"]["post"]["parameters"][
-        0
-    ]["schema"]
+    authorization = projected["paths"]["/v1/account/delete"]["post"]["parameters"][0]["schema"]
     assert authorization == {"type": "string", "title": "Authorization"}
 
 
@@ -125,18 +121,17 @@ def test_export_renders_canonical_and_swift_projection_separately(
     assert swift_output.read_bytes() == export_openapi.schema_bytes(
         export_openapi.swift_openapi_schema(schema)
     )
-    assert export_openapi.export(
-        [canonical_output], [swift_output], check=True
-    ) == [canonical_output, swift_output]
+    assert export_openapi.export([canonical_output], [swift_output], check=True) == [
+        canonical_output,
+        swift_output,
+    ]
 
 
 def test_check_mode_fails_when_output_is_missing_without_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     output = tmp_path / "missing" / "openapi.json"
-    monkeypatch.setattr(
-        export_openapi, "schema_bytes", lambda *_: b'{"openapi":"3.1.0"}\n'
-    )
+    monkeypatch.setattr(export_openapi, "schema_bytes", lambda *_: b'{"openapi":"3.1.0"}\n')
 
     with pytest.raises(SystemExit):
         export_openapi.export([output], check=True)
@@ -150,9 +145,7 @@ def test_check_mode_fails_when_output_differs_without_overwriting(
 ) -> None:
     output = tmp_path / "openapi.json"
     output.write_bytes(b'{"old":true}\n')
-    monkeypatch.setattr(
-        export_openapi, "schema_bytes", lambda *_: b'{"openapi":"3.1.0"}\n'
-    )
+    monkeypatch.setattr(export_openapi, "schema_bytes", lambda *_: b'{"openapi":"3.1.0"}\n')
 
     with pytest.raises(SystemExit):
         export_openapi.export([output], check=True)

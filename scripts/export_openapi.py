@@ -72,9 +72,7 @@ def _swift_openapi_value(value: Any) -> Any:
     any_of = value.get("anyOf")
     if isinstance(any_of, list) and len(any_of) == 2:
         null_members = [
-            member
-            for member in any_of
-            if isinstance(member, dict) and member.get("type") == "null"
+            member for member in any_of if isinstance(member, dict) and member.get("type") == "null"
         ]
         non_null_members = [
             member
@@ -85,9 +83,7 @@ def _swift_openapi_value(value: Any) -> Any:
             projected = _swift_openapi_value(non_null_members[0])
             if isinstance(projected, dict):
                 siblings = {
-                    key: _swift_openapi_value(item)
-                    for key, item in value.items()
-                    if key != "anyOf"
+                    key: _swift_openapi_value(item) for key, item in value.items() if key != "anyOf"
                 }
                 return {**projected, **siblings}
 
@@ -113,9 +109,7 @@ def export(
 ) -> list[Path]:
     repository_root = Path(__file__).resolve().parents[1]
     selected_outputs = (
-        outputs
-        if outputs is not None
-        else [repository_root / "apps" / "h5" / "openapi.json"]
+        outputs if outputs is not None else [repository_root / "apps" / "h5" / "openapi.json"]
     )
     canonical = openapi_schema()
     render_groups = (
