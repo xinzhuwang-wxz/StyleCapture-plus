@@ -11,6 +11,15 @@ packages:
   swift-composable-architecture:
     url: https://github.com/pointfreeco/swift-composable-architecture.git
     exactVersion: 1.26.1
+  swift-case-paths:
+    url: https://github.com/pointfreeco/swift-case-paths
+    exactVersion: 1.9.1
+  swift-clocks:
+    url: https://github.com/pointfreeco/swift-clocks
+    exactVersion: 1.1.0
+  swift-dependencies:
+    url: https://github.com/pointfreeco/swift-dependencies
+    exactVersion: 1.14.1
   GRDB:
     url: https://github.com/groue/GRDB.swift.git
     exactVersion: 7.11.1
@@ -62,6 +71,10 @@ targets:
       - target: StyleCaptureAPI
       - package: swift-composable-architecture
         product: ComposableArchitecture
+      - package: swift-case-paths
+        product: CasePaths
+      - package: swift-dependencies
+        product: Dependencies
       - package: GRDB
         product: GRDB
       - package: Nuke
@@ -83,6 +96,12 @@ targets:
       - target: StyleCaptureJourney
       - package: swift-composable-architecture
         product: ComposableArchitecture
+      - package: swift-case-paths
+        product: CasePaths
+      - package: swift-clocks
+        product: Clocks
+      - package: swift-dependencies
+        product: Dependencies
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.stylecapture.journey.tests

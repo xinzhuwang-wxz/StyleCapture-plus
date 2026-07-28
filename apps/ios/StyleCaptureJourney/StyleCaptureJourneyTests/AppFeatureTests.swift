@@ -65,7 +65,7 @@ final class AppFeatureTests: XCTestCase {
 
         let firstStore = TestStore(initialState: AppFeature.State()) {
             AppFeature()
-        } withDependencies: dependencies
+        } withDependencies: { dependencies(&$0) }
 
         await firstStore.send(.deepLink(URL(string: "stylecapture://journey/journey-44")!)) {
             $0.selectedTab = .journey
@@ -75,7 +75,7 @@ final class AppFeatureTests: XCTestCase {
 
         let secondStore = TestStore(initialState: AppFeature.State()) {
             AppFeature()
-        } withDependencies: dependencies
+        } withDependencies: { dependencies(&$0) }
 
         await secondStore.send(.launch)
         await secondStore.receive(
