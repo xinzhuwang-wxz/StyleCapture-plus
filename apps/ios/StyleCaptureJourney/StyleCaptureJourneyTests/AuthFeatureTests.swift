@@ -18,9 +18,227 @@ final class AuthFeatureTests: XCTestCase {
         }
     }
 
+    func testRestoreRefreshesExpiredAccessTokenBeforeSigningIn() async {
+        let expired = Self.expiredTokens
+        let refreshed = Self.tokens
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_200_100)
+            $0.authClient.restore = { expired }
+            $0.authClient.refresh = { refreshed }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedIn(refreshed))) {
+            $0.phase = .signedIn(refreshed)
+        }
+    }
+
+    func testRestoreKeepsUnexpiredAccessTokenWithoutRefresh() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.refresh = {
+                XCTFail("Fresh access tokens must not be refreshed during restore")
+                return Self.tokens
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedIn(Self.tokens))) {
+            $0.phase = .signedIn(Self.tokens)
+        }
+    }
+
+    func testRestoreRevokedAppleCredentialClearsSessionAndSignsOut() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.logout = {}
+            $0.appleCredentialStateClient.credentialState = { userIdentifier in
+                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
+                return .revoked
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedOut)) {
+            $0.phase = .signedOut
+        }
+    }
+
+    func testRestoreRevokedAppleCredentialCleanupFailureRequiresRetryBeforeSignedOut() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.logout = {
+                throw AuthClientError.localCredentialCleanupRequired
+            }
+            $0.authClient.clearLocalCredentials = {}
+            $0.appleCredentialStateClient.credentialState = { userIdentifier in
+                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
+                return .revoked
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(
+            .restoreResponse(.failure(.localCredentialCleanupRequired))
+        ) {
+            $0.phase = .localCredentialCleanupRequired
+        }
+        await store.send(.retryLocalCleanupTapped) {
+            $0.phase = .clearingLocalCredentials
+        }
+        await store.receive(.localCleanupResponse(.success)) {
+            $0.phase = .signedOut
+        }
+    }
+
+    func testRetryRestoreCancelsInFlightRestoreWithoutFalseFailure() async {
+        let gate = CancellableRestoreGate(secondResult: nil)
+        let secondRestoreStarted = expectation(description: "second restore started")
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.restore = {
+                try await gate.restore {
+                    secondRestoreStarted.fulfill()
+                }
+            }
+            $0.authClient.refresh = {
+                XCTFail("Signed-out restore retry must not refresh stale tokens")
+                return Self.tokens
+            }
+        }
+
+        await store.send(.task)
+        await store.send(.task)
+        await fulfillment(of: [secondRestoreStarted], timeout: 1)
+        await store.receive(.restoreResponse(.signedOut)) {
+            $0.phase = .signedOut
+        }
+        await gate.cancelFirstRestore()
+        await store.finish()
+    }
+
+    func testRestoreNotFoundAppleCredentialClearsSessionAndSignsOut() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.logout = {}
+            $0.appleCredentialStateClient.credentialState = { userIdentifier in
+                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
+                return .notFound
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedOut)) {
+            $0.phase = .signedOut
+        }
+    }
+
+    func testRestoreTransferredAppleCredentialClearsSessionAndSignsOut() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.logout = {}
+            $0.appleCredentialStateClient.credentialState = { userIdentifier in
+                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
+                return .transferred
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedOut)) {
+            $0.phase = .signedOut
+        }
+    }
+
+    func testRestoreAuthorizedAppleCredentialPreservesUnexpiredSession() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.logout = {
+                XCTFail("Authorized Apple credentials must preserve server session")
+            }
+            $0.appleCredentialStateClient.credentialState = { userIdentifier in
+                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
+                return .authorized
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedIn(Self.tokens))) {
+            $0.phase = .signedIn(Self.tokens)
+        }
+    }
+
+    func testRestoreCredentialStateUnavailablePreservesServerTruthAndExpiryLogic() async {
+        let expired = Self.expiredTokens
+        let refreshed = Self.tokens
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_200_100)
+            $0.authClient.restore = { expired }
+            $0.authClient.refresh = { refreshed }
+            $0.appleCredentialStateClient.credentialState = { userIdentifier in
+                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
+                return .unavailable
+            }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedIn(refreshed))) {
+            $0.phase = .signedIn(refreshed)
+        }
+    }
+
+    func testCredentialRevocationNotificationLogsOutAndReturnsSignedOut() async {
+        let notifications = AsyncStream<Void>.makeStream()
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
+            $0.authClient.restore = { Self.tokens }
+            $0.authClient.logout = {}
+            $0.appleCredentialStateClient.credentialState = { _ in .authorized }
+            $0.appleCredentialStateClient.revocationEvents = { notifications.stream }
+        }
+
+        await store.send(.task)
+        await store.receive(.restoreResponse(.signedIn(Self.tokens))) {
+            $0.phase = .signedIn(Self.tokens)
+        }
+        notifications.continuation.yield(())
+        await store.receive(.credentialRevokedNotification) {
+            $0.phase = .clearingLocalCredentials
+        }
+        await store.receive(.credentialRevocationCleanupResponse(.success)) {
+            $0.phase = .signedOut
+        }
+        notifications.continuation.finish()
+    }
+
     func testSignInUsesHashedNonceForAppleAndRawNonceForServer() async {
         let nonce = AppleSignInNonce(rawValue: "raw-nonce", hashedValue: "hashed-nonce")
         let credential = AppleSignInCredential(
+            userIdentifier: Self.appleUserIdentifier,
             identityToken: "identity-token",
             authorizationCode: "authorization-code"
         )
@@ -48,6 +266,42 @@ final class AuthFeatureTests: XCTestCase {
         }
     }
 
+    func testCancelledSignInEmitsNoStaleResponseAfterAppleReturnsCredential() async {
+        let nonce = AppleSignInNonce(rawValue: "raw-nonce", hashedValue: "hashed-nonce")
+        let credential = AppleSignInCredential(
+            userIdentifier: Self.appleUserIdentifier,
+            identityToken: "identity-token",
+            authorizationCode: "authorization-code"
+        )
+        let gate = CancellableAppleAuthorizationGate(credential: credential)
+        let secondAuthorizationStarted = expectation(description: "retry authorization started")
+        let authenticateCalled = expectation(description: "authenticate was called")
+        authenticateCalled.isInverted = true
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedOut)) {
+            AuthFeature()
+        } withDependencies: {
+            $0.appleSignInNonce.generate = { nonce }
+            $0.appleSignInClient.authorize = { _ in
+                try await gate.authorize {
+                    secondAuthorizationStarted.fulfill()
+                }
+            }
+            $0.authClient.authenticate = { _, _ in
+                authenticateCalled.fulfill()
+                return Self.tokens
+            }
+        }
+
+        await store.send(.signInButtonTapped) {
+            $0.phase = .signingIn
+        }
+        await store.send(.retrySignInTapped)
+        await fulfillment(of: [secondAuthorizationStarted], timeout: 1)
+        await gate.resumeCancelledAuthorization()
+        await fulfillment(of: [authenticateCalled], timeout: 0.1)
+        await store.finish()
+    }
+
     func testAppleCancellationReturnsToSignedOutWithoutFalseFailure() async {
         let store = TestStore(initialState: AuthFeature.State(phase: .signedOut)) {
             AuthFeature()
@@ -72,7 +326,11 @@ final class AuthFeatureTests: XCTestCase {
         } withDependencies: {
             $0.appleSignInNonce.generate = { .init(rawValue: "raw", hashedValue: "hashed") }
             $0.appleSignInClient.authorize = { _ in
-                .init(identityToken: "identity", authorizationCode: "code")
+                .init(
+                    userIdentifier: Self.appleUserIdentifier,
+                    identityToken: "identity",
+                    authorizationCode: "code"
+                )
             }
             $0.authClient.authenticate = { _, _ in
                 throw AuthClientError.localCredentialPersistenceFailed
@@ -139,6 +397,18 @@ final class AuthFeatureTests: XCTestCase {
         }
     }
 
+    func testConfirmDeleteIgnoredOutsideConfirmationPhase() async {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.deleteAccount = {
+                XCTFail("Delete must require the explicit confirmation phase")
+            }
+        }
+
+        await store.send(.confirmDeleteAccountTapped)
+    }
+
     func testLogoutClearsLocalSessionAndReturnsToSignedOut() async {
         let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
             AuthFeature()
@@ -154,11 +424,79 @@ final class AuthFeatureTests: XCTestCase {
         }
     }
 
+    private static let appleUserIdentifier = "apple-user-1"
+
     private static let tokens = AuthTokens(
         accountSubject: "account-1",
         accessToken: "access-1",
         refreshToken: "refresh-1",
         accessExpiresAt: Date(timeIntervalSince1970: 1_785_200_000),
-        tokenType: "Bearer"
+        tokenType: "Bearer",
+        appleUserIdentifier: appleUserIdentifier
     )
+
+    private static let expiredTokens = AuthTokens(
+        accountSubject: "account-1",
+        accessToken: "access-expired",
+        refreshToken: "refresh-1",
+        accessExpiresAt: Date(timeIntervalSince1970: 1_785_200_000),
+        tokenType: "Bearer",
+        appleUserIdentifier: appleUserIdentifier
+    )
+}
+
+private actor CancellableAppleAuthorizationGate {
+    private let credential: AppleSignInCredential
+    private var callCount = 0
+    private var continuation: CheckedContinuation<AppleSignInCredential, Never>?
+
+    init(credential: AppleSignInCredential) {
+        self.credential = credential
+    }
+
+    func authorize(
+        onSecondAuthorization: @escaping @Sendable () -> Void
+    ) async throws -> AppleSignInCredential {
+        callCount += 1
+        guard callCount == 1 else {
+            onSecondAuthorization()
+            throw CancellationError()
+        }
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func resumeCancelledAuthorization() {
+        continuation?.resume(returning: credential)
+        continuation = nil
+    }
+}
+
+private actor CancellableRestoreGate {
+    private let secondResult: AuthTokens?
+    private var callCount = 0
+    private var firstContinuation: CheckedContinuation<AuthTokens?, Error>?
+
+    init(secondResult: AuthTokens?) {
+        self.secondResult = secondResult
+    }
+
+    func restore(
+        onSecondRestore: @escaping @Sendable () -> Void
+    ) async throws -> AuthTokens? {
+        callCount += 1
+        guard callCount == 1 else {
+            onSecondRestore()
+            return secondResult
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            self.firstContinuation = continuation
+        }
+    }
+
+    func cancelFirstRestore() {
+        firstContinuation?.resume(throwing: CancellationError())
+        firstContinuation = nil
+    }
 }

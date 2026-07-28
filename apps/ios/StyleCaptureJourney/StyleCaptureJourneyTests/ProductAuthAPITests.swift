@@ -181,6 +181,46 @@ final class ProductAuthAPITests: XCTestCase {
         }
     }
 
+    func testAuthenticatePropagatesTransportCancellationUnchanged() async throws {
+        let api = Self.makeAPI { _, _, _, operationID in
+            XCTAssertEqual(operationID, Operations.AuthenticateWithAppleV1AuthApplePost.id)
+            throw CancellationError()
+        }
+
+        await XCTAssertThrowsCancellationError {
+            _ = try await api.authenticate(
+                AppleSignInRequest(
+                    identityToken: "identity-token",
+                    authorizationCode: "authorization-code",
+                    nonce: "raw-nonce",
+                    deviceName: nil
+                )
+            )
+        }
+    }
+
+    func testRefreshPropagatesTransportCancellationUnchanged() async throws {
+        let api = Self.makeAPI { _, _, _, operationID in
+            XCTAssertEqual(operationID, Operations.RefreshSessionV1AuthRefreshPost.id)
+            throw CancellationError()
+        }
+
+        await XCTAssertThrowsCancellationError {
+            _ = try await api.refresh(refreshToken: "refresh-token")
+        }
+    }
+
+    func testDeleteAccountPropagatesTransportCancellationUnchanged() async throws {
+        let api = Self.makeAPI { _, _, _, operationID in
+            XCTAssertEqual(operationID, Operations.DeleteAccountV1AccountDeletePost.id)
+            throw CancellationError()
+        }
+
+        await XCTAssertThrowsCancellationError {
+            try await api.deleteAccount(accessToken: "access-token")
+        }
+    }
+
     func testBearerMiddlewareAddsAuthorizationHeader() async throws {
         let middleware = BearerAuthorizationMiddleware(accessToken: "access-token")
         let body = HTTPBody("request-body")
@@ -461,3 +501,18 @@ private struct RecordedProductAuthRequest {
 }
 
 private struct OfflineProductAuthTransportError: Error {}
+
+private func XCTAssertThrowsCancellationError(
+    operation: () async throws -> Void,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    do {
+        try await operation()
+        XCTFail("Expected CancellationError", file: file, line: line)
+    } catch is CancellationError {
+        return
+    } catch {
+        XCTFail("Expected CancellationError, got \(error)", file: file, line: line)
+    }
+}

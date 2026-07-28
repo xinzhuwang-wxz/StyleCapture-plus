@@ -11,6 +11,7 @@ struct AppleSignInNonce: Equatable, Sendable {
 }
 
 struct AppleSignInCredential: Equatable, Sendable {
+    let userIdentifier: String
     let identityToken: String
     let authorizationCode: String
 }
@@ -21,7 +22,7 @@ struct AppleSignInAuthorizationRequest: Equatable, @unchecked Sendable {
 }
 
 enum AppleSignInAuthorizationCredential: Equatable, Sendable {
-    case appleID(identityToken: Data?, authorizationCode: Data?)
+    case appleID(userIdentifier: String, identityToken: Data?, authorizationCode: Data?)
     case unsupportedCredential
 }
 
@@ -70,14 +71,22 @@ extension AppleSignInClient {
             do {
                 let credential = try await authorizationSession.authorize(
                     AppleSignInAuthorizationRequest(
-                        scopes: [.fullName, .email],
+                        scopes: [],
                         nonce: hashedNonce
                     )
                 )
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
                 return try Self.mapCredential(credential)
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 if Self.isAppleCancellation(error) {
                     throw AuthClientError.authorizationCancelled
+                }
+                if Self.isAppleUnavailable(error) {
+                    throw AuthClientError.authorizationUnavailable
                 }
                 throw AuthClientError.invalidAppleCredential
             }
@@ -87,7 +96,7 @@ extension AppleSignInClient {
     private static func mapCredential(
         _ credential: AppleSignInAuthorizationCredential
     ) throws -> AppleSignInCredential {
-        guard case let .appleID(identityTokenData, authorizationCodeData) = credential,
+        guard case let .appleID(userIdentifier, identityTokenData, authorizationCodeData) = credential,
               let identityTokenData,
               let authorizationCodeData,
               let identityToken = String(data: identityTokenData, encoding: .utf8),
@@ -97,6 +106,7 @@ extension AppleSignInClient {
         }
 
         return AppleSignInCredential(
+            userIdentifier: userIdentifier,
             identityToken: identityToken,
             authorizationCode: authorizationCode
         )
@@ -106,6 +116,19 @@ extension AppleSignInClient {
         let nsError = error as NSError
         return nsError.domain == ASAuthorizationError.errorDomain
             && nsError.code == ASAuthorizationError.canceled.rawValue
+    }
+
+    private static func isAppleUnavailable(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == ASAuthorizationError.errorDomain else {
+            return false
+        }
+
+        return [
+            ASAuthorizationError.unknown.rawValue,
+            ASAuthorizationError.notHandled.rawValue,
+            ASAuthorizationError.notInteractive.rawValue,
+        ].contains(nsError.code)
     }
 }
 
@@ -121,7 +144,11 @@ struct LiveAppleSignInAuthorizationSession: AppleSignInAuthorizationSession {
         _ request: AppleSignInAuthorizationRequest
     ) async throws -> AppleSignInAuthorizationCredential {
         let coordinator = await AppleSignInAuthorizationCoordinator(request: request)
-        return try await coordinator.start()
+        return try await withTaskCancellationHandler {
+            try await coordinator.start()
+        } onCancel: {
+            Task { await coordinator.cancel() }
+        }
     }
 }
 
@@ -138,6 +165,11 @@ private final class AppleSignInAuthorizationCoordinator: NSObject {
 
     func start() async throws -> AppleSignInAuthorizationCredential {
         try await withCheckedThrowingContinuation { continuation in
+            guard !didResume else {
+                continuation.resume(throwing: CancellationError())
+                return
+            }
+
             self.continuation = continuation
 
             let appleRequest = ASAuthorizationAppleIDProvider().createRequest()
@@ -150,6 +182,10 @@ private final class AppleSignInAuthorizationCoordinator: NSObject {
             self.controller = controller
             controller.performRequests()
         }
+    }
+
+    func cancel() {
+        resume(with: .failure(CancellationError()))
     }
 
     private func resume(
@@ -179,6 +215,7 @@ extension AppleSignInAuthorizationCoordinator: ASAuthorizationControllerDelegate
         resume(
             with: .success(
                 .appleID(
+                    userIdentifier: credential.user,
                     identityToken: credential.identityToken,
                     authorizationCode: credential.authorizationCode
                 )

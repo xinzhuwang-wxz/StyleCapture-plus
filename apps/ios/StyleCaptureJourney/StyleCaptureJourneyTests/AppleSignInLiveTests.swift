@@ -4,11 +4,18 @@ import XCTest
 @testable import StyleCaptureJourney
 
 final class AppleSignInLiveTests: XCTestCase {
-    func testAuthorizeRequestsFullNameEmailAndNonceThenReturnsCredentialStrings() async throws {
+    func testTestValueFailsClosedWithoutStartingLiveAppleAuthorization() async throws {
+        await XCTAssertThrowsErrorAsync(try await AppleSignInClient.testValue.authorize("sha256-nonce")) { error in
+            XCTAssertEqual(error as? AuthClientError, .unavailable)
+        }
+    }
+
+    func testAuthorizeRequestsOnlyNonceThenReturnsCredentialStringsAndUserIdentifier() async throws {
         let session = CapturingAuthorizationSession { request in
-            XCTAssertEqual(request.scopes, [.fullName, .email])
+            XCTAssertEqual(request.scopes, [])
             XCTAssertEqual(request.nonce, "sha256-nonce")
             return .appleID(
+                userIdentifier: "apple-user-123",
                 identityToken: Data("identity-token".utf8),
                 authorizationCode: Data("authorization-code".utf8)
             )
@@ -19,10 +26,23 @@ final class AppleSignInLiveTests: XCTestCase {
 
         XCTAssertEqual(
             session.capturedRequests,
-            [AppleSignInAuthorizationRequest(scopes: [.fullName, .email], nonce: "sha256-nonce")]
+            [AppleSignInAuthorizationRequest(scopes: [], nonce: "sha256-nonce")]
         )
+        XCTAssertEqual(credential.userIdentifier, "apple-user-123")
         XCTAssertEqual(credential.identityToken, "identity-token")
         XCTAssertEqual(credential.authorizationCode, "authorization-code")
+    }
+
+    func testAuthorizePreservesProgrammaticCancellation() async throws {
+        let session = CapturingAuthorizationSession { _ in
+            throw CancellationError()
+        }
+        let client = AppleSignInClient.live(authorizationSession: session)
+
+        await XCTAssertThrowsErrorAsync(try await client.authorize("sha256-nonce")) { error in
+            XCTAssertTrue(error is CancellationError)
+            XCTAssertNil(error as? AuthClientError)
+        }
     }
 
     func testAuthorizeMapsAppleCancellationDistinctly() async throws {
@@ -36,6 +56,43 @@ final class AppleSignInLiveTests: XCTestCase {
 
         await XCTAssertThrowsErrorAsync(try await client.authorize("sha256-nonce")) { error in
             XCTAssertEqual(error as? AuthClientError, .authorizationCancelled)
+        }
+    }
+
+    func testAuthorizeMapsUnavailableAppleAuthorizationErrorsDistinctly() async throws {
+        for code in [
+            ASAuthorizationError.unknown,
+            .notHandled,
+            .notInteractive,
+        ] {
+            let session = CapturingAuthorizationSession { _ in
+                throw NSError(
+                    domain: ASAuthorizationError.errorDomain,
+                    code: code.rawValue
+                )
+            }
+            let client = AppleSignInClient.live(authorizationSession: session)
+
+            await XCTAssertThrowsErrorAsync(try await client.authorize("sha256-nonce")) { error in
+                XCTAssertEqual(error as? AuthClientError, .authorizationUnavailable)
+            }
+        }
+    }
+
+    func testAuthorizeDoesNotReturnCredentialAfterProgrammaticTaskCancellation() async throws {
+        let session = DelayedCredentialSession()
+        let client = AppleSignInClient.live(authorizationSession: session)
+        let task = Task {
+            try await client.authorize("sha256-nonce")
+        }
+
+        await session.waitUntilAuthorizeStarted()
+        task.cancel()
+        await session.returnCredentialAfterCancellation()
+
+        await XCTAssertThrowsErrorAsync(try await task.value) { error in
+            XCTAssertTrue(error is CancellationError)
+            XCTAssertNil(error as? AuthClientError)
         }
     }
 
@@ -53,6 +110,7 @@ final class AppleSignInLiveTests: XCTestCase {
     func testAuthorizeFailsClosedWhenIdentityTokenIsMissing() async throws {
         let session = CapturingAuthorizationSession { _ in
             .appleID(
+                userIdentifier: "apple-user-123",
                 identityToken: nil,
                 authorizationCode: Data("authorization-code".utf8)
             )
@@ -67,6 +125,7 @@ final class AppleSignInLiveTests: XCTestCase {
     func testAuthorizeFailsClosedWhenAuthorizationCodeIsMissing() async throws {
         let session = CapturingAuthorizationSession { _ in
             .appleID(
+                userIdentifier: "apple-user-123",
                 identityToken: Data("identity-token".utf8),
                 authorizationCode: nil
             )
@@ -81,6 +140,7 @@ final class AppleSignInLiveTests: XCTestCase {
     func testAuthorizeFailsClosedWhenIdentityTokenIsNotUTF8() async throws {
         let session = CapturingAuthorizationSession { _ in
             .appleID(
+                userIdentifier: "apple-user-123",
                 identityToken: Data([0xff, 0xfe]),
                 authorizationCode: Data("authorization-code".utf8)
             )
@@ -95,6 +155,7 @@ final class AppleSignInLiveTests: XCTestCase {
     func testAuthorizeFailsClosedWhenAuthorizationCodeIsNotUTF8() async throws {
         let session = CapturingAuthorizationSession { _ in
             .appleID(
+                userIdentifier: "apple-user-123",
                 identityToken: Data("identity-token".utf8),
                 authorizationCode: Data([0xff, 0xfe])
             )
@@ -104,6 +165,51 @@ final class AppleSignInLiveTests: XCTestCase {
         await XCTAssertThrowsErrorAsync(try await client.authorize("sha256-nonce")) { error in
             XCTAssertEqual(error as? AuthClientError, .invalidAppleCredential)
         }
+    }
+}
+
+private actor DelayedCredentialSession: AppleSignInAuthorizationSession {
+    private var authorizeStarted = false
+    private var shouldReturnCredential = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var returnWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func authorize(
+        _ request: AppleSignInAuthorizationRequest
+    ) async throws -> AppleSignInAuthorizationCredential {
+        authorizeStarted = true
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
+
+        await withCheckedContinuation { continuation in
+            if shouldReturnCredential {
+                continuation.resume()
+            } else {
+                returnWaiters.append(continuation)
+            }
+        }
+
+        return .appleID(
+            userIdentifier: "late-apple-user",
+            identityToken: Data("late-identity-token".utf8),
+            authorizationCode: Data("late-authorization-code".utf8)
+        )
+    }
+
+    func waitUntilAuthorizeStarted() async {
+        await withCheckedContinuation { continuation in
+            if authorizeStarted {
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+            }
+        }
+    }
+
+    func returnCredentialAfterCancellation() {
+        shouldReturnCredential = true
+        returnWaiters.forEach { $0.resume() }
+        returnWaiters.removeAll()
     }
 }
 

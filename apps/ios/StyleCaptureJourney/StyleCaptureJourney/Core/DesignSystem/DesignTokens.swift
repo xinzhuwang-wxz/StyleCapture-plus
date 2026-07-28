@@ -15,6 +15,9 @@ public enum DesignTokens {
     public static let textMuted = sRGB(red: 0x7C, green: 0x6A, blue: 0xA8)
     public static let textDim = sRGB(red: 0xA8, green: 0x9C, blue: 0xC9)
     public static let softShadow = sRGB(red: 0xEC, green: 0xE5, blue: 0xF8)
+    public static let cardStroke = primaryFill.opacity(0.58)
+    public static let danger = sRGB(red: 0xB4, green: 0x23, blue: 0x6A)
+    public static let dangerFill = sRGB(red: 0xFE, green: 0xF1, blue: 0xF7)
 
     public static let accent = primary
     public static let ink = sRGB(red: 0x21, green: 0x18, blue: 0x36)

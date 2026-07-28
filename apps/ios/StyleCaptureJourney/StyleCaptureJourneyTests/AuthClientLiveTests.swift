@@ -21,6 +21,7 @@ final class AuthClientLiveTests: XCTestCase {
 
         let signedIn = try await authClient.authenticate(
             AppleSignInCredential(
+                userIdentifier: "apple-user-1",
                 identityToken: "identity-token",
                 authorizationCode: "authorization-code"
             ),
@@ -136,7 +137,11 @@ final class AuthClientLiveTests: XCTestCase {
         )
         await XCTAssertThrowsAuthClientError(.invalidAppleCredential) {
             _ = try await credentialFailureClient.authenticate(
-                AppleSignInCredential(identityToken: "bad-identity", authorizationCode: "code"),
+                AppleSignInCredential(
+                    userIdentifier: "apple-user-1",
+                    identityToken: "bad-identity",
+                    authorizationCode: "code"
+                ),
                 "raw-nonce"
             )
         }
@@ -169,7 +174,11 @@ final class AuthClientLiveTests: XCTestCase {
         )
         await XCTAssertThrowsAuthClientError(.localCredentialPersistenceFailed) {
             _ = try await saveFailureClient.authenticate(
-                AppleSignInCredential(identityToken: "identity-token", authorizationCode: "code"),
+                AppleSignInCredential(
+                    userIdentifier: "apple-user-1",
+                    identityToken: "identity-token",
+                    authorizationCode: "code"
+                ),
                 "raw-nonce"
             )
         }
@@ -185,6 +194,193 @@ final class AuthClientLiveTests: XCTestCase {
         await XCTAssertThrowsAuthClientError(.localCredentialCleanupRequired) {
             try await clearFailureClient.logout()
         }
+    }
+
+    func testLiveClientPreservesProductAuthErrorCategories() async throws {
+        let cases: [(ProductAuthOperation, HTTPResponse.Status, String, AuthClientError)] = [
+            (
+                .authenticate,
+                .serviceUnavailable,
+                "apple_authorization_unavailable",
+                .authorizationUnavailable
+            ),
+            (.authenticate, .conflict, "account_binding_conflict", .accountConflict),
+            (.refresh, .badRequest, "request_invalid", .requestRejected),
+            (.deleteAccount, .serviceUnavailable, "processing_dispatch_unavailable", .serviceUnavailable),
+        ]
+
+        for (operation, status, code, expectedError) in cases {
+            let client = AuthClient.live(
+                productAuthAPI: Self.makeAPI { _, _, _, _ in
+                    Self.errorResponse(status: status, code: code)
+                },
+                tokenStore: RecordingTokenStore(initial: Self.storedTokens),
+                deviceName: { nil }
+            )
+
+            await XCTAssertThrowsAuthClientError(expectedError) {
+                try await operation.run(client)
+            }
+        }
+
+        let invalidResponseClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI { _, _, _, _ in
+                Self.jsonResponse(status: .ok, body: #"{"access_token":"truncated"}"#)
+            },
+            tokenStore: RecordingTokenStore(initial: Self.storedTokens),
+            deviceName: { nil }
+        )
+        await XCTAssertThrowsAuthClientError(.invalidResponse) {
+            _ = try await invalidResponseClient.refresh()
+        }
+
+        let networkFailureClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI { _, _, _, _ in
+                throw OfflineProductAuthTransportError()
+            },
+            tokenStore: RecordingTokenStore(initial: Self.storedTokens),
+            deviceName: { nil }
+        )
+        await XCTAssertThrowsAuthClientError(.networkUnavailable) {
+            _ = try await networkFailureClient.refresh()
+        }
+    }
+
+    func testLiveRestorePropagatesLocalCancellationUnchanged() async throws {
+        let client = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
+            tokenStore: RecordingTokenStore(loadFailure: CancellationError()),
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsCancellationError {
+            _ = try await client.restore()
+        }
+    }
+
+    func testLiveAuthenticatePropagatesProductAuthCancellationUnchanged() async throws {
+        let client = AuthClient.live(
+            productAuthAPI: Self.makeAPI { _, _, _, operationID in
+                XCTAssertEqual(operationID, Operations.AuthenticateWithAppleV1AuthApplePost.id)
+                throw CancellationError()
+            },
+            tokenStore: RecordingTokenStore(),
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsCancellationError {
+            _ = try await client.authenticate(
+                AppleSignInCredential(
+                    userIdentifier: "apple-user-1",
+                    identityToken: "identity-token",
+                    authorizationCode: "authorization-code"
+                ),
+                "raw-nonce"
+            )
+        }
+    }
+
+    func testLiveRefreshPropagatesProductAuthCancellationUnchanged() async throws {
+        let client = AuthClient.live(
+            productAuthAPI: Self.makeAPI { _, _, _, operationID in
+                XCTAssertEqual(operationID, Operations.RefreshSessionV1AuthRefreshPost.id)
+                throw CancellationError()
+            },
+            tokenStore: RecordingTokenStore(initial: Self.storedTokens),
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsCancellationError {
+            _ = try await client.refresh()
+        }
+    }
+
+    func testLiveDeleteAccountPropagatesProductAuthCancellationUnchanged() async throws {
+        let client = AuthClient.live(
+            productAuthAPI: Self.makeAPI { _, _, _, operationID in
+                XCTAssertEqual(operationID, Operations.DeleteAccountV1AccountDeletePost.id)
+                throw CancellationError()
+            },
+            tokenStore: RecordingTokenStore(initial: Self.storedTokens),
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsCancellationError {
+            try await client.deleteAccount()
+        }
+    }
+
+    func testLiveClearLocalCredentialsPropagatesLocalCancellationUnchanged() async throws {
+        let client = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
+            tokenStore: RecordingTokenStore(
+                initial: Self.storedTokens,
+                clearFailure: CancellationError()
+            ),
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsCancellationError {
+            try await client.clearLocalCredentials()
+        }
+    }
+
+    func testLiveClientPersistsAppleUserIdentifierAndKeepsItAcrossRefresh() async throws {
+        let tokenStore = RecordingTokenStore()
+        let authClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        let signedIn = try await authClient.authenticate(
+            AppleSignInCredential(
+                userIdentifier: "apple-user-1",
+                identityToken: "identity-token-with-different-subject",
+                authorizationCode: "authorization-code"
+            ),
+            "raw-nonce"
+        )
+
+        XCTAssertEqual(signedIn.appleUserIdentifier, "apple-user-1")
+        let storedAfterSignIn = await tokenStore.currentTokens()
+        XCTAssertEqual(storedAfterSignIn?.appleUserIdentifier, "apple-user-1")
+
+        let refreshed = try await authClient.refresh()
+
+        XCTAssertEqual(refreshed.appleUserIdentifier, "apple-user-1")
+        let storedAfterRefresh = await tokenStore.currentTokens()
+        XCTAssertEqual(storedAfterRefresh?.appleUserIdentifier, "apple-user-1")
+    }
+
+    func testAuthTokensCodablePreservesAppleUserIdentifierAndDefaultsLegacyPayload() throws {
+        let encoded = try JSONEncoder.iso8601AuthTokens.encode(
+            AuthTokens(
+                accountSubject: "account-1",
+                accessToken: "access-1",
+                refreshToken: "refresh-1",
+                accessExpiresAt: Date(timeIntervalSince1970: 1_785_225_600),
+                tokenType: "Bearer",
+                appleUserIdentifier: "apple-user-1"
+            )
+        )
+
+        let decoded = try JSONDecoder.iso8601AuthTokens.decode(AuthTokens.self, from: encoded)
+        XCTAssertEqual(decoded.appleUserIdentifier, "apple-user-1")
+
+        let legacyPayload = Data(
+            """
+            {
+              "accountSubject": "account-legacy",
+              "accessToken": "access-legacy",
+              "refreshToken": "refresh-legacy",
+              "accessExpiresAt": "2026-07-28T08:00:00Z",
+              "tokenType": "Bearer"
+            }
+            """.utf8
+        )
+        let legacy = try JSONDecoder.iso8601AuthTokens.decode(AuthTokens.self, from: legacyPayload)
+        XCTAssertNil(legacy.appleUserIdentifier)
     }
 }
 
@@ -202,7 +398,8 @@ private extension AuthClientLiveTests {
         accessToken: "access-1",
         refreshToken: "refresh-1",
         accessExpiresAt: Date(timeIntervalSince1970: 1_785_225_600),
-        tokenType: "Bearer"
+        tokenType: "Bearer",
+        appleUserIdentifier: "apple-user-1"
     )
 
     static let rotatedTokens = AuthTokens(
@@ -210,7 +407,8 @@ private extension AuthClientLiveTests {
         accessToken: "access-2",
         refreshToken: "refresh-2",
         accessExpiresAt: Date(timeIntervalSince1970: 1_785_226_500),
-        tokenType: "Bearer"
+        tokenType: "Bearer",
+        appleUserIdentifier: "apple-user-1"
     )
 
     static func makeAPI(requests: RecordedProductAuthRequests) -> ProductAuthAPI {
@@ -314,6 +512,21 @@ private func XCTAssertThrowsAuthClientError(
     }
 }
 
+private func XCTAssertThrowsCancellationError(
+    operation: () async throws -> Void,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    do {
+        try await operation()
+        XCTFail("Expected CancellationError", file: file, line: line)
+    } catch is CancellationError {
+        return
+    } catch {
+        XCTFail("Expected CancellationError, got \(error)", file: file, line: line)
+    }
+}
+
 private struct TestProductAuthTransport: ClientTransport {
     typealias Handler = @Sendable (
         HTTPRequest,
@@ -400,11 +613,38 @@ private struct RecordedProductAuthRequest {
     var operationID: String
 }
 
+private enum ProductAuthOperation {
+    case authenticate
+    case refresh
+    case deleteAccount
+
+    func run(_ client: AuthClient) async throws {
+        switch self {
+        case .authenticate:
+            _ = try await client.authenticate(
+                AppleSignInCredential(
+                    userIdentifier: "apple-user-1",
+                    identityToken: "identity-token",
+                    authorizationCode: "authorization-code"
+                ),
+                "raw-nonce"
+            )
+        case .refresh:
+            _ = try await client.refresh()
+        case .deleteAccount:
+            try await client.deleteAccount()
+        }
+    }
+}
+
+private struct OfflineProductAuthTransportError: Error {}
+
 private actor RecordingTokenStore: TokenStore {
     private var tokens: AuthTokens?
     private let events: EventLog?
     private let loadFailure: Error?
     private let saveFailure: Error?
+    private let clearFailure: Error?
     private var clearFailuresRemaining: Int
 
     init(
@@ -412,12 +652,14 @@ private actor RecordingTokenStore: TokenStore {
         events: EventLog? = nil,
         loadFailure: Error? = nil,
         saveFailure: Error? = nil,
+        clearFailure: Error? = nil,
         clearFailuresRemaining: Int = 0
     ) {
         tokens = initial
         self.events = events
         self.loadFailure = loadFailure
         self.saveFailure = saveFailure
+        self.clearFailure = clearFailure
         self.clearFailuresRemaining = clearFailuresRemaining
     }
 
@@ -441,6 +683,9 @@ private actor RecordingTokenStore: TokenStore {
 
     func clear() async throws {
         await events?.record("token-clear")
+        if let clearFailure {
+            throw clearFailure
+        }
         if clearFailuresRemaining > 0 {
             clearFailuresRemaining -= 1
             throw TokenStoreFailure.clear
@@ -478,5 +723,21 @@ private extension Array where Element == String {
             return false
         }
         return earlierIndex < laterIndex
+    }
+}
+
+private extension JSONEncoder {
+    static var iso8601AuthTokens: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+private extension JSONDecoder {
+    static var iso8601AuthTokens: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }

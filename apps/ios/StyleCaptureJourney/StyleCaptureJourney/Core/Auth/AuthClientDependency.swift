@@ -4,6 +4,12 @@ import Foundation
 enum AuthClientError: Error, Equatable, Sendable {
     case authorizationCancelled
     case invalidAppleCredential
+    case authorizationUnavailable
+    case requestRejected
+    case accountConflict
+    case serviceUnavailable
+    case invalidResponse
+    case networkUnavailable
     case localCredentialPersistenceFailed
     case localCredentialCleanupRequired
     case sessionExpired
@@ -34,7 +40,7 @@ extension AuthClient {
                 }
             },
             authenticate: { credential, nonce in
-                let tokens: AuthTokens
+                var tokens: AuthTokens
                 do {
                     tokens = try await productAuthAPI.authenticate(
                         AppleSignInRequest(
@@ -45,8 +51,9 @@ extension AuthClient {
                         )
                     )
                 } catch {
-                    throw Self.mapProductAuthError(error)
+                    throw Self.mapAuthenticateError(error)
                 }
+                tokens.appleUserIdentifier = credential.userIdentifier
 
                 do {
                     try await tokenStore.save(tokens)
@@ -68,14 +75,15 @@ extension AuthClient {
                     throw AuthClientError.localCredentialPersistenceFailed
                 }
 
-                let tokens: AuthTokens
+                var tokens: AuthTokens
                 do {
                     tokens = try await productAuthAPI.refresh(
                         refreshToken: current.refreshToken
                     )
                 } catch {
-                    throw Self.mapProductAuthError(error)
+                    throw Self.mapProductAuthError(error, serverUnavailable: .serviceUnavailable)
                 }
+                tokens.appleUserIdentifier = current.appleUserIdentifier
 
                 do {
                     try await tokenStore.save(tokens)
@@ -105,7 +113,7 @@ extension AuthClient {
                         accessToken: current.accessToken
                     )
                 } catch {
-                    throw Self.mapProductAuthError(error)
+                    throw Self.mapProductAuthError(error, serverUnavailable: .serviceUnavailable)
                 }
 
                 try await Self.clear(tokenStore)
@@ -124,7 +132,14 @@ extension AuthClient {
         }
     }
 
-    private static func mapProductAuthError(_ error: any Error) -> AuthClientError {
+    private static func mapAuthenticateError(_ error: any Error) -> AuthClientError {
+        mapProductAuthError(error, serverUnavailable: .authorizationUnavailable)
+    }
+
+    private static func mapProductAuthError(
+        _ error: any Error,
+        serverUnavailable: AuthClientError
+    ) -> AuthClientError {
         guard let apiError = error as? ProductAuthAPI.APIError else {
             return .unavailable
         }
@@ -133,12 +148,16 @@ extension AuthClient {
             return .invalidAppleCredential
         case .sessionExpired:
             return .sessionExpired
-        case .invalidRequest,
-             .conflict,
-             .serverUnavailable,
-             .unexpectedResponse,
-             .transportFailure:
-            return .unavailable
+        case .invalidRequest:
+            return .requestRejected
+        case .conflict:
+            return .accountConflict
+        case .serverUnavailable:
+            return serverUnavailable
+        case .unexpectedResponse:
+            return .invalidResponse
+        case .transportFailure:
+            return .networkUnavailable
         }
     }
 }

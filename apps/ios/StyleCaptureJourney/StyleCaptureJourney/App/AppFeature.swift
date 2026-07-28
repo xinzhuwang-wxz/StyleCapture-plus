@@ -5,34 +5,40 @@ import Foundation
 struct AppFeature {
     @ObservableState
     struct State: Equatable {
-        var hasMigratedDatabase = false
+        var launchError: AppError?
         var selectedTab: Tab = .journey
         var restoredJourneyID: String?
-        var navigationPersistenceStatus: NavigationPersistenceStatus = .idle
+        @Shared var navigationSnapshot: NavigationSnapshot
         var auth = AuthFeature.State()
         var journey = JourneyFeature.State()
+
+        init(
+            launchError: AppError? = nil,
+            selectedTab: Tab = .journey,
+            restoredJourneyID: String? = nil,
+            navigationSnapshot: Shared<NavigationSnapshot> = Shared(
+                wrappedValue: NavigationSnapshot(),
+                .fileStorage(.styleCaptureNavigationSnapshot)
+            ),
+            auth: AuthFeature.State = .init(),
+            journey: JourneyFeature.State = .init()
+        ) {
+            self.launchError = launchError
+            self.selectedTab = selectedTab
+            self.restoredJourneyID = restoredJourneyID
+            self._navigationSnapshot = navigationSnapshot
+            self.auth = auth
+            self.journey = journey
+        }
     }
 
     enum Tab: String, Codable, Equatable, Sendable {
         case journey
     }
 
-    enum NavigationPersistenceStatus: Equatable, Sendable {
-        case idle
-        case persisted
-        case failed(AppError)
-    }
-
-    enum NavigationPersistenceResponse: Equatable, Sendable {
-        case success
-        case failure(AppError)
-    }
-
     enum Action: Equatable {
         case launch
-        case launchResponse(Result<NavigationSnapshot?, AppError>)
-        case navigationPersistenceResponse(NavigationPersistenceResponse)
-        case restoreNavigation(NavigationSnapshot)
+        case launchResponse(LaunchResponse)
         case selectedTabChanged(Tab)
         case deepLink(URL)
         case auth(AuthFeature.Action)
@@ -41,12 +47,14 @@ struct AppFeature {
 
     enum AppError: Error, Equatable, Sendable {
         case databaseMigrationFailed
-        case navigationPersistenceFailed
+    }
+
+    enum LaunchResponse: Equatable, Sendable {
+        case success
+        case failure(AppError)
     }
 
     @Dependency(\.databaseClient) var databaseClient
-    @Dependency(\.navigationSnapshotClient) var navigationSnapshotClient
-    @Dependency(\.appLogger) var appLogger
 
     var body: some ReducerOf<Self> {
         Scope(state: \.auth, action: \.auth) {
@@ -58,40 +66,28 @@ struct AppFeature {
         Reduce { state, action in
             switch action {
             case .launch:
+                state.launchError = nil
                 return launchApplication()
 
-            case let .launchResponse(.success(snapshot)):
-                state.hasMigratedDatabase = true
-                if let snapshot {
-                    Self.apply(snapshot, to: &state)
-                }
+            case .launchResponse(.success):
+                state.launchError = nil
+                Self.apply(state.navigationSnapshot, to: &state)
                 return .send(.auth(.task))
 
-            case .launchResponse(.failure):
-                state.hasMigratedDatabase = false
+            case .launchResponse(.failure(.databaseMigrationFailed)):
+                state.launchError = .databaseMigrationFailed
                 return .none
-
-            case .navigationPersistenceResponse(.success):
-                state.navigationPersistenceStatus = .persisted
-                return .none
-
-            case let .navigationPersistenceResponse(.failure(error)):
-                state.navigationPersistenceStatus = .failed(error)
-                return .none
-
-            case let .restoreNavigation(snapshot):
-                Self.apply(snapshot, to: &state)
-                return persistNavigation(state)
 
             case let .selectedTabChanged(tab):
                 state.selectedTab = tab
-                return persistNavigation(state)
+                Self.updateNavigationSnapshot(in: &state)
+                return .none
 
             case let .deepLink(url):
                 if let journeyID = Self.journeyID(from: url) {
                     state.selectedTab = .journey
                     state.restoredJourneyID = journeyID
-                    return persistNavigation(state)
+                    Self.updateNavigationSnapshot(in: &state)
                 }
                 return .none
 
@@ -106,35 +102,13 @@ struct AppFeature {
         return url.pathComponents.dropFirst().first
     }
 
-    private func persistNavigation(_ state: State) -> Effect<Action> {
-        let snapshot = NavigationSnapshot(
-            selectedTab: state.selectedTab.rawValue,
-            journeyID: state.restoredJourneyID
-        )
-        return .run { send in
-            do {
-                try await navigationSnapshotClient.save(snapshot)
-                await send(.navigationPersistenceResponse(.success))
-            } catch {
-                appLogger.userRecoverableError("navigation persistence failed")
-                await send(.navigationPersistenceResponse(.failure(.navigationPersistenceFailed)))
-            }
-        }
-    }
-
     private func launchApplication() -> Effect<Action> {
         .run { send in
             do {
                 try await databaseClient.migrate()
+                await send(.launchResponse(.success))
             } catch {
                 await send(.launchResponse(.failure(.databaseMigrationFailed)))
-                return
-            }
-            do {
-                let snapshot = try await navigationSnapshotClient.load()
-                await send(.launchResponse(.success(snapshot)))
-            } catch {
-                await send(.launchResponse(.failure(.navigationPersistenceFailed)))
             }
         }
     }
@@ -143,4 +117,19 @@ struct AppFeature {
         state.selectedTab = Tab(rawValue: snapshot.selectedTab) ?? .journey
         state.restoredJourneyID = snapshot.journeyID
     }
+
+    private static func updateNavigationSnapshot(in state: inout State) {
+        let selectedTab = state.selectedTab.rawValue
+        let journeyID = state.restoredJourneyID
+        state.$navigationSnapshot.withLock {
+            $0.selectedTab = selectedTab
+            $0.journeyID = journeyID
+        }
+    }
+}
+
+private extension URL {
+    static let styleCaptureNavigationSnapshot = applicationSupportDirectory
+        .appending(component: "StyleCaptureJourney", directoryHint: .isDirectory)
+        .appending(component: "navigation-snapshot.json")
 }

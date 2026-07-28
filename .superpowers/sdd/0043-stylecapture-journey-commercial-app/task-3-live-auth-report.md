@@ -44,3 +44,46 @@ The frozen RED originally passed a prebuilt generated `Client` into `ProductAuth
 ## Hosted decoding-failure correction
 
 Run `30373358421` showed that malformed successful JSON reaches `ProductAuthAPI` as the generated runtime's public `ClientError`, rather than as a bare `DecodingError`. The runtime attaches a non-nil HTTP response when deserialization fails; transport failures have no response. The boundary therefore maps `ClientError` values with a response to `unexpectedResponse` and preserves response-less client errors as `transportFailure`.
+
+## Release-surface auth addendum
+
+This addendum records the current repository state only. It does not claim a production build, M0 market signal, App Review readiness, TestFlight processing, or real Sign in with Apple execution.
+
+### Current source evidence
+
+- `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Features/Onboarding/AppleSignInTriggerButton.swift`
+  - Reuses Apple's `ASAuthorizationAppleIDButton` directly through a thin SwiftUI `UIViewRepresentable`.
+  - Sets `.signIn` and `.black`, applies the design-system corner radius, forwards accessibility values, and sends the TCA tap action.
+  - Official references: <https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidbutton> and <https://developer.apple.com/documentation/signinwithapple/displaying-sign-in-with-apple-buttons-in-your-app>.
+- `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Features/Onboarding/AuthFeature.swift`
+  - Keeps restore, sign-in, refresh, logout, deletion confirmation, local cleanup, credential revocation, and cancellation inside the TCA reducer.
+  - Uses dependency clients for auth API/session storage, Apple authorization, nonce generation, credential state, and date.
+  - Reuse decision: keep exact-pinned `swift-composable-architecture` `1.26.1` / `ead11e04e5011c437722c1990d22f80d87056978`; do not add a ViewModel, app router, DI container, effect runner, or second navigation owner.
+  - Official Point-Free source references: <https://github.com/pointfreeco/swift-composable-architecture/tree/1.26.1> and <https://github.com/pointfreeco/swift-composable-architecture/blob/1.26.1/Sources/ComposableArchitecture/Documentation.docc/Articles/SharingState.md>.
+- `apps/ios/StyleCaptureJourney/StyleCaptureJourney/App/AppFeature.swift` and `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Navigation/NavigationSnapshot.swift`
+  - Remove the custom `NavigationSnapshotClient`, app-owned `UserDefaults` navigation store, navigation persistence effect, and navigation persistence status.
+  - Initialize `@Shared var navigationSnapshot` with TCA's `Shared(wrappedValue: NavigationSnapshot(), .fileStorage(.styleCaptureNavigationSnapshot))` persistence strategy.
+  - Keep `NavigationSnapshot` as a pure `Codable` value and keep restore/deep-link state mutation in the reducer.
+  - Do not introduce `StackState` for this shell until a real pushed navigation stack exists.
+- `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Auth/AuthSession.swift`
+  - Deleted. Its duplicate session responsibilities are consolidated into `AuthClient` plus `ProductAuthAPI` boundaries used by TCA.
+  - Reuse decision: remove the feature-local duplicate instead of maintaining two auth-session owners.
+- `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Auth/AppleCredentialStateDependency.swift`
+  - Reuses `ASAuthorizationAppleIDProvider.getCredentialState(forUserID:completion:)`.
+  - Reuses `ASAuthorizationAppleIDProvider.credentialRevokedNotification` and Foundation `NotificationCenter.notifications(named:)` as an async sequence.
+  - Official references: <https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidprovider/getcredentialstate(foruserid:completion:)>, <https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidprovider/credentialrevokednotification>, and <https://developer.apple.com/documentation/foundation/notificationcenter/notifications>.
+- `apps/ios/StyleCaptureJourney/StyleCaptureJourney/Resources/PrivacyInfo.xcprivacy`
+  - Declares `NSPrivacyTracking = false`.
+  - Declares linked, non-tracking `NSPrivacyCollectedDataTypeUserID` with `NSPrivacyCollectedDataTypePurposeAppFunctionality` for Sign in with Apple and backend account-subject alignment.
+  - Declares no app-owned accessed API categories. The app no longer declares `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` because application Swift sources no longer directly use `UserDefaults`.
+  - Official references: <https://developer.apple.com/documentation/bundleresources/privacy-manifest-files>, <https://developer.apple.com/documentation/bundleresources/describing-data-use-in-privacy-manifests>, and <https://developer.apple.com/app-store/app-privacy-details/>.
+- `.build/ios-task3/SourcePackages/checkouts/swift-composable-architecture/Sources/ComposableArchitecture/Resources/PrivacyInfo.xcprivacy`
+  - Dependency manifest declares `NSPrivacyAccessedAPICategoryUserDefaults` / `C56D.1` and no tracking or collected-data types.
+- `.build/ios-task3/SourcePackages/checkouts/swift-sharing/Sources/Sharing/PrivacyInfo.xcprivacy`
+  - Dependency manifest declares `NSPrivacyAccessedAPICategoryFileTimestamp` / `C617.1` and `NSPrivacyAccessedAPICategoryUserDefaults` / `C56D.1`, with no tracking or collected-data types.
+
+### Current verification gaps
+
+- Hosted Xcode compile is pending for this current auth surface.
+- Hosted Simulator execution is pending for this current auth surface.
+- No signed archive, TestFlight processed build, real Sign in with Apple account run, account deletion run, production run, M0 market evidence, or revenue evidence exists in this addendum.

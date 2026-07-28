@@ -10,10 +10,7 @@ from pathlib import Path
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
-NAVIGATION_SOURCE = (
-    ROOT
-    / "apps/ios/StyleCaptureJourney/StyleCaptureJourney/Core/Navigation/NavigationSnapshotClient.swift"
-)
+APP_SOURCE_ROOT = ROOT / "apps/ios/StyleCaptureJourney/StyleCaptureJourney"
 PRIVACY_MANIFEST = (
     ROOT / "apps/ios/StyleCaptureJourney/StyleCaptureJourney/Resources/PrivacyInfo.xcprivacy"
 )
@@ -23,6 +20,8 @@ DEPENDENCY_PRIVACY_EVIDENCE = (
 
 USER_DEFAULTS_CATEGORY = "NSPrivacyAccessedAPICategoryUserDefaults"
 USER_DEFAULTS_REASON = "CA92.1"
+COLLECTED_USER_ID_TYPE = "NSPrivacyCollectedDataTypeUserID"
+COLLECTED_USER_ID_PURPOSE = "NSPrivacyCollectedDataTypePurposeAppFunctionality"
 
 AUDITED_PACKAGE_MANIFESTS = {
     "grdb.swift": ("GRDB.swift", "GRDB/PrivacyInfo.xcprivacy", {}),
@@ -43,7 +42,10 @@ AUDITED_PACKAGE_MANIFESTS = {
 
 
 def source_uses_user_defaults() -> bool:
-    return "UserDefaults" in NAVIGATION_SOURCE.read_text(encoding="utf-8")
+    return any(
+        "UserDefaults" in source.read_text(encoding="utf-8")
+        for source in APP_SOURCE_ROOT.rglob("*.swift")
+    )
 
 
 def string_list(value: object) -> list[str]:
@@ -52,8 +54,9 @@ def string_list(value: object) -> list[str]:
     return [item for item in value if isinstance(item, str)]
 
 
-def load_manifest(path: Path = PRIVACY_MANIFEST) -> dict[str, object]:
-    with path.open("rb") as manifest_file:
+def load_manifest(path: Path | None = None) -> dict[str, object]:
+    manifest_path = PRIVACY_MANIFEST if path is None else path
+    with manifest_path.open("rb") as manifest_file:
         return cast("dict[str, object]", plistlib.load(manifest_file))
 
 
@@ -87,6 +90,44 @@ def declared_reason_map(manifest: dict[str, object]) -> dict[str, set[str]]:
                 string_list(raw_api_type.get("NSPrivacyAccessedAPITypeReasons"))
             )
     return reason_map
+
+
+def declared_collected_data_entries(manifest: dict[str, object]) -> list[dict[object, object]]:
+    raw_data_types = manifest.get("NSPrivacyCollectedDataTypes", [])
+    if not isinstance(raw_data_types, list):
+        return []
+    return [entry for entry in raw_data_types if isinstance(entry, dict)]
+
+
+def check_collected_user_id(manifest: dict[str, object]) -> int:
+    user_id_entries = [
+        entry
+        for entry in declared_collected_data_entries(manifest)
+        if entry.get("NSPrivacyCollectedDataType") == COLLECTED_USER_ID_TYPE
+    ]
+    if len(user_id_entries) != 1:
+        print(
+            "iOS privacy manifest missing linked non-tracking User ID collection "
+            "for Sign in with Apple and backend account subject alignment.",
+            file=sys.stderr,
+        )
+        return 1
+
+    user_id_entry = user_id_entries[0]
+    purposes = string_list(user_id_entry.get("NSPrivacyCollectedDataTypePurposes"))
+    if (
+        user_id_entry.get("NSPrivacyCollectedDataTypeLinked") is not True
+        or user_id_entry.get("NSPrivacyCollectedDataTypeTracking") is not False
+        or purposes != [COLLECTED_USER_ID_PURPOSE]
+    ):
+        print(
+            "iOS privacy manifest User ID collection must be linked, non-tracking, "
+            f"and limited to {COLLECTED_USER_ID_PURPOSE}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    return 0
 
 
 def check_dependency_evidence() -> int:
@@ -157,17 +198,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"missing iOS privacy manifest: {PRIVACY_MANIFEST}", file=sys.stderr)
         return 1
 
+    manifest = load_manifest()
+    reasons = declared_reasons(manifest, USER_DEFAULTS_CATEGORY)
     if source_uses_user_defaults():
-        reasons = declared_reasons(load_manifest(), USER_DEFAULTS_CATEGORY)
         if USER_DEFAULTS_REASON not in reasons:
             print(
                 "iOS privacy manifest missing "
                 f"{USER_DEFAULTS_CATEGORY} reason {USER_DEFAULTS_REASON} while "
-                f"{NAVIGATION_SOURCE.relative_to(ROOT)} uses UserDefaults.",
+                "application source uses UserDefaults.",
                 file=sys.stderr,
             )
             return 1
+    elif reasons:
+        print(
+            "iOS privacy manifest declares an app-owned UserDefaults reason even though "
+            "application source does not use UserDefaults; dependency declarations are "
+            "validated from their own manifests.",
+            file=sys.stderr,
+        )
+        return 1
 
+    if check_collected_user_id(manifest) != 0:
+        return 1
     if check_dependency_evidence() != 0:
         return 1
     if source_packages is not None:

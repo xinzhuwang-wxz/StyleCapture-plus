@@ -6,7 +6,9 @@ struct AppView: View {
 
     var body: some View {
         Group {
-            if store.auth.phase.isAuthenticated {
+            if let error = store.launchError {
+                launchFailureView(error: error)
+            } else if store.auth.phase.showsAuthenticatedShell {
                 TabView(
                     selection: Binding(
                         get: { store.selectedTab },
@@ -40,29 +42,121 @@ struct AppView: View {
         }
     }
 
+    private func launchFailureView(error: AppFeature.AppError) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.spacingLarge) {
+                VStack(alignment: .leading, spacing: DesignTokens.spacingSmall) {
+                    Text("StyleCapture 穿搭旅程")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(DesignTokens.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("启动准备尚未完成")
+                        .font(.headline)
+                        .foregroundStyle(DesignTokens.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: DesignTokens.spacingMedium) {
+                    HStack(alignment: .top, spacing: DesignTokens.spacingMedium) {
+                        Text("!")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(DesignTokens.danger)
+                            .frame(width: 44, height: 44)
+                            .background(DesignTokens.dangerFill)
+                            .clipShape(
+                                RoundedRectangle(
+                                    cornerRadius: DesignTokens.cornerRadius,
+                                    style: .continuous
+                                )
+                            )
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: DesignTokens.spacingSmall) {
+                            Text(launchFailureTitle(for: error))
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(DesignTokens.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(launchFailureMessage(for: error))
+                                .font(.body)
+                                .foregroundStyle(DesignTokens.textMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(DesignTokens.spacingLarge)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(DesignTokens.canvasLight)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: DesignTokens.cornerRadius,
+                        style: .continuous
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: DesignTokens.cornerRadius,
+                        style: .continuous
+                    )
+                    .stroke(DesignTokens.cardStroke, lineWidth: 1)
+                )
+                .shadow(color: DesignTokens.softShadow, radius: 20, x: 0, y: 12)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("app.launchFailure.card")
+
+                Button("重试启动") {
+                    store.send(.launch)
+                }
+                .buttonStyle(AuthActionButtonStyle(tone: .primary))
+                .accessibilityIdentifier("app.launchFailure.retry.button")
+                .accessibilityHint("重新执行启动准备并恢复登录状态")
+            }
+            .padding(DesignTokens.spacingLarge)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .background(DesignTokens.canvas)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("app.launchFailure.shell")
+    }
+
+    private func launchFailureTitle(for error: AppFeature.AppError) -> String {
+        switch error {
+        case .databaseMigrationFailed:
+            return "本机资料库准备失败"
+        }
+    }
+
+    private func launchFailureMessage(for error: AppFeature.AppError) -> String {
+        switch error {
+        case .databaseMigrationFailed:
+            return "StyleCapture 需要先完成本机资料库迁移，才能安全恢复登录状态并打开 Journey。请重试启动准备。"
+        }
+    }
+
     @ViewBuilder
     private var signedInAccountControls: some View {
         switch store.auth.phase {
-        case let .signedIn(tokens), let .refreshing(tokens):
+        case .signedIn:
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("StyleCapture")
+                    Text("StyleCapture 穿搭旅程")
                         .font(.headline)
-                    Text(tokens.accountSubject)
+                    Text(AuthViewContract.signedInPrivacyLabel)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignTokens.textMuted)
                 }
                 Spacer()
                 Button("退出登录") {
                     store.send(.auth(.logoutButtonTapped))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(AuthActionButtonStyle(tone: .secondary, expands: false))
                 .accessibilityIdentifier("auth.logout.button")
 
                 Button("删除账号", role: .destructive) {
                     store.send(.auth(.deleteAccountButtonTapped))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(AuthActionButtonStyle(tone: .destructive, expands: false))
                 .accessibilityIdentifier("auth.deleteAccount.button")
             }
             .padding(.horizontal, DesignTokens.spacingLarge)
@@ -78,9 +172,9 @@ struct AppView: View {
 }
 
 private extension AuthFeature.Phase {
-    var isAuthenticated: Bool {
+    var showsAuthenticatedShell: Bool {
         switch self {
-        case .signedIn, .refreshing:
+        case .signedIn:
             return true
         case .restoring,
              .signedOut,

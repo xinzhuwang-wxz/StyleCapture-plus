@@ -13,7 +13,6 @@ struct AuthFeature {
         case signedOut
         case signingIn
         case signedIn(AuthTokens)
-        case refreshing(AuthTokens)
         case signingOut
         case confirmingAccountDeletion(AuthTokens)
         case deleting
@@ -52,31 +51,26 @@ struct AuthFeature {
         case deleteAccountResponse(OperationResponse)
         case retryLocalCleanupTapped
         case localCleanupResponse(OperationResponse)
+        case credentialRevokedNotification
+        case credentialRevocationCleanupResponse(OperationResponse)
     }
 
     private enum CancellationID: Hashable {
         case signIn
+        case credentialRevocationNotifications
     }
 
     @Dependency(\.authClient) var authClient
     @Dependency(\.appleSignInClient) var appleSignInClient
     @Dependency(\.appleSignInNonce) var appleSignInNonce
+    @Dependency(\.appleCredentialStateClient) var appleCredentialStateClient
+    @Dependency(\.date.now) var now
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
             case .task:
-                return .run { send in
-                    do {
-                        if let tokens = try await authClient.restore() {
-                            await send(.restoreResponse(.signedIn(tokens)))
-                        } else {
-                            await send(.restoreResponse(.signedOut))
-                        }
-                    } catch {
-                        await send(.restoreResponse(.failure(Self.map(error))))
-                    }
-                }
+                return restore()
 
             case .restoreResponse(.signedOut):
                 state.phase = .signedOut
@@ -84,7 +78,7 @@ struct AuthFeature {
 
             case let .restoreResponse(.signedIn(tokens)):
                 state.phase = .signedIn(tokens)
-                return .none
+                return credentialRevocationNotifications()
 
             case let .restoreResponse(.failure(error)):
                 state.phase = .failed(error)
@@ -96,7 +90,7 @@ struct AuthFeature {
 
             case let .signInResponse(.success(tokens)):
                 state.phase = .signedIn(tokens)
-                return .none
+                return credentialRevocationNotifications()
 
             case .signInResponse(.failure(.authorizationCancelled)):
                 state.phase = .signedOut
@@ -108,7 +102,7 @@ struct AuthFeature {
 
             case .deleteAccountButtonTapped:
                 switch state.phase {
-                case let .signedIn(tokens), let .refreshing(tokens):
+                case let .signedIn(tokens):
                     state.phase = .confirmingAccountDeletion(tokens)
                 default:
                     return .none
@@ -122,6 +116,9 @@ struct AuthFeature {
                 return .none
 
             case .confirmDeleteAccountTapped:
+                guard case .confirmingAccountDeletion = state.phase else {
+                    return .none
+                }
                 state.phase = .deleting
                 return .run { send in
                     do {
@@ -134,7 +131,7 @@ struct AuthFeature {
 
             case .deleteAccountResponse(.success):
                 state.phase = .signedOut
-                return .none
+                return .cancel(id: CancellationID.credentialRevocationNotifications)
 
             case .deleteAccountResponse(.failure(.localCredentialCleanupRequired)):
                 state.phase = .localCredentialCleanupRequired
@@ -157,7 +154,7 @@ struct AuthFeature {
 
             case .logoutResponse(.success):
                 state.phase = .signedOut
-                return .none
+                return .cancel(id: CancellationID.credentialRevocationNotifications)
 
             case let .logoutResponse(.failure(error)):
                 state.phase = .failed(error)
@@ -176,13 +173,56 @@ struct AuthFeature {
 
             case .localCleanupResponse(.success):
                 state.phase = .signedOut
-                return .none
+                return .cancel(id: CancellationID.credentialRevocationNotifications)
 
             case let .localCleanupResponse(.failure(error)):
                 state.phase = error == .localCredentialCleanupRequired
                     ? .localCredentialCleanupRequired
                     : .failed(error)
                 return .none
+
+            case .credentialRevokedNotification:
+                guard state.phase.isAuthenticated else {
+                    return .none
+                }
+                state.phase = .clearingLocalCredentials
+                return clearRevokedCredential()
+
+            case .credentialRevocationCleanupResponse(.success):
+                state.phase = .signedOut
+                return .cancel(id: CancellationID.credentialRevocationNotifications)
+
+            case let .credentialRevocationCleanupResponse(.failure(error)):
+                state.phase = error == .localCredentialCleanupRequired
+                    ? .localCredentialCleanupRequired
+                    : .failed(error)
+                return .none
+            }
+        }
+    }
+
+    private func restore() -> Effect<Action> {
+        .run { send in
+            do {
+                guard let restoredTokens = try await authClient.restore() else {
+                    await send(.restoreResponse(.signedOut))
+                    return
+                }
+
+                guard try await credentialIsStillValid(for: restoredTokens) else {
+                    try await authClient.logout()
+                    await send(.restoreResponse(.signedOut))
+                    return
+                }
+
+                if restoredTokens.accessExpiresAt <= now {
+                    let refreshedTokens = try await authClient.refresh()
+                    await send(.restoreResponse(.signedIn(refreshedTokens)))
+                } else {
+                    await send(.restoreResponse(.signedIn(restoredTokens)))
+                }
+            } catch {
+                await send(.restoreResponse(.failure(Self.map(error))))
             }
         }
     }
@@ -192,8 +232,11 @@ struct AuthFeature {
             do {
                 let nonce = try appleSignInNonce.generate()
                 let credential = try await appleSignInClient.authorize(nonce.hashedValue)
+                try Task.checkCancellation()
                 let tokens = try await authClient.authenticate(credential, nonce.rawValue)
                 await send(.signInResponse(.success(tokens)))
+            } catch is CancellationError {
+                return
             } catch {
                 await send(.signInResponse(.failure(Self.map(error))))
             }
@@ -203,5 +246,59 @@ struct AuthFeature {
 
     private static func map(_ error: any Error) -> AuthClientError {
         error as? AuthClientError ?? .unavailable
+    }
+
+    private func credentialIsStillValid(for tokens: AuthTokens) async throws -> Bool {
+        guard let userIdentifier = tokens.appleUserIdentifier else {
+            return true
+        }
+
+        switch await appleCredentialStateClient.credentialState(userIdentifier) {
+        case .authorized, .unavailable:
+            return true
+        case .revoked, .notFound, .transferred:
+            return false
+        }
+    }
+
+    private func credentialRevocationNotifications() -> Effect<Action> {
+        .run { send in
+            for await _ in appleCredentialStateClient.revocationEvents() {
+                await send(.credentialRevokedNotification)
+            }
+        }
+        .cancellable(
+            id: CancellationID.credentialRevocationNotifications,
+            cancelInFlight: true
+        )
+    }
+
+    private func clearRevokedCredential() -> Effect<Action> {
+        .run { send in
+            do {
+                try await authClient.logout()
+                await send(.credentialRevocationCleanupResponse(.success))
+            } catch {
+                await send(.credentialRevocationCleanupResponse(.failure(Self.map(error))))
+            }
+        }
+    }
+}
+
+private extension AuthFeature.Phase {
+    var isAuthenticated: Bool {
+        switch self {
+        case .signedIn, .confirmingAccountDeletion:
+            return true
+        case .restoring,
+             .signedOut,
+             .signingIn,
+             .signingOut,
+             .deleting,
+             .clearingLocalCredentials,
+             .localCredentialCleanupRequired,
+             .failed:
+            return false
+        }
     }
 }
