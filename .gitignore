@@ -24,6 +24,7 @@ uploads/
 .env.*
 !.env.example
 .venv/
+.build/
 __pycache__/
 *.py[cod]
 .pytest_cache/
