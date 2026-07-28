@@ -26,12 +26,12 @@ def test_litellm_config_exposes_capability_alias_without_embedded_credentials() 
     grounding = models["visual_grounding"]
     outfit_analysis = models["outfit_analysis"]
     image_generation = models["image_generation"]
-    assert reasoning["model"] == "openai/doubao-seed-2-0-lite-260428"
-    assert vision["model"] == "openai/doubao-seed-2-0-lite-260428"
-    assert grounding["model"] == "openai/doubao-seed-2-0-lite-260428"
-    assert outfit_analysis["model"] == "openai/doubao-seed-2-0-lite-260428"
-    assert models["outfit_analysis_fallback"]["model"] == ("openai/doubao-seed-2-0-lite-260428")
-    assert image_generation["model"] == "openai/doubao-seedream-5-0-260128"
+    assert reasoning["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
+    assert vision["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
+    assert grounding["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
+    assert outfit_analysis["model"] == "os.environ/STYLECAPTURE_TEXT_MODEL"
+    assert models["outfit_analysis_fallback"]["model"] == ("os.environ/STYLECAPTURE_TEXT_MODEL")
+    assert image_generation["model"] == "os.environ/STYLECAPTURE_IMAGE_MODEL"
     assert models["candidate_doubao_seed_2_0_lite_260428"]["model"] == (
         "openai/doubao-seed-2-0-lite-260428"
     )
@@ -44,12 +44,12 @@ def test_litellm_config_exposes_capability_alias_without_embedded_credentials() 
     ):
         assert models[candidate_alias]["api_base"] == "os.environ/ARK_BASE_URL"
         assert models[candidate_alias]["api_key"] == "os.environ/ARK_API_KEY"
-    assert reasoning["api_key"] == "os.environ/ARK_API_KEY"
-    assert vision["api_key"] == "os.environ/ARK_API_KEY"
-    assert grounding["api_key"] == "os.environ/ARK_API_KEY"
-    assert outfit_analysis["api_key"] == "os.environ/ARK_API_KEY"
-    assert models["outfit_analysis_fallback"]["api_key"] == "os.environ/ARK_API_KEY"
-    assert image_generation["api_key"] == "os.environ/ARK_API_KEY"
-    assert vision["api_base"] == "os.environ/ARK_BASE_URL"
+    assert reasoning["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
+    assert vision["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
+    assert grounding["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
+    assert outfit_analysis["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
+    assert models["outfit_analysis_fallback"]["api_key"] == ("os.environ/STYLECAPTURE_AI_API_KEY")
+    assert image_generation["api_key"] == "os.environ/STYLECAPTURE_AI_API_KEY"
+    assert vision["api_base"] == "os.environ/STYLECAPTURE_AI_API_BASE"
     assert "sk-" not in raw
     assert config["general_settings"]["master_key"] == "os.environ/LITELLM_MASTER_KEY"
