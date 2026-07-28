@@ -3,17 +3,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from stylecapture_backend.features.account.domain import (
     AccessTokenExpiredError,
     Account,
     AccountBindingConflictError,
+    AppleProviderGrantRevocationAttempt,
     AuthorizationCodeReplayError,
     AuthTokens,
     DeletionRequest,
     DeviceSession,
     ExternalIdentity,
+    ProviderGrantRevocationError,
     RefreshTokenExpiredError,
     RefreshTokenReuseError,
     SessionRevokedError,
@@ -23,7 +25,12 @@ from stylecapture_backend.features.account.domain import (
     hash_secret,
     new_token,
 )
-from stylecapture_backend.features.account.ports import AccountRepository, AppleIdentityVerifier
+from stylecapture_backend.features.account.ports import (
+    AccountRepository,
+    AppleIdentityVerifier,
+    AppleProviderGrantRepository,
+    AppleProviderGrantRevoker,
+)
 
 
 class AccountError(ValueError):
@@ -54,6 +61,12 @@ class RefreshSessionCommand:
     refresh_token: str
 
 
+@dataclass(frozen=True, slots=True)
+class AccountDeletionCommand:
+    access_token: str
+    idempotency_key: str
+
+
 class AccountApplication:
     def __init__(
         self,
@@ -62,6 +75,8 @@ class AccountApplication:
         apple_identity: AppleIdentityVerifier,
         allowed_audiences: frozenset[str],
         token_secret: str,
+        apple_provider_grants: AppleProviderGrantRepository | None = None,
+        apple_provider_revoker: AppleProviderGrantRevoker | None = None,
         now: Callable[[], datetime] | None = None,
         access_lifetime: timedelta = timedelta(minutes=15),
         refresh_lifetime: timedelta = timedelta(days=30),
@@ -70,6 +85,8 @@ class AccountApplication:
             raise ValueError("account token secret must be at least 24 characters")
         self._repository = repository
         self._apple_identity = apple_identity
+        self._apple_provider_grants = apple_provider_grants
+        self._apple_provider_revoker = apple_provider_revoker
         self._allowed_audiences = allowed_audiences
         self._token_secret = token_secret
         self._now = now or (lambda: datetime.now(UTC))
@@ -101,6 +118,7 @@ class AccountApplication:
                 identity=identity,
                 authorization_code_hash=self._hash(command.authorization_code),
                 account=account,
+                apple_provider_grant=claims.provider_grant,
             )
         except AuthorizationCodeReplayError as error:
             raise AccountError(
@@ -174,14 +192,59 @@ class AccountApplication:
         return await self._repository.resolve_subject(subject_id)
 
     async def request_account_deletion(self, subject_id: UUID) -> DeletionRequest:
-        canonical = await self._repository.resolve_subject(subject_id)
-        deletion = await self._repository.tombstone_subject(canonical, reason="account_deletion")
-        await self._repository.revoke_subject_sessions(canonical)
-        return deletion
+        return (
+            await self._repository.accept_account_deletion(
+                subject_id,
+                reason="account_deletion",
+            )
+        ).deletion
 
-    async def deletion_status(self, subject_id: UUID) -> DeletionRequest | None:
-        canonical = await self._repository.resolve_subject(subject_id)
-        return await self._repository.deletion_request_for(canonical)
+    async def request_account_deletion_with_access_token(
+        self,
+        command: AccountDeletionCommand,
+    ) -> DeletionRequest:
+        access_hash = self._hash(command.access_token)
+        key_hash = self._hash(command.idempotency_key)
+        try:
+            subject_id = await self.resolve_access_token(command.access_token)
+        except AccountError:
+            replay = await self._repository.deletion_request_for_idempotency(
+                access_token_hash=access_hash,
+                idempotency_key_hash=key_hash,
+            )
+            if replay is None:
+                raise
+            return replay
+        try:
+            return (
+                await self._repository.accept_account_deletion(
+                    subject_id,
+                    reason="account_deletion",
+                    access_token_hash=access_hash,
+                    idempotency_key_hash=key_hash,
+                )
+            ).deletion
+        except AccountBindingConflictError as error:
+            raise AccountError(
+                "account_delete_conflict",
+                "Account deletion idempotency key conflicts with another credential",
+            ) from error
+
+    async def process_apple_provider_revocations(
+        self,
+        *,
+        lease_owner: str | None = None,
+        limit: int = 25,
+    ) -> int:
+        if self._apple_provider_grants is None:
+            return 0
+        claims = await self._apple_provider_grants.claim_apple_provider_revocations(
+            lease_owner=lease_owner or f"account-revoker-{uuid4()}",
+            limit=limit,
+        )
+        for claim in claims:
+            await self._revoke_apple_provider_grant(claim.attempt)
+        return len(claims)
 
     async def _issue_session(self, account_subject: UUID, *, device_name: str | None) -> AuthTokens:
         access_token = new_token()
@@ -207,6 +270,32 @@ class AccountApplication:
 
     def _hash(self, value: str) -> str:
         return hash_secret(value, self._token_secret)
+
+    async def _revoke_apple_provider_grant(
+        self,
+        attempt: AppleProviderGrantRevocationAttempt | None,
+    ) -> None:
+        if attempt is None or self._apple_provider_grants is None:
+            return
+        token = attempt.grant.revocable_token()
+        if token is None:
+            await self._apple_provider_grants.mark_apple_provider_revoked(attempt)
+            return
+        if self._apple_provider_revoker is None:
+            return
+        token_value, token_type_hint = token
+        try:
+            await self._apple_provider_revoker.revoke(
+                token=token_value,
+                token_type_hint=token_type_hint,
+            )
+        except ProviderGrantRevocationError:
+            await self._apple_provider_grants.mark_apple_provider_revocation_failed(
+                attempt,
+                failure_code="apple_revocation_failed",
+            )
+            return
+        await self._apple_provider_grants.mark_apple_provider_revoked(attempt)
 
     def _aware_now(self) -> datetime:
         value = self._now()

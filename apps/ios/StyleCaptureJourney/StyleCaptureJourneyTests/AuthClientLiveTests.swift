@@ -17,7 +17,7 @@ final class AuthClientLiveTests: XCTestCase {
         )
 
         let restored = try await authClient.restore()
-        XCTAssertEqual(restored, Self.storedTokens)
+        XCTAssertEqual(restored, Self.storedTokens.authenticatedAccount)
 
         let signedIn = try await authClient.authenticate(
             AppleSignInCredential(
@@ -27,12 +27,12 @@ final class AuthClientLiveTests: XCTestCase {
             ),
             "raw-nonce"
         )
-        XCTAssertEqual(signedIn, Self.signedInTokens)
+        XCTAssertEqual(signedIn, Self.signedInTokens.authenticatedAccount)
         let storedAfterSignIn = await tokenStore.currentTokens()
         XCTAssertEqual(storedAfterSignIn, Self.signedInTokens)
 
         let refreshed = try await authClient.refresh()
-        XCTAssertEqual(refreshed, Self.rotatedTokens)
+        XCTAssertEqual(refreshed, Self.rotatedTokens.authenticatedAccount)
         let storedAfterRefresh = await tokenStore.currentTokens()
         XCTAssertEqual(storedAfterRefresh, Self.rotatedTokens)
 
@@ -45,9 +45,15 @@ final class AuthClientLiveTests: XCTestCase {
 
         await events.removeAll()
         try await tokenStore.save(Self.rotatedTokens)
-        try await authClient.deleteAccount()
-        let storedAfterDeletion = await tokenStore.currentTokens()
-        XCTAssertNil(storedAfterDeletion)
+        let acknowledgement = try await authClient.deleteAccount()
+        XCTAssertEqual(acknowledgement, Self.deletionAcknowledgement)
+        let storedAfterDeletionAcknowledgement = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterDeletionAcknowledgement.accountDeletionIntent?.phase, .accepted)
+        XCTAssertNil(await tokenStore.tokensForRetry())
+
+        try await authClient.clearLocalCredentials()
+        let storedAfterLocalCleanup = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterLocalCleanup, .signedOut)
 
         let authenticateRequest = try await requests.onlyRequest(
             operationID: Operations.AuthenticateWithAppleV1AuthApplePost.id
@@ -76,15 +82,26 @@ final class AuthClientLiveTests: XCTestCase {
             deleteRequest.http.headerFields.filter { $0.name == .authorization }.map(\.value),
             ["Bearer access-2"]
         )
+        let deletionIntent = try XCTUnwrap(storedAfterDeletionAcknowledgement.accountDeletionIntent)
+        XCTAssertEqual(
+            deleteRequest.http.headerFields.filter {
+                $0.name.rawName.lowercased() == "idempotency-key"
+            }.map(\.value),
+            [deletionIntent.idempotencyKey]
+        )
 
         let eventSnapshot = await events.snapshot()
         XCTAssertTrue(
-            eventSnapshot.isOrdered(before: "server-delete", after: "token-clear"),
-            "Server deletion must complete before local credential cleanup."
+            eventSnapshot.isOrdered(before: "token-deletion-marker", after: "server-delete"),
+            "Stored credentials must be replaced by a deletion marker before network deletion."
+        )
+        XCTAssertTrue(
+            eventSnapshot.isOrdered(before: "server-delete", after: "token-delete"),
+            "Server deletion acknowledgement must be received before bearer and refresh tokens are removed."
         )
     }
 
-    func testLiveDeleteMapsPostServerKeychainClearFailureToLocalCleanupRequired() async throws {
+    func testLiveDeletePreservesAcknowledgementWhenLocalCleanupRequiresSeparateRetry() async throws {
         let events = EventLog()
         let requests = RecordedProductAuthRequests(events: events)
         let tokenStore = RecordingTokenStore(
@@ -98,15 +115,21 @@ final class AuthClientLiveTests: XCTestCase {
             deviceName: { nil }
         )
 
-        await XCTAssertThrowsAuthClientError(.localCredentialCleanupRequired) {
-            try await authClient.deleteAccount()
-        }
-        let deletionAttemptsAfterFailure = await requests.count(
+        let acknowledgement = try await authClient.deleteAccount()
+        XCTAssertEqual(acknowledgement, Self.deletionAcknowledgement)
+        let deletionAttemptsAfterAcknowledgement = await requests.count(
             operationID: Operations.DeleteAccountV1AccountDeletePost.id
         )
-        XCTAssertEqual(deletionAttemptsAfterFailure, 1)
-        let storedAfterFailedCleanup = await tokenStore.currentTokens()
-        XCTAssertEqual(storedAfterFailedCleanup, Self.storedTokens)
+        XCTAssertEqual(deletionAttemptsAfterAcknowledgement, 1)
+        let storedAfterAcknowledgement = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterAcknowledgement.accountDeletionIntent?.phase, .accepted)
+        XCTAssertNil(await tokenStore.tokensForRetry())
+
+        await XCTAssertThrowsAuthClientError(.localCredentialCleanupRequired) {
+            try await authClient.clearLocalCredentials()
+        }
+        let storedAfterFailedCleanup = await tokenStore.currentSession()
+        XCTAssertEqual(storedAfterFailedCleanup.accountDeletionIntent?.phase, .accepted)
 
         try await authClient.clearLocalCredentials()
         let storedAfterRetry = await tokenStore.currentTokens()
@@ -115,6 +138,186 @@ final class AuthClientLiveTests: XCTestCase {
             operationID: Operations.DeleteAccountV1AccountDeletePost.id
         )
         XCTAssertEqual(deletionAttemptsAfterRetry, 1)
+    }
+
+    func testLiveDeleteWritesDurableMarkerBeforeNetworkSubmission() async throws {
+        let events = EventLog()
+        let requests = RecordedProductAuthRequests(events: events)
+        let tokenStore = RecordingTokenStore(initial: Self.storedTokens, events: events)
+        let authClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: requests),
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        _ = try await authClient.deleteAccount()
+
+        let eventSnapshot = await events.snapshot()
+        XCTAssertTrue(
+            eventSnapshot.isOrdered(before: "token-deletion-marker", after: "server-delete"),
+            "A crash after submission must leave a deletion-pending marker before network deletion."
+        )
+        XCTAssertEqual((await tokenStore.currentSession()).accountDeletionIntent?.phase, .accepted)
+    }
+
+    func testLiveRestoreSurfacesDeletionReconciliationAfterRestartAndNeverRestoresAccount() async throws {
+        let intent = AccountDeletionIntent(idempotencyKey: "delete-key-restore", phase: .pendingSubmission)
+        let tokenStore = RecordingTokenStore(
+            initial: Self.storedTokens,
+            initialDeletionIntent: intent
+        )
+        let authClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsAuthClientError(.accountDeletionReconciliationRequired) {
+            _ = try await authClient.restore()
+        }
+        XCTAssertEqual(await tokenStore.currentSession(), .accountDeletionPending(intent))
+        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+    }
+
+    func testLiveDeleteRetryPreservesIntentAndTokensAfterNetworkFailure() async throws {
+        let events = EventLog()
+        let requests = RecordedProductAuthRequests(events: events)
+        var shouldFail = true
+        let api = Self.makeAPI { request, body, _, operationID in
+            try await requests.record(request: request, body: body, operationID: operationID)
+            guard operationID == Operations.DeleteAccountV1AccountDeletePost.id else {
+                return Self.errorResponse(status: .badRequest, code: "unexpected_operation")
+            }
+            if shouldFail {
+                shouldFail = false
+                throw OfflineProductAuthTransportError()
+            }
+            return Self.jsonResponse(status: .accepted, body: deletionAcceptedBody)
+        }
+        let tokenStore = RecordingTokenStore(initial: Self.storedTokens, events: events)
+        let authClient = AuthClient.live(
+            productAuthAPI: api,
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsAuthClientError(.networkUnavailable) {
+            try await authClient.deleteAccount()
+        }
+        let pendingIntent = try XCTUnwrap(
+            (await tokenStore.currentSession()).accountDeletionIntent
+        )
+        XCTAssertEqual(pendingIntent.phase, .pendingSubmission)
+        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+
+        _ = try await authClient.deleteAccount()
+
+        XCTAssertEqual(
+            (await tokenStore.currentSession()).accountDeletionIntent?.idempotencyKey,
+            pendingIntent.idempotencyKey
+        )
+        XCTAssertEqual((await tokenStore.currentSession()).accountDeletionIntent?.phase, .accepted)
+        XCTAssertNil(await tokenStore.tokensForRetry())
+        XCTAssertEqual(
+            await requests.count(operationID: Operations.DeleteAccountV1AccountDeletePost.id),
+            2
+        )
+    }
+
+    func testLiveDeleteReturnsCleanupRequiredWhenAcceptedMarkerWriteFailsAfterServer202() async throws {
+        let requests = RecordedProductAuthRequests()
+        let tokenStore = RecordingTokenStore(
+            initial: Self.storedTokens,
+            markDeletionAcceptedFailure: TokenStoreFailure.markDeletionAccepted
+        )
+        let authClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: requests),
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsAuthClientError(.localCredentialCleanupRequired) {
+            try await authClient.deleteAccount()
+        }
+
+        XCTAssertEqual(
+            await requests.count(operationID: Operations.DeleteAccountV1AccountDeletePost.id),
+            1
+        )
+        XCTAssertEqual(
+            (await tokenStore.currentSession()).accountDeletionIntent?.phase,
+            .pendingSubmission
+        )
+        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+    }
+
+    func testLiveDeleteUnknownAcceptedStatusRequiresDeletionReconciliationAndKeepsMarker() async throws {
+        let requests = RecordedProductAuthRequests()
+        let api = Self.makeAPI { request, body, _, operationID in
+            try await requests.record(request: request, body: body, operationID: operationID)
+            return Self.jsonResponse(status: .accepted, body: """
+            {
+              "account_subject": "account-1",
+              "status": "unexpected_future_status",
+              "requested_at": "2026-07-28T08:00:00Z",
+              "updated_at": "2026-07-28T08:00:00Z"
+            }
+            """)
+        }
+        let tokenStore = RecordingTokenStore(initial: Self.storedTokens)
+        let authClient = AuthClient.live(
+            productAuthAPI: api,
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsAuthClientError(.accountDeletionReconciliationRequired) {
+            try await authClient.deleteAccount()
+        }
+
+        XCTAssertEqual(
+            await requests.count(operationID: Operations.DeleteAccountV1AccountDeletePost.id),
+            1
+        )
+        XCTAssertEqual(
+            (await tokenStore.currentSession()).accountDeletionIntent?.phase,
+            .pendingSubmission
+        )
+        XCTAssertEqual(await tokenStore.tokensForRetry(), Self.storedTokens)
+    }
+
+    func testLiveDeletePropagatesAcceptedMarkerWriteCancellationUnchanged() async throws {
+        let client = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
+            tokenStore: RecordingTokenStore(
+                initial: Self.storedTokens,
+                markDeletionAcceptedFailure: CancellationError()
+            ),
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsCancellationError {
+            try await client.deleteAccount()
+        }
+    }
+
+    func testLiveDeleteDoesNotSubmitNetworkRequestWhenMarkerWriteFails() async throws {
+        let requests = RecordedProductAuthRequests()
+        let tokenStore = RecordingTokenStore(
+            initial: Self.storedTokens,
+            markDeletionPendingFailure: TokenStoreFailure.markDeletionPending
+        )
+        let authClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: requests),
+            tokenStore: tokenStore,
+            deviceName: { nil }
+        )
+
+        await XCTAssertThrowsAuthClientError(.localCredentialPersistenceFailed) {
+            try await authClient.deleteAccount()
+        }
+        XCTAssertEqual(await requests.count, 0)
+        XCTAssertEqual(await tokenStore.currentSession(), .authenticated(Self.storedTokens))
     }
 
     func testLiveClientKeepsMissingTokensProductFailuresAndKeychainFailuresTyped() async throws {
@@ -411,6 +614,10 @@ private extension AuthClientLiveTests {
         appleUserIdentifier: "apple-user-1"
     )
 
+    static let deletionAcknowledgement = AccountDeletionAcknowledgement(
+        status: .accepted
+    )
+
     static func makeAPI(requests: RecordedProductAuthRequests) -> ProductAuthAPI {
         makeAPI { request, body, _, operationID in
             try await requests.record(request: request, body: body, operationID: operationID)
@@ -641,37 +848,75 @@ private struct OfflineProductAuthTransportError: Error {}
 
 private actor RecordingTokenStore: TokenStore {
     private var tokens: AuthTokens?
+    private var deletionIntent: AccountDeletionIntent?
     private let events: EventLog?
     private let loadFailure: Error?
     private let saveFailure: Error?
+    private let markDeletionPendingFailure: Error?
+    private let markDeletionAcceptedFailure: Error?
     private let clearFailure: Error?
     private var clearFailuresRemaining: Int
 
     init(
         initial: AuthTokens? = nil,
+        initialSession: StoredAuthSession? = nil,
+        initialDeletionIntent: AccountDeletionIntent? = nil,
         events: EventLog? = nil,
         loadFailure: Error? = nil,
         saveFailure: Error? = nil,
+        markDeletionPendingFailure: Error? = nil,
+        markDeletionAcceptedFailure: Error? = nil,
         clearFailure: Error? = nil,
         clearFailuresRemaining: Int = 0
     ) {
-        tokens = initial
+        if let initialSession {
+            switch initialSession {
+            case .signedOut:
+                tokens = nil
+                deletionIntent = nil
+            case let .authenticated(stored):
+                tokens = stored
+                deletionIntent = nil
+            case let .accountDeletionPending(intent):
+                tokens = initial
+                deletionIntent = intent
+            }
+        } else {
+            tokens = initial
+            deletionIntent = initialDeletionIntent
+        }
         self.events = events
         self.loadFailure = loadFailure
         self.saveFailure = saveFailure
+        self.markDeletionPendingFailure = markDeletionPendingFailure
+        self.markDeletionAcceptedFailure = markDeletionAcceptedFailure
         self.clearFailure = clearFailure
         self.clearFailuresRemaining = clearFailuresRemaining
     }
 
     func currentTokens() -> AuthTokens? {
+        deletionIntent == nil ? tokens : nil
+    }
+
+    func tokensForRetry() -> AuthTokens? {
         tokens
     }
 
-    func load() throws -> AuthTokens? {
+    func currentSession() -> StoredAuthSession {
+        if let deletionIntent {
+            return .accountDeletionPending(deletionIntent)
+        }
+        if let tokens {
+            return .authenticated(tokens)
+        }
+        return .signedOut
+    }
+
+    func load() throws -> StoredAuthSession {
         if let loadFailure {
             throw loadFailure
         }
-        return tokens
+        currentSession()
     }
 
     func save(_ tokens: AuthTokens) throws {
@@ -679,6 +924,36 @@ private actor RecordingTokenStore: TokenStore {
             throw saveFailure
         }
         self.tokens = tokens
+        deletionIntent = nil
+    }
+
+    func loadTokensForAccountDeletionRetry() throws -> AuthTokens? {
+        tokens
+    }
+
+    func markAccountDeletionPending() async throws -> AccountDeletionIntent {
+        if let markDeletionPendingFailure {
+            throw markDeletionPendingFailure
+        }
+        if let deletionIntent {
+            return deletionIntent
+        }
+        let intent = AccountDeletionIntent(idempotencyKey: "delete-key-\(UUID().uuidString)")
+        deletionIntent = intent
+        await events?.record("token-deletion-marker")
+        return intent
+    }
+
+    func markAccountDeletionAccepted(_ intent: AccountDeletionIntent) async throws {
+        if let markDeletionAcceptedFailure {
+            throw markDeletionAcceptedFailure
+        }
+        deletionIntent = AccountDeletionIntent(
+            idempotencyKey: intent.idempotencyKey,
+            phase: .accepted
+        )
+        tokens = nil
+        await events?.record("token-delete")
     }
 
     func clear() async throws {
@@ -691,12 +966,15 @@ private actor RecordingTokenStore: TokenStore {
             throw TokenStoreFailure.clear
         }
         tokens = nil
+        deletionIntent = nil
     }
 }
 
 private enum TokenStoreFailure: Error, Equatable {
     case load
     case save
+    case markDeletionPending
+    case markDeletionAccepted
     case clear
 }
 
@@ -723,6 +1001,15 @@ private extension Array where Element == String {
             return false
         }
         return earlierIndex < laterIndex
+    }
+}
+
+private extension StoredAuthSession {
+    var accountDeletionIntent: AccountDeletionIntent? {
+        guard case let .accountDeletionPending(intent) = self else {
+            return nil
+        }
+        return intent
     }
 }
 

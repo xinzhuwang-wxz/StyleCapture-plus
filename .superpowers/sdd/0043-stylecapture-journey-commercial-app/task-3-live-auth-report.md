@@ -1,8 +1,8 @@
 # Task 3 live-auth tracer-bullet report
 
-## Implementation commit
+## Current implementation checkpoint
 
-This report is committed with the implementation as the single corrected local commit after the Lore-message repair.
+The current correction is still an uncommitted branch-local GREEN candidate. It must not be described as a final implementation commit until the files below, the generated contracts and this report are committed together and hosted PostgreSQL/Xcode evidence passes.
 
 ## Changed files
 
@@ -22,7 +22,7 @@ This report is committed with the implementation as the single corrected local c
 
 The tests were introduced as the required hosted RED checkpoint in commit `ed4f17b`; no test assertions were weakened or replaced. Local Xcode/Simulator test execution is intentionally excluded by this slice's resource constraints.
 
-## Commands and results
+## Earlier commands and results
 
 | Command | Result |
 | --- | --- |
@@ -30,10 +30,46 @@ The tests were introduced as the required hosted RED checkpoint in commit `ed4f1
 | `python3 scripts/check_ios_package_graph.py --require-generated-project` | Passed; exact package graph and generated-project references validated. |
 | `git diff --check` | Passed; no whitespace errors. |
 
-## Concerns
+## Durable deletion correction — 2026-07-29
 
-- Hosted iPhone CI is still required to compile and run `ProductAuthAPITests` against the generated client; no local Xcode or Simulator build was run.
-- Keychain composition and AuthenticationServices UI remain deliberately out of scope.
+- The backend request path performs one local transaction: canonical subject freeze/tombstone, session-family revocation, idempotent deletion record and Apple-grant outbox transition. It does not wait on Apple.
+- The account-only Celery maintenance worker leases pending/failed encrypted grant generations, retries transient failure, requires exact Apple `200`, and wipes ciphertext only through matching generation/attempt/lease-owner CAS.
+- The iOS Keychain adapter persists a secret-free deletion intent and stable idempotency key before submission. Retryable network failures retain the minimum credentials required to retry; an accepted or ambiguous processing response cannot restore the authenticated shell and instead enters typed reconciliation/local-cleanup recovery.
+- `ProductAuthAPI` uses the generated delete operation, passes its generated `Idempotency-Key` header, and composes the existing official OpenAPI Runtime Bearer middleware. `StyleCaptureAPI` DTOs remain inside Core/API and tests.
+
+## Fresh lightweight commands and results
+
+| Command or check | Result |
+| --- | --- |
+| Targeted database-independent backend account/config/OpenAPI tests | `65 passed in 1.38s` |
+| PostgreSQL suites, collect only | `21 tests collected` (`7` repository + `14` SQL grant repository) |
+| Ruff on affected backend/tests | Passed |
+| mypy on affected backend/tests | Passed, 21 files |
+| `swiftc -parse` for every changed Swift file | Passed |
+| `bash scripts/bootstrap_ios.sh --check` | Passed |
+| `python scripts/check_ios_package_graph.py` | Passed |
+| `python scripts/check_ios_privacy_manifest.py` | Passed |
+| `bash scripts/generate_ios_openapi_client.sh --check` | Passed |
+| `python scripts/export_openapi.py ... --check` | Passed |
+| H5 TypeScript typecheck | Passed |
+| base and production-overlay Compose config resolution | Passed; no containers started |
+| `git diff --check` | Passed |
+
+One deliberately unavailable dummy PostgreSQL port produced seven connection failures during migration setup. That run is not product evidence and is not reported as a regression; the 21 SQL tests require hosted PostgreSQL execution.
+
+## Independent review verdicts
+
+- Backend Apple-revocation outbox and races: CLEAN, no P0/P1/P2.
+- iOS credential lifecycle, deletion marker, idempotency and recovery: CLEAN, no P0/P1/P2.
+- ProductAuth/generated OpenAPI authorization and DTO boundary: CLEAN, no P0/P1/P2.
+- TCA/app-shell, generated DTO, deletion-recovery and durable-worker architecture: CLEAN after removing the unused bearer-shaped deletion-status application/port path.
+- Celery/Compose deployment surface: CLEAN; an optional beat health probe remains non-blocking P2 operations polish.
+
+## Remaining evidence gaps
+
+- Hosted PostgreSQL execution/migration proof and hosted Xcode compile/test are pending for this exact worktree.
+- No fresh local Simulator build/walkthrough has been run for this correction. Existing untracked Simulator artifacts are stale and cannot be counted.
+- No signed archive, TestFlight processed build, real Sign in with Apple account run, account deletion run, production run, M0 market evidence, or revenue evidence exists in this report.
 
 ## Generated-client factory boundary correction
 
@@ -84,6 +120,6 @@ This addendum records the current repository state only. It does not claim a pro
 
 ### Current verification gaps
 
-- Hosted Xcode compile is pending for this current auth surface.
-- Hosted Simulator execution is pending for this current auth surface.
+- Hosted PostgreSQL and hosted Xcode execution are pending for this current auth/deletion surface.
+- A fresh local Simulator walkthrough is pending; stale untracked screenshots/video are excluded.
 - No signed archive, TestFlight processed build, real Sign in with Apple account run, account deletion run, production run, M0 market evidence, or revenue evidence exists in this addendum.

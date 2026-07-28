@@ -19,8 +19,8 @@ final class AuthFeatureTests: XCTestCase {
     }
 
     func testRestoreRefreshesExpiredAccessTokenBeforeSigningIn() async {
-        let expired = Self.expiredTokens
-        let refreshed = Self.tokens
+        let expired = Self.expiredAccount
+        let refreshed = Self.account
         let store = TestStore(initialState: AuthFeature.State()) {
             AuthFeature()
         } withDependencies: {
@@ -40,16 +40,16 @@ final class AuthFeatureTests: XCTestCase {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.refresh = {
                 XCTFail("Fresh access tokens must not be refreshed during restore")
-                return Self.tokens
+                return Self.account
             }
         }
 
         await store.send(.task)
-        await store.receive(.restoreResponse(.signedIn(Self.tokens))) {
-            $0.phase = .signedIn(Self.tokens)
+        await store.receive(.restoreResponse(.signedIn(Self.account))) {
+            $0.phase = .signedIn(Self.account)
         }
     }
 
@@ -58,7 +58,7 @@ final class AuthFeatureTests: XCTestCase {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
             $0.appleCredentialStateClient.credentialState = { userIdentifier in
                 XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
@@ -77,7 +77,7 @@ final class AuthFeatureTests: XCTestCase {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.logout = {
                 throw AuthClientError.localCredentialCleanupRequired
             }
@@ -92,10 +92,10 @@ final class AuthFeatureTests: XCTestCase {
         await store.receive(
             .restoreResponse(.failure(.localCredentialCleanupRequired))
         ) {
-            $0.phase = .localCredentialCleanupRequired
+            $0.phase = .localCredentialCleanupRequired(nil)
         }
         await store.send(.retryLocalCleanupTapped) {
-            $0.phase = .clearingLocalCredentials
+            $0.phase = .clearingLocalCredentials(nil)
         }
         await store.receive(.localCleanupResponse(.success)) {
             $0.phase = .signedOut
@@ -115,7 +115,7 @@ final class AuthFeatureTests: XCTestCase {
             }
             $0.authClient.refresh = {
                 XCTFail("Signed-out restore retry must not refresh stale tokens")
-                return Self.tokens
+                return Self.account
             }
         }
 
@@ -129,12 +129,95 @@ final class AuthFeatureTests: XCTestCase {
         await store.finish()
     }
 
+    func testStaleRestoreResponsesCannotOverwriteSignInInProgress() async {
+        await assertStaleRestoreResponseIgnoredAfterSignInBegins(.signedOut)
+        await assertStaleRestoreResponseIgnoredAfterSignInBegins(.signedIn(Self.account))
+        await assertStaleRestoreResponseIgnoredAfterSignInBegins(.failure(.serviceUnavailable))
+        await assertStaleRestoreResponseIgnoredAfterSignInBegins(
+            .failure(.localCredentialCleanupRequired)
+        )
+        await assertStaleRestoreResponseIgnoredAfterSignInBegins(
+            .failure(.accountDeletionReconciliationRequired)
+        )
+    }
+
+    func testRestoreDeletionIntentRequiresExplicitDeleteRetry() async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.restore = {
+                throw AuthClientError.accountDeletionReconciliationRequired
+            }
+            $0.authClient.deleteAccount = {
+                Self.deletionAcknowledgement
+            }
+            $0.authClient.clearLocalCredentials = {}
+        }
+
+        await store.send(.task)
+        await store.receive(
+            .restoreResponse(.failure(.accountDeletionReconciliationRequired))
+        ) {
+            $0.phase = .accountDeletionReconciliationRequired
+        }
+        await store.send(.retryAccountDeletionTapped) {
+            $0.phase = .resubmittingAccountDeletion
+        }
+        await store.receive(.deleteAccountResponse(.success(Self.deletionAcknowledgement))) {
+            $0.phase = .clearingLocalCredentials(.accepted)
+        }
+        await store.receive(.localCleanupResponse(.success)) {
+            $0.phase = .signedOut
+        }
+    }
+
+    func testRecoveredDeletionRetryNetworkFailureStaysInRecovery() async {
+        let store = TestStore(
+            initialState: AuthFeature.State(phase: .accountDeletionReconciliationRequired)
+        ) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.deleteAccount = {
+                throw AuthClientError.networkUnavailable
+            }
+        }
+
+        await store.send(.retryAccountDeletionTapped) {
+            $0.phase = .resubmittingAccountDeletion
+        }
+        await store.receive(.deleteAccountResponse(.failure(.networkUnavailable))) {
+            $0.phase = .accountDeletionReconciliationRequired
+        }
+    }
+
+    func testDeletionUnexpectedResponseAfterLocalIntentStaysInRecovery() async {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.deleteAccount = {
+                throw AuthClientError.accountDeletionReconciliationRequired
+            }
+        }
+
+        await store.send(.deleteAccountButtonTapped) {
+            $0.phase = .confirmingAccountDeletion(Self.account)
+        }
+        await store.send(.confirmDeleteAccountTapped) {
+            $0.phase = .deleting(Self.account)
+        }
+        await store.receive(
+            .deleteAccountResponse(.failure(.accountDeletionReconciliationRequired))
+        ) {
+            $0.phase = .accountDeletionReconciliationRequired
+        }
+    }
+
     func testRestoreNotFoundAppleCredentialClearsSessionAndSignsOut() async {
         let store = TestStore(initialState: AuthFeature.State()) {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
             $0.appleCredentialStateClient.credentialState = { userIdentifier in
                 XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
@@ -153,7 +236,7 @@ final class AuthFeatureTests: XCTestCase {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
             $0.appleCredentialStateClient.credentialState = { userIdentifier in
                 XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
@@ -172,7 +255,7 @@ final class AuthFeatureTests: XCTestCase {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.logout = {
                 XCTFail("Authorized Apple credentials must preserve server session")
             }
@@ -183,14 +266,14 @@ final class AuthFeatureTests: XCTestCase {
         }
 
         await store.send(.task)
-        await store.receive(.restoreResponse(.signedIn(Self.tokens))) {
-            $0.phase = .signedIn(Self.tokens)
+        await store.receive(.restoreResponse(.signedIn(Self.account))) {
+            $0.phase = .signedIn(Self.account)
         }
     }
 
     func testRestoreCredentialStateUnavailablePreservesServerTruthAndExpiryLogic() async {
-        let expired = Self.expiredTokens
-        let refreshed = Self.tokens
+        let expired = Self.expiredAccount
+        let refreshed = Self.account
         let store = TestStore(initialState: AuthFeature.State()) {
             AuthFeature()
         } withDependencies: {
@@ -215,19 +298,19 @@ final class AuthFeatureTests: XCTestCase {
             AuthFeature()
         } withDependencies: {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
-            $0.authClient.restore = { Self.tokens }
+            $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
             $0.appleCredentialStateClient.credentialState = { _ in .authorized }
             $0.appleCredentialStateClient.revocationEvents = { notifications.stream }
         }
 
         await store.send(.task)
-        await store.receive(.restoreResponse(.signedIn(Self.tokens))) {
-            $0.phase = .signedIn(Self.tokens)
+        await store.receive(.restoreResponse(.signedIn(Self.account))) {
+            $0.phase = .signedIn(Self.account)
         }
         notifications.continuation.yield(())
         await store.receive(.credentialRevokedNotification) {
-            $0.phase = .clearingLocalCredentials
+            $0.phase = .clearingLocalCredentials(nil)
         }
         await store.receive(.credentialRevocationCleanupResponse(.success)) {
             $0.phase = .signedOut
@@ -242,7 +325,7 @@ final class AuthFeatureTests: XCTestCase {
             identityToken: "identity-token",
             authorizationCode: "authorization-code"
         )
-        let tokens = Self.tokens
+        let account = Self.account
         let store = TestStore(initialState: AuthFeature.State(phase: .signedOut)) {
             AuthFeature()
         } withDependencies: {
@@ -254,15 +337,15 @@ final class AuthFeatureTests: XCTestCase {
             $0.authClient.authenticate = { receivedCredential, rawNonce in
                 XCTAssertEqual(receivedCredential, credential)
                 XCTAssertEqual(rawNonce, nonce.rawValue)
-                return tokens
+                return account
             }
         }
 
         await store.send(.signInButtonTapped) {
             $0.phase = .signingIn
         }
-        await store.receive(.signInResponse(.success(tokens))) {
-            $0.phase = .signedIn(tokens)
+        await store.receive(.signInResponse(.success(account))) {
+            $0.phase = .signedIn(account)
         }
     }
 
@@ -288,7 +371,7 @@ final class AuthFeatureTests: XCTestCase {
             }
             $0.authClient.authenticate = { _, _ in
                 authenticateCalled.fulfill()
-                return Self.tokens
+                return Self.account
             }
         }
 
@@ -356,7 +439,7 @@ final class AuthFeatureTests: XCTestCase {
     }
 
     func testDeletionCleanupFailureCannotMasqueradeAsSignedOut() async {
-        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
             AuthFeature()
         } withDependencies: {
             $0.authClient.deleteAccount = {
@@ -366,43 +449,99 @@ final class AuthFeatureTests: XCTestCase {
         }
 
         await store.send(.deleteAccountButtonTapped) {
-            $0.phase = .confirmingAccountDeletion(Self.tokens)
+            $0.phase = .confirmingAccountDeletion(Self.account)
         }
         await store.send(.confirmDeleteAccountTapped) {
-            $0.phase = .deleting
+            $0.phase = .deleting(Self.account)
         }
         await store.receive(
             .deleteAccountResponse(.failure(.localCredentialCleanupRequired))
         ) {
-            $0.phase = .localCredentialCleanupRequired
+            $0.phase = .localCredentialCleanupRequired(nil)
         }
         await store.send(.retryLocalCleanupTapped) {
-            $0.phase = .clearingLocalCredentials
+            $0.phase = .clearingLocalCredentials(nil)
         }
         await store.receive(.localCleanupResponse(.success)) {
             $0.phase = .signedOut
         }
     }
 
+    func testDeletionAcceptedStatusIsPreservedWhileLocalCleanupRunsSeparately() async {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.deleteAccount = {
+                Self.deletionAcknowledgement
+            }
+            $0.authClient.clearLocalCredentials = {
+                throw AuthClientError.localCredentialCleanupRequired
+            }
+        }
+
+        await store.send(.deleteAccountButtonTapped) {
+            $0.phase = .confirmingAccountDeletion(Self.account)
+        }
+        await store.send(.confirmDeleteAccountTapped) {
+            $0.phase = .deleting(Self.account)
+        }
+        await store.receive(.deleteAccountResponse(.success(Self.deletionAcknowledgement))) {
+            $0.phase = .clearingLocalCredentials(.accepted)
+        }
+        await store.receive(.localCleanupResponse(.failure(.localCredentialCleanupRequired))) {
+            $0.phase = .localCredentialCleanupRequired(.accepted)
+        }
+    }
+
+    func testDeletionStatusStateDoesNotExposeSubjectTimestampsOrRawBackendStatus() async {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
+            AuthFeature()
+        } withDependencies: {
+            $0.authClient.deleteAccount = {
+                AccountDeletionAcknowledgement(status: .accepted)
+            }
+            $0.authClient.clearLocalCredentials = {
+                throw AuthClientError.localCredentialCleanupRequired
+            }
+        }
+
+        await store.send(.deleteAccountButtonTapped) {
+            $0.phase = .confirmingAccountDeletion(Self.account)
+        }
+        await store.send(.confirmDeleteAccountTapped) {
+            $0.phase = .deleting(Self.account)
+        }
+        await store.receive(.deleteAccountResponse(.success(.init(status: .accepted)))) {
+            $0.phase = .clearingLocalCredentials(.accepted)
+        }
+        await store.receive(.localCleanupResponse(.failure(.localCredentialCleanupRequired))) {
+            $0.phase = .localCredentialCleanupRequired(.accepted)
+        }
+        XCTAssertFalse(String(describing: store.state.phase).contains("account-1"))
+        XCTAssertFalse(String(describing: store.state.phase).contains("pending_deletion"))
+        XCTAssertFalse(String(describing: store.state.phase).contains("1970"))
+    }
+
     func testDeleteConfirmationCanBeCancelledWithoutLosingSignedInSession() async {
-        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
             AuthFeature()
         }
 
         await store.send(.deleteAccountButtonTapped) {
-            $0.phase = .confirmingAccountDeletion(Self.tokens)
+            $0.phase = .confirmingAccountDeletion(Self.account)
         }
         await store.send(.cancelDeleteAccountTapped) {
-            $0.phase = .signedIn(Self.tokens)
+            $0.phase = .signedIn(Self.account)
         }
     }
 
     func testConfirmDeleteIgnoredOutsideConfirmationPhase() async {
-        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
             AuthFeature()
         } withDependencies: {
             $0.authClient.deleteAccount = {
                 XCTFail("Delete must require the explicit confirmation phase")
+                throw AuthClientError.unavailable
             }
         }
 
@@ -410,7 +549,7 @@ final class AuthFeatureTests: XCTestCase {
     }
 
     func testLogoutClearsLocalSessionAndReturnsToSignedOut() async {
-        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.tokens))) {
+        let store = TestStore(initialState: AuthFeature.State(phase: .signedIn(Self.account))) {
             AuthFeature()
         } withDependencies: {
             $0.authClient.logout = {}
@@ -443,6 +582,33 @@ final class AuthFeatureTests: XCTestCase {
         tokenType: "Bearer",
         appleUserIdentifier: appleUserIdentifier
     )
+
+    private static let account = tokens.authenticatedAccount
+
+    private static let expiredAccount = expiredTokens.authenticatedAccount
+
+    private static let deletionAcknowledgement = AccountDeletionAcknowledgement(
+        status: .accepted
+    )
+
+    func assertStaleRestoreResponseIgnoredAfterSignInBegins(
+        _ response: AuthFeature.RestoreResponse
+    ) async {
+        let store = TestStore(initialState: AuthFeature.State()) {
+            AuthFeature()
+        } withDependencies: {
+            $0.appleSignInNonce.generate = { .init(rawValue: "raw", hashedValue: "hashed") }
+            $0.appleSignInClient.authorize = { _ in
+                throw CancellationError()
+            }
+        }
+
+        await store.send(.signInButtonTapped) {
+            $0.phase = .signingIn
+        }
+        await store.send(.restoreResponse(response))
+        await store.finish()
+    }
 }
 
 private actor CancellableAppleAuthorizationGate {
@@ -474,17 +640,17 @@ private actor CancellableAppleAuthorizationGate {
 }
 
 private actor CancellableRestoreGate {
-    private let secondResult: AuthTokens?
+    private let secondResult: AuthenticatedAccount?
     private var callCount = 0
-    private var firstContinuation: CheckedContinuation<AuthTokens?, Error>?
+    private var firstContinuation: CheckedContinuation<AuthenticatedAccount?, Error>?
 
-    init(secondResult: AuthTokens?) {
+    init(secondResult: AuthenticatedAccount?) {
         self.secondResult = secondResult
     }
 
     func restore(
         onSecondRestore: @escaping @Sendable () -> Void
-    ) async throws -> AuthTokens? {
+    ) async throws -> AuthenticatedAccount? {
         callCount += 1
         guard callCount == 1 else {
             onSecondRestore()

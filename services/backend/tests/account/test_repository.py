@@ -43,8 +43,9 @@ async def _reset_database() -> None:
         await session.execute(
             text(
                 "TRUNCATE TABLE apple_authorization_codes, used_refresh_tokens, "
-                "device_sessions, subject_aliases, external_identities, accounts, "
-                "subject_tombstones, deletion_requests, captures CASCADE"
+                "apple_provider_grants, device_sessions, subject_aliases, "
+                "external_identities, accounts, subject_tombstones, "
+                "deletion_requests, captures CASCADE"
             )
         )
         await session.commit()

@@ -4,27 +4,27 @@ import XCTest
 @testable import StyleCaptureJourney
 
 final class AppleCredentialStateDependencyTests: XCTestCase {
-    func testLiveMapsProviderCredentialStatesAndForwardsUserIdentifier() async {
+    func testLiveMapsProviderCredentialStatesAndForwardsUserIdentifier() async throws {
         let lookup = ImmediateCredentialStateLookup(result: .success(.transferred))
         let provider = LiveAppleCredentialStateProvider(
             credentialStateLookup: lookup.getCredentialState
         )
         let client = AppleCredentialStateClient.live(provider: provider)
 
-        let state = await client.credentialState("apple-user-id")
+        let state = try await client.credentialState("apple-user-id")
 
         XCTAssertEqual(state, .transferred)
         XCTAssertEqual(lookup.requestedUserIdentifiers, ["apple-user-id"])
     }
 
-    func testLiveMapsCredentialLookupFailureToUnavailable() async {
+    func testLiveMapsCredentialLookupFailureToUnavailable() async throws {
         let lookup = ImmediateCredentialStateLookup(result: .failure(CredentialLookupError()))
         let provider = LiveAppleCredentialStateProvider(
             credentialStateLookup: lookup.getCredentialState
         )
         let client = AppleCredentialStateClient.live(provider: provider)
 
-        let state = await client.credentialState("apple-user-id")
+        let state = try await client.credentialState("apple-user-id")
 
         XCTAssertEqual(state, .unavailable)
     }
@@ -120,9 +120,9 @@ final class AppleCredentialStateDependencyTests: XCTestCase {
         await fulfillment(of: [terminated], timeout: 1)
     }
 
-    func testTestDependencyFailsClosedAndDoesNotProduceRevocations() async {
+    func testTestDependencyFailsClosedAndDoesNotProduceRevocations() async throws {
         let client = AppleCredentialStateClient.unavailable
-        let state = await client.credentialState("apple-user-id")
+        let state = try await client.credentialState("apple-user-id")
         var revocations = client.revocationEvents().makeAsyncIterator()
 
         XCTAssertEqual(state, .unavailable)
@@ -208,20 +208,20 @@ private final class DelayedCredentialStateLookup: @unchecked Sendable {
 
 private final class DeterministicRevocationEventSource: @unchecked Sendable {
     private let lock = NSLock()
-    private let stream: AsyncStream<Void>
+    private let eventStream: AsyncStream<Void>
     private let continuation: AsyncStream<Void>.Continuation
     private var subscribed = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
     init() {
-        (stream, continuation) = AsyncStream.makeStream()
+        (eventStream, continuation) = AsyncStream.makeStream()
     }
 
     func stream() -> AsyncStream<Void> {
         AsyncStream { downstream in
             let task = Task {
                 markSubscribed()
-                for await event in stream {
+                for await event in eventStream {
                     downstream.yield(event)
                 }
                 downstream.finish()

@@ -64,6 +64,8 @@ struct ProductAuthAPI {
             default:
                 throw Self.error(from: output)
             }
+        } catch let error as CancellationError {
+            throw error
         } catch let error as APIError {
             throw error
         } catch let error as ClientError where error.response != nil {
@@ -89,6 +91,8 @@ struct ProductAuthAPI {
             default:
                 throw Self.error(from: output)
             }
+        } catch let error as CancellationError {
+            throw error
         } catch let error as APIError {
             throw error
         } catch let error as ClientError where error.response != nil {
@@ -100,12 +104,23 @@ struct ProductAuthAPI {
         }
     }
 
-    func deleteAccount(accessToken: String) async throws {
+    func deleteAccount(
+        accessToken: String,
+        idempotencyKey: String
+    ) async throws -> AccountDeletionAcknowledgement {
         do {
-            let output = try await authorizedClient(accessToken).deleteAccountV1AccountDeletePost(.init())
-            guard case .accepted = output else {
+            let output = try await authorizedClient(accessToken).deleteAccountV1AccountDeletePost(
+                headers: .init(idempotencyKey: idempotencyKey)
+            )
+            guard case let .accepted(response) = output else {
                 throw Self.error(from: output)
             }
+            switch response.body {
+            case let .json(deletion):
+                return try Self.accountDeletionAcknowledgement(from: deletion)
+            }
+        } catch let error as CancellationError {
+            throw error
         } catch let error as APIError {
             throw error
         } catch let error as ClientError where error.response != nil {
@@ -138,6 +153,23 @@ struct ProductAuthAPI {
             accessExpiresAt: response.accessExpiresAt,
             tokenType: response.tokenType
         )
+    }
+
+    static func accountDeletionAcknowledgement(
+        from response: Components.Schemas.DeletionResponse
+    ) throws -> AccountDeletionAcknowledgement {
+        AccountDeletionAcknowledgement(
+            status: try Self.accountDeletionStatus(from: response.status)
+        )
+    }
+
+    private static func accountDeletionStatus(from status: String) throws -> AccountDeletionStatus {
+        switch status {
+        case "pending_deletion", "frozen":
+            return .accepted
+        default:
+            throw APIError.unexpectedResponse
+        }
     }
 
     private static func error(

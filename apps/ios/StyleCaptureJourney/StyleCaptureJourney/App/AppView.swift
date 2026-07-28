@@ -182,6 +182,8 @@ private extension AuthFeature.Phase {
              .signingOut,
              .confirmingAccountDeletion,
              .deleting,
+             .accountDeletionReconciliationRequired,
+             .resubmittingAccountDeletion,
              .clearingLocalCredentials,
              .localCredentialCleanupRequired,
              .failed:

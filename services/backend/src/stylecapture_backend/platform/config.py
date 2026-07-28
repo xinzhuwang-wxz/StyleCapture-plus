@@ -1,14 +1,37 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import hmac
 from pathlib import Path
 from typing import Literal
 
+from cryptography.fernet import Fernet
 from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PLACEHOLDER_SIGNING_SECRET = "replace-with-at-least-24-random-characters"
 PLACEHOLDER_SESSION_SECRET = "replace-with-a-distinct-session-signing-secret"
 PLACEHOLDER_GATEWAY_SECRET = "local-litellm-gateway-key-change-before-production"
+PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY_BYTES = b"\x00" * 32
+
+
+def _decode_canonical_fernet_key(value: SecretStr) -> bytes:
+    try:
+        encoded = value.get_secret_value().encode("ascii")
+        decoded = base64.b64decode(encoded, altchars=b"-_", validate=True)
+    except (UnicodeEncodeError, binascii.Error) as error:
+        raise ValueError("Apple provider grant encryption key must be a Fernet key") from error
+    if base64.urlsafe_b64encode(decoded) != encoded:
+        raise ValueError(
+            "Apple provider grant encryption key must use canonical URL-safe base64"
+        )
+    try:
+        Fernet(encoded)
+    except (ValueError, TypeError) as error:
+        raise ValueError("Apple provider grant encryption key must be a Fernet key") from error
+    return decoded
 
 
 class BackendSettings(BaseSettings):
@@ -28,6 +51,9 @@ class BackendSettings(BaseSettings):
     apple_team_id: str | None = None
     apple_key_id: str | None = None
     apple_private_key_pem: SecretStr = SecretStr("")
+    apple_provider_grant_encryption_key: SecretStr = SecretStr(
+        PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY
+    )
     session_cookie_secure: bool = False
     public_upload_prefix: str = "/v1/uploads"
     cors_origins: list[str] = ["http://localhost:5173"]
@@ -52,7 +78,9 @@ class BackendSettings(BaseSettings):
     embedding_device: str = "cpu"
     capture_queue: str = "capture"
     render_queue: str = "render"
+    maintenance_queue: str = "maintenance"
     worker_max_retries: int = 2
+    account_revocation_sweep_interval_seconds: float = 300
     # Seedream commonly completes just beyond 45s. A 75s request window avoids
     # two full provider retries and cuts observed pixel-trial latency from
     # roughly 135s to one generation request.
@@ -99,7 +127,7 @@ class BackendSettings(BaseSettings):
             raise ValueError("resource limits must be positive")
         return value
 
-    @field_validator("capture_queue", "render_queue")
+    @field_validator("capture_queue", "render_queue", "maintenance_queue")
     @classmethod
     def validate_queue(cls, value: str) -> str:
         value = value.strip()
@@ -114,11 +142,18 @@ class BackendSettings(BaseSettings):
             raise ValueError("at least one Apple client ID is required")
         return [client_id.strip() for client_id in value]
 
+    @field_validator("apple_provider_grant_encryption_key")
+    @classmethod
+    def validate_apple_provider_grant_encryption_key(cls, value: SecretStr) -> SecretStr:
+        _decode_canonical_fernet_key(value)
+        return value
+
     @field_validator(
         "render_request_timeout_seconds",
         "render_poll_interval_seconds",
         "render_poll_timeout_seconds",
         "outfit_reasoning_timeout_seconds",
+        "account_revocation_sweep_interval_seconds",
     )
     @classmethod
     def validate_render_timeouts(cls, value: float) -> float:
@@ -155,4 +190,11 @@ class BackendSettings(BaseSettings):
                 raise ValueError("production gateway secret cannot use the local placeholder")
             if not all(apple_credentials):
                 raise ValueError("Apple server credentials are required in production")
+            if hmac.compare_digest(
+                _decode_canonical_fernet_key(self.apple_provider_grant_encryption_key),
+                PLACEHOLDER_APPLE_GRANT_ENCRYPTION_KEY_BYTES,
+            ):
+                raise ValueError(
+                    "production Apple provider grant encryption key cannot use the local placeholder"
+                )
         return self

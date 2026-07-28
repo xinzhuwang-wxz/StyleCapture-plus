@@ -39,8 +39,17 @@ struct KeychainOperations: @unchecked Sendable {
 }
 
 actor KeychainTokenStore: TokenStore {
+    private struct AccountDeletionIntentPayload: Codable, Equatable {
+        var version: Int
+        var idempotencyKey: String
+        var phase: AccountDeletionIntentPhase
+    }
+
+    private static let accountDeletionIntentVersion = 1
+
     private let service: String
     private let account: String
+    private let accountDeletionIntentAccount: String
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -53,13 +62,101 @@ actor KeychainTokenStore: TokenStore {
     ) {
         self.service = service
         self.account = account
+        self.accountDeletionIntentAccount = "\(account).account-deletion-intent"
         self.operations = operations
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .iso8601
     }
 
-    func load() throws -> AuthTokens? {
-        var query = baseQuery()
+    func load() throws -> StoredAuthSession {
+        if let intent = try loadAccountDeletionIntent() {
+            return .accountDeletionPending(intent)
+        }
+        guard let tokens = try loadTokens() else {
+            return .signedOut
+        }
+        return .authenticated(tokens)
+    }
+
+    func save(_ tokens: AuthTokens) throws {
+        let data: Data
+        do {
+            data = try encoder.encode(tokens)
+        } catch {
+            throw SecureTokenStoreError.encodingFailed
+        }
+        try deleteAccountDeletionIntent()
+        try write(data, query: baseQuery(account: account))
+    }
+
+    func loadTokensForAccountDeletionRetry() throws -> AuthTokens? {
+        try loadTokens()
+    }
+
+    func markAccountDeletionPending() throws -> AccountDeletionIntent {
+        if let intent = try loadAccountDeletionIntent() {
+            return intent
+        }
+        let intent = AccountDeletionIntent()
+        try writeAccountDeletionIntent(intent)
+        return intent
+    }
+
+    func markAccountDeletionAccepted(_ intent: AccountDeletionIntent) throws {
+        try writeAccountDeletionIntent(
+            AccountDeletionIntent(
+                idempotencyKey: intent.idempotencyKey,
+                phase: .accepted
+            )
+        )
+        let status = operations.delete(baseQuery(account: account))
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw SecureTokenStoreError.operationFailed(.delete, status)
+        }
+    }
+
+    func clear() throws {
+        let tokenStatus = operations.delete(baseQuery(account: account))
+        guard tokenStatus == errSecSuccess || tokenStatus == errSecItemNotFound else {
+            throw SecureTokenStoreError.operationFailed(.delete, tokenStatus)
+        }
+        try deleteAccountDeletionIntent()
+    }
+
+    private func loadTokens() throws -> AuthTokens? {
+        guard let data = try loadData(query: baseQuery(account: account)) else {
+            return nil
+        }
+        do {
+            return try decoder.decode(AuthTokens.self, from: data)
+        } catch {
+            throw SecureTokenStoreError.invalidPayload
+        }
+    }
+
+    private func loadAccountDeletionIntent() throws -> AccountDeletionIntent? {
+        guard let data = try loadData(query: baseQuery(account: accountDeletionIntentAccount)) else {
+            return nil
+        }
+        do {
+            let payload = try decoder.decode(AccountDeletionIntentPayload.self, from: data)
+            guard payload.version == Self.accountDeletionIntentVersion,
+                  !payload.idempotencyKey.isEmpty else {
+                throw SecureTokenStoreError.invalidPayload
+            }
+            return AccountDeletionIntent(
+                idempotencyKey: payload.idempotencyKey,
+                phase: payload.phase
+            )
+        } catch let error as SecureTokenStoreError {
+            throw error
+        } catch {
+            throw SecureTokenStoreError.invalidPayload
+        }
+    }
+
+    private func loadData(query: [String: Any]) throws -> Data? {
+        var query = query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -73,21 +170,33 @@ actor KeychainTokenStore: TokenStore {
         guard let data else {
             throw SecureTokenStoreError.invalidPayload
         }
-        do {
-            return try decoder.decode(AuthTokens.self, from: data)
-        } catch {
-            throw SecureTokenStoreError.invalidPayload
-        }
+        return data
     }
 
-    func save(_ tokens: AuthTokens) throws {
+    private func writeAccountDeletionIntent(_ intent: AccountDeletionIntent) throws {
+        let payload = AccountDeletionIntentPayload(
+            version: Self.accountDeletionIntentVersion,
+            idempotencyKey: intent.idempotencyKey,
+            phase: intent.phase
+        )
         let data: Data
         do {
-            data = try encoder.encode(tokens)
+            data = try encoder.encode(payload)
         } catch {
             throw SecureTokenStoreError.encodingFailed
         }
-        var attributes = baseQuery()
+        try write(data, query: baseQuery(account: accountDeletionIntentAccount))
+    }
+
+    private func deleteAccountDeletionIntent() throws {
+        let status = operations.delete(baseQuery(account: accountDeletionIntentAccount))
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw SecureTokenStoreError.operationFailed(.delete, status)
+        }
+    }
+
+    private func write(_ data: Data, query: [String: Any]) throws {
+        var attributes = query
         attributes[kSecValueData as String] = data
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
@@ -100,7 +209,7 @@ actor KeychainTokenStore: TokenStore {
                 kSecValueData as String: data,
                 kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
             ]
-            let updateStatus = operations.update(baseQuery(), update)
+            let updateStatus = operations.update(query, update)
             guard updateStatus == errSecSuccess else {
                 throw SecureTokenStoreError.operationFailed(.update, updateStatus)
             }
@@ -109,14 +218,7 @@ actor KeychainTokenStore: TokenStore {
         throw SecureTokenStoreError.operationFailed(.add, status)
     }
 
-    func clear() throws {
-        let status = operations.delete(baseQuery())
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw SecureTokenStoreError.operationFailed(.delete, status)
-        }
-    }
-
-    private func baseQuery() -> [String: Any] {
+    private func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

@@ -25,16 +25,16 @@ final class AppFeatureTests: XCTestCase {
     }
 
     func testAppScopesAuthReducerAndUnlocksJourneyOnlyAfterRestoreSucceeds() async {
-        let tokens = Self.tokens
+        let account = Self.account
         let store = TestStore(initialState: AppFeature.State()) {
             AppFeature()
         } withDependencies: {
-            $0.authClient.restore = { tokens }
+            $0.authClient.restore = { account }
         }
 
         await store.send(.auth(.task))
-        await store.receive(.auth(.restoreResponse(.signedIn(tokens)))) {
-            $0.auth.phase = .signedIn(tokens)
+        await store.receive(.auth(.restoreResponse(.signedIn(account)))) {
+            $0.auth.phase = .signedIn(account)
         }
     }
 
@@ -228,12 +228,9 @@ final class AppFeatureTests: XCTestCase {
 }
 
 private extension AppFeatureTests {
-    static let tokens = AuthTokens(
-        accountSubject: "account-123",
-        accessToken: "access-token",
-        refreshToken: "refresh-token",
+    static let account = AuthenticatedAccount(
         accessExpiresAt: Date(timeIntervalSince1970: 1_900_000_000),
-        tokenType: "Bearer"
+        appleUserIdentifier: nil
     )
 }
 

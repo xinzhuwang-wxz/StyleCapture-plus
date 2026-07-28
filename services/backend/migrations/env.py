@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from stylecapture_backend.features.account.infrastructure.models import (
     AccountRecord,
     AppleAuthorizationCodeRecord,
+    AppleProviderGrantRecord,
     DeletionRequestRecord,
     DeviceSessionRecord,
     ExternalIdentityRecord,
@@ -46,6 +47,7 @@ _MODELS = (
     DeviceSessionRecord,
     UsedRefreshTokenRecord,
     AppleAuthorizationCodeRecord,
+    AppleProviderGrantRecord,
     SubjectTombstoneRecord,
     DeletionRequestRecord,
     CaptureRecord,

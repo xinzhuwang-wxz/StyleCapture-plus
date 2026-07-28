@@ -8,9 +8,16 @@ x-backend-environment: &backend-environment
   STYLECAPTURE_REDIS_URL: redis://redis:6379/0
   STYLECAPTURE_CAPTURE_QUEUE: ${STYLECAPTURE_CAPTURE_QUEUE:-capture}
   STYLECAPTURE_RENDER_QUEUE: ${STYLECAPTURE_RENDER_QUEUE:-render}
+  STYLECAPTURE_MAINTENANCE_QUEUE: ${STYLECAPTURE_MAINTENANCE_QUEUE:-maintenance}
+  STYLECAPTURE_ACCOUNT_REVOCATION_SWEEP_INTERVAL_SECONDS: ${STYLECAPTURE_ACCOUNT_REVOCATION_SWEEP_INTERVAL_SECONDS:-300}
   STYLECAPTURE_UPLOAD_ROOT: /data/uploads
   STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:-replace-with-at-least-24-random-characters}
   STYLECAPTURE_SESSION_SIGNING_SECRET: ${STYLECAPTURE_SESSION_SIGNING_SECRET:-replace-with-a-distinct-session-signing-secret}
+  STYLECAPTURE_APPLE_CLIENT_IDS: '${STYLECAPTURE_APPLE_CLIENT_IDS:-["com.stylecapture.journey"]}'
+  STYLECAPTURE_APPLE_TEAM_ID: ${STYLECAPTURE_APPLE_TEAM_ID:-}
+  STYLECAPTURE_APPLE_KEY_ID: ${STYLECAPTURE_APPLE_KEY_ID:-}
+  STYLECAPTURE_APPLE_PRIVATE_KEY_PEM: ${STYLECAPTURE_APPLE_PRIVATE_KEY_PEM:-}
+  STYLECAPTURE_APPLE_PROVIDER_GRANT_ENCRYPTION_KEY: ${STYLECAPTURE_APPLE_PROVIDER_GRANT_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
 
 services:
   h5:
@@ -296,6 +303,99 @@ services:
         limits:
           cpus: ${STYLECAPTURE_AI_CPU_LIMIT:-0.5}
           memory: ${STYLECAPTURE_WORKER_MEMORY_LIMIT:-2G}
+
+  worker-account:
+    profiles: ["core"]
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      args:
+        INSTALL_AI_LIGHT: "false"
+    command:
+      - celery
+      - -A
+      - stylecapture_backend.account_worker:celery
+      - worker
+      - --loglevel=INFO
+      - --concurrency=1
+      - --hostname=account@%h
+      - --queues=${STYLECAPTURE_MAINTENANCE_QUEUE:-maintenance}
+      - --without-gossip
+      - --without-mingle
+    environment:
+      <<: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          celery -A stylecapture_backend.account_worker:celery inspect ping
+          --destination=account@$$(hostname) --timeout=5 | grep -q pong
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  beat-account:
+    profiles: ["core"]
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      args:
+        INSTALL_AI_LIGHT: "false"
+    command:
+      - celery
+      - -A
+      - stylecapture_backend.account_worker:celery
+      - beat
+      - --loglevel=INFO
+      - --schedule=/tmp/celerybeat-schedule
+      - --pidfile=/tmp/celerybeat.pid
+    environment:
+      <<: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
 
 volumes:
   stylecapture-model-cache:

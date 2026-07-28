@@ -5,10 +5,11 @@ from dataclasses import asdict
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 from pydantic import BaseModel, Field
 from stylecapture_backend.features.account.application import (
     AccountApplication,
+    AccountDeletionCommand,
     AuthenticateWithAppleCommand,
     RefreshSessionCommand,
 )
@@ -95,29 +96,25 @@ def build_account_router(
         status_code=status.HTTP_202_ACCEPTED,
         responses=STABLE_ERROR_RESPONSES,
     )
-    async def delete_account(subject_id: UUID = principal) -> DeletionResponse:
-        deletion = await accounts.request_account_deletion(subject_id)
-        return DeletionResponse(
-            account_subject=deletion.subject_id,
-            status=deletion.status,
-            requested_at=deletion.requested_at,
-            updated_at=deletion.updated_at,
-        )
+    async def delete_account(
+        authorization: str | None = Header(default=None),
+        idempotency_key: str = Header(
+            min_length=8,
+            max_length=128,
+            alias="Idempotency-Key",
+        ),
+    ) -> DeletionResponse:
+        token = _bearer_token(authorization)
+        if token is None:
+            from stylecapture_backend.features.account.application import AccountError
 
-    @router.get(
-        "/account/deletion-status",
-        response_model=DeletionResponse,
-        responses=STABLE_ERROR_RESPONSES,
-    )
-    async def deletion_status(subject_id: UUID = principal) -> DeletionResponse:
-        deletion = await accounts.deletion_status(subject_id)
-        if deletion is None:
-            return DeletionResponse(
-                account_subject=subject_id,
-                status="none",
-                requested_at=datetime.fromtimestamp(0, tz=datetime.now().astimezone().tzinfo),
-                updated_at=datetime.fromtimestamp(0, tz=datetime.now().astimezone().tzinfo),
+            raise AccountError("session_invalid", "Session is invalid")
+        deletion = await accounts.request_account_deletion_with_access_token(
+            AccountDeletionCommand(
+                access_token=token,
+                idempotency_key=idempotency_key,
             )
+        )
         return DeletionResponse(
             account_subject=deletion.subject_id,
             status=deletion.status,

@@ -152,7 +152,7 @@ BackgroundTasks identifier 是固定发布合同：
 POST   /v1/auth/apple
 POST   /v1/auth/refresh
 POST   /v1/account/delete
-GET    /v1/account/deletion-status
+GET    /v1/account/deletion-status  (M6 planned: secure deletion receipt/capability, never the revoked bearer session)
 POST   /v1/trips
 GET    /v1/trips/{trip_id}
 PATCH  /v1/trips/{trip_id}

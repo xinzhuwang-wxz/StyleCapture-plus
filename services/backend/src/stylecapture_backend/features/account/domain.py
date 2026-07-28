@@ -26,6 +26,10 @@ class AccountBindingConflictError(AccountDomainError):
     pass
 
 
+class ProviderGrantRevocationError(AccountDomainError):
+    pass
+
+
 class RefreshTokenReuseError(AccountDomainError):
     pass
 
@@ -72,6 +76,36 @@ class AppleIdentityClaims:
     expires_at: datetime
     issued_at: datetime
     nonce: str | None = None
+    provider_grant: AppleProviderGrant | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AppleProviderGrant:
+    provider_subject: str
+    access_token: str | None
+    refresh_token: str | None
+    issued_at: datetime
+
+    def revocable_token(self) -> tuple[str, str] | None:
+        if self.refresh_token:
+            return self.refresh_token, "refresh_token"
+        if self.access_token:
+            return self.access_token, "access_token"
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class AppleProviderGrantRevocationAttempt:
+    grant_id: UUID
+    generation: int
+    lease_owner: str
+    grant: AppleProviderGrant
+
+
+@dataclass(frozen=True, slots=True)
+class AppleProviderGrantRevocationClaim:
+    attempt: AppleProviderGrantRevocationAttempt
+    lease_owner: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +234,12 @@ class DeletionRequest:
     status: str
     requested_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class AccountDeletionAcceptance:
+    deletion: DeletionRequest
+    apple_revocation_attempt: AppleProviderGrantRevocationAttempt | None = None
 
 
 @dataclass(frozen=True, slots=True)

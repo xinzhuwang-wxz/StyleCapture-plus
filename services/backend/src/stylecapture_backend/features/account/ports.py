@@ -6,11 +6,17 @@ from uuid import UUID
 
 from stylecapture_backend.features.account.domain import (
     Account,
+    AccountDeletionAcceptance,
     AppleIdentityClaims,
+    AppleProviderGrant,
+    AppleProviderGrantRevocationAttempt,
+    AppleProviderGrantRevocationClaim,
     DeletionRequest,
     DeviceSession,
     ExternalIdentity,
 )
+
+ACCOUNT_REVOCATION_SWEEP_TASK_NAME = "stylecapture.account.apple_provider_revocation_sweep"
 
 
 class AppleIdentityVerifier(Protocol):
@@ -19,6 +25,31 @@ class AppleIdentityVerifier(Protocol):
         identity_token: str,
         authorization_code: str,
     ) -> AppleIdentityClaims: ...
+
+
+class AppleProviderGrantRevoker(Protocol):
+    async def revoke(self, *, token: str, token_type_hint: str) -> None: ...
+
+
+class AppleProviderGrantRepository(Protocol):
+    async def claim_apple_provider_revocations(
+        self,
+        *,
+        lease_owner: str,
+        limit: int,
+    ) -> list[AppleProviderGrantRevocationClaim]: ...
+
+    async def mark_apple_provider_revoked(
+        self,
+        attempt: AppleProviderGrantRevocationAttempt,
+    ) -> None: ...
+
+    async def mark_apple_provider_revocation_failed(
+        self,
+        attempt: AppleProviderGrantRevocationAttempt,
+        *,
+        failure_code: str,
+    ) -> None: ...
 
 
 class SubjectWriteLease(Protocol):
@@ -39,6 +70,7 @@ class AccountRepository(SubjectWriteLease, SubjectResolver, Protocol):
         identity: ExternalIdentity,
         authorization_code_hash: str,
         account: Account,
+        apple_provider_grant: AppleProviderGrant | None = None,
     ) -> Account: ...
 
     async def save_session(self, session: DeviceSession) -> None: ...
@@ -61,4 +93,18 @@ class AccountRepository(SubjectWriteLease, SubjectResolver, Protocol):
 
     async def tombstone_subject(self, subject_id: UUID, *, reason: str) -> DeletionRequest: ...
 
-    async def deletion_request_for(self, subject_id: UUID) -> DeletionRequest | None: ...
+    async def accept_account_deletion(
+        self,
+        subject_id: UUID,
+        *,
+        reason: str,
+        access_token_hash: str | None = None,
+        idempotency_key_hash: str | None = None,
+    ) -> AccountDeletionAcceptance: ...
+
+    async def deletion_request_for_idempotency(
+        self,
+        *,
+        access_token_hash: str,
+        idempotency_key_hash: str,
+    ) -> DeletionRequest | None: ...

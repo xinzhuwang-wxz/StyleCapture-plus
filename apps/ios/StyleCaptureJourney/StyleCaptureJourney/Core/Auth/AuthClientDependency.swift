@@ -12,16 +12,17 @@ enum AuthClientError: Error, Equatable, Sendable {
     case networkUnavailable
     case localCredentialPersistenceFailed
     case localCredentialCleanupRequired
+    case accountDeletionReconciliationRequired
     case sessionExpired
     case unavailable
 }
 
 struct AuthClient: Sendable {
-    var restore: @Sendable () async throws -> AuthTokens?
-    var authenticate: @Sendable (AppleSignInCredential, String) async throws -> AuthTokens
-    var refresh: @Sendable () async throws -> AuthTokens
+    var restore: @Sendable () async throws -> AuthenticatedAccount?
+    var authenticate: @Sendable (AppleSignInCredential, String) async throws -> AuthenticatedAccount
+    var refresh: @Sendable () async throws -> AuthenticatedAccount
     var logout: @Sendable () async throws -> Void
-    var deleteAccount: @Sendable () async throws -> Void
+    var deleteAccount: @Sendable () async throws -> AccountDeletionAcknowledgement
     var clearLocalCredentials: @Sendable () async throws -> Void
 }
 
@@ -34,7 +35,18 @@ extension AuthClient {
         AuthClient(
             restore: {
                 do {
-                    return try await tokenStore.load()
+                    switch try await tokenStore.load() {
+                    case .signedOut:
+                        return nil
+                    case let .authenticated(tokens):
+                        return tokens.authenticatedAccount
+                    case .accountDeletionPending:
+                        throw AuthClientError.accountDeletionReconciliationRequired
+                    }
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch let error as AuthClientError {
+                    throw error
                 } catch {
                     throw AuthClientError.localCredentialPersistenceFailed
                 }
@@ -50,6 +62,8 @@ extension AuthClient {
                             deviceName: deviceName()
                         )
                     )
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
                     throw Self.mapAuthenticateError(error)
                 }
@@ -57,7 +71,9 @@ extension AuthClient {
 
                 do {
                     try await tokenStore.save(tokens)
-                    return tokens
+                    return tokens.authenticatedAccount
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
                     throw AuthClientError.localCredentialPersistenceFailed
                 }
@@ -65,10 +81,12 @@ extension AuthClient {
             refresh: {
                 let current: AuthTokens
                 do {
-                    guard let stored = try await tokenStore.load() else {
+                    guard case let .authenticated(stored) = try await tokenStore.load() else {
                         throw AuthClientError.sessionExpired
                     }
                     current = stored
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch let error as AuthClientError {
                     throw error
                 } catch {
@@ -80,6 +98,10 @@ extension AuthClient {
                     tokens = try await productAuthAPI.refresh(
                         refreshToken: current.refreshToken
                     )
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch let error as AuthClientError {
+                    throw error
                 } catch {
                     throw Self.mapProductAuthError(error, serverUnavailable: .serviceUnavailable)
                 }
@@ -87,7 +109,9 @@ extension AuthClient {
 
                 do {
                     try await tokenStore.save(tokens)
-                    return tokens
+                    return tokens.authenticatedAccount
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
                     throw AuthClientError.localCredentialPersistenceFailed
                 }
@@ -97,26 +121,51 @@ extension AuthClient {
             },
             deleteAccount: {
                 let current: AuthTokens
+                let intent: AccountDeletionIntent
                 do {
-                    guard let stored = try await tokenStore.load() else {
+                    switch try await tokenStore.load() {
+                    case let .authenticated(stored):
+                        current = stored
+                        intent = try await tokenStore.markAccountDeletionPending()
+                    case let .accountDeletionPending(storedIntent):
+                        guard let stored = try await tokenStore.loadTokensForAccountDeletionRetry() else {
+                            throw AuthClientError.localCredentialCleanupRequired
+                        }
+                        current = stored
+                        intent = storedIntent
+                    case .signedOut:
                         throw AuthClientError.sessionExpired
                     }
-                    current = stored
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch let error as AuthClientError {
                     throw error
                 } catch {
                     throw AuthClientError.localCredentialPersistenceFailed
                 }
 
+                let acknowledgement: AccountDeletionAcknowledgement
                 do {
-                    try await productAuthAPI.deleteAccount(
-                        accessToken: current.accessToken
+                    acknowledgement = try await productAuthAPI.deleteAccount(
+                        accessToken: current.accessToken,
+                        idempotencyKey: intent.idempotencyKey
                     )
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch ProductAuthAPI.APIError.unexpectedResponse {
+                    throw AuthClientError.accountDeletionReconciliationRequired
                 } catch {
                     throw Self.mapProductAuthError(error, serverUnavailable: .serviceUnavailable)
                 }
 
-                try await Self.clear(tokenStore)
+                do {
+                    try await tokenStore.markAccountDeletionAccepted(intent)
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    throw AuthClientError.localCredentialCleanupRequired
+                }
+                return acknowledgement
             },
             clearLocalCredentials: {
                 try await Self.clear(tokenStore)
@@ -127,6 +176,8 @@ extension AuthClient {
     private static func clear(_ tokenStore: any TokenStore) async throws {
         do {
             try await tokenStore.clear()
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw AuthClientError.localCredentialCleanupRequired
         }

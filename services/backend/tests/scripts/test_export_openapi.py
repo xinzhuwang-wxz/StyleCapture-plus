@@ -73,7 +73,21 @@ def test_schema_includes_revocable_account_contract() -> None:
     assert "/v1/auth/apple" in paths
     assert "/v1/auth/refresh" in paths
     assert "/v1/account/delete" in paths
-    assert "/v1/account/deletion-status" in paths
+    assert "/v1/account/deletion-status" not in paths
+
+    delete_operation = paths["/v1/account/delete"]["post"]
+    idempotency_header = next(
+        parameter
+        for parameter in delete_operation["parameters"]
+        if parameter["name"] == "Idempotency-Key"
+    )
+    assert idempotency_header["in"] == "header"
+    assert idempotency_header["required"] is True
+    assert idempotency_header["schema"]["minLength"] == 8
+    assert idempotency_header["schema"]["maxLength"] == 128
+    assert delete_operation["responses"]["202"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DeletionResponse"
+    }
 
 
 def test_swift_projection_preserves_optional_fields_without_null_union() -> None:

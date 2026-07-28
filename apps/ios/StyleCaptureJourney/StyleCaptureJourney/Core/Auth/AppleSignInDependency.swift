@@ -136,7 +136,9 @@ extension AppleSignInClient: DependencyKey {
     static let liveValue = AppleSignInClient.live(
         authorizationSession: LiveAppleSignInAuthorizationSession()
     )
-    static let testValue = liveValue
+    static let testValue = AppleSignInClient { _ in
+        throw AuthClientError.unavailable
+    }
 }
 
 struct LiveAppleSignInAuthorizationSession: AppleSignInAuthorizationSession {

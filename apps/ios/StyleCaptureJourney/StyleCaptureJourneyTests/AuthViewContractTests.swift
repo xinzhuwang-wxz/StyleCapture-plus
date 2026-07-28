@@ -32,6 +32,7 @@ final class AuthViewContractTests: XCTestCase {
             (.networkUnavailable, ["网络", "重试"]),
             (.localCredentialPersistenceFailed, ["本机登录凭据", "重试"]),
             (.localCredentialCleanupRequired, ["本机凭据", "重新清理"]),
+            (.accountDeletionReconciliationRequired, ["账号删除请求", "继续处理"]),
             (.sessionExpired, ["会话已过期", "重新登录"]),
             (.unavailable, ["Apple 授权不可用", "系统设置", "Apple 账户", "账户冲突", "请求被拒绝", "网络", "服务", "稍后重试"]),
         ]
@@ -46,7 +47,7 @@ final class AuthViewContractTests: XCTestCase {
     }
 
     func testSignedInCopyProtectsRawAccountIdentifier() {
-        let copy = AuthViewContract.copy(for: .signedIn(Self.tokens))
+        let copy = AuthViewContract.copy(for: .signedIn(Self.account))
 
         XCTAssertFalse(copy.testVisibleText.contains("account-123"))
         XCTAssertTrue(copy.testVisibleText.contains("已登录"))
@@ -54,7 +55,9 @@ final class AuthViewContractTests: XCTestCase {
     }
 
     func testAcceptedAccountDeletionCopyDoesNotClaimCompletedErasure() {
-        let copy = AuthViewContract.copy(for: .clearingLocalCredentials)
+        let copy = AuthViewContract.copy(
+            for: .clearingLocalCredentials(.accepted)
+        )
 
         XCTAssertTrue(
             copy.testVisibleText.contains("已受理") || copy.testVisibleText.contains("处理中"),
@@ -66,6 +69,15 @@ final class AuthViewContractTests: XCTestCase {
                 "A 202 deletion acknowledgement must not claim completed erasure with \(forbiddenFragment); got \(copy.testVisibleText)"
             )
         }
+    }
+
+    func testAcceptedDeletionLocalCleanupFailureShowsRecoveryCopyNotGenericSignIn() {
+        let copy = AuthViewContract.copy(for: .localCredentialCleanupRequired(.accepted))
+
+        XCTAssertTrue(copy.testVisibleText.contains("本机凭据仍需清理"))
+        XCTAssertTrue(copy.testVisibleText.contains("重新清理"))
+        XCTAssertTrue(copy.testVisibleText.contains("已受理"))
+        XCTAssertFalse(copy.testVisibleText.contains("重新登录"))
     }
 }
 
@@ -85,17 +97,19 @@ private extension AuthViewContractTests {
     }()
 
     static let subjectKey = "account" + "Subject"
-
+    static let account = tokens.authenticatedAccount
     static let representativePhases: [AuthFeature.Phase] = [
         .restoring,
         .signedOut,
         .signingIn,
-        .signedIn(tokens),
+        .signedIn(account),
         .signingOut,
-        .confirmingAccountDeletion(tokens),
-        .deleting,
-        .clearingLocalCredentials,
-        .localCredentialCleanupRequired,
+        .confirmingAccountDeletion(account),
+        .deleting(account),
+        .accountDeletionReconciliationRequired,
+        .resubmittingAccountDeletion,
+        .clearingLocalCredentials(.accepted),
+        .localCredentialCleanupRequired(.accepted),
         .failed(.unavailable)
     ]
 }

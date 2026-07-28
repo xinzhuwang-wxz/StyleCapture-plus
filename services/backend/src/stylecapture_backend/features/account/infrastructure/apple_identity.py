@@ -4,6 +4,7 @@ import base64
 import hmac
 import json
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from time import monotonic
 from typing import Any, Protocol
@@ -17,10 +18,15 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 )
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from stylecapture_backend.features.account.application import AccountError
-from stylecapture_backend.features.account.domain import AppleIdentityClaims
+from stylecapture_backend.features.account.domain import (
+    AppleIdentityClaims,
+    AppleProviderGrant,
+    ProviderGrantRevocationError,
+)
 
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
 APPLE_TOKEN_URL = "https://appleid.apple.com/auth/token"
+APPLE_REVOKE_URL = "https://appleid.apple.com/auth/revoke"
 MAX_APPLE_CLIENT_SECRET_LIFETIME = timedelta(seconds=15_777_000)
 
 
@@ -47,8 +53,15 @@ class AppleJWK:
         return cls(kid=kid, key=key)
 
 
+@dataclass(frozen=True, slots=True)
+class AppleAuthorizationGrant:
+    identity_token: str
+    access_token: str | None
+    refresh_token: str | None
+
+
 class AppleAuthorizationCodeExchange(Protocol):
-    async def exchange(self, authorization_code: str) -> str: ...
+    async def exchange(self, authorization_code: str) -> AppleAuthorizationGrant: ...
 
 
 class AppleJWKSource(Protocol):
@@ -116,7 +129,7 @@ class HttpAppleAuthorizationCodeExchange:
         self._timeout_seconds = timeout_seconds
         self._max_response_bytes = max_response_bytes
 
-    async def exchange(self, authorization_code: str) -> str:
+    async def exchange(self, authorization_code: str) -> AppleAuthorizationGrant:
         try:
             async with (
                 httpx.AsyncClient(
@@ -182,7 +195,64 @@ class HttpAppleAuthorizationCodeExchange:
                 "apple_authorization_invalid_response",
                 "Apple authorization response is invalid",
             )
-        return identity_token
+        access_token = payload.get("access_token")
+        refresh_token = payload.get("refresh_token")
+        if not isinstance(access_token, str) or not access_token:
+            raise AccountError(
+                "apple_authorization_invalid_response",
+                "Apple authorization response is invalid",
+            )
+        if not isinstance(refresh_token, str) or not refresh_token:
+            raise AccountError(
+                "apple_authorization_invalid_response",
+                "Apple authorization response is invalid",
+            )
+        return AppleAuthorizationGrant(
+            identity_token=identity_token,
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+
+
+class HttpAppleProviderGrantRevoker:
+    def __init__(
+        self,
+        *,
+        client_id: str,
+        client_secret: Callable[[], str],
+        transport: httpx.AsyncBaseTransport | None = None,
+        timeout_seconds: float = 2.0,
+    ) -> None:
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._transport = transport
+        self._timeout_seconds = timeout_seconds
+
+    async def revoke(self, *, token: str, token_type_hint: str) -> None:
+        if token_type_hint not in {"access_token", "refresh_token"}:
+            raise ValueError("Apple token type hint is invalid")
+        try:
+            async with (
+                httpx.AsyncClient(
+                    transport=self._transport,
+                    timeout=self._timeout_seconds,
+                    follow_redirects=False,
+                ) as client,
+                client.stream(
+                    "POST",
+                    APPLE_REVOKE_URL,
+                    data={
+                        "client_id": self._client_id,
+                        "client_secret": self._client_secret(),
+                        "token": token,
+                        "token_type_hint": token_type_hint,
+                    },
+                ) as response,
+            ):
+                if response.status_code != 200:
+                    raise ProviderGrantRevocationError("Apple token revocation failed")
+        except httpx.HTTPError as error:
+            raise ProviderGrantRevocationError("Apple revocation service unavailable") from error
 
 
 class AppleJWKSProvider:
@@ -291,7 +361,8 @@ class PyJWTAppleIdentityVerifier:
                 "apple_authorization_unavailable",
                 "Apple authorization code validation is not configured",
             )
-        exchanged_identity_token = await self._authorization_codes.exchange(authorization_code)
+        exchange = await self._authorization_codes.exchange(authorization_code)
+        exchanged_identity_token = exchange.identity_token
         claims = await self._decode(identity_token)
         exchanged_claims = await self._decode(exchanged_identity_token)
         if (
@@ -306,7 +377,21 @@ class PyJWTAppleIdentityVerifier:
                 "apple_authorization_mismatch",
                 "Apple authorization result did not match the identity token",
             )
-        return claims
+        provider_grant = AppleProviderGrant(
+            provider_subject=claims.subject,
+            access_token=exchange.access_token,
+            refresh_token=exchange.refresh_token,
+            issued_at=self._now().astimezone(UTC),
+        )
+        return AppleIdentityClaims(
+            issuer=claims.issuer,
+            audience=claims.audience,
+            subject=claims.subject,
+            expires_at=claims.expires_at,
+            issued_at=claims.issued_at,
+            nonce=claims.nonce,
+            provider_grant=provider_grant,
+        )
 
     async def _decode(self, identity_token: str) -> AppleIdentityClaims:
         try:

@@ -16,10 +16,13 @@ from stylecapture_backend.features.account.infrastructure.apple_identity import 
     AppleClientSecretSigner,
     AppleJWKSProvider,
     HttpAppleAuthorizationCodeExchange,
+    HttpAppleProviderGrantRevoker,
     PyJWTAppleIdentityVerifier,
 )
 from stylecapture_backend.features.account.infrastructure.repository import (
+    AppleProviderGrantCipher,
     SqlAlchemyAccountRepository,
+    SqlAlchemyAppleProviderGrantRepository,
 )
 from stylecapture_backend.features.capture.application import (
     CaptureApplication,
@@ -129,23 +132,39 @@ def build_app() -> FastAPI:
     database_url = settings.database_url.get_secret_value()
     redis_url = settings.redis_url.get_secret_value()
     sessions = build_session_factory(database_url)
-    account_repository = SqlAlchemyAccountRepository(sessions)
+    apple_provider_grant_cipher = AppleProviderGrantCipher(
+        settings.apple_provider_grant_encryption_key.get_secret_value()
+    )
+    account_repository = SqlAlchemyAccountRepository(
+        sessions,
+        apple_provider_grant_cipher=apple_provider_grant_cipher,
+    )
+    apple_provider_grants = SqlAlchemyAppleProviderGrantRepository(
+        sessions,
+        cipher=apple_provider_grant_cipher,
+    )
     repository = SqlAlchemyCaptureRepository(sessions, subject_writes=account_repository)
     apple_authorization_codes = None
+    apple_provider_revoker = None
     if (
         settings.apple_team_id is not None
         and settings.apple_key_id is not None
         and settings.apple_private_key_pem.get_secret_value()
     ):
         apple_client_id = settings.apple_client_ids[0]
+        apple_client_secret = AppleClientSecretSigner(
+            team_id=settings.apple_team_id,
+            key_id=settings.apple_key_id,
+            client_id=apple_client_id,
+            private_key_pem=settings.apple_private_key_pem.get_secret_value(),
+        )
         apple_authorization_codes = HttpAppleAuthorizationCodeExchange(
             client_id=apple_client_id,
-            client_secret=AppleClientSecretSigner(
-                team_id=settings.apple_team_id,
-                key_id=settings.apple_key_id,
-                client_id=apple_client_id,
-                private_key_pem=settings.apple_private_key_pem.get_secret_value(),
-            ),
+            client_secret=apple_client_secret,
+        )
+        apple_provider_revoker = HttpAppleProviderGrantRevoker(
+            client_id=apple_client_id,
+            client_secret=apple_client_secret,
         )
     wardrobe_repository = SqlAlchemyWardrobeRepository(
         sessions,
@@ -305,6 +324,8 @@ def build_app() -> FastAPI:
                 ),
                 allowed_audiences=frozenset(settings.apple_client_ids),
                 token_secret=settings.session_signing_secret.get_secret_value(),
+                apple_provider_grants=apple_provider_grants,
+                apple_provider_revoker=apple_provider_revoker,
             ),
             uploads=uploads,
         ),

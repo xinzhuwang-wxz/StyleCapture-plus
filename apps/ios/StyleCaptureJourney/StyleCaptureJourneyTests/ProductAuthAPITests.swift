@@ -71,7 +71,7 @@ final class ProductAuthAPITests: XCTestCase {
             return Self.deletionAcceptedResponse()
         }
 
-        try await api.deleteAccount(accessToken: "access-token")
+        let acknowledgement = try await api.deleteAccount(accessToken: "access-token", idempotencyKey: "delete-key-1")
 
         let request = try await recorder.onlyRequest()
         XCTAssertEqual(request.operationID, Operations.DeleteAccountV1AccountDeletePost.id)
@@ -82,15 +82,46 @@ final class ProductAuthAPITests: XCTestCase {
             $0.name == .authorization
         }
         XCTAssertEqual(authorizationHeaders.map(\.value), ["Bearer access-token"])
+        let idempotencyHeaders = request.http.headerFields.filter {
+            $0.name.rawName.lowercased() == "idempotency-key"
+        }
+        XCTAssertEqual(idempotencyHeaders.map(\.value), ["delete-key-1"])
+        XCTAssertEqual(acknowledgement, Self.expectedDeletionAcknowledgement)
 
         let unexpectedSuccessAPI = Self.makeAPI { _, _, _, _ in
             Self.jsonResponse(status: .ok, body: Self.deletionResponseBody)
         }
         do {
-            try await unexpectedSuccessAPI.deleteAccount(accessToken: "access-token")
+            try await unexpectedSuccessAPI.deleteAccount(accessToken: "access-token", idempotencyKey: "delete-key-1")
             XCTFail("Expected generated 200 ok to be rejected for deleteAccount")
         } catch let error as ProductAuthAPI.APIError {
             XCTAssertEqual(error, .unexpectedResponse)
+        }
+    }
+
+    func testDeleteAccountRejectsAcceptedResponseWithUnknownDeletionStatus() async throws {
+        let api = Self.makeAPI { _, _, _, operationID in
+            XCTAssertEqual(operationID, Operations.DeleteAccountV1AccountDeletePost.id)
+            return Self.jsonResponse(status: .accepted, body: """
+            {
+              "account_subject": "account-1",
+              "status": "unexpected_future_status",
+              "requested_at": "2026-07-28T08:00:00Z",
+              "updated_at": "2026-07-28T08:00:00Z"
+            }
+            """)
+        }
+
+        do {
+            try await api.deleteAccount(
+                accessToken: "access-token",
+                idempotencyKey: "delete-key-1"
+            )
+            XCTFail("Expected unknown accepted deletion status to be rejected")
+        } catch let error as ProductAuthAPI.APIError {
+            XCTAssertEqual(error, .unexpectedResponse)
+        } catch {
+            XCTFail("Expected ProductAuthAPI.APIError, got \(error)")
         }
     }
 
@@ -217,7 +248,7 @@ final class ProductAuthAPITests: XCTestCase {
         }
 
         await XCTAssertThrowsCancellationError {
-            try await api.deleteAccount(accessToken: "access-token")
+            try await api.deleteAccount(accessToken: "access-token", idempotencyKey: "delete-key-1")
         }
     }
 
@@ -301,6 +332,9 @@ private extension ProductAuthAPITests {
         refreshToken: "refresh-1",
         accessExpiresAt: expectedAccessExpiresAt,
         tokenType: "Bearer"
+    )
+    static let expectedDeletionAcknowledgement = AccountDeletionAcknowledgement(
+        status: .accepted
     )
     static let tokenResponseBody = """
     {
@@ -421,7 +455,7 @@ private extension ProductAuthAPITests {
         }
 
         do {
-            try await api.deleteAccount(accessToken: "access-token")
+            try await api.deleteAccount(accessToken: "access-token", idempotencyKey: "delete-key-1")
             XCTFail("Expected deleteAccount \(status) \(code) to throw", line: line)
         } catch let error as ProductAuthAPI.APIError {
             XCTAssertEqual(error, expectedError, line: line)

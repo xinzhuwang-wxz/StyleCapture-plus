@@ -6,7 +6,7 @@ Status: `OPTIONAL_REAL_EXTERNAL_M0_RESEARCH_NOT_READY`
 
 Scope: this checklist applies only if and when the team chooses to run real external M0 research operations such as Xiaohongshu/group recruitment, participant contact, personal-information intake, refundable-deposit collection, refunds, or raw evidence handling.
 
-This file records optional external-research readiness evidence only. It does not authorize posting, participant contact, personal-information processing, deposit collection, refunds, or a product `GO` decision. Its missing items do not block Task 2–9 local app/backend/iOS implementation, Apple sandbox, staging, TestFlight technical verification, or mature-framework development.
+This file records optional external-research readiness evidence only. It does not authorize posting, participant contact, personal-information processing, deposit collection, refunds, or a product `GO` decision. Its missing items do not block Task 2–10 local app/backend/iOS implementation, Apple sandbox, staging, TestFlight technical verification, or mature-framework development.
 
 ## Ready
 
@@ -38,4 +38,4 @@ This file records optional external-research readiness evidence only. It does no
 
 External M0 execution may start only when the authorized legal subject supplies or makes available the missing account, contact, merchant/refund and controlled-data-store evidence. At action time, the operator must still follow the posting/payment confirmation and channel-permission gates in `operator-runbook.md`.
 
-Task 2–9 local app/backend/iOS development, Apple sandbox, staging and TestFlight technical verification remain admissible while this optional external-research readiness status is not ready. No external research has run and no M0 decision exists.
+Task 2–10 local app/backend/iOS development, Apple sandbox, staging and TestFlight technical verification remain admissible while this optional external-research readiness status is not ready. No external research has run and no M0 decision exists.

@@ -36,7 +36,7 @@ Their tests correctly prove wrapper/audit behavior, but they do not prove the co
 | `journey.packing` | `GET/PATCH` packing endpoints / `trip_planning` | verified pack; restore reproduces access | offline outbox + version conflict | owner-scoped; deletion cascade; packing-proxy VSS |
 | `journey.weather_refresh` | `POST .../weather-refresh` / `trip_planning` | verified pack and refresh allowance | cost/usage reservation + durable job | source/time provenance; locked revision preserved |
 | `journey.complete` | `POST .../complete` / `trip_planning` | owner + verified pack | idempotent | confirmed-worn VSS requires explicit adoption evidence |
-| `account.deletion_status` | `GET /v1/account/deletion-status` / `account` | revocable account session | read-only retryable stages | no internal/sensitive payload; convergence evidence |
+| `account.deletion_status` | M6 planned `GET /v1/account/deletion-status` / `account` | scoped deletion receipt/capability; never the revoked bearer session | read-only retryable stages; receipt replay-safe | no internal/sensitive payload; convergence evidence; not exposed by the Task 3 bearer contract |
 
 Store purchase is deliberately absent: external Skills and App Intents cannot bypass StoreKit or simulate entitlement. The native App owns purchase presentation and Apple transaction handoff.
 

@@ -1,10 +1,11 @@
 import AuthenticationServices
 import SwiftUI
 
+@MainActor
 struct AppleSignInTriggerButton: UIViewRepresentable {
     let accessibilityIdentifier: String
     let accessibilityHint: String
-    let action: () -> Void
+    let action: @MainActor () -> Void
 
     func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
         let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
@@ -29,10 +30,11 @@ struct AppleSignInTriggerButton: UIViewRepresentable {
         Coordinator(action: action)
     }
 
+    @MainActor
     final class Coordinator: NSObject {
-        var action: () -> Void
+        var action: @MainActor () -> Void
 
-        init(action: @escaping () -> Void) {
+        init(action: @escaping @MainActor () -> Void) {
             self.action = action
         }
 

@@ -15,12 +15,19 @@ x-production-backend-environment: &production-backend-environment
   STYLECAPTURE_UPLOAD_ROOT: /data/uploads
   STYLECAPTURE_UPLOAD_SIGNING_SECRET: ${STYLECAPTURE_UPLOAD_SIGNING_SECRET:?STYLECAPTURE_UPLOAD_SIGNING_SECRET is required}
   STYLECAPTURE_SESSION_SIGNING_SECRET: ${STYLECAPTURE_SESSION_SIGNING_SECRET:?STYLECAPTURE_SESSION_SIGNING_SECRET is required}
+  STYLECAPTURE_APPLE_CLIENT_IDS: '${STYLECAPTURE_APPLE_CLIENT_IDS:?STYLECAPTURE_APPLE_CLIENT_IDS is required}'
+  STYLECAPTURE_APPLE_TEAM_ID: ${STYLECAPTURE_APPLE_TEAM_ID:?STYLECAPTURE_APPLE_TEAM_ID is required}
+  STYLECAPTURE_APPLE_KEY_ID: ${STYLECAPTURE_APPLE_KEY_ID:?STYLECAPTURE_APPLE_KEY_ID is required}
+  STYLECAPTURE_APPLE_PRIVATE_KEY_PEM: ${STYLECAPTURE_APPLE_PRIVATE_KEY_PEM:?STYLECAPTURE_APPLE_PRIVATE_KEY_PEM is required}
+  STYLECAPTURE_APPLE_PROVIDER_GRANT_ENCRYPTION_KEY: ${STYLECAPTURE_APPLE_PROVIDER_GRANT_ENCRYPTION_KEY:?STYLECAPTURE_APPLE_PROVIDER_GRANT_ENCRYPTION_KEY is required}
   STYLECAPTURE_SESSION_COOKIE_SECURE: "true"
   STYLECAPTURE_CORS_ORIGINS: '["https://${STYLECAPTURE_PUBLIC_HOST:?STYLECAPTURE_PUBLIC_HOST is required}"]'
   STYLECAPTURE_DEMO_SEED_ENABLED: "true"
   STYLECAPTURE_DEMO_SEED_NEW_SESSION_QUOTA: "512"
   STYLECAPTURE_CAPTURE_QUEUE: ${STYLECAPTURE_CAPTURE_QUEUE:-capture}
   STYLECAPTURE_RENDER_QUEUE: ${STYLECAPTURE_RENDER_QUEUE:-render}
+  STYLECAPTURE_MAINTENANCE_QUEUE: ${STYLECAPTURE_MAINTENANCE_QUEUE:-maintenance}
+  STYLECAPTURE_ACCOUNT_REVOCATION_SWEEP_INTERVAL_SECONDS: ${STYLECAPTURE_ACCOUNT_REVOCATION_SWEEP_INTERVAL_SECONDS:-300}
 
 services:
   edge:
@@ -158,6 +165,38 @@ services:
       STYLECAPTURE_FASHN_API_KEY: ${FASHN_API_KEY:-}
       STYLECAPTURE_FIXED_MODEL_OBJECT_KEY: ${STYLECAPTURE_FIXED_MODEL_OBJECT_KEY:-}
     logging: *production-logging
+
+  worker-account:
+    restart: unless-stopped
+    build:
+      args:
+        UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+        UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
+        UV_LOCK_MIRROR_BASE: ${UV_LOCK_MIRROR_BASE:-}
+    environment:
+      <<: *production-backend-environment
+    logging: *production-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  beat-account:
+    restart: unless-stopped
+    build:
+      args:
+        UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.org/simple}
+        UV_INSECURE_HOST: ${UV_INSECURE_HOST:-}
+        UV_LOCK_MIRROR_BASE: ${UV_LOCK_MIRROR_BASE:-}
+    environment:
+      <<: *production-backend-environment
+    logging: *production-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
 
 volumes:
   stylecapture-caddy-data:

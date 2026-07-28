@@ -13,6 +13,7 @@ from stylecapture_backend.features.account.infrastructure import (
     apple_identity as apple_identity_module,
 )
 from stylecapture_backend.features.account.infrastructure.apple_identity import (
+    AppleAuthorizationGrant,
     AppleJWK,
     AppleJWKSProvider,
     PyJWTAppleIdentityVerifier,
@@ -34,7 +35,8 @@ def _jwk_payload(key: rsa.RSAPublicKey, *, kid: str) -> dict[str, object]:
 
 
 class RejectingAuthorizationCodeExchange:
-    async def exchange(self, authorization_code: str) -> str:
+    async def exchange(self, authorization_code: str) -> AppleAuthorizationGrant:
+        del authorization_code
         raise AccountError(
             "apple_authorization_failed",
             "Apple authorization code validation failed",
@@ -45,8 +47,13 @@ class StaticAuthorizationCodeExchange:
     def __init__(self, identity_token: str) -> None:
         self.identity_token = identity_token
 
-    async def exchange(self, authorization_code: str) -> str:
-        return self.identity_token
+    async def exchange(self, authorization_code: str) -> AppleAuthorizationGrant:
+        del authorization_code
+        return AppleAuthorizationGrant(
+            identity_token=self.identity_token,
+            access_token="apple-access-token-from-static-exchange",
+            refresh_token="apple-refresh-token-from-static-exchange",
+        )
 
 
 class StaticJWKProvider:
@@ -94,9 +101,11 @@ async def test_http_code_exchange_posts_single_use_code_to_fixed_apple_endpoint(
         transport=httpx.MockTransport(handle),
     )
 
-    identity_token = await exchange.exchange("single-use-code")
+    grant = await exchange.exchange("single-use-code")
 
-    assert identity_token == "exchanged-identity-token"
+    assert grant.identity_token == "exchanged-identity-token"
+    assert grant.access_token == "apple-access-token"
+    assert grant.refresh_token == "apple-refresh-token"
     assert len(seen_requests) == 1
     request = seen_requests[0]
     assert str(request.url) == "https://appleid.apple.com/auth/token"

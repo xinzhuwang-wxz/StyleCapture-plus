@@ -102,7 +102,12 @@ struct AuthView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 48)
 
-        case .restoring, .signingIn, .signingOut, .deleting, .clearingLocalCredentials:
+        case .restoring,
+             .signingIn,
+             .signingOut,
+             .deleting,
+             .resubmittingAccountDeletion,
+             .clearingLocalCredentials:
             EmptyView()
 
         case .signedIn:
@@ -149,6 +154,14 @@ struct AuthView: View {
                 }
             }
             .accessibilityIdentifier("auth.delete.confirmation")
+
+        case .accountDeletionReconciliationRequired:
+            Button("继续提交删除请求") {
+                store.send(.retryAccountDeletionTapped)
+            }
+            .buttonStyle(AuthActionButtonStyle(tone: .primary))
+            .accessibilityIdentifier("auth.retryAccountDeletion.button")
+            .accessibilityHint("使用已保存的删除意图重试账号删除请求")
 
         case .localCredentialCleanupRequired:
             Button("重新清理本机凭据") {
@@ -302,28 +315,48 @@ enum AuthViewContract {
 
         case .deleting:
             return make(
-                statusTitle: "正在删除账号",
-                statusMessage: "正在撤销服务端会话并清理本机登录凭据，请保持应用打开。",
+                statusTitle: "正在提交账号删除请求",
+                statusMessage: "正在提交服务端账号删除请求。服务端受理后会继续清理这台设备上的登录凭据。",
                 statusGlyph: "...",
                 cardIdentifier: "auth.card.deleting",
-                progressLabel: "正在删除账号",
+                progressLabel: "正在提交删除请求",
                 progressIdentifier: "auth.progress.deleting"
             )
 
-        case .clearingLocalCredentials:
+        case .accountDeletionReconciliationRequired:
+            return make(
+                statusTitle: "账号删除请求需要继续处理",
+                statusMessage: "上次删除请求已在本机安全记录，但网络或应用中断导致结果未确认。请继续提交；应用不会恢复旧登录界面。",
+                statusGlyph: "!",
+                cardIdentifier: "auth.card.deleteRecovery"
+            )
+
+        case .resubmittingAccountDeletion:
+            return make(
+                statusTitle: "正在继续提交账号删除请求",
+                statusMessage: "正在使用同一次删除意图继续提交请求，避免重复账号操作。",
+                statusGlyph: "...",
+                cardIdentifier: "auth.card.deleteRecoverySubmitting",
+                progressLabel: "正在继续提交删除请求",
+                progressIdentifier: "auth.progress.deleteRecoverySubmitting"
+            )
+
+        case let .clearingLocalCredentials(status):
+            let status = status.map { deletionStatusCopy(for: $0) } ?? "账号删除请求已受理。"
             return make(
                 statusTitle: "正在清理本机登录凭据",
-                statusMessage: "账号删除已完成，正在清理这台设备上的登录凭据。",
+                statusMessage: "\(status) 正在清理这台设备上的登录凭据，请保持应用打开。",
                 statusGlyph: "...",
                 cardIdentifier: "auth.card.cleanup",
                 progressLabel: "正在清理本机登录凭据",
                 progressIdentifier: "auth.progress.cleanup"
             )
 
-        case .localCredentialCleanupRequired:
+        case let .localCredentialCleanupRequired(status):
+            let status = status.map { deletionStatusCopy(for: $0) } ?? "账号操作已受理。"
             return make(
                 statusTitle: "本机凭据仍需清理",
-                statusMessage: "账号已删除，但这台设备上的本机凭据还需要重新清理。请重试，确保下次打开时回到安全登录状态。",
+                statusMessage: "\(status) 但这台设备上的本机凭据还需要重新清理。请重试，确保下次打开时回到安全登录状态。",
                 statusGlyph: "!",
                 cardIdentifier: "auth.card.cleanupRecovery"
             )
@@ -355,6 +388,10 @@ enum AuthViewContract {
             return "auth.shell.confirmDelete"
         case .deleting:
             return "auth.shell.deleting"
+        case .accountDeletionReconciliationRequired:
+            return "auth.shell.deleteRecovery"
+        case .resubmittingAccountDeletion:
+            return "auth.shell.deleteRecoverySubmitting"
         case .clearingLocalCredentials:
             return "auth.shell.cleanup"
         case .localCredentialCleanupRequired:
@@ -365,6 +402,15 @@ enum AuthViewContract {
     }
 
     static let signedInPrivacyLabel = "Apple 账户已连接；为保护隐私，不显示账号原始标识。"
+
+    private static func deletionStatusCopy(
+        for status: AccountDeletionStatus
+    ) -> String {
+        switch status {
+        case .accepted:
+            return "账号删除请求已受理，服务端正在处理。"
+        }
+    }
 
     private static func failureMessage(for error: AuthClientError) -> (title: String, body: String) {
         switch error {
@@ -427,6 +473,11 @@ enum AuthViewContract {
             return (
                 "本机凭据仍需清理",
                 "账号操作已完成，但本机凭据还需要重新清理。请重试清理，确保设备不会保留旧会话。"
+            )
+        case .accountDeletionReconciliationRequired:
+            return (
+                "账号删除请求需要继续处理",
+                "上次删除请求还没有确认完成，请继续提交或清理本机凭据；应用不会恢复旧登录界面。"
             )
         }
     }

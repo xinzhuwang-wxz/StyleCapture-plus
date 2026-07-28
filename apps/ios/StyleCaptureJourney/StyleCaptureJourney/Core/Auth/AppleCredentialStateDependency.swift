@@ -11,7 +11,7 @@ enum AppleCredentialState: Equatable, Sendable {
 }
 
 struct AppleCredentialStateClient: Sendable {
-    var credentialState: @Sendable (String) async -> AppleCredentialState
+    var credentialState: @Sendable (String) async throws -> AppleCredentialState
     var revocationEvents: @Sendable () -> AsyncStream<Void>
 }
 
@@ -23,6 +23,8 @@ extension AppleCredentialStateClient {
             credentialState: { userID in
                 do {
                     return try await provider.credentialState(forUserID: userID)
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
                     return .unavailable
                 }
