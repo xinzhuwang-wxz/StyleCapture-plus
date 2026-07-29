@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from stylecapture_backend.features.account.application import (
@@ -10,9 +10,16 @@ from stylecapture_backend.features.account.application import (
     AuthenticateWithAppleCommand,
     RefreshSessionCommand,
 )
-from stylecapture_backend.features.account.domain import AppleIdentityClaims, hash_nonce
+from stylecapture_backend.features.account.domain import (
+    Account,
+    AppleIdentityClaims,
+    AppleProviderGrant,
+    ExternalIdentity,
+    hash_nonce,
+)
 from stylecapture_backend.features.account.infrastructure.repository import (
     InMemoryAccountRepository,
+    InMemoryAppleProviderGrantRepository,
 )
 from stylecapture_backend.features.account.ports import AppleIdentityVerifier
 
@@ -54,6 +61,34 @@ class MutableClock:
         self.value += delta
 
 
+class RecordingAppleRevoker:
+    def __init__(self) -> None:
+        self.revoked: list[tuple[str, str]] = []
+
+    async def revoke(self, *, token: str, token_type_hint: str) -> None:
+        self.revoked.append((token, token_type_hint))
+
+
+class DeletingBeforeBindInMemoryAccountRepository(InMemoryAccountRepository):
+    async def bind_apple_identity(
+        self,
+        *,
+        anonymous_subject: UUID,
+        identity: ExternalIdentity,
+        authorization_code_hash: str,
+        account: Account,
+        apple_provider_grant: AppleProviderGrant | None = None,
+    ) -> Account:
+        await self.tombstone_subject(anonymous_subject, reason="account_deletion")
+        return await super().bind_apple_identity(
+            anonymous_subject=anonymous_subject,
+            identity=identity,
+            authorization_code_hash=authorization_code_hash,
+            account=account,
+            apple_provider_grant=apple_provider_grant,
+        )
+
+
 def build_app(
     *,
     clock: MutableClock | None = None,
@@ -83,6 +118,23 @@ def build_app(
         refresh_lifetime=refresh_lifetime or timedelta(days=30),
     )
     return app, repository
+
+
+def _claims_with_provider_grant(*, apple_subject: str = "apple-sub-1") -> AppleIdentityClaims:
+    return AppleIdentityClaims(
+        issuer="https://appleid.apple.com",
+        audience="com.stylecapture.journey",
+        subject=apple_subject,
+        expires_at=datetime(2026, 7, 28, 1, 15, tzinfo=UTC),
+        issued_at=datetime(2026, 7, 28, 1, 0, tzinfo=UTC),
+        nonce=hash_nonce("nonce-1"),
+        provider_grant=AppleProviderGrant(
+            provider_subject=apple_subject,
+            access_token="apple-access-token-for-revocation",
+            refresh_token="apple-refresh-token-for-revocation",
+            issued_at=datetime(2026, 7, 28, 1, 0, tzinfo=UTC),
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -312,6 +364,76 @@ async def test_deleted_account_tombstone_revokes_sessions_and_blocks_new_writes(
         await app.resolve_access_token(session.access_token)
     with pytest.raises(ValueError, match="deleted"):
         await repository.assert_can_write(session.account_subject)
+
+
+@pytest.mark.asyncio
+async def test_expired_attempted_apple_revocation_lease_is_reclaimable_in_memory() -> None:
+    app, repository = build_app(
+        apple_identity=FakeAppleVerifier(_claims_with_provider_grant()),
+    )
+    provider_grants = InMemoryAppleProviderGrantRepository(repository)
+    app._apple_provider_grants = provider_grants
+    session = await app.authenticate_with_apple(
+        AuthenticateWithAppleCommand(
+            anonymous_subject=uuid4(),
+            identity_token="valid",
+            authorization_code="first-code",
+            nonce="nonce-1",
+            device_name="iPhone",
+        )
+    )
+    await app.request_account_deletion(session.account_subject)
+    first_claim = (
+        await provider_grants.claim_apple_provider_revocations(
+            lease_owner="first-worker",
+            limit=10,
+        )
+    )[0]
+    active_claims = await provider_grants.claim_apple_provider_revocations(
+        lease_owner="active-worker",
+        limit=10,
+    )
+    repository.apple_provider_revocation_lease_expires_at[session.account_subject] = (
+        datetime.now(UTC) - timedelta(seconds=1)
+    )
+
+    expired_claims = await provider_grants.claim_apple_provider_revocations(
+        lease_owner="replacement-worker",
+        limit=10,
+    )
+
+    assert first_claim.attempt.lease_owner == "first-worker"
+    assert active_claims == []
+    assert [claim.attempt.lease_owner for claim in expired_claims] == ["replacement-worker"]
+
+
+@pytest.mark.asyncio
+async def test_provider_grant_is_revoked_when_deletion_wins_after_exchange_before_bind_in_memory() -> None:
+    repository = DeletingBeforeBindInMemoryAccountRepository()
+    provider_grants = InMemoryAppleProviderGrantRepository(repository)
+    revoker = RecordingAppleRevoker()
+    app, _ = build_app(
+        repository=repository,
+        apple_identity=FakeAppleVerifier(_claims_with_provider_grant()),
+    )
+    app._apple_provider_grants = provider_grants
+    app._apple_provider_revoker = revoker
+
+    with pytest.raises(AccountError) as captured:
+        await app.authenticate_with_apple(
+            AuthenticateWithAppleCommand(
+                anonymous_subject=uuid4(),
+                identity_token="valid",
+                authorization_code="first-code",
+                nonce="nonce-1",
+                device_name="iPhone",
+            )
+        )
+
+    await app.process_apple_provider_revocations(lease_owner="test-worker")
+    assert captured.value.code == "account_deleted"
+    assert revoker.revoked == [("apple-refresh-token-for-revocation", "refresh_token")]
+    assert set(repository.apple_provider_revocation_status.values()) == {"revoked"}
 
 
 @pytest.mark.asyncio

@@ -19,6 +19,7 @@ enum AuthClientError: Error, Equatable, Sendable {
 
 struct AuthClient: Sendable {
     var restore: @Sendable () async throws -> AuthenticatedAccount?
+    var storedAppleCredentialIsValid: @Sendable () async throws -> Bool
     var authenticate: @Sendable (AppleSignInCredential, String) async throws -> AuthenticatedAccount
     var refresh: @Sendable () async throws -> AuthenticatedAccount
     var logout: @Sendable () async throws -> Void
@@ -30,6 +31,7 @@ extension AuthClient {
     static func live(
         productAuthAPI: ProductAuthAPI,
         tokenStore: any TokenStore,
+        appleCredentialStateClient: AppleCredentialStateClient = .liveValue,
         deviceName: @escaping @Sendable () -> String?
     ) -> AuthClient {
         AuthClient(
@@ -49,6 +51,32 @@ extension AuthClient {
                     throw error
                 } catch {
                     throw AuthClientError.localCredentialPersistenceFailed
+                }
+            },
+            storedAppleCredentialIsValid: {
+                let tokens: AuthTokens
+                do {
+                    guard case let .authenticated(stored) = try await tokenStore.load() else {
+                        return true
+                    }
+                    tokens = stored
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch let error as AuthClientError {
+                    throw error
+                } catch {
+                    throw AuthClientError.localCredentialPersistenceFailed
+                }
+
+                guard let userIdentifier = tokens.appleUserIdentifier else {
+                    return true
+                }
+
+                switch try await appleCredentialStateClient.credentialState(userIdentifier) {
+                case .authorized, .unavailable:
+                    return true
+                case .revoked, .notFound, .transferred:
+                    return false
                 }
             },
             authenticate: { credential, nonce in
@@ -223,6 +251,7 @@ extension AuthClient: DependencyKey {
 
     private static let unavailable = AuthClient(
         restore: { throw AuthClientError.unavailable },
+        storedAppleCredentialIsValid: { true },
         authenticate: { _, _ in throw AuthClientError.unavailable },
         refresh: { throw AuthClientError.unavailable },
         logout: { throw AuthClientError.unavailable },

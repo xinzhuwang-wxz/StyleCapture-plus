@@ -163,7 +163,10 @@ final class KeychainTokenStoreTests: XCTestCase {
                 update: { query, attributes in
                     updatedAccount = query[kSecAttrAccount as String] as? String
                     item.setData(
-                        attributes.merging(query, uniquingKeysWith: { attributesValue, _ in attributesValue })
+                        from: attributes.merging(
+                            query,
+                            uniquingKeysWith: { attributesValue, _ in attributesValue }
+                        )
                     )
                     return errSecSuccess
                 },
@@ -178,7 +181,7 @@ final class KeychainTokenStoreTests: XCTestCase {
 
         XCTAssertEqual(updatedAccount, "stylecapture-session.account-deletion-intent")
         let deletionPendingSession = try await store.load()
-        XCTAssertEqual(deletionPendingSession, .accountDeletionPending(intent))
+        XCTAssertEqual(deletionPendingSession, StoredAuthSession.accountDeletionPending(intent))
         XCTAssertNil(item.dataByAccount["stylecapture-session"])
     }
 

@@ -550,7 +550,7 @@ final class AuthClientLiveTests: XCTestCase {
         }
     }
 
-    func testLiveClientPersistsAppleUserIdentifierAndKeepsItAcrossRefresh() async throws {
+    func testLiveClientPersistsAppleUserIdentifierAndKeepsReturnedAccountMinimal() async throws {
         let tokenStore = RecordingTokenStore()
         let authClient = AuthClient.live(
             productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
@@ -567,15 +567,38 @@ final class AuthClientLiveTests: XCTestCase {
             "raw-nonce"
         )
 
-        XCTAssertEqual(signedIn.appleUserIdentifier, "apple-user-1")
+        XCTAssertFalse(String(describing: signedIn).contains("apple-user-1"))
         let storedAfterSignIn = await tokenStore.currentTokens()
         XCTAssertEqual(storedAfterSignIn?.appleUserIdentifier, "apple-user-1")
 
         let refreshed = try await authClient.refresh()
 
-        XCTAssertEqual(refreshed.appleUserIdentifier, "apple-user-1")
+        XCTAssertFalse(String(describing: refreshed).contains("apple-user-1"))
         let storedAfterRefresh = await tokenStore.currentTokens()
         XCTAssertEqual(storedAfterRefresh?.appleUserIdentifier, "apple-user-1")
+    }
+
+    func testLiveStoredAppleCredentialValidationUsesSecurelyStoredIdentifierOnly() async throws {
+        let probe = CredentialStateProbe(state: .revoked)
+        let tokenStore = RecordingTokenStore(initial: Self.signedInTokens)
+        let authClient = AuthClient.live(
+            productAuthAPI: Self.makeAPI(requests: RecordedProductAuthRequests()),
+            tokenStore: tokenStore,
+            appleCredentialStateClient: AppleCredentialStateClient(
+                credentialState: { userIdentifier in
+                    await probe.record(userIdentifier)
+                },
+                revocationEvents: { AsyncStream { $0.finish() } }
+            ),
+            deviceName: { nil }
+        )
+
+        let restored = try await authClient.restore()
+        let isValid = try await authClient.storedAppleCredentialIsValid()
+
+        XCTAssertFalse(isValid)
+        XCTAssertEqual(await probe.requestedUserIdentifiers, ["apple-user-1"])
+        XCTAssertFalse(String(describing: restored).contains("apple-user-1"))
     }
 
     func testAuthTokensCodablePreservesAppleUserIdentifierAndDefaultsLegacyPayload() throws {
@@ -606,6 +629,24 @@ final class AuthClientLiveTests: XCTestCase {
         )
         let legacy = try JSONDecoder.iso8601AuthTokens.decode(AuthTokens.self, from: legacyPayload)
         XCTAssertNil(legacy.appleUserIdentifier)
+    }
+}
+
+private actor CredentialStateProbe {
+    private let state: AppleCredentialState
+    private var requested: [String] = []
+
+    init(state: AppleCredentialState) {
+        self.state = state
+    }
+
+    var requestedUserIdentifiers: [String] {
+        requested
+    }
+
+    func record(_ userIdentifier: String) -> AppleCredentialState {
+        requested.append(userIdentifier)
+        return state
     }
 }
 

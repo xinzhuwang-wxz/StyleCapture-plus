@@ -51,6 +51,7 @@ final class AuthFeatureTests: XCTestCase {
         await store.receive(.restoreResponse(.signedIn(Self.account))) {
             $0.phase = .signedIn(Self.account)
         }
+        XCTAssertFalse(String(describing: store.state).contains(Self.appleUserIdentifier))
     }
 
     func testRestoreRevokedAppleCredentialClearsSessionAndSignsOut() async {
@@ -60,10 +61,7 @@ final class AuthFeatureTests: XCTestCase {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
             $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
-            $0.appleCredentialStateClient.credentialState = { userIdentifier in
-                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
-                return .revoked
-            }
+            $0.authClient.storedAppleCredentialIsValid = { false }
         }
 
         await store.send(.task)
@@ -82,10 +80,7 @@ final class AuthFeatureTests: XCTestCase {
                 throw AuthClientError.localCredentialCleanupRequired
             }
             $0.authClient.clearLocalCredentials = {}
-            $0.appleCredentialStateClient.credentialState = { userIdentifier in
-                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
-                return .revoked
-            }
+            $0.authClient.storedAppleCredentialIsValid = { false }
         }
 
         await store.send(.task)
@@ -219,10 +214,7 @@ final class AuthFeatureTests: XCTestCase {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
             $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
-            $0.appleCredentialStateClient.credentialState = { userIdentifier in
-                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
-                return .notFound
-            }
+            $0.authClient.storedAppleCredentialIsValid = { false }
         }
 
         await store.send(.task)
@@ -238,10 +230,7 @@ final class AuthFeatureTests: XCTestCase {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
             $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
-            $0.appleCredentialStateClient.credentialState = { userIdentifier in
-                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
-                return .transferred
-            }
+            $0.authClient.storedAppleCredentialIsValid = { false }
         }
 
         await store.send(.task)
@@ -259,10 +248,7 @@ final class AuthFeatureTests: XCTestCase {
             $0.authClient.logout = {
                 XCTFail("Authorized Apple credentials must preserve server session")
             }
-            $0.appleCredentialStateClient.credentialState = { userIdentifier in
-                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
-                return .authorized
-            }
+            $0.authClient.storedAppleCredentialIsValid = { true }
         }
 
         await store.send(.task)
@@ -280,10 +266,7 @@ final class AuthFeatureTests: XCTestCase {
             $0.date.now = Date(timeIntervalSince1970: 1_785_200_100)
             $0.authClient.restore = { expired }
             $0.authClient.refresh = { refreshed }
-            $0.appleCredentialStateClient.credentialState = { userIdentifier in
-                XCTAssertEqual(userIdentifier, Self.appleUserIdentifier)
-                return .unavailable
-            }
+            $0.authClient.storedAppleCredentialIsValid = { true }
         }
 
         await store.send(.task)
@@ -300,7 +283,6 @@ final class AuthFeatureTests: XCTestCase {
             $0.date.now = Date(timeIntervalSince1970: 1_785_199_900)
             $0.authClient.restore = { Self.account }
             $0.authClient.logout = {}
-            $0.appleCredentialStateClient.credentialState = { _ in .authorized }
             $0.appleCredentialStateClient.revocationEvents = { notifications.stream }
         }
 
@@ -347,6 +329,7 @@ final class AuthFeatureTests: XCTestCase {
         await store.receive(.signInResponse(.success(account))) {
             $0.phase = .signedIn(account)
         }
+        XCTAssertFalse(String(describing: store.state).contains(Self.appleUserIdentifier))
     }
 
     func testCancelledSignInEmitsNoStaleResponseAfterAppleReturnsCredential() async {

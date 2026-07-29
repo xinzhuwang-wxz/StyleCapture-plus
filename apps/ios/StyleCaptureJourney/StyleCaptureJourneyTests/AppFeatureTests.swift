@@ -229,8 +229,7 @@ final class AppFeatureTests: XCTestCase {
 
 private extension AppFeatureTests {
     static let account = AuthenticatedAccount(
-        accessExpiresAt: Date(timeIntervalSince1970: 1_900_000_000),
-        appleUserIdentifier: nil
+        accessExpiresAt: Date(timeIntervalSince1970: 1_900_000_000)
     )
 }
 

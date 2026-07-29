@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
@@ -16,6 +16,7 @@ from sqlalchemy import String, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from stylecapture_backend.features.account.application import (
     AccountApplication,
+    AccountError,
     AuthenticateWithAppleCommand,
 )
 from stylecapture_backend.features.account.domain import (
@@ -284,6 +285,88 @@ async def test_stale_lease_worker_cannot_overwrite_new_revocation_claim() -> Non
     assert row.revocation_status == "attempted"
     assert row.encrypted_refresh_token is not None
     assert row.revocation_lease_owner == "second-worker"
+
+
+@pytest.mark.asyncio
+async def test_expired_attempted_revocation_lease_is_reclaimed_but_active_lease_is_not() -> None:
+    await _reset_database()
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    repository = _provider_repository()
+    expired_subject = uuid4()
+    active_subject = uuid4()
+    await _bind_account_with_grant(
+        subject_id=expired_subject,
+        provider_subject="apple-sub-expired-lease",
+    )
+    await _bind_account_with_grant(
+        subject_id=active_subject,
+        provider_subject="apple-sub-active-lease",
+    )
+    await _account_repository().accept_account_deletion(
+        expired_subject,
+        reason="account_deletion",
+    )
+    await _account_repository().accept_account_deletion(
+        active_subject,
+        reason="account_deletion",
+    )
+    async with sessions() as session:
+        await session.execute(
+            text(
+                """
+                UPDATE apple_provider_grants
+                SET revocation_status = 'attempted',
+                    revocation_lease_owner = CASE
+                        WHEN account_subject = :expired_subject THEN 'expired-worker'
+                        ELSE 'active-worker'
+                    END,
+                    revocation_lease_expires_at = CASE
+                        WHEN account_subject = :expired_subject THEN :expired_at
+                        ELSE :active_at
+                    END
+                WHERE account_subject IN (:expired_subject, :active_subject)
+                """
+            ),
+            {
+                "expired_subject": expired_subject,
+                "active_subject": active_subject,
+                "expired_at": datetime.now(UTC) - timedelta(minutes=1),
+                "active_at": datetime.now(UTC) + timedelta(minutes=5),
+            },
+        )
+        await session.commit()
+
+    claims = await repository.claim_apple_provider_revocations(
+        lease_owner="replacement-worker",
+        limit=10,
+    )
+
+    assert [claim.attempt.grant.provider_subject for claim in claims] == [
+        "apple-sub-expired-lease"
+    ]
+    async with sessions() as session:
+        rows = {
+            row.account_subject: row
+            for row in (
+                await session.execute(
+                    text(
+                        """
+                        SELECT account_subject, revocation_status, revocation_lease_owner
+                        FROM apple_provider_grants
+                        WHERE account_subject IN (:expired_subject, :active_subject)
+                        """
+                    ),
+                    {
+                        "expired_subject": expired_subject,
+                        "active_subject": active_subject,
+                    },
+                )
+            ).all()
+        }
+    assert rows[expired_subject].revocation_status == "attempted"
+    assert rows[expired_subject].revocation_lease_owner == "replacement-worker"
+    assert rows[active_subject].revocation_status == "attempted"
+    assert rows[active_subject].revocation_lease_owner == "active-worker"
 
 
 @pytest.mark.asyncio
@@ -706,6 +789,102 @@ async def test_grant_write_failure_rolls_back_identity_binding_and_auth_code() -
     assert counts.grants == 0
 
 
+@pytest.mark.asyncio
+async def test_provider_grant_is_tracked_when_deletion_wins_after_apple_exchange_before_bind() -> None:
+    await _reset_database()
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    events: list[tuple[str, UUID | str]] = []
+    repository = _DeletingBeforeBindSqlAlchemyAccountRepository(sessions)
+    provider_grants = SqlAlchemyAppleProviderGrantRepository(
+        sessions,
+        cipher=AppleProviderGrantCipher(ENCRYPTION_KEY),
+    )
+    app = AccountApplication(
+        repository=repository,
+        apple_identity=_StaticAppleVerifier(),
+        allowed_audiences=frozenset({"com.stylecapture.journey"}),
+        token_secret="account-session-secret-with-enough-entropy",
+        apple_provider_grants=provider_grants,
+        apple_provider_revoker=_RecordingAppleRevoker(events),
+        now=lambda: ISSUED_AT,
+    )
+
+    with pytest.raises(AccountError) as captured:
+        await app.authenticate_with_apple(
+            AuthenticateWithAppleCommand(
+                anonymous_subject=uuid4(),
+                identity_token="valid",
+                authorization_code="single-use-code",
+                nonce="nonce-1",
+                device_name="iPhone",
+            )
+        )
+
+    assert captured.value.code == "account_deleted"
+    expected_subject = uuid5(NAMESPACE_URL, "stylecapture:apple:apple-sub-revocable")
+    async with sessions() as session:
+        durable = (
+            await session.execute(
+                text(
+                    """
+                    SELECT
+                        (SELECT count(*) FROM apple_authorization_codes) AS auth_codes,
+                        (SELECT count(*) FROM apple_provider_grants) AS grants,
+                        (SELECT count(*) FROM external_identities) AS identities,
+                        (SELECT count(*) FROM device_sessions) AS sessions,
+                        (SELECT count(*) FROM subject_aliases) AS aliases,
+                        (
+                            SELECT revocation_status
+                            FROM apple_provider_grants
+                            WHERE account_subject = :subject_id
+                        ) AS revocation_status,
+                        (
+                            SELECT encrypted_access_token
+                            FROM apple_provider_grants
+                            WHERE account_subject = :subject_id
+                        ) AS encrypted_access_token,
+                        (
+                            SELECT encrypted_refresh_token
+                            FROM apple_provider_grants
+                            WHERE account_subject = :subject_id
+                        ) AS encrypted_refresh_token
+                    """
+                ),
+                {"subject_id": expected_subject},
+            )
+        ).one()
+    assert durable.auth_codes == 1
+    assert durable.grants == 1
+    assert durable.identities == 0
+    assert durable.sessions == 0
+    assert durable.aliases == 0
+    assert durable.revocation_status == "pending"
+    assert durable.encrypted_access_token is not None
+    assert durable.encrypted_refresh_token is not None
+
+    await app.process_apple_provider_revocations(lease_owner="test-worker")
+    async with sessions() as session:
+        revoked = (
+            await session.execute(
+                text(
+                    """
+                    SELECT revocation_status, encrypted_access_token, encrypted_refresh_token
+                    FROM apple_provider_grants
+                    WHERE account_subject = :subject_id
+                    """
+                ),
+                {"subject_id": expected_subject},
+            )
+        ).one()
+    assert events == [
+        ("apple", "apple-refresh-token-for-revocation"),
+        ("apple_hint", "refresh_token"),
+    ]
+    assert revoked.revocation_status == "revoked"
+    assert revoked.encrypted_access_token is None
+    assert revoked.encrypted_refresh_token is None
+
+
 def test_apple_provider_grants_migration_is_current_head_and_matches_model() -> None:
     repository_root = Path(__file__).resolve().parents[4]
     config = Config(str(repository_root / "services" / "backend" / "alembic.ini"))
@@ -797,6 +976,32 @@ class _RecordingSqlAlchemyAccountRepository(SqlAlchemyAccountRepository):
         self.events.append(("tombstone", canonical))
         self.events.append(("stylecapture_sessions", canonical))
         return result
+
+
+class _DeletingBeforeBindSqlAlchemyAccountRepository(SqlAlchemyAccountRepository):
+    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+        super().__init__(
+            sessions,
+            apple_provider_grant_cipher=AppleProviderGrantCipher(ENCRYPTION_KEY),
+        )
+
+    async def bind_apple_identity(
+        self,
+        *,
+        anonymous_subject: UUID,
+        identity: ExternalIdentity,
+        authorization_code_hash: str,
+        account: Account,
+        apple_provider_grant: AppleProviderGrant | None = None,
+    ) -> Account:
+        await super().tombstone_subject(anonymous_subject, reason="account_deletion")
+        return await super().bind_apple_identity(
+            anonymous_subject=anonymous_subject,
+            identity=identity,
+            authorization_code_hash=authorization_code_hash,
+            account=account,
+            apple_provider_grant=apple_provider_grant,
+        )
 
 
 class _RecordingAppleRevoker:

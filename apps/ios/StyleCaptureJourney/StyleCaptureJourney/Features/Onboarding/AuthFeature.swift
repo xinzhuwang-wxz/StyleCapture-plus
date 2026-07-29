@@ -242,22 +242,22 @@ struct AuthFeature {
     private func restore() -> Effect<Action> {
         .run { send in
             do {
-                guard let restoredTokens = try await authClient.restore() else {
+                guard let restoredAccount = try await authClient.restore() else {
                     await send(.restoreResponse(.signedOut))
                     return
                 }
 
-                guard try await credentialIsStillValid(for: restoredTokens) else {
+                guard try await authClient.storedAppleCredentialIsValid() else {
                     try await authClient.logout()
                     await send(.restoreResponse(.signedOut))
                     return
                 }
 
-                if restoredTokens.accessExpiresAt <= now {
+                if restoredAccount.accessExpiresAt <= now {
                     let refreshedTokens = try await authClient.refresh()
                     await send(.restoreResponse(.signedIn(refreshedTokens)))
                 } else {
-                    await send(.restoreResponse(.signedIn(restoredTokens)))
+                    await send(.restoreResponse(.signedIn(restoredAccount)))
                 }
             } catch is CancellationError {
                 return
@@ -300,19 +300,6 @@ struct AuthFeature {
 
     private static func map(_ error: any Error) -> AuthClientError {
         error as? AuthClientError ?? .unavailable
-    }
-
-    private func credentialIsStillValid(for account: AuthenticatedAccount) async throws -> Bool {
-        guard let userIdentifier = account.appleUserIdentifier else {
-            return true
-        }
-
-        switch try await appleCredentialStateClient.credentialState(userIdentifier) {
-        case .authorized, .unavailable:
-            return true
-        case .revoked, .notFound, .transferred:
-            return false
-        }
     }
 
     private func credentialRevocationNotifications() -> Effect<Action> {

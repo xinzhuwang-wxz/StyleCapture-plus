@@ -9,7 +9,7 @@ from hashlib import sha256
 from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import select, text, update
+from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from stylecapture_backend.features.account.domain import (
     Account,
@@ -89,6 +89,7 @@ class InMemoryAccountRepository(AccountRepository):
         self.apple_provider_revocation_status: dict[UUID, str] = {}
         self.apple_provider_revocation_failure_code: dict[UUID, str] = {}
         self.apple_provider_revocation_lease_owner: dict[UUID, str] = {}
+        self.apple_provider_revocation_lease_expires_at: dict[UUID, datetime] = {}
         self.deletion_idempotency: dict[tuple[str, str], UUID] = {}
         self.deletion_idempotency_by_key: dict[str, tuple[str, UUID]] = {}
         self._owned_records: dict[UUID, list[str]] = defaultdict(list)
@@ -123,10 +124,19 @@ class InMemoryAccountRepository(AccountRepository):
     ) -> Account:
         if authorization_code_hash in self.authorization_code_hashes:
             raise AuthorizationCodeReplayError("authorization code replayed")
-        await self.assert_can_write(anonymous_subject)
         existing_identity = self.identities.get((identity.provider, identity.provider_subject))
         canonical = existing_identity.account_subject if existing_identity else account.subject_id
         source = await self.resolve_subject(anonymous_subject)
+        if source in self.tombstones or canonical in self.tombstones:
+            if apple_provider_grant is not None:
+                self.accounts.setdefault(canonical, account)
+                self._store_apple_provider_grant(
+                    canonical,
+                    apple_provider_grant,
+                    revocation_status="pending",
+                )
+                self.authorization_code_hashes.add(authorization_code_hash)
+            raise SubjectDeletedError("subject deleted")
         source_has_identity = any(
             candidate.account_subject == source for candidate in self.identities.values()
         )
@@ -151,7 +161,13 @@ class InMemoryAccountRepository(AccountRepository):
         self.authorization_code_hashes.add(authorization_code_hash)
         return canonical_account
 
-    def _store_apple_provider_grant(self, canonical: UUID, grant: AppleProviderGrant) -> None:
+    def _store_apple_provider_grant(
+        self,
+        canonical: UUID,
+        grant: AppleProviderGrant,
+        *,
+        revocation_status: str = "active",
+    ) -> None:
         if not grant.access_token or not grant.refresh_token:
             raise RuntimeError("Apple provider grant storage requires access and refresh tokens")
         self.apple_provider_grants[canonical] = grant
@@ -159,9 +175,10 @@ class InMemoryAccountRepository(AccountRepository):
         self.apple_provider_grant_generations[canonical] = (
             self.apple_provider_grant_generations.get(canonical, 0) + 1
         )
-        self.apple_provider_revocation_status[canonical] = "active"
+        self.apple_provider_revocation_status[canonical] = revocation_status
         self.apple_provider_revocation_failure_code.pop(canonical, None)
         self.apple_provider_revocation_lease_owner.pop(canonical, None)
+        self.apple_provider_revocation_lease_expires_at.pop(canonical, None)
 
     async def save_session(self, session: DeviceSession) -> None:
         await self.assert_can_write(UUID(session.account_subject))
@@ -338,6 +355,7 @@ class InMemoryAppleProviderGrantRepository(AppleProviderGrantRepository):
         self.revocation_status = subjects.apple_provider_revocation_status
         self.revocation_failure_code = subjects.apple_provider_revocation_failure_code
         self.revocation_lease_owner = subjects.apple_provider_revocation_lease_owner
+        self.revocation_lease_expires_at = subjects.apple_provider_revocation_lease_expires_at
 
     async def claim_apple_provider_revocations(
         self,
@@ -346,14 +364,23 @@ class InMemoryAppleProviderGrantRepository(AppleProviderGrantRepository):
         limit: int,
     ) -> list[AppleProviderGrantRevocationClaim]:
         claims: list[AppleProviderGrantRevocationClaim] = []
+        now = datetime.now(UTC)
+        lease_expires_at = now + timedelta(minutes=5)
         for canonical, grant in self.grants.items():
             if len(claims) >= limit:
                 break
-            if self.revocation_status.get(canonical) not in {"pending", "failed"}:
+            status = self.revocation_status.get(canonical)
+            expired_attempt = (
+                status == "attempted"
+                and self.revocation_lease_expires_at.get(canonical) is not None
+                and self.revocation_lease_expires_at[canonical] <= now
+            )
+            if status not in {"pending", "failed"} and not expired_attempt:
                 continue
             self.revocation_status[canonical] = "attempted"
             self.revocation_failure_code.pop(canonical, None)
             self.revocation_lease_owner[canonical] = lease_owner
+            self.revocation_lease_expires_at[canonical] = lease_expires_at
             claims.append(
                 AppleProviderGrantRevocationClaim(
                     attempt=AppleProviderGrantRevocationAttempt(
@@ -389,6 +416,7 @@ class InMemoryAppleProviderGrantRepository(AppleProviderGrantRepository):
             self.revocation_status[canonical] = "revoked"
             self.revocation_failure_code.pop(canonical, None)
             self.revocation_lease_owner.pop(canonical, None)
+            self.revocation_lease_expires_at.pop(canonical, None)
 
     async def mark_apple_provider_revocation_failed(
         self,
@@ -406,6 +434,7 @@ class InMemoryAppleProviderGrantRepository(AppleProviderGrantRepository):
             self.revocation_status[canonical] = "failed"
             self.revocation_failure_code[canonical] = failure_code
             self.revocation_lease_owner.pop(canonical, None)
+            self.revocation_lease_expires_at.pop(canonical, None)
 
     def _canonical_for_attempt(
         self,
@@ -460,6 +489,8 @@ class SqlAlchemyAccountRepository(AccountRepository):
         account: Account,
         apple_provider_grant: AppleProviderGrant | None = None,
     ) -> Account:
+        deleted_subject = False
+        canonical = account.subject_id
         async with self._sessions() as session, session.begin():
             await self._acquire_binding_lock(
                 session,
@@ -485,7 +516,7 @@ class SqlAlchemyAccountRepository(AccountRepository):
             source_subject = await self._lock_subject(
                 session,
                 anonymous_subject,
-                require_active=True,
+                require_active=False,
             )
             existing_identity = (
                 await session.execute(
@@ -503,68 +534,94 @@ class SqlAlchemyAccountRepository(AccountRepository):
             canonical = await self._lock_subject(
                 session,
                 canonical,
-                require_active=True,
+                require_active=False,
             )
-            source_has_identity = (
-                await session.execute(
-                    select(ExternalIdentityRecord.id)
-                    .where(ExternalIdentityRecord.account_subject == source_subject)
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            if source_has_identity is not None and source_subject != canonical:
-                raise AccountBindingConflictError("account already bound to another identity")
-            existing_account = await session.get(AccountRecord, canonical)
-            if existing_account is None:
-                session.add(
-                    AccountRecord(
-                        subject_id=canonical,
+            if (
+                await session.get(SubjectTombstoneRecord, source_subject) is not None
+                or await session.get(SubjectTombstoneRecord, canonical) is not None
+            ):
+                if apple_provider_grant is not None:
+                    await self._ensure_account_record_locked(
+                        session,
+                        account_subject=canonical,
                         created_at=account.created_at,
                     )
-                )
-            if existing_identity is None:
-                session.add(
-                    ExternalIdentityRecord(
-                        id=uuid4(),
-                        provider=identity.provider,
-                        provider_subject=identity.provider_subject,
+                    await self._upsert_apple_provider_grant_locked(
+                        session,
                         account_subject=canonical,
-                        created_at=identity.created_at,
+                        grant=apple_provider_grant,
+                        revocation_status="pending",
                     )
-                )
-            session.add(
-                AppleAuthorizationCodeRecord(
-                    code_hash=authorization_code_hash,
-                    account_subject=canonical,
-                    used_at=identity.created_at,
-                )
-            )
-            if apple_provider_grant is not None:
-                await self._upsert_apple_provider_grant_locked(
+                    session.add(
+                        AppleAuthorizationCodeRecord(
+                            code_hash=authorization_code_hash,
+                            account_subject=canonical,
+                            used_at=identity.created_at,
+                        )
+                    )
+                deleted_subject = True
+            else:
+                source_has_identity = (
+                    await session.execute(
+                        select(ExternalIdentityRecord.id)
+                        .where(ExternalIdentityRecord.account_subject == source_subject)
+                        .limit(1)
+                    )
+                ).scalar_one_or_none()
+                if source_has_identity is not None and source_subject != canonical:
+                    raise AccountBindingConflictError("account already bound to another identity")
+                await self._ensure_account_record_locked(
                     session,
                     account_subject=canonical,
-                    grant=apple_provider_grant,
+                    created_at=account.created_at,
                 )
-            if source_subject != canonical:
-                await session.merge(
-                    SubjectAliasRecord(
-                        subject_id=anonymous_subject,
-                        canonical_subject_id=canonical,
-                        created_at=identity.created_at,
+                if existing_identity is None:
+                    session.add(
+                        ExternalIdentityRecord(
+                            id=uuid4(),
+                            provider=identity.provider,
+                            provider_subject=identity.provider_subject,
+                            account_subject=canonical,
+                            created_at=identity.created_at,
+                        )
+                    )
+                session.add(
+                    AppleAuthorizationCodeRecord(
+                        code_hash=authorization_code_hash,
+                        account_subject=canonical,
+                        used_at=identity.created_at,
                     )
                 )
-                await session.merge(
-                    SubjectAliasRecord(
-                        subject_id=source_subject,
-                        canonical_subject_id=canonical,
-                        created_at=identity.created_at,
+                if apple_provider_grant is not None:
+                    await self._upsert_apple_provider_grant_locked(
+                        session,
+                        account_subject=canonical,
+                        grant=apple_provider_grant,
                     )
-                )
-                for table in OWNER_TABLES:
-                    await session.execute(
-                        text(f"UPDATE {table} SET user_id = :canonical WHERE user_id = :source"),
-                        {"canonical": canonical, "source": source_subject},
+                if source_subject != canonical:
+                    await session.merge(
+                        SubjectAliasRecord(
+                            subject_id=anonymous_subject,
+                            canonical_subject_id=canonical,
+                            created_at=identity.created_at,
+                        )
                     )
+                    await session.merge(
+                        SubjectAliasRecord(
+                            subject_id=source_subject,
+                            canonical_subject_id=canonical,
+                            created_at=identity.created_at,
+                        )
+                    )
+                    for table in OWNER_TABLES:
+                        await session.execute(
+                            text(
+                                f"UPDATE {table} SET user_id = :canonical WHERE user_id = :source"
+                            ),
+                            {"canonical": canonical, "source": source_subject},
+                        )
+        if deleted_subject:
+            raise SubjectDeletedError("subject deleted")
         return Account(subject_id=canonical, created_at=account.created_at)
 
     async def save_session(self, session: DeviceSession) -> None:
@@ -834,6 +891,7 @@ class SqlAlchemyAccountRepository(AccountRepository):
         *,
         account_subject: UUID,
         grant: AppleProviderGrant,
+        revocation_status: str = "active",
     ) -> None:
         if self._apple_provider_grant_cipher is None:
             raise RuntimeError("Apple provider grant encryption is not configured")
@@ -871,10 +929,26 @@ class SqlAlchemyAccountRepository(AccountRepository):
                 encrypted_refresh_token=encrypted_refresh,
                 created_at=now,
                 updated_at=now,
-                revocation_status="active",
+                revocation_status=revocation_status,
                 revocation_attempt_count=0,
             )
         )
+
+    async def _ensure_account_record_locked(
+        self,
+        session: AsyncSession,
+        *,
+        account_subject: UUID,
+        created_at: datetime,
+    ) -> None:
+        existing_account = await session.get(AccountRecord, account_subject)
+        if existing_account is None:
+            session.add(
+                AccountRecord(
+                    subject_id=account_subject,
+                    created_at=created_at,
+                )
+            )
 
     async def _capture_apple_revocation_attempt_locked(
         self,
@@ -931,10 +1005,12 @@ class SqlAlchemyAppleProviderGrantRepository(AppleProviderGrantRepository):
             statement = (
                 select(AppleProviderGrantRecord)
                 .where(
-                    AppleProviderGrantRecord.revocation_status.in_(("pending", "failed")),
-                    (
-                        AppleProviderGrantRecord.revocation_lease_expires_at.is_(None)
-                        | (AppleProviderGrantRecord.revocation_lease_expires_at <= now)
+                    or_(
+                        AppleProviderGrantRecord.revocation_status.in_(("pending", "failed")),
+                        and_(
+                            AppleProviderGrantRecord.revocation_status == "attempted",
+                            AppleProviderGrantRecord.revocation_lease_expires_at <= now,
+                        ),
                     ),
                 )
                 .order_by(AppleProviderGrantRecord.updated_at.asc())

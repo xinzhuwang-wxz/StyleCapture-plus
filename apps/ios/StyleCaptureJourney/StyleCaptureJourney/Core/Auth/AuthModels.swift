@@ -34,7 +34,6 @@ struct AuthTokens: Codable, Equatable, Sendable {
 
 struct AuthenticatedAccount: Equatable, Sendable {
     var accessExpiresAt: Date
-    var appleUserIdentifier: String?
 }
 
 enum StoredAuthSession: Equatable, Sendable {
@@ -72,8 +71,7 @@ struct AccountDeletionAcknowledgement: Equatable, Sendable {
 extension AuthTokens {
     var authenticatedAccount: AuthenticatedAccount {
         AuthenticatedAccount(
-            accessExpiresAt: accessExpiresAt,
-            appleUserIdentifier: appleUserIdentifier
+            accessExpiresAt: accessExpiresAt
         )
     }
 }
