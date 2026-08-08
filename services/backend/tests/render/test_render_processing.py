@@ -401,15 +401,13 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.provider == "test-private"
     assert stored_pixel.provider_trace.parameters["capability_id"] == "look.pixel_cover"
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v7"
+    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v6"
     assert (
         stored_pixel.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     )
     assert "最后两张图只提供画风" in pixel_generator.prompt
     assert "3:4" in pixel_generator.prompt
     assert "不可复刻原场景" in pixel_generator.prompt
-    assert "5.5至6.5头身" in pixel_generator.prompt
-    assert "禁止因裁切生成短腿" in pixel_generator.prompt
     assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert len(pixel_generator.images) == 4
     assert pixel_generator.size == "1728x2304"

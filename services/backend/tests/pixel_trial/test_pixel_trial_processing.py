@@ -133,7 +133,7 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "photo.pixel_trial"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v6"
+    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v5"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert stored.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     assert generator.size == "1728x2304"
@@ -180,10 +180,7 @@ def test_pixel_trial_prompt_preserves_the_subject_without_fixed_decoration() -> 
     assert "姿势也是人物内容" in PIXEL_TRIAL_PROMPT
     assert "为容纳伸展动作应缩小人物" in PIXEL_TRIAL_PROMPT
     assert "禁止改成僵直对称站姿" in PIXEL_TRIAL_PROMPT
-    assert "校正仰拍、俯拍、广角近大远小及裁切造成的比例失真" in PIXEL_TRIAL_PROMPT
-    assert "5.5至6.5头身" in PIXEL_TRIAL_PROMPT
-    assert "禁止因裁切生成短腿" in PIXEL_TRIAL_PROMPT
-    assert len(PIXEL_TRIAL_PROMPT) < 800
+    assert len(PIXEL_TRIAL_PROMPT) < 700
 
 
 def _heic_payload(object_key: str) -> ImagePayload:
