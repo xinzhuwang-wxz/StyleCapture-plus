@@ -407,6 +407,21 @@ export function App() {
       ),
     [lookRenderQueries, looks]
   );
+  const collageCovers = useMemo(
+    () =>
+      Object.fromEntries(
+        looks.flatMap((look, index) => {
+          const collage = lookRenderQueries[index]?.data?.find(
+            (render) =>
+              render.kind === "collage" &&
+              render.status === "succeeded" &&
+              Boolean(render.output_image_url)
+          );
+          return collage ? [[look.id, collage] as const] : [];
+        })
+      ),
+    [lookRenderQueries, looks]
+  );
   const communityLooks = useMemo<CommunityAvatarSource[]>(
     () =>
       looks.flatMap((look, index) => {
@@ -813,7 +828,6 @@ export function App() {
     );
     if (
       !detail ||
-      detail.look.source === "ai_generated" ||
       detail.look.fixed_presentation ||
       !rendersQuery.isSuccess ||
       usableOrInFlightCollage ||
@@ -1145,6 +1159,7 @@ export function App() {
               onViewChange={setWardrobeViewMode}
               looks={looks}
               pixelCovers={pixelCovers}
+              collageCovers={collageCovers}
               items={items}
               pending={pending}
               itemsLoading={itemsQuery.isLoading}

@@ -1,2 +1,12 @@
 packages:
   - apps/*
+
+# pnpm 11 reads workspace overrides from this file. Keep these aligned with
+# the lockfile so newer local runtimes do not silently downgrade patched deps.
+overrides:
+  brace-expansion: ^5.0.8
+  js-yaml: ^4.3.0
+
+allowBuilds:
+  '@scarf/scarf': false
+  esbuild: true

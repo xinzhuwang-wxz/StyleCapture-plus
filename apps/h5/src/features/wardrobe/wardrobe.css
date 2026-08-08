@@ -149,6 +149,12 @@
   user-select: none;
 }
 
+.look-card__fallback-cover {
+  opacity: 0.58;
+  filter: blur(4px) saturate(0.82);
+  transform: scale(1.04);
+}
+
 .wardrobe-card__cover--item img[data-image-kind^="wardrobe-pixel"] {
   padding: 0.7rem;
   object-fit: contain;

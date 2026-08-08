@@ -128,7 +128,8 @@ function DetailContent({
   const showCollagePlaceholder =
     !usesFixedCuratedPresentation &&
     !usableCollage &&
-    (latestCollage?.status === "queued" ||
+    (detail.look.status === "processing" ||
+      latestCollage?.status === "queued" ||
       latestCollage?.status === "running");
   const collageNeedsRetry =
     !usesFixedCuratedPresentation &&
@@ -143,6 +144,8 @@ function DetailContent({
       : usableCollage?.output_image_url ??
         detail.look.display_image_url ??
         detail.look.source_image_url;
+  const pendingHeroImageUrl =
+    detail.look.source_image_url ?? detail.look.display_image_url;
   const completedTryOn = completedByKind.get("try_on");
   const tryOnPreviewUrl =
     completedTryOn?.output_image_url ??
@@ -312,7 +315,13 @@ function DetailContent({
           role={showCollagePlaceholder ? "img" : undefined}
           aria-label={showCollagePlaceholder ? "真实单品拼贴生成中" : undefined}
         >
-          {usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
+          {showCollagePlaceholder && pendingHeroImageUrl ? (
+            <img
+              className="look-detail__pending-source"
+              src={pendingHeroImageUrl}
+              alt="正在处理的原始穿搭"
+            />
+          ) : usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
             <img
               src={`${usableCollage.output_image_url}?v=${encodeURIComponent(usableCollage.updated_at)}`}
               alt={usableCollage.presentation_label}
@@ -347,19 +356,11 @@ function DetailContent({
             <div className="look-detail__collage-status" role="status">
               <span aria-hidden="true">✦</span>
               <strong>
-                {latestCollage?.status === "queued"
-                  ? "真实单品拼贴排队中"
-                  : "正在生成真实单品拼贴"}
+                单品图生成中，请稍后
               </strong>
             </div>
           ) : null}
         </div>
-        {detail.look.status === "processing" ? (
-          <div className="look-detail__processing">
-            <strong>整套已收藏</strong>
-            <span>AI 正在后台拆解真实单品</span>
-          </div>
-        ) : null}
       </div>
 
       <div className="look-detail__tryon-card">

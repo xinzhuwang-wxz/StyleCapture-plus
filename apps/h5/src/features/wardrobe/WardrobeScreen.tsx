@@ -29,6 +29,7 @@ export function WardrobeScreen({
   onViewChange,
   looks,
   pixelCovers,
+  collageCovers,
   items,
   pending,
   itemsLoading,
@@ -50,6 +51,7 @@ export function WardrobeScreen({
   onViewChange: (view: WardrobeView) => void;
   looks: Look[];
   pixelCovers: Record<string, RenderArtifact>;
+  collageCovers: Record<string, RenderArtifact>;
   items: Item[];
   pending: PendingItem[];
   itemsLoading: boolean;
@@ -277,6 +279,7 @@ export function WardrobeScreen({
                   key={look.id}
                   look={look}
                   pixelCover={pixelCovers[look.id] ?? null}
+                  collageCover={collageCovers[look.id] ?? null}
                   onOpen={() => onOpenLook(look)}
                 />
               ))
