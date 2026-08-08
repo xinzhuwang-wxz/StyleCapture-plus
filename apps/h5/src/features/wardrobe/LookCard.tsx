@@ -4,9 +4,9 @@ import type { Look, RenderArtifact } from "../../api/client";
 import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 
 const STATUS_LABELS: Record<Look["status"], string> = {
-  processing: "正在拆解",
-  partial: "已收藏 · 待补全",
-  ready: "搭配已解析",
+  processing: "解析中",
+  partial: "待补全",
+  ready: "已解析",
   error: "解析失败"
 };
 
@@ -60,22 +60,17 @@ export function LookCard({
           {look.status === "processing" ? (
             <div className="processing-sheen" aria-hidden="true" />
           ) : null}
-          {coverReady ? (
-            <span className="look-card__cover-label">像素封面</span>
-          ) : (
-            <span className="look-card__cover-label">
-              {coverFailed ? "生成失败 · 点开重试" : "生成中"}
-            </span>
-          )}
         </div>
         <div className="item-card__body wardrobe-card__meta">
           <strong>{look.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}</strong>
           <span>
             {coverFailed
-              ? "真实单品仍可查看，点开可重新生成封面"
+              ? "封面待更新 · 穿搭已保存"
               : look.status === "ready"
-                ? "查看真实单品与搭配关系"
-                : "原始穿搭已保存，AI 在后台理解"}
+                ? look.source === "feed_saved"
+                  ? "穿搭灵感 · 已收藏"
+                  : "已保存穿搭 · 日常"
+                : "穿搭已保存 · 正在整理"}
           </span>
         </div>
       </button>

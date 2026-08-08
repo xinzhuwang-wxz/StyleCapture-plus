@@ -1,10 +1,127 @@
 /* ═══ 数字衣橱：卡片、悬浮像素衣柜、拖影 ═══ */
 
+.wardrobe-toolbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.wardrobe-toolbar .wardrobe-view-tabs {
+  margin: 0;
+  min-height: 2.45rem;
+  padding: 0.16rem;
+  border: 0;
+  border-radius: 0.82rem;
+  background: #f4f2f7;
+}
+
+.wardrobe-toolbar .wardrobe-view-tabs button {
+  min-height: 2.1rem;
+  border-radius: 0.68rem;
+  color: #77717e;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.wardrobe-toolbar .wardrobe-view-tabs button.is-selected {
+  color: var(--pixel-primary-dark);
+  box-shadow: 0 0.35rem 1rem rgba(63, 49, 86, 0.08);
+}
+
+.wardrobe-filter {
+  position: relative;
+  display: flex;
+}
+
+.wardrobe-filter__trigger {
+  position: relative;
+  display: grid;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  place-items: center;
+  border: 1px solid rgba(125, 76, 224, 0.12);
+  border-radius: 0.88rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--pixel-text-muted);
+  box-shadow: 0 0.25rem 0.85rem rgba(71, 48, 106, 0.06);
+}
+
+.wardrobe-filter__trigger svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.wardrobe-filter__trigger[aria-expanded="true"],
+.wardrobe-filter__trigger.is-active {
+  border-color: rgba(124, 58, 237, 0.3);
+  background: white;
+  color: var(--pixel-primary-dark);
+}
+
+.wardrobe-filter__trigger.is-active::after {
+  position: absolute;
+  top: 0.42rem;
+  right: 0.42rem;
+  width: 0.35rem;
+  height: 0.35rem;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--pixel-primary);
+  content: "";
+}
+
+.wardrobe-filter__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  display: grid;
+  min-width: 8.5rem;
+  gap: 0.18rem;
+  padding: 0.35rem;
+  border: 1px solid var(--pixel-border);
+  border-radius: 0.9rem;
+  background: white;
+  box-shadow: 0 0.9rem 2rem rgba(61, 44, 94, 0.16);
+}
+
+.wardrobe-filter__menu button {
+  display: flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 0.68rem;
+  background: transparent;
+  color: var(--pixel-text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-align: left;
+}
+
+.wardrobe-filter__menu button.is-selected {
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--pixel-primary-dark);
+}
+
 /* ─── 卡片（像素乐高积木的模块感：白底 + 2px 描边 + 实心投影）─── */
 .wardrobe-card {
-  box-shadow:
-    0 4px 0 #ece5f8,
-    0 7px 16px rgba(139, 92, 246, 0.09);
+  box-shadow: 0 0.55rem 1.5rem rgba(48, 40, 61, 0.07);
+}
+
+.look-card.wardrobe-card {
+  border-color: rgba(55, 46, 68, 0.08);
+  border-radius: 1.05rem;
+  background: #fff;
 }
 
 .wardrobe-card[data-selected="true"] {
@@ -18,7 +135,7 @@
 
 .wardrobe-card__cover--outfit {
   aspect-ratio: 3 / 4;
-  background: linear-gradient(160deg, #faf5ff, #fdeef5);
+  background: linear-gradient(160deg, #faf8ff, #f8f4fb);
 }
 
 .wardrobe-card__cover--item { aspect-ratio: 1; }
@@ -100,19 +217,57 @@
 }
 
 .wardrobe-card__meta {
-  padding: var(--px-2) 9px 9px;
-  background: #fcfaff;
-  border-top: 2px solid #f2ecfb;
+  padding: 0.72rem 0.75rem 0.78rem;
+  background: #fff;
+  border-top: 0;
 }
 
 .wardrobe-card__meta strong {
   display: block;
   font-family: var(--font-pixel);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
+  font-weight: 800;
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.look-card .wardrobe-card__meta span {
+  margin-top: 0.12rem;
+  color: #7b7484;
+  font-size: 0.68rem;
+}
+
+.look-card .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  top: 0.65rem;
+  left: 0.65rem;
+  padding: 0.32rem 0.55rem;
+  color: #4d4a50;
+  font-size: 0.62rem;
+  font-weight: 700;
+  box-shadow: 0 0.25rem 0.85rem rgba(46, 39, 55, 0.09);
+}
+
+.look-card .status-badge::before {
+  width: 0.42rem;
+  height: 0.42rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #4b9863;
+  content: "";
+}
+
+.look-card .status-badge--processing::before,
+.look-card .status-badge--partial::before {
+  background: #d19a3b;
+}
+
+.look-card .status-badge--error::before {
+  background: var(--danger);
 }
 
 .wardrobe-card__row {

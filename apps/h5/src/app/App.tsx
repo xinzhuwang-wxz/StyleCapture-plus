@@ -92,7 +92,7 @@ const WardrobeScreen = lazy(() =>
   }))
 );
 
-type NavIconName = "wardrobe" | "analysis" | "ai";
+type NavIconName = "wardrobe" | "analysis" | "ai" | "world" | "profile";
 
 function NavIcon({ name }: { name: NavIconName }) {
   if (name === "wardrobe") {
@@ -130,6 +130,43 @@ function NavIcon({ name }: { name: NavIconName }) {
     );
   }
 
+  if (name === "ai") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="nav-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <path d="M12 3v4.5M12 16.5V21M3 12h4.5M16.5 12H21M6.5 6.5l3.2 3.2m4.6 4.6 3.2 3.2m0-11-3.2 3.2M9.7 14.3l-3.2 3.2" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+  }
+
+  if (name === "world") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="nav-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <path d="M4.5 13.2c2.3-3.4 6.5-5.8 10.6-5.1 3.2.5 5 2.5 4.4 4.5-.8 2.5-5.7 4.4-10.1 3.7-2.3-.4-4.2-1.5-4.9-3.1Z" />
+        <path d="M8.8 8.4 12 4l2.2 4M6.5 17.2l-1 2.3m11.6-4.1 1.5 2.1" />
+        <circle cx="15.8" cy="11.3" r="1" />
+      </svg>
+    );
+  }
+
   return (
     <svg
       aria-hidden="true"
@@ -141,8 +178,8 @@ function NavIcon({ name }: { name: NavIconName }) {
       strokeWidth="1.8"
       viewBox="0 0 24 24"
     >
-      <path d="M12 3v4.5M12 16.5V21M3 12h4.5M16.5 12H21M6.5 6.5l3.2 3.2m4.6 4.6 3.2 3.2m0-11-3.2 3.2M9.7 14.3l-3.2 3.2" />
-      <circle cx="12" cy="12" r="3" />
+      <circle cx="12" cy="8.2" r="3.2" />
+      <path d="M5.5 20c.6-4 3.1-6.2 6.5-6.2s5.9 2.2 6.5 6.2" />
     </svg>
   );
 }
@@ -1015,24 +1052,38 @@ export function App() {
         hidden={destination === "feed" || destination === "world"}
       >
         {destination !== "feed" ? (
-          <header className="wardrobe-header">
-            <h1
-              className={`pixel-title wardrobe-header__title${
-                destination === "profile" ? " wardrobe-header__title--profile" : ""
-              }`}
-            >
-              {destination === "wardrobe"
-                ? "我的衣橱"
-                : destination === "analysis"
-                  ? "穿搭分析"
-                  : destination === "ai"
-                    ? "AI 推荐"
-                    : "我的"}
-            </h1>
-            <p className="subtitle wardrobe-header__summary">
-              拥有的和喜欢的，<br />
-              都是可搭配的数字资产
-            </p>
+          <header className={`wardrobe-header${destination === "wardrobe" ? " wardrobe-header--home" : ""}`}>
+            {destination === "wardrobe" ? (
+              <div className="wardrobe-header__intro">
+                <h1 id="wardrobe-title" className="pixel-title wardrobe-header__title">
+                  我的衣橱
+                </h1>
+                <p className="subtitle wardrobe-header__summary">
+                  收藏喜欢的穿搭，沉淀你的数字衣橱
+                </p>
+                <p className="wardrobe-header__count">
+                  <strong>{looks.length}</strong> 套穿搭
+                </p>
+              </div>
+            ) : (
+              <>
+                <h1
+                  className={`pixel-title wardrobe-header__title${
+                    destination === "profile" ? " wardrobe-header__title--profile" : ""
+                  }`}
+                >
+                  {destination === "analysis"
+                    ? "穿搭分析"
+                    : destination === "ai"
+                      ? "AI 推荐"
+                      : "我的"}
+                </h1>
+                <p className="subtitle wardrobe-header__summary">
+                  拥有的和喜欢的，<br />
+                  都是可搭配的数字资产
+                </p>
+              </>
+            )}
             {/* AI 页的右上角是这次聊天的出口，不是再去刷 Feed——
                 正在跟闺蜜聊搭配的人，想回看的是聊过什么。 */}
             {destination === "ai" ? (
@@ -1047,9 +1098,15 @@ export function App() {
               <button
                 type="button"
                 className="wardrobe-header__feed"
+                aria-label="刷灵感 Feed"
                 onClick={() => setDestination("feed")}
               >
-                刷灵感 Feed
+                {destination === "wardrobe" ? (
+                  <>
+                    <span className="wardrobe-header__feed-plus" aria-hidden="true">＋</span>
+                    <span>刷灵感</span>
+                  </>
+                ) : "刷灵感 Feed"}
               </button>
             )}
           </header>
@@ -1288,7 +1345,7 @@ export function App() {
           onClick={() => setDestination("wardrobe")}
         >
           <NavIcon name="wardrobe" />
-          <small>数字衣橱</small>
+          <small>衣橱</small>
           {pending.length > 0 ? (
             <b aria-label={`${pending.length} 个处理中`}>
               {Math.min(pending.length, 9)}
@@ -1312,7 +1369,6 @@ export function App() {
           onClick={() => setAddMenuOpen(true)}
         >
           <span className="nav-icon" aria-hidden="true">＋</span>
-          <small>添加</small>
         </button>
         <button
           aria-current={destination === "ai" ? "page" : undefined}
@@ -1327,7 +1383,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("world")}
         >
-          <span className="nav-icon" aria-hidden="true">▦</span>
+          <NavIcon name="world" />
           <small>像素世界</small>
         </button>
         <button
@@ -1336,7 +1392,7 @@ export function App() {
           type="button"
           onClick={() => setDestination("profile")}
         >
-          <span className="nav-icon" aria-hidden="true">☻</span>
+          <NavIcon name="profile" />
           <small>我的</small>
         </button>
       </nav>
