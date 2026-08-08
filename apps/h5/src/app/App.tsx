@@ -24,6 +24,7 @@ import type { CommunityAvatarSource } from "../features/community/CommunityScree
 import { FeedScreen } from "../features/feed/FeedScreen";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import type { LookItemAction } from "../features/wardrobe/LookItemActionSheet";
+import type { WardrobeView } from "../features/wardrobe/WardrobeScreen";
 import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
@@ -266,6 +267,7 @@ export function App() {
   const wardrobeView = useRef<HTMLDivElement>(null);
   const restoredLookId = useRef(restoreSelectedLookId());
   const [destination, setDestination] = useState<Destination>("wardrobe");
+  const [wardrobeViewMode, setWardrobeViewMode] = useState<WardrobeView>("looks");
   const [feedRestoreTarget, setFeedRestoreTarget] =
     useState<FeedRestoreTarget | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -925,6 +927,7 @@ export function App() {
         intent
       );
       if (accepted.look_id) {
+        setWardrobeViewMode("looks");
         releaseBrowserImagePreview(selection.previewUrl);
         setSelection(null);
         setNotice("整套已保存，AI 正在拆解单品并准备像素小人");
@@ -942,6 +945,7 @@ export function App() {
         },
         ...current
       ]);
+      setWardrobeViewMode("items");
       setSelection(null);
       setNotice("已安全加入，识别会在后台继续");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
@@ -954,6 +958,7 @@ export function App() {
 
   function acceptFeedCapture(accepted: CaptureAccepted, file: File) {
     if (accepted.look_id) {
+      setWardrobeViewMode("looks");
       setNotice("整套已收藏，AI 正在后台拆成真实单品");
       setFeedLikingLookId(accepted.look_id);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
@@ -970,6 +975,7 @@ export function App() {
       },
       ...current
     ]);
+    setWardrobeViewMode("items");
     void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
   }
 
@@ -1135,6 +1141,8 @@ export function App() {
         {destination === "wardrobe" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
             <WardrobeScreen
+              view={wardrobeViewMode}
+              onViewChange={setWardrobeViewMode}
               looks={looks}
               pixelCovers={pixelCovers}
               items={items}

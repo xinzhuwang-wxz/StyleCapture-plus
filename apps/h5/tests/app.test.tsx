@@ -19,24 +19,45 @@ vi.mock("../src/features/feed/FeedScreen", () => ({
   }: {
     onAccepted: (accepted: CaptureAccepted, file: File) => void;
   }) => (
-    <button
-      type="button"
-      onClick={() =>
-        onAccepted(
-          {
-            capture_id: "capture-feed-look",
-            job_id: "job-feed-look",
-            look_id: "look-feed-liked",
-            state: "queued",
-            status_url: "/v1/jobs/job-feed-look",
-            events_url: "/v1/jobs/job-feed-look/events"
-          },
-          new File(["feed-frame"], "feed-frame.png", { type: "image/png" })
-        )
-      }
-    >
-      测试保存整套
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          onAccepted(
+            {
+              capture_id: "capture-feed-look",
+              job_id: "job-feed-look",
+              look_id: "look-feed-liked",
+              state: "queued",
+              status_url: "/v1/jobs/job-feed-look",
+              events_url: "/v1/jobs/job-feed-look/events"
+            },
+            new File(["feed-frame"], "feed-frame.png", { type: "image/png" })
+          )
+        }
+      >
+        测试保存整套
+      </button>
+      <button
+        type="button"
+        aria-label="test-save-feed-item"
+        onClick={() =>
+          onAccepted(
+            {
+              capture_id: "capture-feed-item",
+              job_id: "job-feed-item",
+              look_id: null,
+              state: "queued",
+              status_url: "/v1/jobs/job-feed-item",
+              events_url: "/v1/jobs/job-feed-item/events"
+            },
+            new File(["feed-frame"], "feed-item-frame.png", { type: "image/png" })
+          )
+        }
+      >
+        test-save-feed-item
+      </button>
+    </>
   )
 }));
 
@@ -290,6 +311,22 @@ describe("StyleCapture garment ingest", () => {
       ).not.toBeInTheDocument()
     );
     expect(screen.getByLabelText("穿搭灵感")).toBeVisible();
+  });
+
+  it("opens the item view when a Feed item capture is still processing", async () => {
+    const user = userEvent.setup();
+    api.getJob.mockReturnValue(new Promise(() => undefined));
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
+    await user.click(screen.getByRole("button", { name: "test-save-feed-item" }));
+    await user.click(screen.getByRole("button", { name: "数字衣橱" }));
+
+    expect(await screen.findByText("正在理解这件衣服")).toBeVisible();
+    expect(screen.getByRole("tab", { name: "按单品" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("removes a restored processing card when its backend job no longer exists", async () => {
