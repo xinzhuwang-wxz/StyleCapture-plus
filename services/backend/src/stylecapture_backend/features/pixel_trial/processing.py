@@ -57,7 +57,7 @@ PIXEL_TRIAL_PROMPT = build_pixel_card_prompt(
     "只从图1读取人物、服装与配饰，不继承示例卡片的背景配色或装饰主题。"
 )
 PIXEL_TRIAL_CAPABILITY_ID = "photo.pixel_trial"
-PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v4"
+PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v5"
 PIXEL_TRIAL_SCHEMA_VERSION = "generated-image-v1"
 
 

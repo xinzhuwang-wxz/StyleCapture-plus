@@ -401,7 +401,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.provider == "test-private"
     assert stored_pixel.provider_trace.parameters["capability_id"] == "look.pixel_cover"
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v5"
+    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v6"
     assert (
         stored_pixel.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     )

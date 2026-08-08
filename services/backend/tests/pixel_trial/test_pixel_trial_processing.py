@@ -133,7 +133,7 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "photo.pixel_trial"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v4"
+    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v5"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert stored.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     assert generator.size == "1728x2304"
@@ -177,6 +177,9 @@ def test_pixel_trial_prompt_preserves_the_subject_without_fixed_decoration() -> 
     assert "不可复刻原场景" in PIXEL_TRIAL_PROMPT
     assert "不继承示例卡片的背景配色或装饰主题" in PIXEL_TRIAL_PROMPT
     assert "头顶、鞋底" in PIXEL_TRIAL_PROMPT
+    assert "姿势也是人物内容" in PIXEL_TRIAL_PROMPT
+    assert "为容纳伸展动作应缩小人物" in PIXEL_TRIAL_PROMPT
+    assert "禁止改成僵直对称站姿" in PIXEL_TRIAL_PROMPT
     assert len(PIXEL_TRIAL_PROMPT) < 700
 
 
