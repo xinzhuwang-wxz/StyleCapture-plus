@@ -168,8 +168,8 @@ export function WardrobeScreen({
         {(
           [
             ["all", "全部"],
-            ["owned", "我的衣服"],
-            ["inspiration", "穿搭灵感"]
+            ["owned", "已拥有"],
+            ["inspiration", "待拥有"]
           ] as const
         ).map(([value, label]) => (
           <button

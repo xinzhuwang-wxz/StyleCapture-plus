@@ -210,14 +210,14 @@ function DetailContent({
             className={ownership === "owned" ? "is-selected" : ""}
             onClick={() => setOwnership("owned")}
           >
-            我的衣服
+            已拥有
           </button>
           <button
             type="button"
             className={ownership === "inspiration" ? "is-selected" : ""}
             onClick={() => setOwnership("inspiration")}
           >
-            穿搭灵感
+            待拥有
           </button>
         </div>
 
