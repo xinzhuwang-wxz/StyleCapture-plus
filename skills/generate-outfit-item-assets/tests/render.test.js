@@ -1,3 +1,4 @@
+// Contract tests for the combined pixel-card and white-detail workflow.
 const assert = require("node:assert/strict");
 const { createServer } = require("node:http");
 const test = require("node:test");

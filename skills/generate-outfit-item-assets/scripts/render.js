@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Generate the two presentation assets for each Item in one workflow.
 "use strict";
 
 const { randomUUID } = require("node:crypto");

@@ -1,9 +1,11 @@
 ---
-name: real-photo-flat-lay-collage
+name: generate-outfit-item-assets
 description: 通过 StyleCapture Product API，为新抓取的视频截图或上传穿搭图中的每个真实 Item 同时生成纯白 3:4 详情图与统一的 1:1 像素收藏卡。适用于新穿搭拆分完成后创建、轮询或重试单品详情页大图和“按单品”双列缩略图；不依赖整套拼贴图，也不从拼贴图裁剪单品。
 ---
 
 # 真实穿搭 Item 双资产
+
+执行前先读取 [输出与界面映射](references/output-contract.md)。它规定两张图片各自出现的位置，以及图片中绝对不能包含的前端 UI 元素。
 
 把 Product API 作为 Capture、Look、Item、任务状态和私有图片权限的唯一真源。不要在 Skill 客户端复制识别、抠图、模型选择或存储逻辑。
 
