@@ -584,7 +584,7 @@ describe("StyleCapture garment ingest", () => {
       name: /加入单品衣橱/
     });
     expect(itemSubmit).toBeDisabled();
-    await user.click(within(confirmation).getByRole("button", { name: /穿搭灵感/ }));
+    await user.click(within(confirmation).getByRole("button", { name: /待拥有/ }));
     await user.click(itemSubmit);
 
     await waitFor(() =>
@@ -618,7 +618,7 @@ describe("StyleCapture garment ingest", () => {
     ).not.toBeInTheDocument();
 
     await user.click(within(confirmation).getByRole("button", { name: /单件衣服/ }));
-    await user.click(within(confirmation).getByRole("button", { name: /我的衣服/ }));
+    await user.click(within(confirmation).getByRole("button", { name: /已拥有/ }));
     await user.click(
       within(confirmation).getByRole("button", { name: /加入单品衣橱/ })
     );
@@ -645,7 +645,7 @@ describe("StyleCapture garment ingest", () => {
       name: "确认加入衣橱"
     });
     await user.click(within(confirmation).getByRole("button", { name: /整套穿搭/ }));
-    await user.click(within(confirmation).getByRole("button", { name: /我的衣服/ }));
+    await user.click(within(confirmation).getByRole("button", { name: /已拥有/ }));
     await user.click(
       within(confirmation).getByRole("button", {
         name: /保存整套并生成像素小人/
@@ -686,7 +686,7 @@ describe("StyleCapture garment ingest", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: "米白色针织上衣 可搭配 上装 已拥有"
       })
     );
     await user.click(
@@ -725,7 +725,7 @@ describe("StyleCapture garment ingest", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: "米白色针织上衣 可搭配 上装 已拥有"
       })
     );
 
@@ -761,7 +761,7 @@ describe("StyleCapture garment ingest", () => {
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: "米白色针织上衣 可搭配 上装 已拥有"
       })
     );
     await waitFor(() =>
@@ -796,7 +796,7 @@ describe("StyleCapture garment ingest", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: "米白色针织上衣 可搭配 上装 已拥有"
       })
     ).toBeInTheDocument();
   });
@@ -808,7 +808,7 @@ describe("StyleCapture garment ingest", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: "米白色针织上衣 可搭配 上装 已拥有"
       })
     );
 
@@ -834,7 +834,7 @@ describe("StyleCapture garment ingest", () => {
 
     await userEvent.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: "米白色针织上衣 可搭配 上装 已拥有"
       })
     );
 

@@ -110,7 +110,7 @@ export function WardrobeItemCard({
     item.attributes.subcategory?.value ?? item.attributes.category?.value
   );
   const description = String(item.attributes.description?.value ?? category);
-  const ownershipLabel = item.ownership === "owned" ? "我的衣服" : "穿搭灵感";
+  const ownershipLabel = item.ownership === "owned" ? "已拥有" : "待拥有";
   return (
     <motion.article
       className="item-card pixel-card wardrobe-card"
