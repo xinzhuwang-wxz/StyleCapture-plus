@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
+from typing import cast
 
 from PIL import Image, ImageChops, ImageFilter, ImageOps, UnidentifiedImageError
 
@@ -49,7 +50,8 @@ class PillowLookCollageRenderer:
                 cell.y + (cell.height - fitted.height) // 2 + 10,
             )
             alpha = fitted.getchannel("A")
-            if alpha.getextrema()[0] < 255:
+            alpha_min, _alpha_max = cast(tuple[int, int], alpha.getextrema())
+            if alpha_min < 255:
                 shadow = Image.new("RGBA", fitted.size, (36, 24, 45, 0))
                 shadow.putalpha(
                     alpha.filter(ImageFilter.GaussianBlur(radius=6)).point(
@@ -107,7 +109,7 @@ def _trim_item_edges(image: Image.Image) -> Image.Image:
     hems and shadows while removing UI-like right/bottom rules from the source asset.
     """
     alpha = image.getchannel("A")
-    alpha_min, _alpha_max = alpha.getextrema()
+    alpha_min, _alpha_max = cast(tuple[int, int], alpha.getextrema())
     if alpha_min < 255:
         bbox = alpha.getbbox()
     else:
