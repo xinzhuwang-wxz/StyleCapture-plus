@@ -5,7 +5,7 @@ from stylecapture_backend.features.render.pixel_card_style import build_pixel_ca
 
 PIXEL_COVER_CAPABILITY_ID = "look.pixel_cover"
 PIXEL_COVER_OUTPUT_SIZE = "1728x2304"
-PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v6"
+PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v7"
 PIXEL_COVER_SCHEMA_VERSION = "generated-image-v1"
 
 TRY_ON_CAPABILITY_ID = "look.virtual_try_on"
