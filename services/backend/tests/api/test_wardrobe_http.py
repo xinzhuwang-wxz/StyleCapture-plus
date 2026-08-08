@@ -160,6 +160,10 @@ async def test_lists_updates_and_serves_the_owner_scoped_real_item() -> None:
     assert listed.json()["items"][0]["display_image_url"].endswith(f"/{item.id}/image")
     assert listed.json()["items"][0]["display_image_kind"] == "derived_garment"
     assert listed.json()["items"][0]["display_image_issue"] is None
+    assert listed.json()["items"][0]["purchase_search_query"] == "同款穿搭单品"
+    assert listed.json()["items"][0]["purchase_search_url"].startswith(
+        "https://www.douyin.com/search/"
+    )
     assert listed.json()["items"][0]["source_image_url"].endswith(f"/{item.id}/source")
     assert listed.json()["items"][0]["model_metadata"]["capability_alias"] == (
         "vision_understanding"

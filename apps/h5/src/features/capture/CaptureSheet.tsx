@@ -27,7 +27,9 @@ export function CaptureSheet({
   onCancel,
   onConfirm
 }: CaptureSheetProps) {
-  const [ownership, setOwnership] = useState<Ownership | null>(null);
+  const [ownership, setOwnership] = useState<Ownership | null>(
+    selection?.sourceKind === "feed" ? "inspiration" : "owned"
+  );
   const [intent, setIntent] = useState<"item" | "whole_outfit" | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
@@ -45,6 +47,8 @@ export function CaptureSheet({
 
   useEffect(() => {
     if (!selection) return;
+    setOwnership(selection.sourceKind === "feed" ? "inspiration" : "owned");
+    setIntent(null);
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     cancelButtonRef.current?.focus();

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Literal
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
@@ -71,6 +72,8 @@ class ItemResponse(BaseModel):
     pixel_image_status: ItemPresentationStatus | None = None
     source_image_url: str
     source_available: bool
+    purchase_search_query: str
+    purchase_search_url: str
     attributes: dict[str, FieldResponse]
     model_metadata: dict[str, object]
     created_at: datetime
@@ -104,6 +107,7 @@ class ItemResponse(BaseModel):
                 source_video_ref = raw_video_ref
             if isinstance(raw_timestamp_ms, int) and raw_timestamp_ms >= 0:
                 source_timestamp_ms = raw_timestamp_ms
+        purchase_search_query = _purchase_search_query(item)
         return cls(
             id=item.id,
             capture_id=item.capture_id,
@@ -121,6 +125,8 @@ class ItemResponse(BaseModel):
             pixel_image_status=pixel_image_status,
             source_image_url=f"/v1/items/{item.id}/source",
             source_available=item.source_available,
+            purchase_search_query=purchase_search_query,
+            purchase_search_url=(f"https://www.douyin.com/search/{quote(purchase_search_query)}"),
             attributes={
                 name: FieldResponse.from_domain(field)
                 for name, field in item.attributes.fields.items()
@@ -139,6 +145,14 @@ class ItemResponse(BaseModel):
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
+
+
+def _purchase_search_query(item: WardrobeItem) -> str:
+    for field_name in ("description", "subcategory", "category"):
+        field = item.attributes.fields.get(field_name)
+        if field is not None and str(field.value).strip():
+            return str(field.value).strip()
+    return "同款穿搭单品"
 
 
 class ItemListResponse(BaseModel):

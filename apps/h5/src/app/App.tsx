@@ -23,6 +23,7 @@ import { PhoneFrame } from "../components/PhoneFrame";
 import type { CommunityAvatarSource } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
+import type { LookItemAction } from "../features/wardrobe/LookItemActionSheet";
 import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
@@ -69,6 +70,11 @@ const ItemDetail = lazy(() =>
 const LookDetail = lazy(() =>
   import("../features/wardrobe/LookDetail").then((module) => ({
     default: module.LookDetail
+  }))
+);
+const LookItemActionSheet = lazy(() =>
+  import("../features/wardrobe/LookItemActionSheet").then((module) => ({
+    default: module.LookItemActionSheet
   }))
 );
 const AIRecommendScreen = lazy(() =>
@@ -265,6 +271,7 @@ export function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [pending, setPending] = useState<PendingItem[]>(restorePendingItems);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [lookItemAction, setLookItemAction] = useState<LookItemAction | null>(null);
   const [aiHistoryOpen, setAiHistoryOpen] = useState(false);
   const [selectedLookId, setSelectedLookId] = useState<string | null>(
     restoredLookId.current
@@ -527,8 +534,8 @@ export function App() {
     }: {
       itemId: string;
       changes: {
-        ownership: Ownership;
-        corrections: Record<string, string>;
+        ownership?: Ownership;
+        corrections?: Record<string, string>;
       };
     }) => wardrobeApi.updateItem(itemId, changes),
     onSuccess: (updated) => {
@@ -1272,11 +1279,16 @@ export function App() {
           ) : null}
           {selectedLookId ? (
             <LookDetail
-              onOpenItem={(itemId) => {
-                // 从套装的单品条点进来。衣橱列表还没加载好时不硬跳，
-                // 免得开出一个空详情。
-                const target = items.find((item) => item.id === itemId);
-                if (target) setSelectedItem(target);
+              onOpenItem={(action) => {
+                const target = action.itemId
+                  ? items.find((item) => item.id === action.itemId)
+                  : null;
+                setLookItemAction({
+                  ...action,
+                  ownership: target?.ownership ?? action.ownership,
+                  purchaseSearchUrl:
+                    target?.purchase_search_url ?? action.purchaseSearchUrl
+                });
               }}
               detail={lookQuery.data ?? null}
               loading={lookQuery.isLoading}
@@ -1301,7 +1313,10 @@ export function App() {
               deletingSource={false}
               retrying={lookRetryMutation.isPending}
               saving={lookReasonMutation.isPending}
-              onClose={() => setSelectedLookId(null)}
+              onClose={() => {
+                setLookItemAction(null);
+                setSelectedLookId(null);
+              }}
               onReturnToSource={(videoRef, timestampMs) => {
                 setSelectedLookId(null);
                 setFeedRestoreTarget({
@@ -1333,6 +1348,22 @@ export function App() {
               }
             />
           ) : null}
+          <LookItemActionSheet
+            action={lookItemAction}
+            onClose={() => setLookItemAction(null)}
+            onBuildOutfit={(itemId) => {
+              setAiAnchorItemId(itemId);
+              setLookItemAction(null);
+              setSelectedLookId(null);
+              setDestination("ai");
+            }}
+            onCheckCompatibility={(itemId) => {
+              setAiAnchorItemId(itemId);
+              setLookItemAction(null);
+              setSelectedLookId(null);
+              setDestination("ai");
+            }}
+          />
         </Suspense>
       </div>
 

@@ -15,6 +15,7 @@ import {
   releaseBrowserImagePreview
 } from "../../media/browserImagePreview";
 import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
+import type { LookItemAction } from "./LookItemActionSheet";
 
 type LookDetailProps = {
   detail: LookDetailData | null;
@@ -42,8 +43,8 @@ type LookDetailProps = {
     demandId: string,
     status: PurchaseDemand["status"]
   ) => void;
-  /** 打开衣橱里已有的那件单品。没有这个回调时单品条保持不可点。 */
-  onOpenItem?: (itemId: string) => void;
+  /** 根据后端归属显示这件单品的下一步操作。 */
+  onOpenItem?: (action: LookItemAction) => void;
 };
 
 const RENDER_STUDIO_KINDS = ["try_on", "pixel_cover"] as const;
@@ -487,13 +488,16 @@ function DetailContent({
                 // 衣橱里没有这件时，用后端为这个位置算好的采购需求去搜同款。
                 // 只在真有搜索词时才给这条出口——拿角色名（「上装」）去搜是
                 // 搜不到东西的，给一个点了没用的按钮比不给更糟。
-                const demand = component.item_id
-                  ? undefined
-                  : purchaseDemands.find(
-                      (candidate) => candidate.role === component.role
-                    );
-                const canOpen = Boolean(component.item_id && onOpenItem);
+                const demand = purchaseDemands.find((candidate) =>
+                  component.item_id
+                    ? candidate.item_id === component.item_id
+                    : candidate.role === component.role
+                );
                 const canShop = Boolean(demand?.search_url);
+                const canOpen = Boolean(onOpenItem && (component.item_id || canShop));
+                // Look component only carries the wardrobe item id. App enriches
+                // this fallback from the backend ItemResponse before opening the sheet.
+                const ownership = "inspiration" as const;
                 const body = (
                   <>
                     {component.item_image_url ? (
@@ -509,7 +513,7 @@ function DetailContent({
                     <strong>{label}</strong>
                     <small>
                       {component.item_id
-                        ? "已进入单品衣橱"
+                        ? "查看单品操作"
                         : canShop
                           ? "衣橱里没有 · 去抖音看同款 ›"
                           : "保留中，等待补全"}
@@ -524,25 +528,19 @@ function DetailContent({
                       key={component.component_key}
                       type="button"
                       className="look-component-strip__link"
-                      aria-label={`打开单品：${label}`}
-                      onClick={() => onOpenItem?.(component.item_id as string)}
+                      aria-label={`查看单品操作：${label}`}
+                      onClick={() =>
+                        onOpenItem?.({
+                          itemId: component.item_id,
+                          label,
+                          imageUrl: component.item_image_url,
+                          ownership,
+                          purchaseSearchUrl: demand?.search_url ?? null
+                        })
+                      }
                     >
                       {body}
                     </button>
-                  );
-                }
-                if (canShop) {
-                  return (
-                    <a
-                      key={component.component_key}
-                      className="look-component-strip__link look-component-strip__link--shop"
-                      href={demand!.search_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      aria-label={`去抖音搜索同款：${demand!.search_query}`}
-                    >
-                      {body}
-                    </a>
                   );
                 }
                 return (

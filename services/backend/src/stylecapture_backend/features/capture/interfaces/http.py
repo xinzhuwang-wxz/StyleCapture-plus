@@ -110,7 +110,7 @@ class SubmitCaptureBody(BaseModel):
     object_key: str = Field(min_length=1, max_length=512)
     sha256: str = Field(min_length=64, max_length=64)
     source_kind: CaptureSourceKind
-    ownership: OwnershipState
+    ownership: OwnershipState | None = None
     intent: CaptureIntent = CaptureIntent.ITEM
     feed_context: FeedFrameContextBody | None = None
 
