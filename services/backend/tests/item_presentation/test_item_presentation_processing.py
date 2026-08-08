@@ -16,6 +16,7 @@ from stylecapture_backend.features.capture.domain import (
 )
 from stylecapture_backend.features.item_presentation.application import (
     ItemPresentationApplication,
+    flat_lay_item_signature,
     pixel_item_signature,
 )
 from stylecapture_backend.features.item_presentation.domain import (
@@ -27,6 +28,7 @@ from stylecapture_backend.features.item_presentation.processing import (
     ItemPresentationProcessor,
 )
 from stylecapture_backend.features.render.domain import RenderInputSignature, RenderProviderTrace
+from stylecapture_backend.features.render.infrastructure.collage import PillowLookCollageRenderer
 from stylecapture_backend.features.render.ports import GeneratedImage
 from stylecapture_backend.features.wardrobe.domain import ItemAttributes, ItemStatus, WardrobeItem
 
@@ -225,6 +227,73 @@ async def test_item_pixel_converts_heic_source_before_render_provider() -> None:
     assert repository.assets[asset.id].status is ItemPresentationStatus.SUCCEEDED
     assert generator.images[0].content_type == "image/jpeg"
     assert generator.images[0].object_key.endswith(".render-input.jpg")
+
+
+@pytest.mark.asyncio
+async def test_real_item_flat_lay_is_white_3x4_and_does_not_use_the_image_provider() -> None:
+    user_id = uuid4()
+    now = datetime.now(UTC)
+    source = _png_payload("derived/items/display/cardigan.png", (80, 160, 200, 255))
+    item = WardrobeItem(
+        id=uuid4(),
+        user_id=user_id,
+        capture_id=uuid4(),
+        selection_key="cardigan",
+        source_object_key="originals/upload/outfit.png",
+        display_object_key=source.object_key,
+        source_available=True,
+        source_kind=CaptureSourceKind.UPLOAD,
+        ownership=OwnershipState.OWNED,
+        status=ItemStatus.READY,
+        attributes=ItemAttributes(),
+        model_metadata={},
+        embedding=None,
+        created_at=now,
+        updated_at=now,
+    )
+    asset = ItemPresentationAsset.queued(
+        user_id=user_id,
+        item_id=item.id,
+        kind=ItemPresentationKind.FLAT_LAY_ITEM,
+        input_signature=flat_lay_item_signature(item),
+        request_key="item-flat-lay-processing",
+    )
+    repository = MemoryPresentations(asset)
+    wardrobe = OneItemWardrobe(item)
+    generator = SuccessfulGenerator()
+    objects = MemoryObjects(source)
+    processor = ItemPresentationProcessor(
+        presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
+        wardrobe=wardrobe,
+        objects=objects,
+        generator=generator,
+        flat_lays=PillowLookCollageRenderer(),
+    )
+
+    await processor.process(user_id=user_id, asset_id=asset.id)
+
+    stored = repository.assets[asset.id]
+    assert stored.status is ItemPresentationStatus.SUCCEEDED
+    assert generator.images == ()
+    assert stored.output is not None
+    assert stored.output.object_key.startswith(f"derived/items/flat-lay/{user_id}/{item.id}/")
+    output = objects.images[stored.output.object_key]
+    with Image.open(BytesIO(output.body)) as rendered:
+        assert rendered.size == (768, 1024)
+        assert rendered.getpixel((0, 0)) == (255, 255, 255, 255)
+
+
+def _png_payload(object_key: str, color: tuple[int, int, int, int]) -> ImagePayload:
+    image = Image.new("RGBA", (80, 120), color)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    return ImagePayload(
+        object_key=object_key,
+        content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
 
 
 def _heic_payload(object_key: str) -> ImagePayload:

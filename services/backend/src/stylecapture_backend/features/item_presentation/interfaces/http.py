@@ -56,7 +56,13 @@ class ItemPresentationResponse(BaseModel):
             ),
             failure_code=view.failure_code,
             failure_message=(
-                "像素单品图暂时没有生成。可以重试。" if view.failure_code is not None else None
+                (
+                    "真实单品白底图暂时没有生成。可以重试。"
+                    if view.kind is ItemPresentationKind.FLAT_LAY_ITEM
+                    else "像素单品图暂时没有生成。可以重试。"
+                )
+                if view.failure_code is not None
+                else None
             ),
             retryable=view.status is ItemPresentationStatus.FAILED,
             created_at=view.created_at,
@@ -97,6 +103,30 @@ def build_item_presentation_router(
         return ItemPresentationResponse.from_view(view)
 
     @router.post(
+        "/v1/items/{item_id}/presentations/flat-lay",
+        response_model=ItemPresentationResponse,
+        status_code=status.HTTP_202_ACCEPTED,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def ensure_item_flat_lay_presentation(
+        item_id: UUID,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+        user_id: UUID = principal,
+    ) -> ItemPresentationResponse:
+        view = await services.presentations.ensure_flat_lay_item(
+            user_id=user_id,
+            item_id=item_id,
+            request_key=idempotency_key,
+        )
+        if (
+            services.dispatcher is not None
+            and view.dispatch_required
+            and view.status is ItemPresentationStatus.QUEUED
+        ):
+            services.dispatcher.enqueue_item_presentation(user_id=view.user_id, asset_id=view.id)
+        return ItemPresentationResponse.from_view(view)
+
+    @router.post(
         "/v1/items/{item_id}/presentations/pixel/retry",
         response_model=ItemPresentationResponse,
         status_code=status.HTTP_202_ACCEPTED,
@@ -119,6 +149,28 @@ def build_item_presentation_router(
                 user_id=view.user_id,
                 asset_id=view.id,
             )
+        return ItemPresentationResponse.from_view(view)
+
+    @router.post(
+        "/v1/items/{item_id}/presentations/flat-lay/retry",
+        response_model=ItemPresentationResponse,
+        status_code=status.HTTP_202_ACCEPTED,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def retry_item_flat_lay_presentation(
+        item_id: UUID,
+        user_id: UUID = principal,
+    ) -> ItemPresentationResponse:
+        view = await services.presentations.retry_flat_lay_item(
+            user_id=user_id,
+            item_id=item_id,
+        )
+        if (
+            services.dispatcher is not None
+            and view.dispatch_required
+            and view.status is ItemPresentationStatus.QUEUED
+        ):
+            services.dispatcher.enqueue_item_presentation(user_id=view.user_id, asset_id=view.id)
         return ItemPresentationResponse.from_view(view)
 
     @router.get(

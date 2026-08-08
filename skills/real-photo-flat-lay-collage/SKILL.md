@@ -5,7 +5,7 @@ description: 通过 StyleCapture Product API，将已抓取并保存为 Look 的
 
 # 真实照片平铺拼贴
 
-本 Skill 是 StyleCapture `collage` RenderArtifact 的薄客户端。它不直接处理本地图片、
+本 Skill 是 StyleCapture `collage` RenderArtifact 与 `flat_lay_item` ItemPresentation 的薄客户端。它不直接处理本地图片、
 不维护服饰识别或抠图规则，也不调用模型、Provider 或 Prompt。所有真实图像与单品
 事实均以 Product API 的 Capture、Item 和 Look 为唯一真源。
 
@@ -13,12 +13,12 @@ description: 通过 StyleCapture Product API，将已抓取并保存为 Look 的
 
 1. 先通过正常的 Feed/上传抓取流程保存一张用户有权使用的真实人物穿搭照或衣物照，等待它形成一个至少含有已就绪单品的 `Look`。
 2. 用此 Skill 向 `POST /v1/looks/{look_id}/renders` 请求 `{ "kind": "collage" }`，并始终提供新的 `Idempotency-Key`。
-3. 轮询 `GET /v1/render-artifacts/{artifact_id}`，直到状态为 `succeeded`、`failed` 或 `degraded`；成功后只使用 API 返回的私有 `output_image_url` 读取图片。
-4. 将结果称为“真实单品拼贴”，而不是新的服装事实或 AI 试穿。单品来源、权限、缓存、任务状态、失败重试和私有图片访问全部继续由产品后端管理。
+3. 读取 `GET /v1/looks/{look_id}` 中的每个 `components[].item_id`；对每个不重复 Item 请求 `POST /v1/items/{item_id}/presentations/flat-lay`，并轮询 `GET /v1/item-presentations/{asset_id}` 至 `succeeded` 或 `failed`。
+4. 将整套结果称为“真实单品拼贴”，将每个 `flat_lay_item` 称为“真实单品白底图”。二者都不是新的服装事实或 AI 试穿；单品来源、权限、缓存、任务状态、失败重试和私有图片访问全部继续由产品后端管理。
 
 ## 输出约束
 
-`collage` 的默认渲染必须使用已就绪的真实 Item 展示资产生成一张确定性的 PNG：竖版 **3:4**、纯白背景、正视/平铺的独立单品、明确留白和一致的轻微接触阴影。它不得保留人物、皮肤、场景、镜面、手机、字幕或水印；不得生成新的单品、品牌文字或像素画。
+`collage` 与每个 `flat_lay_item` 都必须使用同一批已就绪的真实 Item 展示资产生成确定性的 PNG：竖版 **3:4**、纯白背景、完整单品、明确留白和一致的轻微接触阴影。`flat_lay_item` 必须只含所属的一件单品（鞋可成对、明确的配饰组可成组），不得从整张拼贴图二次裁剪；它不得保留人物、皮肤、场景、镜面、手机、字幕或水印；不得生成新的单品、品牌文字或像素画。
 
 若上游没有把真实照片成功保存为可用 Look，或 Look 没有可用的 Item 展示资产，直接返回 Product API 的错误或失败状态；不得用固定图片、浏览器拼接或猜测出的服装补位。
 
@@ -42,8 +42,8 @@ node scripts/render.js --look-id "<look UUID>" --wait
 
 ```text
 真实图片抓取 → Capture → 单品识别/展示资产 → Look（单品就绪）
-→ 本 Skill 请求 collage → RenderArtifact 队列 → Pillow 纯白 3:4 拼贴
-→ 私有 Artifact 图片 → H5 Look 详情页
+→ 本 Skill 请求 collage → RenderArtifact 队列 → Pillow 纯白 3:4 拼贴 → H5 Look 详情页
+→ 本 Skill 为每个 Item 请求 flat_lay_item → ItemPresentation 队列 → Pillow 纯白 3:4 单图 → H5 单品详情页
 ```
 
 Skill 仅覆盖箭头中“请求 collage 并读取结果”的部分。H5、Worker 和外部调用方复用同一套版本化 API，禁止将本 Skill 中的客户端逻辑变成第二套业务流程。

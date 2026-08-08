@@ -6,6 +6,8 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.item_presentation.application import (
+    FLAT_LAY_ITEM_CAPABILITY_ID,
+    FLAT_LAY_ITEM_SCHEMA_VERSION,
     PIXEL_ITEM_CAPABILITY_ID,
     PIXEL_ITEM_PROMPT_VERSION,
     PIXEL_ITEM_SCHEMA_VERSION,
@@ -19,8 +21,13 @@ from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationNotFound,
     WardrobeItemReader,
 )
-from stylecapture_backend.features.render.domain import RenderOutput
-from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
+from stylecapture_backend.features.render.domain import RenderOutput, RenderProviderTrace
+from stylecapture_backend.features.render.ports import (
+    CollageRenderer,
+    CollageRenderError,
+    GeneratedImage,
+    RenderProviderError,
+)
 from stylecapture_backend.features.wardrobe.domain import FieldEnvelope, WardrobeItem
 from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
@@ -91,11 +98,13 @@ class ItemPresentationProcessor:
         wardrobe: WardrobeItemReader,
         objects: ItemPresentationObjectStore,
         generator: ItemPixelImageGenerator,
+        flat_lays: CollageRenderer | None = None,
     ) -> None:
         self._presentations = presentations
         self._wardrobe = wardrobe
         self._objects = objects
         self._generator = generator
+        self._flat_lays = flat_lays
 
     async def process(
         self,
@@ -110,7 +119,10 @@ class ItemPresentationProcessor:
             return
         if asset.status in {ItemPresentationStatus.SUCCEEDED, ItemPresentationStatus.FAILED}:
             return
-        if asset.kind is not ItemPresentationKind.PIXEL_ITEM:
+        if asset.kind not in {
+            ItemPresentationKind.PIXEL_ITEM,
+            ItemPresentationKind.FLAT_LAY_ITEM,
+        }:
             await self._presentations.mark_failed(
                 user_id=user_id,
                 asset_id=asset_id,
@@ -121,10 +133,44 @@ class ItemPresentationProcessor:
         await self._presentations.mark_running(user_id=user_id, asset_id=asset_id)
         try:
             item = await self._wardrobe.get_item(user_id, asset.item_id)
+            if (
+                asset.kind is ItemPresentationKind.FLAT_LAY_ITEM
+                and item.display_object_key is None
+            ):
+                raise FileNotFoundError("flat-lay requires a ready item display asset")
             object_key = item.display_object_key or item.source_object_key
             if object_key == item.source_object_key and not item.source_available:
                 raise FileNotFoundError(item.source_object_key)
             source = normalize_provider_image(self._objects.read_image(object_key))
+            if asset.kind is ItemPresentationKind.FLAT_LAY_ITEM:
+                if self._flat_lays is None:
+                    raise RuntimeError("real item flat-lay renderer is not configured")
+                rendered = self._flat_lays.render((source,))
+                stored = self._objects.write_derived_image(
+                    rendered,
+                    owner_id=user_id,
+                    prefix=f"derived/items/flat-lay/{user_id}/{asset.item_id}",
+                )
+                await self._presentations.mark_succeeded(
+                    user_id=user_id,
+                    asset_id=asset_id,
+                    output=RenderOutput(
+                        object_key=stored.object_key,
+                        content_hash=stored.sha256,
+                        content_type=stored.content_type,
+                    ),
+                    provider_trace=RenderProviderTrace(
+                        provider="pillow",
+                        model="real-item-flat-lay-v1",
+                        parameters={
+                            "capability_id": FLAT_LAY_ITEM_CAPABILITY_ID,
+                            "schema_version": FLAT_LAY_ITEM_SCHEMA_VERSION,
+                            "canvas": "768x1024",
+                            "background": "#FFFFFF",
+                        },
+                    ),
+                )
+                return
             generated = await self._generator.generate(
                 prompt=pixel_item_prompt(item),
                 images=(source,),
@@ -160,7 +206,18 @@ class ItemPresentationProcessor:
                 user_id=user_id,
                 asset_id=asset_id,
                 code="source_unavailable",
-                message="真实单品图暂时不可用, 像素展示图未生成",
+                message=(
+                    "真实单品图暂时不可用, 白底单品图未生成"
+                    if asset.kind is ItemPresentationKind.FLAT_LAY_ITEM
+                    else "真实单品图暂时不可用, 像素展示图未生成"
+                ),
+            )
+        except CollageRenderError:
+            await self._presentations.mark_failed(
+                user_id=user_id,
+                asset_id=asset_id,
+                code="flat_lay_input_invalid",
+                message="真实单品展示资产无法生成白底图, 原图和单品信息未受影响",
             )
         except RenderProviderError as error:
             if error.retryable and not final_attempt:

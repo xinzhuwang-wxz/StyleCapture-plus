@@ -186,6 +186,7 @@ item_presentation_processor = ItemPresentationProcessor(
         timeout_seconds=settings.render_request_timeout_seconds,
         download_max_bytes=settings.render_download_max_bytes,
     ),
+    flat_lays=PillowLookCollageRenderer(),
 )
 item_presentation_task = register_item_presentation_task(
     celery,
