@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
-from typing import Protocol
+from statistics import median
+from typing import Protocol, cast
 from uuid import UUID
 
-from PIL import Image, ImageChops, ImageDraw, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, UnidentifiedImageError
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.item_presentation.application import (
     FLAT_LAY_ITEM_CAPABILITY_ID,
@@ -61,12 +63,39 @@ class ItemPixelImageGenerator(Protocol):
     ) -> GeneratedImage: ...
 
 
+@dataclass(frozen=True, slots=True)
+class PixelCardPalette:
+    name: str
+    outer: str
+    glow: str
+    accent: str
+    secondary: str
+
+
+PIXEL_CARD_PALETTES = (
+    PixelCardPalette("蜜桃", "#FFF1E9", "#FFD6C4", "#EE9875", "#F2B4CA"),
+    PixelCardPalette("丁香紫", "#F6F0FF", "#E2D2FF", "#A98AE8", "#F0A8C2"),
+    PixelCardPalette("晴空蓝", "#EDF7FF", "#CFE8FF", "#70A9E3", "#F0A8C2"),
+    PixelCardPalette("薄荷绿", "#ECFAF3", "#CFEEDC", "#68B58D", "#A98AE8"),
+    PixelCardPalette("奶油黄", "#FFF8E3", "#F7E3A2", "#D4A23D", "#F0A8C2"),
+    PixelCardPalette("莓果粉", "#FFF0F5", "#FFD4E3", "#E786AA", "#A98AE8"),
+)
+
+
+def pixel_card_palette(seed: UUID | str) -> PixelCardPalette:
+    stable_hash = 0
+    for character in str(seed):
+        stable_hash = (stable_hash * 31 + ord(character)) & 0xFFFFFFFF
+    return PIXEL_CARD_PALETTES[stable_hash % len(PIXEL_CARD_PALETTES)]
+
+
 def pixel_item_prompt(item: WardrobeItem) -> str:
     fields = item.attributes.fields
     name = _field_text(fields, "description", "这件单品")
     category = _field_text(fields, "category", "服装")
     subcategory = _field_text(fields, "subcategory", "")
     colors = _field_text(fields, "colors", "")
+    palette = pixel_card_palette(item.id)
     return f"""
 只识别并提取参考图中的目标单品“{name}”(类别 {category}/{subcategory}, 主色 {colors}),
 把它转换为 StyleCapture 统一的复古像素收藏卡。严格输出 1:1 正方形 2048x2048。
@@ -79,7 +108,9 @@ def pixel_item_prompt(item: WardrobeItem) -> str:
 内部用有限色阶表达材质和褶皱; 像素块大小一致, 禁止局部写实、局部像素的混合风格,
 禁止模糊、抗锯齿、油画、3D 渲染、照片质感、矢量插画或平滑渐变。
 
-卡片背景: 很浅的粉白色背景, 中央可有低对比度圆形淡粉光晕。不要生成边框、爱心、星星或文字,
+卡片背景: 本卡使用{palette.name}协调色板, 边缘主色 {palette.outer}, 中央柔和光晕 {palette.glow}。
+背景必须明显呈现这组柔和色相, 不要默认退化成整张无彩灰白商品底。不同单品会由系统分配不同色板。
+不要生成边框、爱心、星星或文字,
 这些装饰由后端统一叠加。禁止人物、人体、皮肤、头发、模特、衣架、场景、其他衣物、品牌、
 水印、标签、价格、文字、拼贴、分镜、多个候选和额外道具。
 """.strip()
@@ -250,7 +281,7 @@ class ItemPresentationProcessor:
                 images=(source,),
                 size="2048x2048",
             )
-            rendered, quality = normalize_pixel_card_output(generated)
+            rendered, quality = normalize_pixel_card_output(generated, seed=asset.item_id)
             stored = self._objects.write_derived_image(
                 rendered,
                 owner_id=user_id,
@@ -327,6 +358,8 @@ def normalize_flat_lay_output(
 
 def normalize_pixel_card_output(
     generated: GeneratedImage,
+    *,
+    seed: UUID | str = "default",
 ) -> tuple[ImagePayload, dict[str, object]]:
     try:
         with Image.open(BytesIO(generated.body)) as opened:
@@ -362,14 +395,16 @@ def normalize_pixel_card_output(
             retryable=True,
         )
 
+    palette = pixel_card_palette(seed)
     pixelated = image.resize((256, 256), Image.Resampling.BOX)
+    pixelated, background_ratio = _apply_pixel_card_background(pixelated, palette)
     pixelated = pixelated.quantize(
         colors=96,
         method=Image.Quantize.MEDIANCUT,
         dither=Image.Dither.NONE,
     ).convert("RGB")
     pixelated = pixelated.resize((1024, 1024), Image.Resampling.NEAREST)
-    _draw_pixel_card_decorations(pixelated)
+    _draw_pixel_card_decorations(pixelated, palette=palette)
 
     output = BytesIO()
     pixelated.save(output, format="PNG", optimize=True)
@@ -382,8 +417,10 @@ def normalize_pixel_card_output(
             sha256=sha256(body).hexdigest(),
         ),
         {
-            "quality_gate": "pastel-pixel-card-square-v1",
+            "quality_gate": "colorway-pixel-card-square-v2",
             "light_border_ratio": round(light_border_ratio, 4),
+            "background_palette": palette.name,
+            "background_recolored_ratio": round(background_ratio, 4),
             "pixel_grid": "256x256",
             "palette_colors": 96,
             "decorations": "stylecapture-pastel-frame-v1",
@@ -391,10 +428,83 @@ def normalize_pixel_card_output(
     )
 
 
-def _draw_pixel_card_decorations(image: Image.Image) -> None:
+def _apply_pixel_card_background(
+    image: Image.Image,
+    palette: PixelCardPalette,
+) -> tuple[Image.Image, float]:
+    preview = image.resize((64, 64), Image.Resampling.BOX)
+    border_pixels: list[tuple[int, int, int]] = (
+        [_rgb_pixel(preview, (x, 0)) for x in range(preview.width)]
+        + [_rgb_pixel(preview, (x, preview.height - 1)) for x in range(preview.width)]
+        + [_rgb_pixel(preview, (0, y)) for y in range(1, preview.height - 1)]
+        + [_rgb_pixel(preview, (preview.width - 1, y)) for y in range(1, preview.height - 1)]
+    )
+    background = (
+        int(median(pixel[0] for pixel in border_pixels)),
+        int(median(pixel[1] for pixel in border_pixels)),
+        int(median(pixel[2] for pixel in border_pixels)),
+    )
+    channels = image.split()
+    differences = [
+        ImageChops.difference(channel, Image.new("L", image.size, background[index]))
+        for index, channel in enumerate(channels)
+    ]
+    distance = ImageChops.lighter(
+        ImageChops.lighter(differences[0], differences[1]), differences[2]
+    )
+    close_to_edge_color = distance.point(lambda value: 255 if value <= 72 else 0)
+    light_enough = _light_background_mask(image, threshold=168)
+    candidates = ImageChops.multiply(close_to_edge_color, light_enough)
+
+    connected = candidates.copy()
+    step = max(1, image.width // 16)
+    seeds = (
+        [(x, 0) for x in range(0, image.width, step)]
+        + [(x, image.height - 1) for x in range(0, image.width, step)]
+        + [(0, y) for y in range(0, image.height, step)]
+        + [(image.width - 1, y) for y in range(0, image.height, step)]
+    )
+    for point in seeds:
+        if connected.getpixel(point) == 255:
+            ImageDraw.floodfill(connected, point, 128, thresh=0)
+    mask = connected.point(lambda value: 255 if value == 128 else 0)
+
+    backdrop = Image.new("RGB", image.size, palette.outer)
+    glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    margin = int(image.width * 0.16)
+    glow_draw.ellipse(
+        (margin, margin, image.width - margin, image.height - margin),
+        fill=(*_hex_rgb(palette.glow), 255),
+    )
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=image.width * 0.08))
+    backdrop.paste(glow.convert("RGB"), mask=glow.getchannel("A"))
+    recolored = Image.composite(backdrop, image, mask)
+    recolored_ratio = mask.histogram()[255] / (image.width * image.height)
+    return recolored, recolored_ratio
+
+
+def _hex_rgb(value: str) -> tuple[int, int, int]:
+    normalized = value.removeprefix("#")
+    return (
+        int(normalized[0:2], 16),
+        int(normalized[2:4], 16),
+        int(normalized[4:6], 16),
+    )
+
+
+def _rgb_pixel(image: Image.Image, point: tuple[int, int]) -> tuple[int, int, int]:
+    return cast(tuple[int, int, int], image.getpixel(point))
+
+
+def _draw_pixel_card_decorations(
+    image: Image.Image,
+    *,
+    palette: PixelCardPalette,
+) -> None:
     draw = ImageDraw.Draw(image)
-    pink = "#F7A8C4"
-    pale_pink = "#FBC7D9"
+    pink = palette.accent
+    pale_pink = palette.secondary
     lilac = "#C8A7F2"
     yellow = "#F6CE7A"
 

@@ -113,6 +113,7 @@ class SuccessfulGenerator:
     ) -> GeneratedImage:
         assert "严格输出 1:1 正方形 2048x2048" in prompt
         assert "16-bit / 32-bit 商品像素画" in prompt
+        assert "背景必须明显呈现这组柔和色相" in prompt
         assert len(images) == 1
         self.images = tuple(images)
         self.size = size
@@ -235,12 +236,51 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "item.pixel_presentation"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert (
-        stored.provider_trace.parameters["prompt_version"] == "stylecapture-item-pixel-2026-07-26"
+    assert stored.provider_trace.parameters["prompt_version"] == (
+        "stylecapture-item-pixel-2026-08-09-colorways"
     )
-    assert stored.provider_trace.parameters["schema_version"] == "pastel-pixel-card-square-v1"
+    assert stored.provider_trace.parameters["schema_version"] == ("colorway-pixel-card-square-v2")
     assert stored.provider_trace.parameters["output_canvas"] == "1024x1024"
     assert stored.provider_trace.parameters["pixel_grid"] == "256x256"
+    assert stored.provider_trace.parameters["background_palette"] in {
+        "蜜桃",
+        "丁香紫",
+        "晴空蓝",
+        "薄荷绿",
+        "奶油黄",
+        "莓果粉",
+    }
+
+
+def test_pixel_card_recolors_connected_gray_background_with_stable_variety() -> None:
+    rendered = Image.new("RGB", (2048, 2048), (238, 238, 238))
+    rendered.paste((190, 40, 55), (620, 440, 1428, 1640))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm",
+            model="image_generation",
+            parameters={},
+        ),
+    )
+
+    first, first_quality = normalize_pixel_card_output(generated, seed="item-a")
+    second, second_quality = normalize_pixel_card_output(generated, seed="item-c")
+
+    assert first_quality["background_palette"] != second_quality["background_palette"]
+    assert first_quality["background_recolored_ratio"] > 0.5
+    with Image.open(BytesIO(first.body)) as first_card:
+        corner = first_card.getpixel((12, 12))
+        assert max(corner) - min(corner) >= 8
+        subject = first_card.getpixel((512, 512))
+        assert subject[0] > 150 and subject[1] < 90
+    with Image.open(BytesIO(second.body)) as second_card:
+        assert second_card.getpixel((12, 12)) != corner
 
 
 def test_pixel_card_rejects_non_square_provider_output() -> None:
