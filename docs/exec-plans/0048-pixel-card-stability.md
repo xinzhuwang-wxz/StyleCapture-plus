@@ -60,9 +60,9 @@
 - [x] 纳入正面案例与来源说明。
 - [x] 完成失败合同测试和实现。
 - [x] 完成 Skill 校验和目标离线合同测试。
-- [ ] 完成全量离线验证（目标 pytest、Ruff、mypy 与 Skill 校验已通过；Windows 本机缺少 Linux `fcntl` 和完整服务依赖，前端 pnpm 锁配置不一致，留给 Linux CI 复验）。
+- [x] 完成全量离线验证（GitHub Linux product-ci 已通过 Python、API 合同、移动端与 Compose/backend image 全部检查）。
 - [ ] 完成真实 Seedream 对照与视觉审查。
-- [ ] 更新 GitHub 证据并打开 PR。
+- [x] 更新 GitHub 证据并打开 PR #49。
 
 ## 决策记录
 
