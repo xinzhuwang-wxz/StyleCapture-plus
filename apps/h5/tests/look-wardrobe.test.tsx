@@ -746,7 +746,7 @@ describe("Look wardrobe states", () => {
     expect(screen.getByText("已下单，收到后需拍照入库")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "收到后请拍照上传；完成识别入库后才会成为“我的衣服”。"
+        “收到后请拍照上传；完成识别入库后才会成为”已拥有”。”
       )
     ).toBeInTheDocument();
     expect(
