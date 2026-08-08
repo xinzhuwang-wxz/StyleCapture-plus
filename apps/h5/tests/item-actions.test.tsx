@@ -161,6 +161,22 @@ describe("Look item action sheet", () => {
     expect(onCheckCompatibility).toHaveBeenCalledWith(item.id);
   });
 
+  it("falls back to a keyword search instead of disabling purchase", () => {
+    renderSheet({
+      itemId: item.id,
+      label: "蓝黄印花吊带连衣裙",
+      imageUrl: item.display_image_url,
+      ownership: "inspiration",
+      purchaseSearchUrl: null
+    });
+
+    expect(screen.queryByText("暂无购买链接")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "未拥有，去购买" })).toHaveAttribute(
+      "href",
+      "https://www.douyin.com/search/%E8%93%9D%E9%BB%84%E5%8D%B0%E8%8A%B1%E5%90%8A%E5%B8%A6%E8%BF%9E%E8%A1%A3%E8%A3%99"
+    );
+  });
+
   it("restores focus without scrolling the phone screen", async () => {
     const phoneScreen = document.createElement("div");
     const trigger = document.createElement("button");
