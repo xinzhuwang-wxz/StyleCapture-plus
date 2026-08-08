@@ -55,9 +55,7 @@ class PixelTrialResponse(BaseModel):
                 f"/v1/pixel-trials/{view.id}/image" if view.object_key is not None else None
             ),
             sprite_image_url=(
-                f"/v1/pixel-trials/{view.id}/sprite"
-                if view.sprite_object_key is not None
-                else None
+                f"/v1/pixel-trials/{view.id}/sprite" if view.sprite_object_key is not None else None
             ),
             failure_code=view.failure_code,
             failure_message=(

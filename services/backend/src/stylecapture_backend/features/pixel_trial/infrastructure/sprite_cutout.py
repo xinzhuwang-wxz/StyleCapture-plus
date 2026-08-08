@@ -130,8 +130,7 @@ def _flood_backdrop(pixels: Any, width: int, height: int) -> bytearray:
     # edge. Generated characters are centered, so narrow side gutters are safe
     # additional seeds and mirror the existing offline cutout script.
     gutter_columns = {
-        max(0, min(width - 1, round(width * fraction)))
-        for fraction in (0.06, 0.12, 0.88, 0.94)
+        max(0, min(width - 1, round(width * fraction))) for fraction in (0.06, 0.12, 0.88, 0.94)
     }
     gutter_step = max(1, height // 24)
     for x in gutter_columns:

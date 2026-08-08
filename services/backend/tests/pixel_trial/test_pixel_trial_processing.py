@@ -161,8 +161,7 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v5"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert (
-        stored.provider_trace.parameters["sprite_schema_version"]
-        == "transparent-pixel-sprite-v1"
+        stored.provider_trace.parameters["sprite_schema_version"] == "transparent-pixel-sprite-v1"
     )
     assert stored.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     assert generator.size == "1728x2304"
