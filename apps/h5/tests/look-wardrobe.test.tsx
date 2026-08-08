@@ -794,7 +794,7 @@ describe("Look wardrobe states", () => {
     );
   });
 
-  it("opens the owned item, and sends a missing one to a real search", () => {
+  it("sends owned and missing components to the same backend-aware action flow", () => {
     const onOpenItem = vi.fn();
     const detail = readyDetail();
     detail.components = [
@@ -836,18 +836,27 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /打开单品/ }));
-    expect(onOpenItem).toHaveBeenCalledWith(
-      "44444444-4444-4444-8444-444444444444"
+    fireEvent.click(
+      screen.getByRole("button", { name: "查看单品操作：上装" })
     );
+    expect(onOpenItem).toHaveBeenLastCalledWith({
+      itemId: "44444444-4444-4444-8444-444444444444",
+      label: "上装",
+      imageUrl: "/v1/items/44444444-4444-4444-8444-444444444444/image",
+      ownership: "inspiration",
+      purchaseSearchUrl: null
+    });
 
-    // 衣橱里没有的那件走真实搜索词，不是拿「鞋子」这种角色名去搜。
-    const shop = screen.getByRole("link", { name: /白色小星板鞋/ });
-    expect(shop).toHaveAttribute(
-      "href",
-      "https://www.douyin.com/search/%E7%99%BD%E8%89%B2"
+    fireEvent.click(
+      screen.getByRole("button", { name: "查看单品操作：鞋履" })
     );
-    expect(shop).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+    expect(onOpenItem).toHaveBeenLastCalledWith({
+      itemId: null,
+      label: "鞋履",
+      imageUrl: null,
+      ownership: "inspiration",
+      purchaseSearchUrl: "https://www.douyin.com/search/%E7%99%BD%E8%89%B2"
+    });
   });
 
   it("leaves a missing item unclickable when there is no real query for it", () => {

@@ -46,7 +46,7 @@ class SubmitCaptureCommand:
     object_key: str
     sha256: str
     source_kind: CaptureSourceKind
-    ownership: OwnershipState
+    ownership: OwnershipState | None
     idempotency_key: str
     feed_context: FeedFrameContext | None = None
     intent: CaptureIntent = CaptureIntent.ITEM
@@ -113,6 +113,11 @@ class CaptureApplication:
                     "feed_frame_dimensions_mismatch",
                     "Feed frame dimensions do not match the uploaded frame",
                 )
+        ownership = command.ownership or (
+            OwnershipState.INSPIRATION
+            if command.source_kind is CaptureSourceKind.FEED
+            else OwnershipState.OWNED
+        )
         capture = Capture.create(
             user_id=command.user_id,
             source=CaptureSource(
@@ -123,7 +128,7 @@ class CaptureApplication:
                     command.feed_context.video_ref if command.feed_context is not None else None
                 ),
             ),
-            ownership=command.ownership,
+            ownership=ownership,
             feed_context=command.feed_context,
             intent=command.intent,
         )

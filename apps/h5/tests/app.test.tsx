@@ -82,6 +82,9 @@ const wardrobeItem: Item = {
   display_image_kind: "derived_garment",
   source_image_url: "/v1/items/44444444-4444-4444-8444-444444444444/source",
   source_available: true,
+  purchase_search_query: "米白色针织上衣",
+  purchase_search_url:
+    "https://www.douyin.com/search/%E7%B1%B3%E7%99%BD%E8%89%B2%E9%92%88%E7%BB%87%E4%B8%8A%E8%A1%A3",
   attributes: {
     category: {
       value: "tops",
@@ -357,7 +360,7 @@ describe("StyleCapture garment ingest", () => {
     expect(screen.queryByText("原始画面已删除")).not.toBeInTheDocument();
   });
 
-  it("stacks an Item opened from a Look above the Look and returns to it", async () => {
+  it("opens ownership-aware actions from a Look and carries an owned item into AI styling", async () => {
     const user = userEvent.setup();
     const lookId = "11111111-1111-4111-8111-111111111111";
     window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
@@ -396,19 +399,16 @@ describe("StyleCapture garment ingest", () => {
 
     renderApp();
 
-    const lookDialog = await screen.findByRole("dialog", { name: "穿搭详情" });
+    await screen.findByRole("dialog", { name: "穿搭详情" });
     await user.click(
-      await screen.findByRole("button", { name: "打开单品：上装" })
+      await screen.findByRole("button", { name: "查看单品操作：上装" })
     );
-    const itemDialog = await screen.findByRole("dialog", { name: "单品详情" });
-    expect(itemDialog.closest(".detail-layer")).toHaveClass("detail-layer--item");
-    expect(lookDialog).toBeVisible();
+    const actionDialog = await screen.findByRole("dialog", { name: "上装" });
+    expect(within(actionDialog).getByText("衣橱单品")).toBeVisible();
 
-    await user.click(within(itemDialog).getByRole("button", { name: "返回衣橱" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "单品详情" })).not.toBeInTheDocument()
-    );
-    expect(lookDialog).toBeVisible();
+    await user.click(within(actionDialog).getByRole("button", { name: "已拥有，去搭配" }));
+    expect(await screen.findByText("从真实衣橱开始搭")).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "穿搭详情" })).not.toBeInTheDocument();
   });
 
   it("requests a real collage when opening a user-uploaded outfit with extracted items", async () => {
@@ -636,7 +636,7 @@ describe("StyleCapture garment ingest", () => {
     delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
   });
 
-  it("requires an asset type and ownership before a real upload can enter the wardrobe", async () => {
+  it("defaults a real gallery upload to owned after the asset type is chosen", async () => {
     const user = userEvent.setup();
     renderApp();
     const file = new File(["real-image"], "jacket.jpg", { type: "image/jpeg" });
@@ -656,15 +656,14 @@ describe("StyleCapture garment ingest", () => {
     const itemSubmit = within(confirmation).getByRole("button", {
       name: /加入单品衣橱/
     });
-    expect(itemSubmit).toBeDisabled();
-    await user.click(within(confirmation).getByRole("button", { name: /待拥有/ }));
+    expect(itemSubmit).toBeEnabled();
     await user.click(itemSubmit);
 
     await waitFor(() =>
       expect(api.ingest).toHaveBeenCalledWith(
         file,
         "upload",
-        "inspiration",
+        "owned",
         expect.any(String),
         "item"
       )
@@ -807,7 +806,6 @@ describe("StyleCapture garment ingest", () => {
     expect(screen.getByRole("option", { name: "上装" })).toHaveValue("tops");
 
     await user.selectOptions(category, "dresses");
-    await user.click(screen.getByRole("button", { name: "保存修改" }));
 
     await waitFor(() =>
       expect(api.updateItem).toHaveBeenCalledWith(
@@ -967,7 +965,7 @@ describe("StyleCapture garment ingest", () => {
     );
   });
 
-  it("explains an ambiguous multi-garment upload instead of pretending the source is extracted", async () => {
+  it("keeps an ambiguous multi-garment upload on its source image without extra detail copy", async () => {
     api.listItems.mockResolvedValue([
       {
         ...wardrobeItem,

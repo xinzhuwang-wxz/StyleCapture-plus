@@ -504,6 +504,14 @@
             ],
             "title": "Pixel Image Url"
           },
+          "purchase_search_query": {
+            "title": "Purchase Search Query",
+            "type": "string"
+          },
+          "purchase_search_url": {
+            "title": "Purchase Search Url",
+            "type": "string"
+          },
           "source_available": {
             "title": "Source Available",
             "type": "boolean"
@@ -555,6 +563,8 @@
           "display_image_url",
           "source_image_url",
           "source_available",
+          "purchase_search_query",
+          "purchase_search_url",
           "attributes",
           "model_metadata",
           "created_at",
@@ -1966,7 +1976,14 @@
             "type": "string"
           },
           "ownership": {
-            "$ref": "#/components/schemas/OwnershipState"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnershipState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "sha256": {
             "maxLength": 64,
@@ -1981,8 +1998,7 @@
         "required": [
           "object_key",
           "sha256",
-          "source_kind",
-          "ownership"
+          "source_kind"
         ],
         "title": "SubmitCaptureBody",
         "type": "object"

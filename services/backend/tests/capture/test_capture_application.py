@@ -109,6 +109,48 @@ async def test_submit_creates_capture_and_dispatches_one_durable_job() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source_kind", "expected"),
+    [
+        (CaptureSourceKind.UPLOAD, OwnershipState.OWNED),
+        (CaptureSourceKind.CAMERA, OwnershipState.OWNED),
+    ],
+)
+async def test_submit_defaults_ownership_from_capture_source(
+    source_kind: CaptureSourceKind,
+    expected: OwnershipState,
+) -> None:
+    user_id = uuid4()
+    stored = StoredObject(
+        owner_id=user_id,
+        object_key="originals/u/default-ownership.png",
+        content_type="image/png",
+        byte_size=123,
+        sha256="a" * 64,
+        width=640,
+        height=960,
+    )
+    application = CaptureApplication(
+        captures=MemoryCaptureRepository(),
+        objects=StoredObjectLookup({stored.object_key: stored}),
+        dispatcher=RecordingDispatcher(),
+    )
+
+    submission = await application.submit(
+        SubmitCaptureCommand(
+            user_id=user_id,
+            object_key=stored.object_key,
+            sha256=stored.sha256,
+            source_kind=source_kind,
+            ownership=None,
+            idempotency_key=f"default-{source_kind.value}",
+        )
+    )
+
+    assert submission.capture.ownership is expected
+
+
+@pytest.mark.asyncio
 async def test_repeated_idempotency_key_returns_original_and_redrives_the_job() -> None:
     user_id = uuid4()
     stored = StoredObject(

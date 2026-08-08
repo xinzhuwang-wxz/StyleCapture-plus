@@ -16,8 +16,8 @@ type ItemDetailProps = {
   onSave: (
     itemId: string,
     changes: {
-      ownership: Ownership;
-      corrections: Record<string, string>;
+      ownership?: Ownership;
+      corrections?: Record<string, string>;
     }
   ) => void;
   onDeleteSource: (itemId: string) => void;
@@ -43,19 +43,22 @@ function DetailContent({
   );
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
-  const [description, setDescription] = useState(
-    String(item.attributes.description?.value ?? "")
-  );
+  const description = String(item.attributes.description?.value ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [flatLay, setFlatLay] = useState<ItemPresentation | null>(null);
   const [flatLayError, setFlatLayError] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const onCloseRef = useRef(onClose);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
+  const purchaseSearchQuery =
+    item.purchase_search_query ||
+    String(item.attributes.description?.value ?? "").trim() ||
+    String(item.attributes.subcategory?.value ?? "").trim() ||
+    garmentLabel(String(item.attributes.category?.value ?? "")) ||
+    "同款穿搭单品";
+  const purchaseSearchUrl =
+    item.purchase_search_url ||
+    `https://www.douyin.com/search/${encodeURIComponent(purchaseSearchQuery)}`;
 
   const displayImageNote =
     item.display_image_kind === "derived_garment"
@@ -69,9 +72,12 @@ function DetailContent({
             : "当前展示上传原图；像素图只用于衣橱封面。";
 
   useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
     setOwnership(item.ownership);
     setCategory(String(item.attributes.category?.value ?? ""));
-    setDescription(String(item.attributes.description?.value ?? ""));
     setConfirmingDelete(false);
     setImageFailed(false);
   }, [item]);
@@ -220,7 +226,6 @@ function DetailContent({
           <span>{sourceKindLabel(item.source_kind)}</span>
           <span>{item.status === "ready" ? "已完成理解" : "仍可编辑"}</span>
         </div>
-
         {item.source_kind === "feed" ? (
           item.source_video_ref && item.source_timestamp_ms !== null ? (
             <button
@@ -253,7 +258,14 @@ function DetailContent({
           <select
             value={category}
             aria-label="分类"
-            onChange={(event) => setCategory(event.target.value)}
+            disabled={saving}
+            onChange={(event) => {
+              const nextCategory = event.target.value;
+              setCategory(nextCategory);
+              if (nextCategory.trim()) {
+                onSave(item.id, { corrections: { category: nextCategory.trim() } });
+              }
+            }}
           >
             <option value="">待分类</option>
             {GARMENT_CATEGORY_OPTIONS.map((option) => (
@@ -269,57 +281,53 @@ function DetailContent({
             <small>当前分类：{garmentLabel(category)}</small>
           ) : null}
         </label>
-        <label className="form-field">
-          <span>单品描述</span>
-          <textarea
-            value={description}
-            maxLength={1000}
-            rows={3}
-            placeholder="补充你更准确的描述"
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </label>
-
-        <div className="segmented-control" aria-label="衣服归属">
+        <div className="segmented-control" aria-label="是否已拥有">
           <button
             type="button"
             className={ownership === "owned" ? "is-selected" : ""}
-            onClick={() => setOwnership("owned")}
+            disabled={saving}
+            onClick={() => {
+              setOwnership("owned");
+              onSave(item.id, { ownership: "owned" });
+            }}
           >
             已拥有
           </button>
           <button
             type="button"
             className={ownership === "inspiration" ? "is-selected" : ""}
-            onClick={() => setOwnership("inspiration")}
+            disabled={saving}
+            onClick={() => {
+              setOwnership("inspiration");
+              onSave(item.id, { ownership: "inspiration" });
+            }}
           >
             待拥有
           </button>
         </div>
 
-        <button
-          className="primary-action"
-          type="button"
-          disabled={saving}
-          onClick={() =>
-            onSave(item.id, {
-              ownership,
-              corrections: {
-                ...(category.trim() ? { category: category.trim() } : {}),
-                ...(description.trim() ? { description: description.trim() } : {})
-              }
-            })
-          }
-        >
-          {saving ? "保存中…" : "保存修改"}
-        </button>
-        <button
-          className="secondary-action"
-          type="button"
-          onClick={() => onBuildOutfit(item.id)}
-        >
-          用这件搭一套
-        </button>
+        <div className="item-detail__action-row">
+          <button
+            className="secondary-action"
+            type="button"
+            onClick={() => onBuildOutfit(item.id)}
+          >
+            用这件搭一套
+          </button>
+          <a
+            className="item-detail__shop-button"
+            href={purchaseSearchUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label={`去抖音商城搜索${purchaseSearchQuery}`}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M3.5 4.5h2l1.6 9.1a2 2 0 0 0 2 1.7h7.8a2 2 0 0 0 2-1.6l1.1-5.8H7" />
+              <circle cx="9.5" cy="19" r="1.25" />
+              <circle cx="17.5" cy="19" r="1.25" />
+            </svg>
+          </a>
+        </div>
         {!item.source_available ? (
           <p className="privacy-note">
             原始上传图已删除；标准化单品图、标签和描述仍保留并可继续使用。

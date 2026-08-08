@@ -912,6 +912,10 @@ export interface components {
             pixel_image_status?: components["schemas"]["ItemPresentationStatus"] | null;
             /** Pixel Image Url */
             pixel_image_url?: string | null;
+            /** Purchase Search Query */
+            purchase_search_query: string;
+            /** Purchase Search Url */
+            purchase_search_url: string;
             /** Source Available */
             source_available: boolean;
             /** Source Image Url */
@@ -1456,7 +1460,7 @@ export interface components {
             intent: components["schemas"]["CaptureIntent"];
             /** Object Key */
             object_key: string;
-            ownership: components["schemas"]["OwnershipState"];
+            ownership?: components["schemas"]["OwnershipState"] | null;
             /** Sha256 */
             sha256: string;
             source_kind: components["schemas"]["CaptureSourceKind"];
