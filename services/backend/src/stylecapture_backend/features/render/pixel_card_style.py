@@ -38,9 +38,7 @@ def build_pixel_card_prompt(image_roles: str) -> str:
 
 @lru_cache(maxsize=1)
 def load_pixel_card_style_references() -> tuple[ImagePayload, ...]:
-    root = files("stylecapture_backend.features.render").joinpath(
-        "assets", "pixel-card-references"
-    )
+    root = files("stylecapture_backend.features.render").joinpath("assets", "pixel-card-references")
     references: list[ImagePayload] = []
     for name in _STYLE_REFERENCE_NAMES:
         body = root.joinpath(name).read_bytes()

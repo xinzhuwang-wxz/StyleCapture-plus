@@ -116,11 +116,7 @@ class LiteLLMImageGenerator:
                     "capability_alias": self._alias,
                     "size": size,
                     **({"seed": seed} if seed is not None else {}),
-                    **(
-                        {"guidance_scale": guidance_scale}
-                        if guidance_scale is not None
-                        else {}
-                    ),
+                    **({"guidance_scale": guidance_scale} if guidance_scale is not None else {}),
                 },
             ),
         )
