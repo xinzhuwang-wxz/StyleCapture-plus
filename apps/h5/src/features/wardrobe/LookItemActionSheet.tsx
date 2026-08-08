@@ -34,9 +34,32 @@ export function LookItemActionSheet({
 
   useEffect(() => {
     if (!action) return;
-    previousFocusRef.current =
+    const previousFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeButtonRef.current?.focus();
+    previousFocusRef.current = previousFocus;
+    const scrollPositions: Array<{
+      element: HTMLElement;
+      scrollLeft: number;
+      scrollTop: number;
+    }> = [];
+    let ancestor: HTMLElement | null = previousFocus;
+    while (ancestor) {
+      scrollPositions.push({
+        element: ancestor,
+        scrollLeft: ancestor.scrollLeft,
+        scrollTop: ancestor.scrollTop
+      });
+      ancestor = ancestor.parentElement;
+    }
+    const restoreScrollPositions = () => {
+      scrollPositions.forEach(({ element, scrollLeft, scrollTop }) => {
+        if (!element.isConnected) return;
+        element.scrollLeft = scrollLeft;
+        element.scrollTop = scrollTop;
+      });
+    };
+    closeButtonRef.current?.focus({ preventScroll: true });
+    restoreScrollPositions();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -45,7 +68,10 @@ export function LookItemActionSheet({
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       window.removeEventListener("keydown", closeOnEscape);
-      window.setTimeout(() => previousFocusRef.current?.focus(), 0);
+      window.setTimeout(() => {
+        previousFocusRef.current?.focus({ preventScroll: true });
+        restoreScrollPositions();
+      }, 0);
     };
   }, [action]);
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { wardrobeApi, type Item } from "../src/api/client";
 import { ItemDetail } from "../src/features/wardrobe/ItemDetail";
@@ -159,5 +159,39 @@ describe("Look item action sheet", () => {
       screen.getByRole("button", { name: "检测与已有穿搭的适配度" })
     );
     expect(onCheckCompatibility).toHaveBeenCalledWith(item.id);
+  });
+
+  it("restores focus without scrolling the phone screen", async () => {
+    const phoneScreen = document.createElement("div");
+    const trigger = document.createElement("button");
+    phoneScreen.append(trigger);
+    document.body.append(phoneScreen);
+    phoneScreen.scrollTop = 37;
+    trigger.focus();
+    const triggerFocus = vi.spyOn(trigger, "focus");
+    const action: LookItemAction = {
+      itemId: item.id,
+      label: "连衣裙",
+      imageUrl: item.display_image_url,
+      ownership: "owned",
+      purchaseSearchUrl: item.purchase_search_url
+    };
+    const props = {
+      onClose: vi.fn(),
+      onBuildOutfit: vi.fn(),
+      onCheckCompatibility: vi.fn()
+    };
+    const { rerender } = render(
+      <LookItemActionSheet action={action} {...props} />
+    );
+
+    phoneScreen.scrollTop = 180;
+    rerender(<LookItemActionSheet action={null} {...props} />);
+
+    await waitFor(() => {
+      expect(triggerFocus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(phoneScreen.scrollTop).toBe(37);
+    });
+    phoneScreen.remove();
   });
 });
