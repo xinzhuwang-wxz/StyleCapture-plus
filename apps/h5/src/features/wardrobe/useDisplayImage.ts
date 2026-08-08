@@ -5,7 +5,8 @@ import { wardrobeApi } from "../../api/client";
 export function useDisplayImage(
   itemId: string,
   refreshKey: string,
-  disabled = false
+  disabled = false,
+  kind: "display" | "source" = "display"
 ): string | null {
   const [url, setUrl] = useState<string | null>(null);
 
@@ -16,8 +17,7 @@ export function useDisplayImage(
     }
     let active = true;
     let objectUrl: string | null = null;
-    wardrobeApi
-      .displayImage(itemId)
+    wardrobeApi[kind === "source" ? "sourceImage" : "displayImage"](itemId)
       .then((nextUrl) => {
         const browserUrl = nextUrl.startsWith("blob:")
           ? nextUrl
@@ -32,7 +32,7 @@ export function useDisplayImage(
       active = false;
       if (objectUrl?.startsWith("blob:")) URL.revokeObjectURL(objectUrl);
     };
-  }, [disabled, itemId, refreshKey]);
+  }, [disabled, itemId, kind, refreshKey]);
 
   return url;
 }

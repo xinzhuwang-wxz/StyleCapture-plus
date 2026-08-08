@@ -209,6 +209,10 @@ class OutfitAnalyzer(Protocol):
     ) -> LookAnalysis: ...
 
 
+class ItemPresentationScheduler(Protocol):
+    async def enqueue_for_item(self, *, user_id: UUID, item_id: UUID) -> None: ...
+
+
 class CaptureProcessor:
     _MIN_COMPONENT_CONFIDENCE = 0.5
     _MIN_VISIBLE_FRACTION = 0.5
@@ -228,6 +232,7 @@ class CaptureProcessor:
         looks: LookProcessingRepository | None = None,
         grounder: VisualGroundingPort | None = None,
         outfit_analyzer: OutfitAnalyzer | None = None,
+        item_presentations: ItemPresentationScheduler | None = None,
     ) -> None:
         self._captures = captures
         self._jobs = jobs
@@ -241,6 +246,7 @@ class CaptureProcessor:
         self._looks = looks
         self._grounder = grounder
         self._outfit_analyzer = outfit_analyzer
+        self._item_presentations = item_presentations
 
     async def process(self, capture_id: UUID, job_id: UUID) -> ProcessingOutcome:
         capture = await self._captures.get_capture(capture_id)
@@ -351,12 +357,13 @@ class CaptureProcessor:
             )
             return ProcessingOutcome.partial(error)
 
-        await self._wardrobe.save(
+        item = await self._wardrobe.save(
             item.with_embedding(
                 embedding.vector,
                 model_version=embedding.model_version,
             ).with_status(ItemStatus.READY)
         )
+        await self._enqueue_item_presentation(item)
         await self._jobs.update(job.transition(JobState.READY))
         return ProcessingOutcome.ready()
 
@@ -547,12 +554,13 @@ class CaptureProcessor:
                     )
                 )
                 embedding = await self._embedder.embed(selected_image)
-                await self._wardrobe.save(
+                item = await self._wardrobe.save(
                     item.with_embedding(
                         embedding.vector,
                         model_version=embedding.model_version,
                     ).with_status(ItemStatus.READY)
                 )
+                await self._enqueue_item_presentation(item)
             except ProviderError as error:
                 failures.append(error)
                 await self._wardrobe.save(
@@ -776,6 +784,7 @@ class CaptureProcessor:
                         model_version=embedding.model_version,
                     ).with_status(ItemStatus.READY)
                 )
+                await self._enqueue_item_presentation(item)
                 component = await self._looks.save_component(component.with_item(item.id))
                 ready_components.append(component)
             except ProviderError as error:
@@ -933,6 +942,14 @@ class CaptureProcessor:
             candidate.confidence >= self._MIN_COMPONENT_CONFIDENCE
             and candidate.visible_fraction >= self._MIN_VISIBLE_FRACTION
             and _box_inside_polygon(candidate.box, selection.polygon)
+        )
+
+    async def _enqueue_item_presentation(self, item: WardrobeItem) -> None:
+        if self._item_presentations is None:
+            return
+        await self._item_presentations.enqueue_for_item(
+            user_id=item.user_id,
+            item_id=item.id,
         )
 
     async def _processing_item(

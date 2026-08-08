@@ -7,6 +7,7 @@ import { App } from "../src/app/App";
 import {
   type CaptureAccepted,
   type Item,
+  type ItemPresentation,
   ProductApiError,
   type RenderArtifact,
   wardrobeApi
@@ -60,6 +61,9 @@ vi.mock("../src/api/client", async (importOriginal) => {
       updateItem: vi.fn(),
       deleteSource: vi.fn(),
       displayImage: vi.fn(),
+      sourceImage: vi.fn(),
+      ensureItemFlatLayPresentation: vi.fn(),
+      getItemPresentation: vi.fn(),
       createPixelTrial: vi.fn(),
       getPixelTrial: vi.fn(),
       deletePixelTrial: vi.fn()
@@ -95,6 +99,19 @@ const wardrobeItem: Item = {
     }
   },
   model_metadata: {},
+  created_at: "2026-07-25T00:00:00Z",
+  updated_at: "2026-07-25T00:00:00Z"
+};
+
+const failedFlatLay: ItemPresentation = {
+  id: "66666666-6666-4666-8666-666666666666",
+  item_id: wardrobeItem.id,
+  kind: "flat_lay_item",
+  status: "failed",
+  output_image_url: null,
+  failure_code: "render_provider_unavailable",
+  failure_message: "白底单品图暂时没有生成。可以重试。",
+  retryable: true,
   created_at: "2026-07-25T00:00:00Z",
   updated_at: "2026-07-25T00:00:00Z"
 };
@@ -161,6 +178,8 @@ describe("StyleCapture garment ingest", () => {
       events_url: "/v1/jobs/33333333-3333-4333-8333-333333333333/events"
     });
     api.displayImage.mockResolvedValue("blob:item");
+    api.sourceImage.mockResolvedValue("blob:item-source");
+    api.ensureItemFlatLayPresentation.mockResolvedValue(failedFlatLay);
     api.createPixelTrial.mockResolvedValue({
       id: "77777777-7777-4777-8777-777777777777",
       status: "queued",
@@ -336,6 +355,60 @@ describe("StyleCapture garment ingest", () => {
     expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
     expect(screen.getByText("由衣橱真实单品组成")).toBeInTheDocument();
     expect(screen.queryByText("原始画面已删除")).not.toBeInTheDocument();
+  });
+
+  it("stacks an Item opened from a Look above the Look and returns to it", async () => {
+    const user = userEvent.setup();
+    const lookId = "11111111-1111-4111-8111-111111111111";
+    window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    api.getLook.mockResolvedValue({
+      look: {
+        id: lookId,
+        capture_id: wardrobeItem.capture_id,
+        status: "ready",
+        source: "user_created",
+        display_image_url: `/v1/looks/${lookId}/image`,
+        source_image_url: `/v1/looks/${lookId}/source`,
+        display_ready: true,
+        source_available: true,
+        fixed_presentation: false,
+        created_at: "2026-07-25T00:00:00Z",
+        updated_at: "2026-07-25T00:01:00Z"
+      },
+      components: [
+        {
+          component_key: "top",
+          status: "ready",
+          item_id: wardrobeItem.id,
+          item_image_url: wardrobeItem.display_image_url,
+          role: "tops",
+          layer: "base",
+          display_order: 0,
+          confidence: 0.95
+        }
+      ],
+      analysis: null,
+      preferences: [],
+      source_video_ref: null,
+      source_timestamp_ms: null
+    });
+
+    renderApp();
+
+    const lookDialog = await screen.findByRole("dialog", { name: "穿搭详情" });
+    await user.click(
+      await screen.findByRole("button", { name: "打开单品：上装" })
+    );
+    const itemDialog = await screen.findByRole("dialog", { name: "单品详情" });
+    expect(itemDialog.closest(".detail-layer")).toHaveClass("detail-layer--item");
+    expect(lookDialog).toBeVisible();
+
+    await user.click(within(itemDialog).getByRole("button", { name: "返回衣橱" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "单品详情" })).not.toBeInTheDocument()
+    );
+    expect(lookDialog).toBeVisible();
   });
 
   it("requests a real collage when opening a user-uploaded outfit with extracted items", async () => {
@@ -770,9 +843,35 @@ describe("StyleCapture garment ingest", () => {
     expect(
       await screen.findByRole("img", { name: "米白色针织上衣" })
     ).toHaveAttribute("data-image-kind", "wardrobe-display");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "当前展示已标准化的单品实物图；像素图只用于衣橱封面。"
+    expect(
+      screen.getByText("当前展示已标准化的单品实物图；像素图只用于衣橱封面。")
+    ).toBeVisible();
+  });
+
+  it("blurs the original and shows generation progress while the item hero is queued", async () => {
+    api.listItems.mockResolvedValue([wardrobeItem]);
+    api.ensureItemFlatLayPresentation.mockResolvedValue({
+      ...failedFlatLay,
+      status: "queued",
+      failure_code: null,
+      failure_message: null,
+      retryable: false
+    });
+    renderApp();
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "米白色针织上衣 可搭配 上装 我的衣服"
+      }, { timeout: 3_000 })
     );
+
+    expect(await screen.findByText("正在生成单品图")).toBeVisible();
+    const source = await screen.findByRole("img", { name: "米白色针织上衣" });
+    await waitFor(() =>
+      expect(source).toHaveAttribute("data-image-kind", "wardrobe-source-fallback")
+    );
+    expect(api.sourceImage).toHaveBeenCalledWith(wardrobeItem.id);
+    expect(source.closest(".detail-image")).toHaveAttribute("data-generating", "true");
   });
 
   it("keeps wardrobe load errors distinct from an empty wardrobe and allows retry", async () => {
@@ -841,9 +940,9 @@ describe("StyleCapture garment ingest", () => {
     expect(
       await screen.findByRole("img", { name: "米白色针织上衣" })
     ).toHaveAttribute("data-image-kind", "wardrobe-source-fallback");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "照片里识别到多件衣服。为避免抠错，当前保留原图"
-    );
+    expect(
+      screen.getByText(/照片里识别到多件衣服。为避免抠错，当前保留原图/)
+    ).toBeVisible();
   });
 
   it("keeps profile pixel-trial uploads visible when status polling fails", async () => {

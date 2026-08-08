@@ -75,8 +75,8 @@ class OneItemWardrobe:
 
 
 class MemoryObjects:
-    def __init__(self, source: ImagePayload) -> None:
-        self.images = {source.object_key: source}
+    def __init__(self, *sources: ImagePayload) -> None:
+        self.images = {source.object_key: source for source in sources}
 
     def read_image(self, object_key: str) -> ImagePayload:
         return self.images[object_key]
@@ -123,6 +123,50 @@ class SuccessfulGenerator:
                 parameters={"size": size},
             ),
         )
+
+
+class FlatLayGenerator:
+    def __init__(self) -> None:
+        self.images: tuple[ImagePayload, ...] = ()
+        self.size: str | None = None
+
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        images: Sequence[ImagePayload],
+        size: str = "1024x1024",
+    ) -> GeneratedImage:
+        assert "严格竖版 3:4" in prompt
+        assert "不要把其他单品的肩带、腰带、系带" in prompt
+        self.images = tuple(images)
+        self.size = size
+        rendered = Image.new("RGB", (1728, 2304), (253, 253, 253))
+        rendered.paste((80, 160, 200), (420, 480, 1308, 1824))
+        buffer = BytesIO()
+        rendered.save(buffer, format="PNG")
+        body = buffer.getvalue()
+        return GeneratedImage(
+            body=body,
+            content_type="image/png",
+            sha256=sha256(body).hexdigest(),
+            provider_trace=RenderProviderTrace(
+                provider="litellm",
+                model="image_generation",
+                parameters={"size": size},
+            ),
+        )
+
+
+class FailIfCalledGenerator:
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        images: Sequence[ImagePayload],
+        size: str = "1024x1024",
+    ) -> GeneratedImage:
+        raise AssertionError("refined alpha cutouts must not call the image provider")
 
 
 @pytest.mark.asyncio
@@ -230,23 +274,24 @@ async def test_item_pixel_converts_heic_source_before_render_provider() -> None:
 
 
 @pytest.mark.asyncio
-async def test_real_item_flat_lay_is_white_3x4_and_does_not_use_the_image_provider() -> None:
+async def test_flat_lay_uses_original_source_when_display_is_not_a_refined_cutout() -> None:
     user_id = uuid4()
     now = datetime.now(UTC)
-    source = _png_payload("derived/items/display/cardigan.png", (80, 160, 200, 255))
+    source = _png_payload("originals/upload/outfit.png", (120, 90, 60, 255))
+    display = _png_payload("derived/items/display/cardigan.png", (80, 160, 200, 255))
     item = WardrobeItem(
         id=uuid4(),
         user_id=user_id,
         capture_id=uuid4(),
         selection_key="cardigan",
-        source_object_key="originals/upload/outfit.png",
-        display_object_key=source.object_key,
+        source_object_key=source.object_key,
+        display_object_key=display.object_key,
         source_available=True,
         source_kind=CaptureSourceKind.UPLOAD,
         ownership=OwnershipState.OWNED,
         status=ItemStatus.READY,
         attributes=ItemAttributes(),
-        model_metadata={},
+        model_metadata={"segmentation": {"representation": "coarse_polygon"}},
         embedding=None,
         created_at=now,
         updated_at=now,
@@ -260,27 +305,95 @@ async def test_real_item_flat_lay_is_white_3x4_and_does_not_use_the_image_provid
     )
     repository = MemoryPresentations(asset)
     wardrobe = OneItemWardrobe(item)
-    generator = SuccessfulGenerator()
-    objects = MemoryObjects(source)
+    generator = FlatLayGenerator()
+    objects = MemoryObjects(source, display)
     processor = ItemPresentationProcessor(
         presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
         wardrobe=wardrobe,
         objects=objects,
         generator=generator,
-        flat_lays=PillowLookCollageRenderer(),
+        flat_lays=PillowLookCollageRenderer(
+            canvas_width=1728,
+            canvas_height=2304,
+            padding=144,
+        ),
     )
 
     await processor.process(user_id=user_id, asset_id=asset.id)
 
     stored = repository.assets[asset.id]
     assert stored.status is ItemPresentationStatus.SUCCEEDED
-    assert generator.images == ()
+    assert generator.images[0].object_key == source.object_key
+    assert generator.size == "1728x2304"
     assert stored.output is not None
     assert stored.output.object_key.startswith(f"derived/items/flat-lay/{user_id}/{item.id}/")
     output = objects.images[stored.output.object_key]
     with Image.open(BytesIO(output.body)) as rendered:
-        assert rendered.size == (768, 1024)
-        assert rendered.getpixel((0, 0)) == (255, 255, 255, 255)
+        assert rendered.size == (1728, 2304)
+        assert rendered.getpixel((0, 0)) == (255, 255, 255)
+
+
+@pytest.mark.asyncio
+async def test_flat_lay_uses_pillow_only_for_a_refined_transparent_cutout() -> None:
+    user_id = uuid4()
+    now = datetime.now(UTC)
+    cutout_image = Image.new("RGBA", (240, 360), (0, 0, 0, 0))
+    cutout_image.paste((80, 160, 200, 255), (40, 30, 200, 330))
+    buffer = BytesIO()
+    cutout_image.save(buffer, format="PNG")
+    cutout_body = buffer.getvalue()
+    cutout = ImagePayload(
+        object_key="derived/items/display/cardigan.png",
+        content_type="image/png",
+        body=cutout_body,
+        sha256=sha256(cutout_body).hexdigest(),
+    )
+    item = WardrobeItem(
+        id=uuid4(),
+        user_id=user_id,
+        capture_id=uuid4(),
+        selection_key="cardigan",
+        source_object_key="originals/feed/deleted-outfit.png",
+        display_object_key=cutout.object_key,
+        source_available=False,
+        source_kind=CaptureSourceKind.FEED,
+        ownership=OwnershipState.INSPIRATION,
+        status=ItemStatus.READY,
+        attributes=ItemAttributes(),
+        model_metadata={"segmentation": {"representation": "refined_mask"}},
+        embedding=None,
+        created_at=now,
+        updated_at=now,
+    )
+    asset = ItemPresentationAsset.queued(
+        user_id=user_id,
+        item_id=item.id,
+        kind=ItemPresentationKind.FLAT_LAY_ITEM,
+        input_signature=flat_lay_item_signature(item),
+        request_key="item-flat-lay-refined-mask",
+    )
+    repository = MemoryPresentations(asset)
+    wardrobe = OneItemWardrobe(item)
+    objects = MemoryObjects(cutout)
+    processor = ItemPresentationProcessor(
+        presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
+        wardrobe=wardrobe,
+        objects=objects,
+        generator=FailIfCalledGenerator(),
+        flat_lays=PillowLookCollageRenderer(
+            canvas_width=1728,
+            canvas_height=2304,
+            padding=144,
+        ),
+    )
+
+    await processor.process(user_id=user_id, asset_id=asset.id)
+
+    stored = repository.assets[asset.id]
+    assert stored.status is ItemPresentationStatus.SUCCEEDED
+    assert stored.provider_trace is not None
+    assert stored.provider_trace.provider == "pillow"
+    assert stored.provider_trace.parameters["source"] == "refined_mask"
 
 
 def _png_payload(object_key: str, color: tuple[int, int, int, int]) -> ImagePayload:

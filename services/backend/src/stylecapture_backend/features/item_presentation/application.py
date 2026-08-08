@@ -27,9 +27,9 @@ PIXEL_ITEM_SIGNATURE_VERSION = "item-pixel-v2"
 PIXEL_ITEM_PROMPT_VERSION = "stylecapture-item-pixel-2026-07-26"
 PIXEL_ITEM_CAPABILITY_ID = "item.pixel_presentation"
 PIXEL_ITEM_SCHEMA_VERSION = "generated-image-v1"
-FLAT_LAY_ITEM_SIGNATURE_VERSION = "item-flat-lay-v1"
-FLAT_LAY_ITEM_CAPABILITY_ID = "item.real_flat_lay"
-FLAT_LAY_ITEM_SCHEMA_VERSION = "pillow-white-3x4-v1"
+FLAT_LAY_ITEM_SIGNATURE_VERSION = "item-flat-lay-v2"
+FLAT_LAY_ITEM_CAPABILITY_ID = "item.generated_flat_lay"
+FLAT_LAY_ITEM_SCHEMA_VERSION = "seedream-white-3x4-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,11 +239,29 @@ def pixel_item_signature(item: WardrobeItem) -> RenderInputSignature:
 
 
 def flat_lay_item_signature(item: WardrobeItem) -> RenderInputSignature:
+    relevant_attributes = {
+        name: {
+            "value": field.value,
+            "provenance": field.provenance.value,
+        }
+        for name, field in sorted(item.attributes.fields.items())
+        if name
+        in {
+            "description",
+            "category",
+            "subcategory",
+            "colors",
+            "materials",
+            "pattern",
+            "silhouette",
+            "details",
+        }
+    }
     payload = {
         "item_id": str(item.id),
-        "display_object_key": item.display_object_key,
         "source_object_key": item.source_object_key,
         "updated_at": item.updated_at.isoformat(),
+        "attributes": relevant_attributes,
         "capability_id": FLAT_LAY_ITEM_CAPABILITY_ID,
         "schema_version": FLAT_LAY_ITEM_SCHEMA_VERSION,
     }

@@ -1,30 +1,33 @@
 ---
 name: real-photo-flat-lay-collage
-description: 通过 StyleCapture Product API，将已抓取并保存为 Look 的真实人物穿搭照或服装照片转为纯白 3:4 的真实单品平铺拼贴图。适用于需要从已处理的真实照片生成可查看、可重试且受会话保护的服饰拆分展示图时。
+description: 通过 StyleCapture Product API，将新抓取的视频截图或上传穿搭图中的每个真实 Item 直接生成纯白 3:4 独立单品图。适用于新穿搭拆分完成后创建、轮询或重试单品详情页大图；不依赖整套拼贴图，也不从拼贴图裁剪单品。
 ---
 
-# 真实照片平铺拼贴
+# 真实穿搭独立单品图
 
-本 Skill 是 StyleCapture `collage` RenderArtifact 与 `flat_lay_item` ItemPresentation 的薄客户端。它不直接处理本地图片、
-不维护服饰识别或抠图规则，也不调用模型、Provider 或 Prompt。所有真实图像与单品
-事实均以 Product API 的 Capture、Item 和 Look 为唯一真源。
+把 Product API 作为 Capture、Look、Item、任务状态和私有图片权限的唯一真源。不要在 Skill 客户端复制识别、抠图、模型选择或存储逻辑。
 
 ## 工作流
 
-1. 先通过正常的 Feed/上传抓取流程保存一张用户有权使用的真实人物穿搭照或衣物照，等待它形成一个至少含有已就绪单品的 `Look`。
-2. 用此 Skill 向 `POST /v1/looks/{look_id}/renders` 请求 `{ "kind": "collage" }`，并始终提供新的 `Idempotency-Key`。
-3. 读取 `GET /v1/looks/{look_id}` 中的每个 `components[].item_id`；对每个不重复 Item 请求 `POST /v1/items/{item_id}/presentations/flat-lay`，并轮询 `GET /v1/item-presentations/{asset_id}` 至 `succeeded` 或 `failed`。
-4. 将整套结果称为“真实单品拼贴”，将每个 `flat_lay_item` 称为“真实单品白底图”。二者都不是新的服装事实或 AI 试穿；单品来源、权限、缓存、任务状态、失败重试和私有图片访问全部继续由产品后端管理。
+1. 通过 Feed 截图或上传流程保存一张用户有权使用的穿搭图，等待后端形成含已就绪 Item 的 `Look`。
+2. 读取 `GET /v1/looks/{look_id}`，收集不重复的 `components[].item_id`。
+3. 为每个 Item 请求 `POST /v1/items/{item_id}/presentations/flat-lay`；需要结果时轮询 `GET /v1/item-presentations/{asset_id}` 至 `succeeded` 或 `failed`。
+4. 将成功的 `output_image_url` 用作单品详情页大图。生成中继续显示虚化原图和“正在生成单品图”；失败时保留原图，不得显示空白详情页。
 
-## 输出约束
+不要先请求整套 `collage`，也不要从整套拼贴图二次裁剪单品。
 
-`collage` 与每个 `flat_lay_item` 都必须使用同一批已就绪的真实 Item 展示资产生成确定性的 PNG：竖版 **3:4**、纯白背景、完整单品、明确留白和一致的轻微接触阴影。`flat_lay_item` 必须只含所属的一件单品（鞋可成对、明确的配饰组可成组），不得从整张拼贴图二次裁剪；它不得保留人物、皮肤、场景、镜面、手机、字幕或水印；不得生成新的单品、品牌文字或像素画。
+## 后端生成规则
 
-若上游没有把真实照片成功保存为可用 Look，或 Look 没有可用的 Item 展示资产，直接返回 Product API 的错误或失败状态；不得用固定图片、浏览器拼接或猜测出的服装补位。
+- 只有带 `refined_mask` 元数据且具有有效透明通道的精细抠图，才允许用 Pillow 放入 1728×2304 白色画布。
+- 矩形截图、粗多边形、无透明通道、抠图缺失或不合格时，直接使用原始穿搭图和 Item 属性调用配置的图像生成能力。
+- 两条路径都必须通过相同质量门槛：精确 3:4、1728×2304、边缘近白比例至少 90%、纯白区域至少 50%、四角为 `#FFFFFF`。
+- 单图只包含所属单品；鞋可成对。禁止人物、皮肤、场景、手机、其他衣物、文字、品牌、水印、灰色矩形底、裁切和拉伸。
+- 重叠位置要先判断肩带、腰头、系带、纽扣和装饰分别属于哪件衣物，不得把其他 Item 的部件转移到目标单品；遮挡处只允许按目标单品可见材质做保守连续补全。
+- 质量门槛失败时进入可重试失败状态，不得把不合格图片发布到详情页。
+
+新 Capture 完成 Item 识别后自动排队。不要批量回填历史 Item；旧 Item 只有在产品明确请求其 `flat-lay` presentation 时才按现有 API 处理。
 
 ## 使用
-
-先启动核心服务，然后执行：
 
 ```bash
 STYLECAPTURE_API_URL=http://127.0.0.1:8000 \
@@ -35,18 +38,15 @@ node scripts/render.js --look-id "<look UUID>" --wait
 
 - `--api-base-url`：覆盖 `STYLECAPTURE_API_URL`。
 - `--session-cookie`：复用当前私人会话；未提供时创建产品会话。
-- `--wait`：等待异步渲染完成并输出最终 Artifact。
+- `--wait`：等待每个 Item 的异步任务完成。
 - `--timeout-ms`：等待上限，默认 90 秒，最大 180 秒。
 
-## 与产品流程的关系
-
 ```text
-真实图片抓取 → Capture → 单品识别/展示资产 → Look（单品就绪）
-→ 本 Skill 请求 collage → RenderArtifact 队列 → Pillow 纯白 3:4 拼贴 → H5 Look 详情页
-→ 本 Skill 为每个 Item 请求 flat_lay_item → ItemPresentation 队列 → Pillow 纯白 3:4 单图 → H5 单品详情页
+视频截图/上传图 → Capture → Look 与 Item 识别
+→ 每个 Item 直接创建 flat_lay_item
+→ 精细透明抠图走 Pillow，否则走图像生成
+→ 统一质量门槛 → 单品详情页 3:4 白底大图
 ```
-
-Skill 仅覆盖箭头中“请求 collage 并读取结果”的部分。H5、Worker 和外部调用方复用同一套版本化 API，禁止将本 Skill 中的客户端逻辑变成第二套业务流程。
 
 运行验证：
 

@@ -26,6 +26,12 @@ from stylecapture_backend.features.item_presentation.application import (
 from stylecapture_backend.features.item_presentation.infrastructure.repository import (
     SqlAlchemyItemPresentationRepository,
 )
+from stylecapture_backend.features.item_presentation.infrastructure.scheduler import (
+    DefaultItemFlatLayScheduler,
+)
+from stylecapture_backend.features.item_presentation.infrastructure.tasks import (
+    CeleryItemPresentationDispatcher,
+)
 from stylecapture_backend.features.item_presentation.interfaces.worker import (
     register_item_presentation_task,
 )
@@ -108,6 +114,15 @@ elif settings.embedding_mode == "fashion_siglip":
     embedder = FashionSiglipEmbedder(device=settings.embedding_device)
 else:
     embedder = DisabledImageEmbedder()
+celery = build_celery(settings.redis_url.get_secret_value())
+item_presentation_application = ItemPresentationApplication(
+    assets=item_presentation_repository,
+    wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
+)
+item_presentation_dispatcher = CeleryItemPresentationDispatcher(
+    celery,
+    queue=settings.render_queue,
+)
 processor = CaptureProcessor(
     captures=capture_repository,
     jobs=capture_repository,
@@ -121,8 +136,11 @@ processor = CaptureProcessor(
     looks=look_repository,
     grounder=grounder,
     outfit_analyzer=outfit_analyzer,
+    item_presentations=DefaultItemFlatLayScheduler(
+        presentations=item_presentation_application,
+        dispatcher=item_presentation_dispatcher,
+    ),
 )
-celery = build_celery(settings.redis_url.get_secret_value())
 capture_task = register_capture_task(
     celery,
     processor,
@@ -173,10 +191,7 @@ pixel_trial_task = register_pixel_trial_task(
     max_retries=settings.worker_max_retries,
 )
 item_presentation_processor = ItemPresentationProcessor(
-    presentations=ItemPresentationApplication(
-        assets=item_presentation_repository,
-        wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
-    ),
+    presentations=item_presentation_application,
     wardrobe=WardrobeApplication(wardrobe=wardrobe_repository, sources=object_store),
     objects=object_store,
     generator=LiteLLMImageGenerator(
@@ -186,7 +201,11 @@ item_presentation_processor = ItemPresentationProcessor(
         timeout_seconds=settings.render_request_timeout_seconds,
         download_max_bytes=settings.render_download_max_bytes,
     ),
-    flat_lays=PillowLookCollageRenderer(),
+    flat_lays=PillowLookCollageRenderer(
+        canvas_width=1728,
+        canvas_height=2304,
+        padding=144,
+    ),
 )
 item_presentation_task = register_item_presentation_task(
     celery,

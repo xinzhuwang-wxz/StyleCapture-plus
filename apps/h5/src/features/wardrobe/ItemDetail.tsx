@@ -35,6 +35,12 @@ function DetailContent({
   onReturnToFeed
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
   const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
+  const sourceImageUrl = useDisplayImage(
+    item.id,
+    `${item.status}:${item.updated_at}:source`,
+    !item.source_available,
+    "source"
+  );
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const [description, setDescription] = useState(
@@ -71,12 +77,6 @@ function DetailContent({
   }, [item]);
 
   useEffect(() => {
-    if (imageUrl) {
-      setImageFailed(false);
-    }
-  }, [imageUrl]);
-
-  useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
     async function loadFlatLay() {
@@ -104,7 +104,20 @@ function DetailContent({
   }, [item.id, item.updated_at]);
 
   const flatLayReady = flatLay?.status === "succeeded" && Boolean(flatLay.output_image_url);
-  const heroImageUrl = flatLayReady ? flatLay.output_image_url : imageUrl;
+  const flatLayGenerating =
+    flatLayError === null &&
+    (flatLay === null || flatLay.status === "queued" || flatLay.status === "running");
+  const heroImageUrl = flatLayReady
+    ? flatLay.output_image_url
+    : flatLayGenerating
+      ? sourceImageUrl ?? imageUrl
+      : imageUrl;
+
+  useEffect(() => {
+    if (heroImageUrl) {
+      setImageFailed(false);
+    }
+  }, [heroImageUrl]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
@@ -149,16 +162,24 @@ function DetailContent({
         <span className="detail-topbar__spacer" />
       </div>
 
-      <div className="detail-image" data-flat-lay={flatLayReady ? "true" : undefined}>
+      <div
+        className="detail-image"
+        data-flat-lay={flatLayReady ? "true" : undefined}
+        data-generating={flatLayGenerating ? "true" : undefined}
+      >
         {heroImageUrl && !imageFailed ? (
           <img
             src={heroImageUrl}
             alt={flatLayReady ? `${description || "衣橱单品"}的白底平铺图` : description || "衣橱单品原图"}
             onError={() => setImageFailed(true)}
             data-image-kind={
-              item.display_image_kind === "derived_garment"
-                ? "wardrobe-display"
-                : "wardrobe-source-fallback"
+              flatLayReady
+                ? "generated-flat-lay"
+                : flatLayGenerating && sourceImageUrl
+                  ? "wardrobe-source-fallback"
+                  : item.display_image_kind === "derived_garment"
+                  ? "wardrobe-display"
+                  : "wardrobe-source-fallback"
             }
           />
         ) : (
@@ -169,20 +190,30 @@ function DetailContent({
             </small>
           </div>
         )}
+        {flatLayGenerating ? (
+          <div className="item-flat-lay-loading" role="status" aria-live="polite">
+            <span className="item-flat-lay-spinner" aria-hidden="true" />
+            <strong>正在生成单品图</strong>
+            <small>完成后会自动替换当前原图</small>
+          </div>
+        ) : null}
       </div>
 
       <div className="detail-content">
         <p className="flat-lay-status" role="status">
           {flatLayReady
             ? "真实单品白底图 · 3:4"
-            : flatLay?.status === "queued" || flatLay?.status === "running"
-              ? "正在从已识别的真实单品生成白底图…"
+            : flatLayGenerating
+              ? "正在生成单品图…"
               : flatLayError ?? "当前展示识别图；白底单品图暂不可用"}
         </p>
-        {flatLayReady && imageUrl ? (
+        {flatLayReady && (sourceImageUrl ?? imageUrl) ? (
           <details className="flat-lay-source">
             <summary>查看识别来源图</summary>
-            <img src={imageUrl} alt={`${description || "衣橱单品"}的识别来源图`} />
+            <img
+              src={sourceImageUrl ?? imageUrl ?? undefined}
+              alt={`${description || "衣橱单品"}的识别来源图`}
+            />
           </details>
         ) : null}
         <div className="detail-meta">
@@ -325,7 +356,7 @@ export function ItemDetail(props: ItemDetailProps) {
   return (
     <AnimatePresence>
       {props.item ? (
-        <div className="detail-layer">
+        <div className="detail-layer detail-layer--item">
           <DetailContent {...props} item={props.item} />
         </div>
       ) : null}

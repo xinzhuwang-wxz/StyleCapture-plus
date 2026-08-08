@@ -694,6 +694,11 @@ async function displayImage(itemId: string): Promise<string> {
   return `/v1/items/${encodeURIComponent(itemId)}/image`;
 }
 
+async function sourceImage(itemId: string): Promise<string> {
+  await ensureSession();
+  return `/v1/items/${encodeURIComponent(itemId)}/source`;
+}
+
 async function planOutfits(input: {
   scene: string;
   style?: string;
@@ -906,6 +911,7 @@ export const wardrobeApi = {
   updateItem,
   deleteSource,
   displayImage,
+  sourceImage,
   planOutfits,
   planOutfitsProgressively,
   replaceOutfitSlot,
