@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.pixel_trial.domain import PixelTrial
 
 PIXEL_TRIAL_TASK_NAME = "stylecapture.pixel_trial.process"
@@ -18,6 +19,14 @@ class PixelTrialIdempotencyConflict(ValueError):
 
 class PixelTrialPersistenceUnavailable(RuntimeError):
     """The pixel trial store is temporarily unavailable for a safe retry."""
+
+
+class PixelSpriteExtractionError(ValueError):
+    """A generated card did not contain a safe extractable character sprite."""
+
+
+class PixelSpriteExtractor(Protocol):
+    def extract(self, image: ImagePayload) -> ImagePayload: ...
 
 
 class PixelTrialRepository(Protocol):

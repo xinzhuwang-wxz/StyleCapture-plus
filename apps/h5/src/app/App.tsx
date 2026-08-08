@@ -22,6 +22,10 @@ import {
 import { PhoneFrame } from "../components/PhoneFrame";
 import type { CommunityAvatarSource } from "../features/community/CommunityScreen";
 import { FeedScreen } from "../features/feed/FeedScreen";
+import {
+  readPixelTrialId,
+  subscribeToPixelTrialId
+} from "../features/profile/pixelTrialStorage";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import {
   createBrowserImagePreview,
@@ -384,6 +388,40 @@ export function App() {
       }),
     [looks, pixelCovers]
   );
+  const [profilePixelTrialId, setProfilePixelTrialId] = useState(readPixelTrialId);
+  useEffect(
+    () =>
+      subscribeToPixelTrialId(() => {
+        setProfilePixelTrialId(readPixelTrialId());
+      }),
+    []
+  );
+  const profilePixelTrialQuery = useQuery({
+    queryKey: ["pixel-trial", profilePixelTrialId],
+    queryFn: () => wardrobeApi.getPixelTrial(profilePixelTrialId!),
+    enabled: profilePixelTrialId !== null && destination === "world",
+    refetchIntervalInBackground: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "queued" || status === "running" ? 1_500 : false;
+    }
+  });
+  const communityAvatarSources = useMemo<CommunityAvatarSource[]>(() => {
+    const trial = profilePixelTrialQuery.data;
+    if (trial?.status !== "succeeded" || !trial.sprite_image_url) {
+      return communityLooks;
+    }
+    return [
+      {
+        assetUrl: `${trial.sprite_image_url}?v=${encodeURIComponent(trial.updated_at)}`,
+        label: "我的数字小人",
+        kind: "pixel-trial-sprite",
+        needsBackdropRemoval: false,
+        tags: ["我的形象", "透明像素小人"]
+      },
+      ...communityLooks
+    ];
+  }, [communityLooks, profilePixelTrialQuery.data]);
   const lookQuery = useQuery({
     queryKey: ["wardrobe-look", selectedLookId],
     queryFn: () => wardrobeApi.getLook(selectedLookId!),
@@ -930,7 +968,7 @@ export function App() {
             }
           >
             <CommunityScreen
-              avatarSources={communityLooks}
+              avatarSources={communityAvatarSources}
               onExit={() => setDestination("wardrobe")}
             />
           </Suspense>

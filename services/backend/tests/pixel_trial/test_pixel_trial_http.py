@@ -15,6 +15,7 @@ from stylecapture_backend.features.capture.application import (
     CaptureError,
     JobRetryApplication,
 )
+from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.infrastructure.object_store import LocalObjectStore
 from stylecapture_backend.features.capture.ports import (
     JobRepository,
@@ -24,6 +25,7 @@ from stylecapture_backend.features.pixel_trial.application import PixelTrialAppl
 from stylecapture_backend.features.pixel_trial.domain import PixelTrial
 from stylecapture_backend.features.pixel_trial.interfaces.http import PixelTrialHttpServices
 from stylecapture_backend.features.pixel_trial.ports import PixelTrialIdempotencyConflict
+from stylecapture_backend.features.render.domain import RenderOutput, RenderProviderTrace
 from stylecapture_backend.features.wardrobe.application import (
     WardrobeApplication,
     WardrobeRepository,
@@ -165,6 +167,7 @@ async def test_pixel_trial_http_creates_private_queued_task(tmp_path: Path) -> N
         assert payload["status"] == "queued"
         assert payload["subject_attached"] is True
         assert payload["output_image_url"] is None
+        assert payload["sprite_image_url"] is None
         assert "provider" not in payload
         assert "model" not in payload
         assert dispatcher.calls == [(user_id, UUID(payload["id"]))]
@@ -172,6 +175,10 @@ async def test_pixel_trial_http_creates_private_queued_task(tmp_path: Path) -> N
         not_ready = await client.get(f"/v1/pixel-trials/{payload['id']}/image")
         assert not_ready.status_code == 404
         assert not_ready.json()["error"]["code"] == "pixel_trial_not_found"
+
+        sprite_not_ready = await client.get(f"/v1/pixel-trials/{payload['id']}/sprite")
+        assert sprite_not_ready.status_code == 404
+        assert sprite_not_ready.json()["error"]["code"] == "pixel_trial_not_found"
 
         with pytest.raises(CaptureError) as attached_error:
             objects.discard_unattached_upload(object_key, user_id)
@@ -181,6 +188,91 @@ async def test_pixel_trial_http_creates_private_queued_task(tmp_path: Path) -> N
         assert deleted.status_code == 204
         with pytest.raises(KeyError):
             objects.describe(object_key)
+
+
+@pytest.mark.asyncio
+async def test_pixel_trial_http_serves_and_deletes_private_transparent_sprite(
+    tmp_path: Path,
+) -> None:
+    repository = MemoryPixelTrials()
+    trials = PixelTrialApplication(trials=repository)
+    objects = LocalObjectStore(
+        root=tmp_path / "uploads",
+        signing_secret="test-http-signing-secret-with-enough-entropy",
+    )
+    app = create_app(
+        BackendServices(
+            capture=cast(CaptureApplication, None),
+            jobs=cast(JobRepository, None),
+            objects=objects,
+            retries=cast(JobRetryApplication, None),
+            wardrobe=WardrobeApplication(
+                wardrobe=cast(WardrobeRepository, None),
+                sources=objects,
+            ),
+            pixel_trials=PixelTrialHttpServices(
+                trials=trials,
+                objects=objects,
+            ),
+        ),
+        sse_poll_interval=0,
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        user_id = await start_session(client)
+        subject_key = store_private_image(objects, user_id=user_id, body=png_bytes())
+        created = await client.post(
+            "/v1/pixel-trials",
+            headers={"Idempotency-Key": "pixel-try-sprite"},
+            json={"subject_object_key": subject_key},
+        )
+        trial_id = UUID(created.json()["id"])
+        card = _store_derived_png(
+            objects,
+            user_id=user_id,
+            prefix="derived/test/card",
+            body=png_bytes((245, 230, 255)),
+        )
+        sprite = _store_derived_png(
+            objects,
+            user_id=user_id,
+            prefix="derived/test/sprite",
+            body=png_bytes((120, 72, 220)),
+        )
+        await trials.mark_running(user_id=user_id, trial_id=trial_id)
+        await trials.mark_succeeded(
+            user_id=user_id,
+            trial_id=trial_id,
+            output=RenderOutput(
+                object_key=card.object_key,
+                content_hash=card.sha256,
+                content_type=card.content_type,
+            ),
+            sprite_output=RenderOutput(
+                object_key=sprite.object_key,
+                content_hash=sprite.sha256,
+                content_type=sprite.content_type,
+            ),
+            provider_trace=RenderProviderTrace(
+                provider="litellm",
+                model="image_generation",
+                parameters={},
+            ),
+        )
+
+        completed = await client.get(f"/v1/pixel-trials/{trial_id}")
+        assert completed.json()["output_image_url"].endswith(f"/{trial_id}/image")
+        assert completed.json()["sprite_image_url"].endswith(f"/{trial_id}/sprite")
+        downloaded = await client.get(f"/v1/pixel-trials/{trial_id}/sprite")
+        assert downloaded.status_code == 200
+        assert downloaded.headers["content-type"] == "image/png"
+        assert downloaded.content == sprite.body
+
+        deleted = await client.delete(f"/v1/pixel-trials/{trial_id}")
+        assert deleted.status_code == 204
+        for object_key in (subject_key, card.object_key, sprite.object_key):
+            with pytest.raises(KeyError):
+                objects.describe(object_key)
 
 
 @pytest.mark.asyncio
@@ -223,3 +315,22 @@ async def test_pixel_trial_rejects_other_users_subject_photo(tmp_path: Path) -> 
         )
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "pixel_trial_not_found"
+
+
+def _store_derived_png(
+    objects: LocalObjectStore,
+    *,
+    user_id: UUID,
+    prefix: str,
+    body: bytes,
+) -> ImagePayload:
+    return objects.write_derived_image(
+        ImagePayload(
+            object_key=f"{prefix}/input.png",
+            content_type="image/png",
+            body=body,
+            sha256=sha256(body).hexdigest(),
+        ),
+        owner_id=user_id,
+        prefix=prefix,
+    )

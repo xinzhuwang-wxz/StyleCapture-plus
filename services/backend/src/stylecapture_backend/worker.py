@@ -39,6 +39,9 @@ from stylecapture_backend.features.pixel_trial.application import PixelTrialAppl
 from stylecapture_backend.features.pixel_trial.infrastructure.repository import (
     SqlAlchemyPixelTrialRepository,
 )
+from stylecapture_backend.features.pixel_trial.infrastructure.sprite_cutout import (
+    PillowPixelSpriteExtractor,
+)
 from stylecapture_backend.features.pixel_trial.interfaces.worker import (
     register_pixel_trial_task,
 )
@@ -166,6 +169,7 @@ pixel_trial_processor = PixelTrialProcessor(
         timeout_seconds=settings.render_request_timeout_seconds,
         download_max_bytes=settings.render_download_max_bytes,
     ),
+    sprite_extractor=PillowPixelSpriteExtractor(),
 )
 pixel_trial_task = register_pixel_trial_task(
     celery,

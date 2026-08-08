@@ -9,7 +9,8 @@
 3. `PUT {upload_url}`：携带 `Content-Type` 与 `X-Upload-Token`，上传原始字节。
 4. `POST /v1/pixel-trials`：正文为 `subject_object_key`，并携带新的 `Idempotency-Key`。
 5. `GET /v1/pixel-trials/{trial_id}`：轮询到 `succeeded` 或 `failed`。
-6. `GET /v1/pixel-trials/{trial_id}/image`：下载成功结果。
+6. `GET /v1/pixel-trials/{trial_id}/image`：下载有背景的像素角色卡。
+7. `GET /v1/pixel-trials/{trial_id}/sprite`：下载供像素世界使用的透明 PNG 小人。
 
 ## 边界
 

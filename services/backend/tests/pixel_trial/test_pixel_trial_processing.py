@@ -11,6 +11,7 @@ from pillow_heif import from_pillow
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
 from stylecapture_backend.features.pixel_trial.domain import PixelTrial, PixelTrialStatus
+from stylecapture_backend.features.pixel_trial.ports import PixelSpriteExtractionError
 from stylecapture_backend.features.pixel_trial.processing import (
     PIXEL_CARD_GUIDANCE_SCALE,
     PIXEL_CARD_SEED,
@@ -103,6 +104,24 @@ class SuccessfulGenerator:
         )
 
 
+class RecordingSpriteExtractor:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.cards: list[ImagePayload] = []
+
+    def extract(self, image: ImagePayload) -> ImagePayload:
+        self.cards.append(image)
+        if self.fail:
+            raise PixelSpriteExtractionError("subject could not be isolated")
+        body = b"transparent-pixel-sprite"
+        return ImagePayload(
+            object_key=f"{image.object_key}.sprite.png",
+            content_type="image/png",
+            body=body,
+            sha256=sha256(body).hexdigest(),
+        )
+
+
 @pytest.mark.asyncio
 async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> None:
     user_id = uuid4()
@@ -120,21 +139,31 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     )
     repository = MemoryTrials(trial)
     generator = SuccessfulGenerator()
+    sprite_extractor = RecordingSpriteExtractor()
     processor = PixelTrialProcessor(
         trials=PixelTrialApplication(trials=repository),
         objects=MemoryObjects(source),
         generator=generator,
+        sprite_extractor=sprite_extractor,
     )
 
     await processor.process(user_id=user_id, trial_id=trial.id)
 
     stored = repository.trials[trial.id]
     assert stored.status is PixelTrialStatus.SUCCEEDED
+    assert stored.sprite_output is not None
+    assert stored.sprite_output.content_type == "image/png"
+    assert "/sprite/" in stored.sprite_output.object_key
+    assert sprite_extractor.cards[0].body == b"real-provider-pixel-output"
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "photo.pixel_trial"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
     assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v5"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
+    assert (
+        stored.provider_trace.parameters["sprite_schema_version"]
+        == "transparent-pixel-sprite-v1"
+    )
     assert stored.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     assert generator.size == "1728x2304"
     assert generator.seed == PIXEL_CARD_SEED
@@ -160,6 +189,7 @@ async def test_pixel_trial_converts_heic_subject_before_render_provider() -> Non
         trials=PixelTrialApplication(trials=repository),
         objects=MemoryObjects(source),
         generator=generator,
+        sprite_extractor=RecordingSpriteExtractor(),
     )
 
     await processor.process(user_id=user_id, trial_id=trial.id)
@@ -167,6 +197,40 @@ async def test_pixel_trial_converts_heic_subject_before_render_provider() -> Non
     assert repository.trials[trial.id].status is PixelTrialStatus.SUCCEEDED
     assert generator.images[0].content_type == "image/jpeg"
     assert generator.images[0].object_key.endswith(".render-input.jpg")
+
+
+@pytest.mark.asyncio
+async def test_pixel_trial_fails_honestly_when_character_cutout_is_unsafe() -> None:
+    user_id = uuid4()
+    body = b"private-full-body-photo"
+    source = ImagePayload(
+        object_key="originals/upload/no-cutout.png",
+        content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
+    trial = PixelTrial.queued(
+        user_id=user_id,
+        subject_object_key=source.object_key,
+        request_key="pixel-trial-cutout-failure",
+    )
+    repository = MemoryTrials(trial)
+    objects = MemoryObjects(source)
+    processor = PixelTrialProcessor(
+        trials=PixelTrialApplication(trials=repository),
+        objects=objects,
+        generator=SuccessfulGenerator(),
+        sprite_extractor=RecordingSpriteExtractor(fail=True),
+    )
+
+    await processor.process(user_id=user_id, trial_id=trial.id)
+
+    stored = repository.trials[trial.id]
+    assert stored.status is PixelTrialStatus.FAILED
+    assert stored.failure_code == "sprite_extraction_failed"
+    assert stored.output is None
+    assert stored.sprite_output is None
+    assert list(objects.images) == [source.object_key]
 
 
 def test_pixel_trial_prompt_preserves_the_subject_without_fixed_decoration() -> None:

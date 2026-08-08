@@ -89,6 +89,9 @@ class SqlAlchemyPixelTrialRepository:
                     record.object_key = cast(str | None, values["object_key"])
                     record.content_hash = cast(str | None, values["content_hash"])
                     record.content_type = cast(str | None, values["content_type"])
+                    record.sprite_object_key = cast(str | None, values["sprite_object_key"])
+                    record.sprite_content_hash = cast(str | None, values["sprite_content_hash"])
+                    record.sprite_content_type = cast(str | None, values["sprite_content_type"])
                     record.failure_code = trial.failure_code
                     record.failure_message = trial.failure_message
                     record.provider_trace = cast(dict[str, object] | None, values["provider_trace"])
@@ -108,6 +111,9 @@ class SqlAlchemyPixelTrialRepository:
                                 "object_key": values["object_key"],
                                 "content_hash": values["content_hash"],
                                 "content_type": values["content_type"],
+                                "sprite_object_key": values["sprite_object_key"],
+                                "sprite_content_hash": values["sprite_content_hash"],
+                                "sprite_content_type": values["sprite_content_type"],
                                 "failure_code": trial.failure_code,
                                 "failure_message": trial.failure_message,
                                 "provider_trace": values["provider_trace"],
@@ -159,6 +165,15 @@ def _trial_values(trial: PixelTrial) -> dict[str, object | None]:
         "object_key": trial.output.object_key if trial.output is not None else None,
         "content_hash": trial.output.content_hash if trial.output is not None else None,
         "content_type": trial.output.content_type if trial.output is not None else None,
+        "sprite_object_key": (
+            trial.sprite_output.object_key if trial.sprite_output is not None else None
+        ),
+        "sprite_content_hash": (
+            trial.sprite_output.content_hash if trial.sprite_output is not None else None
+        ),
+        "sprite_content_type": (
+            trial.sprite_output.content_type if trial.sprite_output is not None else None
+        ),
         "subject_attached": trial.subject_object_key is not None,
         "failure_code": trial.failure_code,
         "failure_message": trial.failure_message,
@@ -192,6 +207,17 @@ def _trial_from_record(record: PixelTrialRecord) -> PixelTrial:
             if record.object_key is not None
             and record.content_hash is not None
             and record.content_type is not None
+            else None
+        ),
+        sprite_output=(
+            RenderOutput(
+                object_key=record.sprite_object_key,
+                content_hash=record.sprite_content_hash,
+                content_type=record.sprite_content_type,
+            )
+            if record.sprite_object_key is not None
+            and record.sprite_content_hash is not None
+            and record.sprite_content_type is not None
             else None
         ),
         failure_code=record.failure_code,

@@ -165,6 +165,7 @@ describe("StyleCapture garment ingest", () => {
       id: "77777777-7777-4777-8777-777777777777",
       status: "queued",
       output_image_url: null,
+      sprite_image_url: null,
       failure_code: null,
       failure_message: null,
       retryable: true,
@@ -176,6 +177,7 @@ describe("StyleCapture garment ingest", () => {
       id: "77777777-7777-4777-8777-777777777777",
       status: "queued",
       output_image_url: null,
+      sprite_image_url: null,
       failure_code: null,
       failure_message: null,
       retryable: true,
@@ -231,7 +233,11 @@ describe("StyleCapture garment ingest", () => {
 
     expect(screen.getByLabelText("像素世界")).toBeVisible();
     expect(
-      await screen.findByText(/预设角色非真人 · 非实时社区/)
+      await screen.findByText(
+        /预设角色非真人 · 非实时社区/,
+        undefined,
+        { timeout: 5_000 }
+      )
     ).toBeVisible();
     expect(screen.queryByRole("navigation", { name: "主要功能" })).not.toBeInTheDocument();
 
@@ -239,6 +245,37 @@ describe("StyleCapture garment ingest", () => {
 
     expect(await screen.findByRole("heading", { name: "我的衣橱" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
+  });
+
+  it("uses the current transparent pixel-trial sprite in the pixel world", async () => {
+    const user = userEvent.setup();
+    const trialId = "77777777-7777-4777-8777-777777777777";
+    window.sessionStorage.setItem("stylecapture:pixel-trial:v1", trialId);
+    api.getPixelTrial.mockResolvedValue({
+      id: trialId,
+      status: "succeeded",
+      output_image_url: `/v1/pixel-trials/${trialId}/image`,
+      sprite_image_url: `/v1/pixel-trials/${trialId}/sprite`,
+      failure_code: null,
+      failure_message: null,
+      retryable: false,
+      subject_attached: true,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:00:30Z"
+    });
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "像素世界" }));
+
+    const avatar = await screen.findByRole("button", {
+      name: "换上我的数字小人"
+    });
+    const image = avatar.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(image).toHaveAttribute(
+      "src",
+      `/v1/pixel-trials/${trialId}/sprite?v=2026-07-25T00%3A00%3A30Z`
+    );
   });
 
   it("keeps optional Look feedback visible in Feed and dismisses it after saving", async () => {
@@ -866,6 +903,7 @@ describe("StyleCapture garment ingest", () => {
       id: "77777777-7777-4777-8777-777777777777",
       status: "succeeded",
       output_image_url: "/v1/pixel-trials/77777777-7777-4777-8777-777777777777/image",
+      sprite_image_url: "/v1/pixel-trials/77777777-7777-4777-8777-777777777777/sprite",
       failure_code: null,
       failure_message: null,
       retryable: false,

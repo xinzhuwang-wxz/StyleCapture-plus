@@ -23,7 +23,7 @@ infrastructure/interface 模块；这里不复制 Prompt 或业务逻辑。
 | `look.outfit_analysis` | look | Look Worker | LiteLLM `outfit_analysis` | `look/infrastructure/outfit_analysis.py` | 内部能力 |
 | `outfit.scene_matching` | outfit | `/v1/outfit-plans*` | LiteLLM `reasoning` | `outfit/infrastructure/reranker.py` | `scene-outfit-matching` |
 | `item.pixel_presentation` | item_presentation | Item presentation API/Worker | LiteLLM `image_generation` | `item_presentation/application.py`, `processing.py` | 内部派生能力 |
-| `photo.pixel_trial` | pixel_trial | `/v1/pixel-trials*` | LiteLLM `image_generation` | `pixel_trial/processing.py`, `render/pixel_card_style.py` | `pixel-character-card` |
+| `photo.pixel_trial` | pixel_trial | `/v1/pixel-trials*` | LiteLLM `image_generation` + Pillow 透明精灵衍生 | `pixel_trial/processing.py`, `pixel_trial/infrastructure/sprite_cutout.py`, `render/pixel_card_style.py` | `pixel-character-card` |
 | `look.pixel_cover` | render | Look render API/Worker | LiteLLM `image_generation` | `render/prompt_contracts.py`, `render/pixel_card_style.py`, `render/signatures.py` | 产品能力，随 Look 详情调用 |
 | `look.virtual_try_on` | render | Look render API/Worker | LiteLLM 图像编辑优先；FASHN 专用适配器后备 | `render/processing.py`, `signatures.py` | 产品能力，随 Look 详情调用 |
 

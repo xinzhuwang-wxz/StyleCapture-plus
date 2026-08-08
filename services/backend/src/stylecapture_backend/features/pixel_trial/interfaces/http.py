@@ -38,6 +38,7 @@ class PixelTrialResponse(BaseModel):
     status: PixelTrialStatus
     subject_attached: bool
     output_image_url: str | None
+    sprite_image_url: str | None
     failure_code: str | None
     failure_message: str | None
     retryable: bool
@@ -52,6 +53,11 @@ class PixelTrialResponse(BaseModel):
             subject_attached=view.subject_attached,
             output_image_url=(
                 f"/v1/pixel-trials/{view.id}/image" if view.object_key is not None else None
+            ),
+            sprite_image_url=(
+                f"/v1/pixel-trials/{view.id}/sprite"
+                if view.sprite_object_key is not None
+                else None
             ),
             failure_code=view.failure_code,
             failure_message=(
@@ -140,6 +146,31 @@ def build_pixel_trial_router(
             },
         )
 
+    @router.get(
+        "/v1/pixel-trials/{trial_id}/sprite",
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def get_pixel_trial_sprite(
+        trial_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        view = await services.trials.get(user_id=user_id, trial_id=trial_id)
+        if view.sprite_object_key is None:
+            raise PixelTrialNotFound("Pixel trial sprite is not ready")
+        try:
+            stored = services.objects.describe(view.sprite_object_key)
+            body = services.objects.read(view.sprite_object_key)
+        except (FileNotFoundError, KeyError) as error:
+            raise PixelTrialNotFound("Pixel trial sprite is unavailable") from error
+        return Response(
+            content=body,
+            media_type=stored.content_type,
+            headers={
+                "Cache-Control": "private, no-store",
+                "ETag": f'"{stored.sha256}"',
+            },
+        )
+
     @router.delete(
         "/v1/pixel-trials/{trial_id}",
         status_code=status.HTTP_204_NO_CONTENT,
@@ -152,6 +183,8 @@ def build_pixel_trial_router(
         view = await services.trials.delete(user_id=user_id, trial_id=trial_id)
         if view.object_key is not None:
             services.objects.delete(view.object_key)
+        if view.sprite_object_key is not None and view.sprite_object_key != view.object_key:
+            services.objects.delete(view.sprite_object_key)
         if view.subject_object_key is not None and view.subject_object_key != view.object_key:
             services.objects.delete(view.subject_object_key)
         return Response(status_code=status.HTTP_204_NO_CONTENT)

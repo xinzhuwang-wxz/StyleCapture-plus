@@ -23,6 +23,7 @@ class PixelTrial:
     subject_object_key: str | None
     request_key: str
     output: RenderOutput | None
+    sprite_output: RenderOutput | None
     failure_code: str | None
     failure_message: str | None
     provider_trace: RenderProviderTrace | None
@@ -47,7 +48,7 @@ class PixelTrial:
         if self.status is PixelTrialStatus.SUCCEEDED:
             if self.output is None:
                 raise ValueError("succeeded pixel trial must reference output")
-        elif self.output is not None:
+        elif self.output is not None or self.sprite_output is not None:
             raise ValueError("unfinished pixel trial cannot reference output")
         if self.status is not PixelTrialStatus.FAILED and self.failure_code is not None:
             raise ValueError("only failed pixel trials may carry a failure code")
@@ -72,6 +73,7 @@ class PixelTrial:
             subject_object_key=subject_object_key,
             request_key=request_key,
             output=None,
+            sprite_output=None,
             failure_code=None,
             failure_message=None,
             provider_trace=None,
@@ -84,6 +86,7 @@ class PixelTrial:
             self,
             status=PixelTrialStatus.RUNNING,
             output=None,
+            sprite_output=None,
             failure_code=None,
             failure_message=None,
             provider_trace=provider_trace or self.provider_trace,
@@ -94,12 +97,14 @@ class PixelTrial:
         self,
         *,
         output: RenderOutput,
+        sprite_output: RenderOutput,
         provider_trace: RenderProviderTrace,
     ) -> PixelTrial:
         return replace(
             self,
             status=PixelTrialStatus.SUCCEEDED,
             output=output,
+            sprite_output=sprite_output,
             failure_code=None,
             failure_message=None,
             provider_trace=provider_trace,
@@ -111,6 +116,7 @@ class PixelTrial:
             self,
             status=PixelTrialStatus.FAILED,
             output=None,
+            sprite_output=None,
             failure_code=code.strip(),
             failure_message=message.strip(),
             updated_at=datetime.now(UTC),

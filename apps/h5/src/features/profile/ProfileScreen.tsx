@@ -11,6 +11,7 @@ import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 import { BodyProfileSheet } from "./BodyProfileSheet";
 import { PhotoManagerSheet } from "./PhotoManagerSheet";
 import { readPhotoAlbum, type PhotoAlbum } from "./photoStorage";
+import { readPixelTrialId, writePixelTrialId } from "./pixelTrialStorage";
 import {
   isDefaultBodyProfile,
   readBodyProfile,
@@ -21,14 +22,6 @@ import "./profile.css";
 interface ProfileScreenProps {
   itemCount: number;
   onNotice?: (message: string) => void;
-}
-
-const PIXEL_TRIAL_STORAGE_KEY = "stylecapture:pixel-trial:v1";
-
-function restoreTrialId(): string | null {
-  if (typeof window === "undefined") return null;
-  const stored = window.sessionStorage.getItem(PIXEL_TRIAL_STORAGE_KEY);
-  return stored && stored.trim() ? stored : null;
 }
 
 function messageFor(error: unknown): string {
@@ -49,7 +42,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
   const queryClient = useQueryClient();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [trialId, setTrialId] = useState<string | null>(restoreTrialId);
+  const [trialId, setTrialId] = useState<string | null>(readPixelTrialId);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 身材资料只在本机，读一次就够；保存后由 sheet 回传最新值。
@@ -73,11 +66,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
   const trialStatusUnavailable = trialId !== null && trialQuery.isError;
 
   useEffect(() => {
-    if (trialId) {
-      window.sessionStorage.setItem(PIXEL_TRIAL_STORAGE_KEY, trialId);
-    } else {
-      window.sessionStorage.removeItem(PIXEL_TRIAL_STORAGE_KEY);
-    }
+    writePixelTrialId(trialId);
   }, [trialId]);
 
   useEffect(() => {

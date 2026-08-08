@@ -11,7 +11,13 @@ export type CommunityAvatarSource = {
   lookId?: string;
   assetUrl: string;
   label: string;
-  kind: "demo-fallback" | "local-upload" | "public-render-artifact";
+  kind:
+    | "demo-fallback"
+    | "local-upload"
+    | "public-render-artifact"
+    | "pixel-trial-sprite";
+  /** False for server-produced transparent PNGs; legacy cards use runtime cutout. */
+  needsBackdropRemoval?: boolean;
   tags?: readonly string[];
   description?: string;
 };
@@ -211,10 +217,13 @@ function myLook(source: CommunityAvatarSource, index = 0): PartyLook {
     sourceLabel:
       source.kind === "local-upload"
         ? "我的上传 Look · 仅本机"
+        : source.kind === "pixel-trial-sprite"
+          ? "我的透明数字小人"
         : source.kind === "public-render-artifact"
           ? "我的公开像素 Look"
           : "我的示例形象 · 接口可替换",
-    needsBackdropRemoval: source.kind !== "demo-fallback",
+    needsBackdropRemoval:
+      source.needsBackdropRemoval ?? source.kind !== "demo-fallback",
     tags: source.tags?.length
       ? source.tags
       : ["我的衣橱", "可分享封面"],
@@ -278,10 +287,12 @@ export function syncCommunityWardrobeLooks(
   const catalogue = [...animatedLooks, ...curatedLooks];
   const ownedLooks = wardrobeLooks(sources);
   const localUpload = scene.looks.find((look) => look.id === MY_LOOK_ID);
+  const keepLocalUpload =
+    localUpload && !ownedLooks.some((look) => look.id === MY_LOOK_ID);
   const looks = [
     ...catalogue,
     ...ownedLooks,
-    ...(localUpload ? [localUpload] : [])
+    ...(keepLocalUpload ? [localUpload] : [])
   ];
   const ids = new Set(looks.map((look) => look.id));
   const fallbackId = ownedLooks[0]?.id ?? localUpload?.id ?? curatedLooks[0].id;

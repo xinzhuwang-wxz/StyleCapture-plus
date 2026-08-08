@@ -21,6 +21,9 @@ class PixelTrialView:
     object_key: str | None
     content_hash: str | None
     content_type: str | None
+    sprite_object_key: str | None
+    sprite_content_hash: str | None
+    sprite_content_type: str | None
     subject_object_key: str | None
     subject_attached: bool
     failure_code: str | None
@@ -81,12 +84,17 @@ class PixelTrialApplication:
         user_id: UUID,
         trial_id: UUID,
         output: RenderOutput,
+        sprite_output: RenderOutput,
         provider_trace: RenderProviderTrace,
     ) -> PixelTrialView:
         trial = await self._require_trial(user_id=user_id, trial_id=trial_id)
         return _view(
             await self._trials.save(
-                trial.mark_succeeded(output=output, provider_trace=provider_trace)
+                trial.mark_succeeded(
+                    output=output,
+                    sprite_output=sprite_output,
+                    provider_trace=provider_trace,
+                )
             )
         )
 
@@ -117,6 +125,15 @@ def _view(trial: PixelTrial, *, dispatch_required: bool = False) -> PixelTrialVi
         object_key=trial.output.object_key if trial.output is not None else None,
         content_hash=trial.output.content_hash if trial.output is not None else None,
         content_type=trial.output.content_type if trial.output is not None else None,
+        sprite_object_key=(
+            trial.sprite_output.object_key if trial.sprite_output is not None else None
+        ),
+        sprite_content_hash=(
+            trial.sprite_output.content_hash if trial.sprite_output is not None else None
+        ),
+        sprite_content_type=(
+            trial.sprite_output.content_type if trial.sprite_output is not None else None
+        ),
         subject_object_key=trial.subject_object_key,
         subject_attached=trial.subject_object_key is not None,
         failure_code=trial.failure_code,

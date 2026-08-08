@@ -7,7 +7,11 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
-from stylecapture_backend.features.pixel_trial.ports import PixelTrialNotFound
+from stylecapture_backend.features.pixel_trial.ports import (
+    PixelSpriteExtractionError,
+    PixelSpriteExtractor,
+    PixelTrialNotFound,
+)
 from stylecapture_backend.features.render.domain import RenderOutput
 from stylecapture_backend.features.render.pixel_card_style import (
     PIXEL_CARD_GUIDANCE_SCALE,
@@ -59,6 +63,7 @@ PIXEL_TRIAL_PROMPT = build_pixel_card_prompt(
 PIXEL_TRIAL_CAPABILITY_ID = "photo.pixel_trial"
 PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v5"
 PIXEL_TRIAL_SCHEMA_VERSION = "generated-image-v1"
+PIXEL_SPRITE_SCHEMA_VERSION = "transparent-pixel-sprite-v1"
 
 
 class PixelTrialProcessor:
@@ -68,10 +73,12 @@ class PixelTrialProcessor:
         trials: PixelTrialApplication,
         objects: PixelTrialObjectStore,
         generator: PixelImageGenerator,
+        sprite_extractor: PixelSpriteExtractor,
     ) -> None:
         self._trials = trials
         self._objects = objects
         self._generator = generator
+        self._sprite_extractor = sprite_extractor
 
     async def process(
         self,
@@ -104,15 +111,22 @@ class PixelTrialProcessor:
                 seed=PIXEL_CARD_SEED,
                 guidance_scale=PIXEL_CARD_GUIDANCE_SCALE,
             )
+            generated_payload = ImagePayload(
+                object_key=f"derived/pixel-trials/{trial_id}/card",
+                content_type=generated.content_type,
+                body=generated.body,
+                sha256=generated.sha256,
+            )
+            sprite = self._sprite_extractor.extract(generated_payload)
             stored = self._objects.write_derived_image(
-                ImagePayload(
-                    object_key=f"derived/pixel-trials/{trial_id}",
-                    content_type=generated.content_type,
-                    body=generated.body,
-                    sha256=generated.sha256,
-                ),
+                generated_payload,
                 owner_id=user_id,
-                prefix=f"derived/pixel-trials/{user_id}/{trial_id}",
+                prefix=f"derived/pixel-trials/{trial_id}/card",
+            )
+            stored_sprite = self._objects.write_derived_image(
+                sprite,
+                owner_id=user_id,
+                prefix=f"derived/pixel-trials/{trial_id}/sprite",
             )
             await self._trials.mark_succeeded(
                 user_id=user_id,
@@ -122,14 +136,27 @@ class PixelTrialProcessor:
                     content_hash=stored.sha256,
                     content_type=stored.content_type,
                 ),
+                sprite_output=RenderOutput(
+                    object_key=stored_sprite.object_key,
+                    content_hash=stored_sprite.sha256,
+                    content_type=stored_sprite.content_type,
+                ),
                 provider_trace=generated.provider_trace.with_parameters(
                     capability_id=PIXEL_TRIAL_CAPABILITY_ID,
                     capability_alias="image_generation",
                     prompt_version=PIXEL_TRIAL_PROMPT_VERSION,
                     schema_version=PIXEL_TRIAL_SCHEMA_VERSION,
+                    sprite_schema_version=PIXEL_SPRITE_SCHEMA_VERSION,
                     style_reference_version=PIXEL_CARD_STYLE_REFERENCE_VERSION,
                     style_reference_hashes=pixel_card_style_reference_hashes(),
                 ),
+            )
+        except PixelSpriteExtractionError:
+            await self._trials.mark_failed(
+                user_id=user_id,
+                trial_id=trial_id,
+                code="sprite_extraction_failed",
+                message="像素小人背景移除失败，请重新生成",
             )
         except (FileNotFoundError, KeyError):
             await self._trials.mark_failed(
