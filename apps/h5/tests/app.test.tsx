@@ -854,17 +854,18 @@ describe("StyleCapture garment ingest", () => {
     );
   });
 
-  it("uses a pixel first-level card and keeps the real display asset in item detail", async () => {
+  it("uses a blurred source placeholder until the pixel card is ready", async () => {
     api.listItems.mockResolvedValue([wardrobeItem]);
     renderApp();
 
     const pixelCard = await screen.findByRole("img", {
-      name: "上装的像素图标"
+      name: "上装的原图模糊占位"
     });
     expect(pixelCard).toHaveAttribute(
       "data-image-kind",
-      "wardrobe-pixel-fallback"
+      "wardrobe-item-source-placeholder"
     );
+    expect(pixelCard).toHaveAttribute("src", wardrobeItem.source_image_url);
     expect(api.displayImage).not.toHaveBeenCalled();
 
     await userEvent.click(

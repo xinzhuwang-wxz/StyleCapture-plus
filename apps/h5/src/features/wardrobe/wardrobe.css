@@ -155,6 +155,12 @@
   transform: scale(1.04);
 }
 
+.item-card__fallback-cover {
+  opacity: 0.5;
+  filter: blur(6px) saturate(0.78);
+  transform: scale(1.04);
+}
+
 .wardrobe-card__cover--item img[data-image-kind^="wardrobe-pixel"] {
   padding: 0.7rem;
   object-fit: contain;
