@@ -1,27 +1,21 @@
 from __future__ import annotations
 
+# ruff: noqa: RUF001 -- Chinese prompt punctuation is intentional.
+from stylecapture_backend.features.render.pixel_card_style import build_pixel_card_prompt
+
 PIXEL_COVER_CAPABILITY_ID = "look.pixel_cover"
 PIXEL_COVER_OUTPUT_SIZE = "1728x2304"
-PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v4"
+PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v5"
 PIXEL_COVER_SCHEMA_VERSION = "generated-image-v1"
 
 TRY_ON_CAPABILITY_ID = "look.virtual_try_on"
 TRY_ON_PROMPT_VERSION = "look-virtual-try-on-zh-v3"
 TRY_ON_SCHEMA_VERSION = "generated-image-v1"
 
-PIXEL_COVER_PROMPT = (
-    "输出固定为竖版3:4像素人物卡 (1728x2304), 禁止使用1:1方形画布; 完整保留从头顶到鞋底的人物比例与四周留白, 不得压扁、裁掉脚部或让人物贴边。"
-    "第一张参考图如果是完整穿搭,以它的整体轮廓、配色和搭配关系为主;"
-    "最后一张参考图是这套穿搭真实单品的拼贴,用于补足材质和细节。"
-    "把参考图里的上衣、下装、外套、鞋履和配饰组合到同一个且仅一个"
-    "StyleCapture 可爱像素小人身上。画面中必须只有1个人物,全身正面"
-    "站立并居中,完整展示从头到脚。输出竖版3:4构图,人物不得拉伸、压扁或裁切。保持真实单品的颜色、轮廓、材质、"
-    "层次和搭配关系。使用清晰可见的粗像素方块与阶梯边缘,像素块约为"
-    "成图的6-10px,每个服装平面只用3-4个色阶,避免细碎微像素、写实"
-    "纹理、3D光照或油画笔触。背景从参考图提取克制的两色基调,只加入"
-    "1-3个与场景有关的低对比像素小图标、少量星点和脚下椭圆阴影;不要"
-    "复刻完整房间或默认使用粉色、蝴蝶结、爱心、花朵。禁止多人、分镜、"
-    "九宫格、备选造型、换装前后对比、文字、品牌、水印或额外服饰。"
+PIXEL_COVER_PROMPT = build_pixel_card_prompt(
+    "前一至两张图是同一套 Look 的内容图，用于人物或服装轮廓、配色、材质和搭配关系；"
+    "最后两张图只提供画风、人物与脸部比例、粗像素颗粒、卡片留白和地毯结构。"
+    "不继承示例卡片的背景配色或装饰主题。"
 )
 
 TRY_ON_PROMPT = (

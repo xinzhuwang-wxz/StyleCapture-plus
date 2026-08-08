@@ -1,0 +1,18 @@
+{
+  "reference_version": "pixel-card-style-v1",
+  "usage": "Runtime style anchors for pixel character, face proportions, coarse pixel treatment, card spacing, and rug structure only. Do not copy anchor background palettes or decorations.",
+  "files": [
+    {
+      "name": "anchor-formal-light-pixel.png",
+      "source_pair": "evals/pixel-card/references/source-formal-light.jpg",
+      "role": "formal-light positive style anchor",
+      "license": "Provided by the repository contributor for use in StyleCapture-plus and its GitHub documentation."
+    },
+    {
+      "name": "anchor-casual-dark-pixel.png",
+      "source_pair": "evals/pixel-card/references/source-casual-dark.jpg",
+      "role": "casual-dark positive style anchor",
+      "license": "Provided by the repository contributor for use in StyleCapture-plus and its GitHub documentation."
+    }
+  ]
+}

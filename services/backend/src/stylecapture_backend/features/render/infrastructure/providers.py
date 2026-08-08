@@ -55,9 +55,15 @@ class LiteLLMImageGenerator:
         prompt: str,
         images: Sequence[ImagePayload],
         size: str = "1024x1024",
+        seed: int | None = None,
+        guidance_scale: float | None = None,
     ) -> GeneratedImage:
         if not prompt.strip():
             raise ValueError("image generation prompt must not be empty")
+        if seed is not None and not 0 <= seed <= 2_147_483_647:
+            raise ValueError("image generation seed must be between 0 and 2147483647")
+        if guidance_scale is not None and not 1 <= guidance_scale <= 10:
+            raise ValueError("image generation guidance scale must be between 1 and 10")
         payload: dict[str, object] = {
             "model": self._alias,
             "prompt": prompt.strip(),
@@ -68,6 +74,10 @@ class LiteLLMImageGenerator:
         }
         if images:
             payload["image"] = [_data_url(image) for image in images]
+        if seed is not None:
+            payload["seed"] = seed
+        if guidance_scale is not None:
+            payload["guidance_scale"] = guidance_scale
         async with httpx.AsyncClient(
             timeout=self._timeout,
             transport=self._transport,
@@ -102,7 +112,16 @@ class LiteLLMImageGenerator:
             provider_trace=RenderProviderTrace(
                 provider="litellm",
                 model=self._alias,
-                parameters={"capability_alias": self._alias, "size": size},
+                parameters={
+                    "capability_alias": self._alias,
+                    "size": size,
+                    **({"seed": seed} if seed is not None else {}),
+                    **(
+                        {"guidance_scale": guidance_scale}
+                        if guidance_scale is not None
+                        else {}
+                    ),
+                },
             ),
         )
 

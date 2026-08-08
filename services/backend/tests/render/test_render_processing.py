@@ -133,6 +133,8 @@ class SuccessfulPixelGenerator:
         self.images: tuple[ImagePayload, ...] = ()
         self.prompt = ""
         self.size = ""
+        self.seed: int | None = None
+        self.guidance_scale: float | None = None
 
     async def generate(
         self,
@@ -140,10 +142,14 @@ class SuccessfulPixelGenerator:
         prompt: str,
         images: tuple[ImagePayload, ...],
         size: str = "1024x1024",
+        seed: int | None = None,
+        guidance_scale: float | None = None,
     ) -> GeneratedImage:
         self.prompt = prompt
         self.images = images
         self.size = size
+        self.seed = seed
+        self.guidance_scale = guidance_scale
         body = png((180, 90, 255))
         return GeneratedImage(
             body=body,
@@ -190,6 +196,8 @@ class CorruptPixelGenerator:
         prompt: str,
         images: tuple[ImagePayload, ...],
         size: str = "1024x1024",
+        seed: int | None = None,
+        guidance_scale: float | None = None,
     ) -> GeneratedImage:
         body = png((220, 30, 80))
         return GeneratedImage(
@@ -393,15 +401,19 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.provider == "test-private"
     assert stored_pixel.provider_trace.parameters["capability_id"] == "look.pixel_cover"
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v4"
-    assert "6-10px" in pixel_generator.prompt
+    assert stored_pixel.provider_trace.parameters["prompt_version"] == "look-pixel-cover-zh-v5"
+    assert stored_pixel.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
+    assert "最后两张图只提供画风" in pixel_generator.prompt
     assert "3:4" in pixel_generator.prompt
-    assert "1:1" in pixel_generator.prompt
-    assert "不要复刻完整房间" in pixel_generator.prompt
+    assert "不可复刻原场景" in pixel_generator.prompt
     assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
-    assert len(pixel_generator.images) == 2
+    assert len(pixel_generator.images) == 4
     assert pixel_generator.size == "1728x2304"
     assert pixel_generator.images[0].object_key == look_source.object_key
+    assert pixel_generator.images[-2].object_key.endswith("anchor-formal-light-pixel.png")
+    assert pixel_generator.images[-1].object_key.endswith("anchor-casual-dark-pixel.png")
+    assert pixel_generator.seed is not None
+    assert pixel_generator.guidance_scale is not None
 
 
 @pytest.mark.asyncio
