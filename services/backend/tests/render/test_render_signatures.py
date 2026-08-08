@@ -156,6 +156,9 @@ def test_composition_signature_uses_item_versions_not_an_unrelated_capture() -> 
         look_display_hash="f" * 64,
     )
 
-    assert RENDER_PIPELINE_VERSIONS[RenderArtifactKind.COLLAGE] == "collage-v2-hero"
+    assert (
+        RENDER_PIPELINE_VERSIONS[RenderArtifactKind.COLLAGE]
+        == "collage-v3-flat-lay-hero"
+    )
     assert original != changed_item_version
     assert original != changed_display

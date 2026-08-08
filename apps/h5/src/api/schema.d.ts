@@ -1014,6 +1014,7 @@ export interface components {
             display_order: number;
             /** Item Id */
             item_id: string | null;
+            item_image_status?: components["schemas"]["ItemPresentationStatus"] | null;
             /** Item Image Url */
             item_image_url: string | null;
             /** Layer */

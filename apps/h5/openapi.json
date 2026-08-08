@@ -757,6 +757,16 @@
             ],
             "title": "Item Id"
           },
+          "item_image_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemPresentationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "item_image_url": {
             "anyOf": [
               {

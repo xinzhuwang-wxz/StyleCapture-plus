@@ -453,7 +453,12 @@ export function App() {
     refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       query.state.data?.look.status === "processing" ||
-      query.state.data?.look.status === "partial"
+      query.state.data?.look.status === "partial" ||
+      query.state.data?.components.some(
+        (component) =>
+          component.item_image_status === "queued" ||
+          component.item_image_status === "running"
+      )
         ? 2_000
         : false
   });

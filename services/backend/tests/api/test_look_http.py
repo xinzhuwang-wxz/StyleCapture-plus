@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -29,19 +30,69 @@ from stylecapture_backend.features.capture.ports import (
     ObjectStore,
     StoredObject,
 )
+from stylecapture_backend.features.item_presentation.application import (
+    ItemPresentationView,
+)
+from stylecapture_backend.features.item_presentation.domain import (
+    ItemPresentationKind,
+    ItemPresentationStatus,
+)
 from stylecapture_backend.features.look.application import LookApplication
 from stylecapture_backend.features.look.domain import (
     Look,
+    LookComponent,
     LookDetail,
     PreferenceSignal,
 )
-from stylecapture_backend.features.look.interfaces.http import LookHttpServices
+from stylecapture_backend.features.look.interfaces.http import (
+    LookComponentResponse,
+    LookHttpServices,
+)
 from stylecapture_backend.features.look.ports import LookRepository
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.main import BackendServices, create_app
 from stylecapture_backend.platform.session import SESSION_COOKIE_NAME, SessionSigner
 
 SESSION_SECRET = "look-http-session-secret-with-enough-entropy"
+
+
+def test_look_component_response_reuses_the_generated_item_flat_lay() -> None:
+    user_id = uuid4()
+    item_id = uuid4()
+    component = LookComponent.pending(
+        look_id=uuid4(),
+        component_key="top",
+        evidence_region=(
+            NormalizedPoint(x=0.1, y=0.1),
+            NormalizedPoint(x=0.8, y=0.1),
+            NormalizedPoint(x=0.4, y=0.8),
+        ),
+        confidence=0.9,
+        grounding_metadata={},
+        role="top",
+    ).with_item(item_id)
+    now = datetime.now(UTC)
+    presentation = ItemPresentationView(
+        id=uuid4(),
+        user_id=user_id,
+        item_id=item_id,
+        kind=ItemPresentationKind.FLAT_LAY_ITEM,
+        status=ItemPresentationStatus.SUCCEEDED,
+        object_key="derived/items/flat-lay/top.png",
+        content_hash="f" * 64,
+        content_type="image/png",
+        failure_code=None,
+        failure_message=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+    response = LookComponentResponse.from_domain(component, flat_lay=presentation)
+
+    assert response.item_image_url == (
+        f"/v1/item-presentations/{presentation.id}/image"
+    )
+    assert response.item_image_status is ItemPresentationStatus.SUCCEEDED
 
 
 class MemoryLooks:

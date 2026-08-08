@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Protocol
@@ -12,6 +12,11 @@ from pydantic import BaseModel, Field
 from stylecapture_backend.features.capture.application import JobRetryApplication
 from stylecapture_backend.features.capture.domain import Capture, JobState
 from stylecapture_backend.features.capture.ports import JobRepository, ObjectStore
+from stylecapture_backend.features.item_presentation.application import (
+    ItemPresentationApplication,
+    ItemPresentationView,
+)
+from stylecapture_backend.features.item_presentation.domain import ItemPresentationStatus
 from stylecapture_backend.features.look.application import LookApplication, LookNotFoundError
 from stylecapture_backend.features.look.domain import (
     Look,
@@ -37,6 +42,7 @@ class LookHttpServices:
     jobs: JobRepository
     objects: ObjectStore
     retries: JobRetryApplication
+    item_presentations: ItemPresentationApplication | None = None
 
 
 class LookImageNotFoundError(FileNotFoundError):
@@ -92,20 +98,38 @@ class LookComponentResponse(BaseModel):
     status: str
     item_id: UUID | None
     item_image_url: str | None
+    item_image_status: ItemPresentationStatus | None = None
     role: str | None
     layer: str | None
     display_order: int
     confidence: float
 
     @classmethod
-    def from_domain(cls, component: LookComponent) -> LookComponentResponse:
+    def from_domain(
+        cls,
+        component: LookComponent,
+        *,
+        flat_lay: ItemPresentationView | None = None,
+    ) -> LookComponentResponse:
+        flat_lay_ready = (
+            flat_lay is not None
+            and flat_lay.status is ItemPresentationStatus.SUCCEEDED
+            and flat_lay.object_key is not None
+        )
         return cls(
             component_key=component.component_key,
             status=component.status.value,
             item_id=component.item_id,
             item_image_url=(
-                f"/v1/items/{component.item_id}/image" if component.item_id is not None else None
+                f"/v1/item-presentations/{flat_lay.id}/image"
+                if flat_lay_ready
+                else (
+                    f"/v1/items/{component.item_id}/image"
+                    if component.item_id is not None
+                    else None
+                )
             ),
+            item_image_status=flat_lay.status if flat_lay is not None else None,
             role=component.role,
             layer=component.layer,
             display_order=component.display_order,
@@ -175,6 +199,7 @@ class LookDetailResponse(BaseModel):
         capture: Capture | None,
         *,
         source_available: bool,
+        flat_lays: Mapping[UUID, ItemPresentationView] | None = None,
     ) -> LookDetailResponse:
         context = capture.feed_context if capture is not None else None
         return cls(
@@ -183,7 +208,11 @@ class LookDetailResponse(BaseModel):
                 source_available=source_available,
             ),
             components=[
-                LookComponentResponse.from_domain(component) for component in detail.components
+                LookComponentResponse.from_domain(
+                    component,
+                    flat_lay=(flat_lays or {}).get(component.item_id),
+                )
+                for component in detail.components
             ],
             analysis=(
                 LookAnalysisResponse.from_domain(detail.look.analysis)
@@ -298,10 +327,25 @@ def build_look_router(
         user_id: UUID = principal,
     ) -> LookDetailResponse:
         detail, capture = await owned_detail(user_id, look_id)
+        flat_lays: dict[UUID, ItemPresentationView] = {}
+        if services.item_presentations is not None:
+            item_ids = {
+                component.item_id
+                for component in detail.components
+                if component.item_id is not None
+            }
+            for item_id in item_ids:
+                presentation = await services.item_presentations.get_current_flat_lay_item(
+                    user_id=user_id,
+                    item_id=item_id,
+                )
+                if presentation is not None:
+                    flat_lays[item_id] = presentation
         return LookDetailResponse.from_domain(
             detail,
             capture,
             source_available=source_available(detail.look, capture),
+            flat_lays=flat_lays,
         )
 
     @router.get("/{look_id}/image", responses=STABLE_ERROR_RESPONSES)

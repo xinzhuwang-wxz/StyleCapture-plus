@@ -6,6 +6,8 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.ports import StoredObject
+from stylecapture_backend.features.item_presentation.application import ItemPresentationView
+from stylecapture_backend.features.item_presentation.domain import ItemPresentationStatus
 from stylecapture_backend.features.look.domain import LookComponentStatus, LookDetail
 from stylecapture_backend.features.look.ports import LookRepository
 from stylecapture_backend.features.render.application import RenderApplication
@@ -94,6 +96,15 @@ class WardrobeReader(Protocol):
     ) -> WardrobeItem | None: ...
 
 
+class ItemFlatLayReader(Protocol):
+    async def get_current_flat_lay_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+    ) -> ItemPresentationView | None: ...
+
+
 class RenderProcessor:
     def __init__(
         self,
@@ -107,6 +118,7 @@ class RenderProcessor:
         pixel_generator: PixelGenerator | None,
         try_on_generator: TryOnGenerator | None,
         fixed_model_object_key: str | None,
+        item_presentations: ItemFlatLayReader | None = None,
     ) -> None:
         self._artifacts = artifacts
         self._renders = renders
@@ -119,6 +131,7 @@ class RenderProcessor:
         self._fixed_model_object_key = (
             fixed_model_object_key.strip() if fixed_model_object_key else None
         )
+        self._item_presentations = item_presentations
 
     async def process(self, *, user_id: UUID, artifact_id: UUID) -> None:
         artifact = await self._artifacts.get_for_user(
@@ -152,7 +165,7 @@ class RenderProcessor:
                 artifact_id=artifact.id,
                 provider_trace=RenderProviderTrace(
                     provider="deterministic",
-                    model="pillow-collage-v2-hero",
+                    model="pillow-collage-v3-flat-lay-hero",
                     parameters={
                         "component_count": len(item_images),
                         "look_version": detail.look.updated_at.isoformat(),
@@ -397,7 +410,26 @@ class RenderProcessor:
             )
             if item is None:
                 raise CollageRenderError("render Look references a missing Item")
-            object_key = item.display_object_key or (
+            flat_lay = (
+                await self._item_presentations.get_current_flat_lay_item(
+                    user_id=artifact.user_id,
+                    item_id=item.id,
+                )
+                if self._item_presentations is not None
+                else None
+            )
+            if flat_lay is not None and flat_lay.status in {
+                ItemPresentationStatus.QUEUED,
+                ItemPresentationStatus.RUNNING,
+            }:
+                raise RetryableRenderError("generated Item flat-lay is not ready")
+            object_key = (
+                flat_lay.object_key
+                if flat_lay is not None
+                and flat_lay.status is ItemPresentationStatus.SUCCEEDED
+                and flat_lay.object_key is not None
+                else None
+            ) or item.display_object_key or (
                 item.source_object_key if item.source_available else None
             )
             if object_key is None:
