@@ -133,10 +133,7 @@ class ItemPresentationProcessor:
         await self._presentations.mark_running(user_id=user_id, asset_id=asset_id)
         try:
             item = await self._wardrobe.get_item(user_id, asset.item_id)
-            if (
-                asset.kind is ItemPresentationKind.FLAT_LAY_ITEM
-                and item.display_object_key is None
-            ):
+            if asset.kind is ItemPresentationKind.FLAT_LAY_ITEM and item.display_object_key is None:
                 raise FileNotFoundError("flat-lay requires a ready item display asset")
             object_key = item.display_object_key or item.source_object_key
             if object_key == item.source_object_key and not item.source_available:
