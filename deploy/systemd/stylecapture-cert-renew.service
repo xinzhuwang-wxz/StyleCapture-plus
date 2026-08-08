@@ -10,4 +10,4 @@ Environment=STYLECAPTURE_ENV_FILE=/srv/stylecapture/shared/.env
 Environment=STYLECAPTURE_LETSENCRYPT_DIR=/srv/stylecapture/shared/letsencrypt
 Environment=STYLECAPTURE_PUBLIC_HOST=119.45.216.38
 ExecStart=/srv/stylecapture/app/deploy/renew-ip-certificate.sh
-ExecStartPost=/usr/bin/curl --fail --silent --show-error --max-time 10 https://119.45.216.38/healthz
+ExecStartPost=/usr/bin/curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 --connect-timeout 3 --max-time 20 https://119.45.216.38/healthz
