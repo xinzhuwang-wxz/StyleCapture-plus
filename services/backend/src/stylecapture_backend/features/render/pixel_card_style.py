@@ -9,7 +9,9 @@ from stylecapture_backend.features.capture.domain import ImagePayload
 
 PIXEL_CARD_STYLE_REFERENCE_VERSION = "pixel-card-style-v1"
 PIXEL_CARD_SEED = 482731
-PIXEL_CARD_GUIDANCE_SCALE = 7.0
+# Seedream 5.0 rejects guidance_scale. Keep this explicit so both pixel-card
+# entry points omit the provider-incompatible field while sharing one contract.
+PIXEL_CARD_GUIDANCE_SCALE: None = None
 
 _STYLE_REFERENCE_NAMES = (
     "anchor-formal-light-pixel.png",

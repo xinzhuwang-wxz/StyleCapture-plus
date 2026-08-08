@@ -415,7 +415,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert pixel_generator.images[-2].object_key.endswith("anchor-formal-light-pixel.png")
     assert pixel_generator.images[-1].object_key.endswith("anchor-casual-dark-pixel.png")
     assert pixel_generator.seed is not None
-    assert pixel_generator.guidance_scale is not None
+    assert pixel_generator.guidance_scale is None
 
 
 @pytest.mark.asyncio

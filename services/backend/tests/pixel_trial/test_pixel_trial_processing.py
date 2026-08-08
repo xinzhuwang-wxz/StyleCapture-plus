@@ -138,7 +138,8 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace.parameters["style_reference_version"] == "pixel-card-style-v1"
     assert generator.size == "1728x2304"
     assert generator.seed == PIXEL_CARD_SEED
-    assert generator.guidance_scale == PIXEL_CARD_GUIDANCE_SCALE
+    assert PIXEL_CARD_GUIDANCE_SCALE is None
+    assert generator.guidance_scale is None
     assert "3:4" in generator.prompt
     assert generator.images[1].object_key.endswith("anchor-formal-light-pixel.png")
     assert generator.images[2].object_key.endswith("anchor-casual-dark-pixel.png")
