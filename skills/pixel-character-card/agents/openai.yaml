@@ -1,0 +1,4 @@
+interface:
+  display_name: "像素小人卡片"
+  short_description: "通过StyleCapture保留人物姿势并转换为竖版3:4全身像素卡片"
+  default_prompt: "Use $pixel-character-card 保留人物的主导姿势，将这张照片生成竖版3:4全身像素小人卡片。"

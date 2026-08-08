@@ -572,9 +572,9 @@ function DetailContent({
                           ? "待购买"
                           : demand.status === "purchased_pending"
                             ? demand.can_mark_owned
-                              ? "已下单，收到后可转为我的衣服"
+                              ? "已下单，收到后可转为已拥有"
                               : "已下单，收到后需拍照入库"
-                            : "已收到，关联单品已转为我的衣服"}
+                            : "已收到，关联单品已转为已拥有"}
                       </small>
                     </div>
                     <a href={demand.search_url} target="_blank" rel="noreferrer">
@@ -603,7 +603,7 @@ function DetailContent({
                     ) : demand.status === "purchased_pending" &&
                       !demand.can_mark_owned ? (
                       <span className="privacy-note">
-                        收到后请拍照上传；完成识别入库后才会成为“我的衣服”。
+                        收到后请拍照上传；完成识别入库后才会成为「已拥有」。
                       </span>
                     ) : null}
                   </article>

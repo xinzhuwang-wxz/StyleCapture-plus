@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# ruff: noqa: RUF001 -- Chinese prompt punctuation is intentional.
 from collections.abc import Sequence
 from typing import Protocol
 from uuid import UUID
@@ -8,6 +9,14 @@ from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
 from stylecapture_backend.features.pixel_trial.ports import PixelTrialNotFound
 from stylecapture_backend.features.render.domain import RenderOutput
+from stylecapture_backend.features.render.pixel_card_style import (
+    PIXEL_CARD_GUIDANCE_SCALE,
+    PIXEL_CARD_SEED,
+    PIXEL_CARD_STYLE_REFERENCE_VERSION,
+    build_pixel_card_prompt,
+    load_pixel_card_style_references,
+    pixel_card_style_reference_hashes,
+)
 from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
 from stylecapture_backend.platform.image_normalization import normalize_provider_image
 
@@ -35,27 +44,20 @@ class PixelImageGenerator(Protocol):
         prompt: str,
         images: Sequence[ImagePayload],
         size: str = "1024x1024",
+        seed: int | None = None,
+        guidance_scale: float | None = None,
     ) -> GeneratedImage: ...
 
 
 PIXEL_TRIAL_OUTPUT_SIZE = "1728x2304"
 
 
-PIXEL_TRIAL_PROMPT = """
-输出固定为竖版 3:4 像素人物卡 (1728x2304), 禁止使用 1:1 方形画布; 完整保留从头顶到鞋底的人物比例与四周留白, 不得压扁、裁掉脚部或让人物贴边。
-把用户上传的正面全身照转换为一张轻盈、可爱的全身像素角色卡。
-要求:
-- 只生成一个居中的完整人物, 保留身份线索、姿势、发型、体态、鞋履、配饰和有意义的手持物;
-- 准确保留真实服装的主色、层次、轮廓、色块和搭配关系;
-- 使用清晰可见的粗像素方块与阶梯边缘, 像素块约为成图的 6-10px, 不要细碎微像素、写实纹理或油画笔触;
-- 每个服装平面控制在 3-4 个色阶, 面部和头发控制在 4-5 个色阶, 使用细暗色像素描边和少量抖色;
-- 背景从原图提取克制的两色基调, 只加入 1-3 个与原场景有关的低对比像素小图标、少量星点和脚下柔和椭圆阴影, 不复刻完整房间或街景;
-- 主题由服装和场景决定, 不默认使用粉色、蝴蝶结、爱心、花朵或与原图无关的装饰;
-- 不添加品牌标识、文字、水印或额外人物;
-- 输出应在手机小尺寸下仍能看清人物、表情和穿搭, 适合作为 StyleCapture 像素形象预览。
-""".strip()
+PIXEL_TRIAL_PROMPT = build_pixel_card_prompt(
+    "图1是人物内容图；最后两张图只提供画风、精致五官、轮廓像素、内部明暗层次、卡片留白和地毯结构。"
+    "只从图1读取人物、服装与配饰，不继承示例卡片的背景配色或装饰主题。"
+)
 PIXEL_TRIAL_CAPABILITY_ID = "photo.pixel_trial"
-PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v3"
+PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v8-candidate"
 PIXEL_TRIAL_SCHEMA_VERSION = "generated-image-v1"
 
 
@@ -97,8 +99,10 @@ class PixelTrialProcessor:
             subject = normalize_provider_image(self._objects.read_image(trial.subject_object_key))
             generated = await self._generator.generate(
                 prompt=PIXEL_TRIAL_PROMPT,
-                images=(subject,),
+                images=(subject, *load_pixel_card_style_references()),
                 size=PIXEL_TRIAL_OUTPUT_SIZE,
+                seed=PIXEL_CARD_SEED,
+                guidance_scale=PIXEL_CARD_GUIDANCE_SCALE,
             )
             stored = self._objects.write_derived_image(
                 ImagePayload(
@@ -123,6 +127,8 @@ class PixelTrialProcessor:
                     capability_alias="image_generation",
                     prompt_version=PIXEL_TRIAL_PROMPT_VERSION,
                     schema_version=PIXEL_TRIAL_SCHEMA_VERSION,
+                    style_reference_version=PIXEL_CARD_STYLE_REFERENCE_VERSION,
+                    style_reference_hashes=pixel_card_style_reference_hashes(),
                 ),
             )
         except (FileNotFoundError, KeyError):

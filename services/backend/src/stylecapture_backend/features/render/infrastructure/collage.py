@@ -4,8 +4,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
+from typing import cast
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageFilter, ImageOps, UnidentifiedImageError
 
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.render.ports import CollageRenderError
@@ -42,14 +43,22 @@ class PillowLookCollageRenderer:
             gap=self.gap,
         )
         for image, cell in zip(images, cells, strict=True):
-            source = _decode_image(image)
+            source = _decode_image(image, trim_near_white_edges=len(images) == 1)
             fitted = ImageOps.contain(source, (cell.width, cell.height))
-            shadow = Image.new("RGBA", fitted.size, (36, 24, 45, 32))
             shadow_position = (
                 cell.x + (cell.width - fitted.width) // 2 + 8,
                 cell.y + (cell.height - fitted.height) // 2 + 10,
             )
-            canvas.alpha_composite(shadow, dest=shadow_position)
+            alpha = fitted.getchannel("A")
+            alpha_min, _alpha_max = cast(tuple[int, int], alpha.getextrema())
+            if alpha_min < 255:
+                shadow = Image.new("RGBA", fitted.size, (36, 24, 45, 0))
+                shadow.putalpha(
+                    alpha.filter(ImageFilter.GaussianBlur(radius=6)).point(
+                        lambda opacity: opacity * 32 // 255
+                    )
+                )
+                canvas.alpha_composite(shadow, dest=shadow_position)
             position = (
                 cell.x + (cell.width - fitted.width) // 2,
                 cell.y + (cell.height - fitted.height) // 2,
@@ -74,7 +83,11 @@ class _Cell:
     height: int
 
 
-def _decode_image(payload: ImagePayload) -> Image.Image:
+def _decode_image(
+    payload: ImagePayload,
+    *,
+    trim_near_white_edges: bool = False,
+) -> Image.Image:
     try:
         with Image.open(BytesIO(payload.body)) as image:
             decoded = ImageOps.exif_transpose(image).convert("RGBA")
@@ -84,7 +97,42 @@ def _decode_image(payload: ImagePayload) -> Image.Image:
         ) from error
     if decoded.width <= 0 or decoded.height <= 0:
         raise CollageRenderError(f"collage input has invalid dimensions: {payload.object_key}")
-    return decoded
+    return _trim_item_edges(decoded) if trim_near_white_edges else decoded
+
+
+def _trim_item_edges(image: Image.Image) -> Image.Image:
+    """Remove baked-in empty framing without altering real garment pixels.
+
+    Segmented assets normally carry transparency. Some compatible legacy display assets
+    are opaque white product photos, so use a conservative near-white edge crop only
+    when it finds a bounded foreground. Keeping a small inset preserves anti-aliased
+    hems and shadows while removing UI-like right/bottom rules from the source asset.
+    """
+    alpha = image.getchannel("A")
+    alpha_min, _alpha_max = cast(tuple[int, int], alpha.getextrema())
+    if alpha_min < 255:
+        bbox = alpha.getbbox()
+    else:
+        red, green, blue, _ = image.split()
+        foreground = ImageChops.lighter(
+            ImageChops.lighter(
+                red.point(lambda value: 255 if value < 245 else 0),
+                green.point(lambda value: 255 if value < 245 else 0),
+            ),
+            blue.point(lambda value: 255 if value < 245 else 0),
+        )
+        bbox = foreground.getbbox()
+    if bbox is None:
+        return image
+    left, top, right, bottom = bbox
+    inset = 12
+    left = max(0, left - inset)
+    top = max(0, top - inset)
+    right = min(image.width, right + inset)
+    bottom = min(image.height, bottom + inset)
+    if (left, top, right, bottom) == (0, 0, image.width, image.height):
+        return image
+    return image.crop((left, top, right, bottom))
 
 
 def _cells_for_count(

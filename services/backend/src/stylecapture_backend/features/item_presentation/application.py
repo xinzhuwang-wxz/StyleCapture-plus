@@ -27,6 +27,9 @@ PIXEL_ITEM_SIGNATURE_VERSION = "item-pixel-v2"
 PIXEL_ITEM_PROMPT_VERSION = "stylecapture-item-pixel-2026-07-26"
 PIXEL_ITEM_CAPABILITY_ID = "item.pixel_presentation"
 PIXEL_ITEM_SCHEMA_VERSION = "generated-image-v1"
+FLAT_LAY_ITEM_SIGNATURE_VERSION = "item-flat-lay-v2"
+FLAT_LAY_ITEM_CAPABILITY_ID = "item.generated_flat_lay"
+FLAT_LAY_ITEM_SCHEMA_VERSION = "seedream-white-3x4-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +86,33 @@ class ItemPresentationApplication:
         stored = await self._assets.ensure_requested(asset)
         return _view(stored, dispatch_required=stored.status is ItemPresentationStatus.QUEUED)
 
+    async def ensure_flat_lay_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+        request_key: str | None = None,
+    ) -> ItemPresentationView:
+        item = await self._wardrobe.get_item(user_id, item_id)
+        signature = flat_lay_item_signature(item)
+        existing = await self._assets.find_current(
+            user_id=user_id,
+            item_id=item_id,
+            kind=ItemPresentationKind.FLAT_LAY_ITEM,
+            input_signature=signature,
+        )
+        if existing is not None:
+            return _view(existing)
+        asset = ItemPresentationAsset.queued(
+            user_id=user_id,
+            item_id=item_id,
+            kind=ItemPresentationKind.FLAT_LAY_ITEM,
+            input_signature=signature,
+            request_key=request_key or _flat_lay_request_key(item_id=item_id, signature=signature),
+        )
+        stored = await self._assets.ensure_requested(asset)
+        return _view(stored, dispatch_required=stored.status is ItemPresentationStatus.QUEUED)
+
     async def get(self, *, user_id: UUID, asset_id: UUID) -> ItemPresentationView:
         asset = await self._assets.get_for_user(user_id=user_id, asset_id=asset_id)
         if asset is None:
@@ -105,6 +135,28 @@ class ItemPresentationApplication:
         )
         if existing is None:
             return await self.ensure_pixel_item(user_id=user_id, item_id=item_id)
+        retried = await self._assets.save(existing.retry())
+        return _view(
+            retried,
+            dispatch_required=retried.status is ItemPresentationStatus.QUEUED,
+        )
+
+    async def retry_flat_lay_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+    ) -> ItemPresentationView:
+        item = await self._wardrobe.get_item(user_id, item_id)
+        signature = flat_lay_item_signature(item)
+        existing = await self._assets.find_current(
+            user_id=user_id,
+            item_id=item_id,
+            kind=ItemPresentationKind.FLAT_LAY_ITEM,
+            input_signature=signature,
+        )
+        if existing is None:
+            return await self.ensure_flat_lay_item(user_id=user_id, item_id=item_id)
         retried = await self._assets.save(existing.retry())
         return _view(
             retried,
@@ -186,8 +238,45 @@ def pixel_item_signature(item: WardrobeItem) -> RenderInputSignature:
     return RenderInputSignature(version=PIXEL_ITEM_SIGNATURE_VERSION, hash=digest)
 
 
+def flat_lay_item_signature(item: WardrobeItem) -> RenderInputSignature:
+    relevant_attributes = {
+        name: {
+            "value": field.value,
+            "provenance": field.provenance.value,
+        }
+        for name, field in sorted(item.attributes.fields.items())
+        if name
+        in {
+            "description",
+            "category",
+            "subcategory",
+            "colors",
+            "materials",
+            "pattern",
+            "silhouette",
+            "details",
+        }
+    }
+    payload = {
+        "item_id": str(item.id),
+        "source_object_key": item.source_object_key,
+        "updated_at": item.updated_at.isoformat(),
+        "attributes": relevant_attributes,
+        "capability_id": FLAT_LAY_ITEM_CAPABILITY_ID,
+        "schema_version": FLAT_LAY_ITEM_SCHEMA_VERSION,
+    }
+    digest = sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return RenderInputSignature(version=FLAT_LAY_ITEM_SIGNATURE_VERSION, hash=digest)
+
+
 def _request_key(*, item_id: UUID, signature: RenderInputSignature) -> str:
     return f"item-pixel:{item_id}:{signature.hash[:24]}"
+
+
+def _flat_lay_request_key(*, item_id: UUID, signature: RenderInputSignature) -> str:
+    return f"item-flat-lay:{item_id}:{signature.hash[:24]}"
 
 
 def _view(

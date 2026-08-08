@@ -252,8 +252,10 @@ export function CaptureSheet({
                   className="pixel-button"
                   style={{
                     flexDirection: "column",
-                    minHeight: "6rem",
+                    padding: "var(--px-3) var(--px-3)",
+                    minHeight: "4.8rem",
                     alignItems: "flex-start",
+                    gap: "0.2rem",
                     background:
                       ownership === "owned"
                         ? "var(--pixel-accent)"
@@ -270,13 +272,14 @@ export function CaptureSheet({
                   aria-pressed={ownership === "owned"}
                   onClick={() => setOwnership("owned")}
                 >
-                  <span style={{ fontSize: "1.5rem" }}>⭐</span>
-                  <strong style={{ fontSize: "0.8rem" }}>我的衣服</strong>
+                  <span style={{ fontSize: "1.25rem", lineHeight: 1 }}>⭐</span>
+                  <strong style={{ fontSize: "0.72rem", lineHeight: 1.2 }}>已拥有</strong>
                   <small
                     style={{
-                      fontSize: "0.6rem",
+                      fontSize: "0.55rem",
                       opacity: 0.7,
-                      fontFamily: "var(--font-body)"
+                      fontFamily: "var(--font-body)",
+                      lineHeight: 1.3
                     }}
                   >
                     已拥有，可参与搭配
@@ -287,8 +290,10 @@ export function CaptureSheet({
                   className="pixel-button"
                   style={{
                     flexDirection: "column",
-                    minHeight: "6rem",
+                    padding: "var(--px-3) var(--px-3)",
+                    minHeight: "4.8rem",
                     alignItems: "flex-start",
+                    gap: "0.2rem",
                     background:
                       ownership === "inspiration"
                         ? "var(--pixel-primary)"
@@ -303,13 +308,14 @@ export function CaptureSheet({
                   aria-pressed={ownership === "inspiration"}
                   onClick={() => setOwnership("inspiration")}
                 >
-                  <span style={{ fontSize: "1.5rem" }}>💖</span>
-                  <strong style={{ fontSize: "0.8rem" }}>穿搭灵感</strong>
+                  <span style={{ fontSize: "1.25rem", lineHeight: 1 }}>💖</span>
+                  <strong style={{ fontSize: "0.72rem", lineHeight: 1.2 }}>待拥有</strong>
                   <small
                     style={{
-                      fontSize: "0.6rem",
+                      fontSize: "0.55rem",
                       opacity: 0.7,
-                      fontFamily: "var(--font-body)"
+                      fontFamily: "var(--font-body)",
+                      lineHeight: 1.3
                     }}
                   >
                     先收藏，以后搭配
@@ -337,7 +343,7 @@ export function CaptureSheet({
               className="pixel-button pixel-button--primary w-full"
               disabled={!ownership || !intent || busy}
               onClick={() => ownership && intent && onConfirm(ownership, intent)}
-              style={{ marginBottom: "var(--px-3)" }}
+              style={{ marginBottom: "var(--px-3)", fontSize: "0.78rem" }}
             >
               {busy
                 ? "🔄 正在入库…"

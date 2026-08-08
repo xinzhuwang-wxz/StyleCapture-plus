@@ -12,6 +12,8 @@ from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.pixel_trial.application import PixelTrialApplication
 from stylecapture_backend.features.pixel_trial.domain import PixelTrial, PixelTrialStatus
 from stylecapture_backend.features.pixel_trial.processing import (
+    PIXEL_CARD_GUIDANCE_SCALE,
+    PIXEL_CARD_SEED,
     PIXEL_TRIAL_PROMPT,
     PixelTrialProcessor,
 )
@@ -68,6 +70,8 @@ class SuccessfulGenerator:
         self.images: tuple[ImagePayload, ...] = ()
         self.prompt = ""
         self.size = ""
+        self.seed: int | None = None
+        self.guidance_scale: float | None = None
 
     async def generate(
         self,
@@ -75,13 +79,17 @@ class SuccessfulGenerator:
         prompt: str,
         images: Sequence[ImagePayload],
         size: str = "1024x1024",
+        seed: int | None = None,
+        guidance_scale: float | None = None,
     ) -> GeneratedImage:
-        assert "6-10px" in prompt
-        assert "不默认使用粉色" in prompt
-        assert len(images) == 1
+        assert "图1是人物内容图" in prompt
+        assert "最后两张图只提供画风" in prompt
+        assert len(images) == 3
         self.prompt = prompt
         self.images = tuple(images)
         self.size = size
+        self.seed = seed
+        self.guidance_scale = guidance_scale
         body = b"real-provider-pixel-output"
         return GeneratedImage(
             body=body,
@@ -125,11 +133,19 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "photo.pixel_trial"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v3"
+    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v8-candidate"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
+    assert (
+        stored.provider_trace.parameters["style_reference_version"]
+        == "pixel-card-style-v2-candidate"
+    )
     assert generator.size == "1728x2304"
+    assert generator.seed == PIXEL_CARD_SEED
+    assert PIXEL_CARD_GUIDANCE_SCALE is None
+    assert generator.guidance_scale is None
     assert "3:4" in generator.prompt
-    assert "1:1" in generator.prompt
+    assert generator.images[1].object_key.endswith("anchor-formal-light-pixel.png")
+    assert generator.images[2].object_key.endswith("anchor-casual-dark-pixel.png")
 
 
 @pytest.mark.asyncio
@@ -158,11 +174,21 @@ async def test_pixel_trial_converts_heic_subject_before_render_provider() -> Non
 
 def test_pixel_trial_prompt_preserves_the_subject_without_fixed_decoration() -> None:
     assert "3:4" in PIXEL_TRIAL_PROMPT
-    assert "1:1" in PIXEL_TRIAL_PROMPT
-    assert "身份线索" in PIXEL_TRIAL_PROMPT
-    assert "鞋履、配饰" in PIXEL_TRIAL_PROMPT
-    assert "与原场景有关" in PIXEL_TRIAL_PROMPT
-    assert "不复刻完整房间" in PIXEL_TRIAL_PROMPT
+    assert "由穿搭主辅色、配饰和气质延伸" in PIXEL_TRIAL_PROMPT
+    assert "避免大面积纯白或中性灰" in PIXEL_TRIAL_PROMPT
+    assert "图标从原场景语义抽象" in PIXEL_TRIAL_PROMPT
+    assert "不画完整场景" in PIXEL_TRIAL_PROMPT
+    assert "不继承示例卡片的背景配色或装饰主题" in PIXEL_TRIAL_PROMPT
+    assert "头顶、手臂和鞋底" in PIXEL_TRIAL_PROMPT
+    assert "姿势属于人物内容" in PIXEL_TRIAL_PROMPT
+    assert "伸展动作通过缩小人物完整容纳" in PIXEL_TRIAL_PROMPT
+    assert "不改成对称立正" in PIXEL_TRIAL_PROMPT
+    assert "眼睛较大圆润有高光" in PIXEL_TRIAL_PROMPT
+    assert "避免小眼睛、长中庭和低幼娃娃" in PIXEL_TRIAL_PROMPT
+    assert "鼻子只用" not in PIXEL_TRIAL_PROMPT
+    assert "单个不超过人物头宽四分之一" in PIXEL_TRIAL_PROMPT
+    assert "用明暗层级概括发丝、衣褶和材质" in PIXEL_TRIAL_PROMPT
+    assert len(PIXEL_TRIAL_PROMPT) < 650
 
 
 def _heic_payload(object_key: str) -> ImagePayload:

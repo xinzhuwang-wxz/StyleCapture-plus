@@ -788,6 +788,7 @@ export function App() {
   });
   const autoRenderKey = useRef<string | null>(null);
   const autoCollageAttemptedLookIds = useRef(new Set<string>());
+  const flatLayAttemptedItemIds = useRef(new Set<string>());
 
   useEffect(() => {
     const detail = lookQuery.data;
@@ -834,6 +835,30 @@ export function App() {
       idempotencyKey: key
     });
   }, [lookQuery.data, rendersQuery.data, rendersQuery.isSuccess]);
+
+  useEffect(() => {
+    const detail = lookQuery.data;
+    const collageReady = (rendersQuery.data ?? []).some(
+      (render) =>
+        render.kind === "collage" &&
+        (render.status === "succeeded" || render.status === "degraded") &&
+        render.output_image_url
+    );
+    if (!detail || !collageReady) return;
+    const itemIds = [...new Set(
+      detail.components
+        .map((component) => component.item_id)
+        .filter((itemId): itemId is string => itemId !== null)
+    )];
+    for (const itemId of itemIds) {
+      if (flatLayAttemptedItemIds.current.has(itemId)) continue;
+      flatLayAttemptedItemIds.current.add(itemId);
+      void wardrobeApi.ensureItemFlatLayPresentation(itemId).catch(() => {
+        // The detail page keeps the real item display asset when this optional
+        // presentation cannot be queued, and its own request permits recovery.
+      });
+    }
+  }, [lookQuery.data, rendersQuery.data]);
 
   const ensuredPixelLookIds = useRef(new Set<string>());
 

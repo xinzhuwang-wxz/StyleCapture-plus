@@ -13,7 +13,7 @@ class ItemPresentationAssetRecord(Base):
     __tablename__ = "item_presentation_assets"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('pixel_item')",
+            "kind IN ('pixel_item','flat_lay_item')",
             name="item_presentation_kind",
         ),
         CheckConstraint(

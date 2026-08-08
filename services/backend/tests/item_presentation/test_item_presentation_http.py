@@ -188,6 +188,18 @@ async def test_item_pixel_presentation_http_creates_queued_task() -> None:
         assert "model" not in payload
         assert dispatcher.calls == [(user_id, UUID(payload["id"]))]
 
+        flat_lay = await client.post(
+            f"/v1/items/{item.id}/presentations/flat-lay",
+            headers={"Idempotency-Key": "item-flat-lay-contract"},
+        )
+        assert flat_lay.status_code == 202
+        flat_lay_payload = flat_lay.json()
+        assert flat_lay_payload["item_id"] == str(item.id)
+        assert flat_lay_payload["kind"] == "flat_lay_item"
+        assert flat_lay_payload["status"] == "queued"
+        assert flat_lay_payload["output_image_url"] is None
+        assert dispatcher.calls[-1] == (user_id, UUID(flat_lay_payload["id"]))
+
         not_ready = await client.get(f"/v1/item-presentations/{payload['id']}/image")
         assert not_ready.status_code == 404
         assert not_ready.json()["error"]["code"] == "item_presentation_not_found"
