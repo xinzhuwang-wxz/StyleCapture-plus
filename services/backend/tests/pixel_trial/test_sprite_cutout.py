@@ -33,7 +33,20 @@ def test_pixel_sprite_extractor_removes_card_and_keeps_character() -> None:
         assert center[3] == 255
 
 
-def _pixel_card() -> ImagePayload:
+def test_pixel_sprite_extractor_removes_carpet_touching_the_shoes() -> None:
+    result = PillowPixelSpriteExtractor().extract(_pixel_card(with_carpet=True))
+
+    with Image.open(BytesIO(result.body)) as image:
+        rgba = image.convert("RGBA")
+        # The character is roughly 100 px wide in the source. Keeping the
+        # 200 px carpet would make the trimmed sprite almost card-width.
+        assert rgba.width < 140
+        alpha = rgba.getchannel("A")
+        assert alpha.getpixel((0, rgba.height - 1)) == 0
+        assert alpha.getpixel((rgba.width - 1, rgba.height - 1)) == 0
+
+
+def _pixel_card(*, with_carpet: bool = False) -> ImagePayload:
     width, height = 240, 320
     image = Image.new("RGB", (width, height))
     pixels = image.load()
@@ -50,6 +63,9 @@ def _pixel_card() -> ImagePayload:
     # Disconnected card decorations must not survive as part of the sprite.
     draw.rectangle((15, 20, 24, 29), fill=(255, 180, 220))
     draw.rectangle((210, 50, 217, 57), fill=(180, 220, 255))
+    if with_carpet:
+        draw.ellipse((20, 268, 220, 314), fill=(235, 184, 116), outline=(185, 128, 72), width=4)
+        draw.ellipse((45, 278, 195, 304), outline=(255, 238, 202), width=5)
     # One connected, deliberately blocky character.
     draw.rectangle((92, 42, 147, 90), fill=(70, 42, 35))
     draw.rectangle((82, 88, 157, 205), fill=(195, 62, 96))
