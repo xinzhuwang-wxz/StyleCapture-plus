@@ -42,7 +42,7 @@ The output is a presentation derivative, not a new source of truth: it cannot ad
 
 ## Verification
 
-- Run `npm test` in `skills/real-photo-flat-lay-collage`.
+- Run `npm test` in `skills/generate-outfit-item-assets`.
 - Run `uv run pytest services/backend/tests/render/test_collage.py -q`.
 - Run the existing render API tests and one real H5 Look journey: captured photo → ready Look → queued → succeeded collage → authenticated image.
 - Inspect the resulting PNG dimensions, pure-white corner pixels, private artifact route, and missing-source failure behavior.
