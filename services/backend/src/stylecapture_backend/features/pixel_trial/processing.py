@@ -53,11 +53,11 @@ PIXEL_TRIAL_OUTPUT_SIZE = "1728x2304"
 
 
 PIXEL_TRIAL_PROMPT = build_pixel_card_prompt(
-    "图1是人物内容图；最后两张图只提供画风、人物与脸部比例、粗像素颗粒、卡片留白和地毯结构。"
+    "图1是人物内容图；最后两张图只提供画风、精致五官、轮廓像素、内部明暗层次、卡片留白和地毯结构。"
     "只从图1读取人物、服装与配饰，不继承示例卡片的背景配色或装饰主题。"
 )
 PIXEL_TRIAL_CAPABILITY_ID = "photo.pixel_trial"
-PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v5"
+PIXEL_TRIAL_PROMPT_VERSION = "photo-pixel-trial-zh-v8-candidate"
 PIXEL_TRIAL_SCHEMA_VERSION = "generated-image-v1"
 
 
