@@ -34,14 +34,14 @@ async function productApiError(response, fallback) {
   throw new Error(code ? `${code}: ${message || fallback}` : message || fallback);
 }
 
-function assertArtifact(artifact) {
-  if (!artifact || typeof artifact !== "object" || typeof artifact.id !== "string") {
-    throw new Error("Product API returned an invalid render artifact");
+function assertItemPresentation(presentation) {
+  if (!presentation || typeof presentation !== "object" || typeof presentation.id !== "string") {
+    throw new Error("Product API returned an invalid item presentation");
   }
-  if (artifact.kind !== "collage") {
-    throw new Error("Product API returned a non-collage artifact");
+  if (presentation.kind !== "flat_lay_item") {
+    throw new Error("Product API returned a non-flat-lay item presentation");
   }
-  return artifact;
+  return presentation;
 }
 
 async function ensureSession(baseUrl, options, signal) {
@@ -52,35 +52,38 @@ async function ensureSession(baseUrl, options, signal) {
   return sessionCookie(response);
 }
 
-async function renderFlatLay(lookId, options = {}) {
+async function renderItemFlatLays(lookId, options = {}) {
   const normalizedLookId = normalizeLookId(lookId);
   const baseUrl = normalizeBaseUrl(options.baseUrl || process.env.STYLECAPTURE_API_URL || DEFAULT_API_URL);
   const timeoutMs = Math.max(1, Math.min(Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS, 180_000));
   const signal = AbortSignal.timeout(timeoutMs);
   const cookie = await ensureSession(baseUrl, options, signal);
-  const response = await fetch(`${baseUrl}/v1/looks/${encodeURIComponent(normalizedLookId)}/renders`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "idempotency-key": String(options.idempotencyKey || randomUUID()),
-      cookie,
-    },
-    body: JSON.stringify({ kind: "collage" }),
-    signal,
+  const detailResponse = await fetch(`${baseUrl}/v1/looks/${encodeURIComponent(normalizedLookId)}`, {
+    headers: { cookie }, signal,
   });
-  if (!response.ok) await productApiError(response, "真实单品拼贴创建失败");
-  const artifact = assertArtifact(await response.json());
-  if (!options.wait) return artifact;
-  while (!new Set(["succeeded", "failed", "degraded"]).has(artifact.status)) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const latest = await fetch(`${baseUrl}/v1/render-artifacts/${encodeURIComponent(artifact.id)}`, {
-      headers: { cookie },
+  if (!detailResponse.ok) await productApiError(detailResponse, "无法读取穿搭中的真实单品");
+  const detail = await detailResponse.json();
+  const itemIds = [...new Set((detail?.components || []).map((component) => component?.item_id).filter((id) => typeof id === "string"))];
+  const presentations = await Promise.all(itemIds.map(async (itemId) => {
+    const response = await fetch(`${baseUrl}/v1/items/${encodeURIComponent(itemId)}/presentations/flat-lay`, {
+      method: "POST",
+      headers: { "idempotency-key": randomUUID(), cookie },
       signal,
     });
-    if (!latest.ok) await productApiError(latest, "真实单品拼贴状态查询失败");
-    Object.assign(artifact, assertArtifact(await latest.json()));
-  }
-  return artifact;
+    if (!response.ok) await productApiError(response, "真实单品白底图创建失败");
+    const presentation = assertItemPresentation(await response.json());
+    if (!options.wait) return presentation;
+    while (!new Set(["succeeded", "failed"]).has(presentation.status)) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const latest = await fetch(`${baseUrl}/v1/item-presentations/${encodeURIComponent(presentation.id)}`, {
+        headers: { cookie }, signal,
+      });
+      if (!latest.ok) await productApiError(latest, "真实单品白底图状态查询失败");
+      Object.assign(presentation, assertItemPresentation(await latest.json()));
+    }
+    return presentation;
+  }));
+  return presentations;
 }
 
 function parseArgs(argv) {
@@ -101,13 +104,13 @@ function parseArgs(argv) {
 async function main(argv) {
   const args = parseArgs(argv);
   if (!args["look-id"]) throw new Error("--look-id is required");
-  const artifact = await renderFlatLay(args["look-id"], {
+  const output = await renderItemFlatLays(args["look-id"], {
     baseUrl: args["api-base-url"],
     sessionCookie: args["session-cookie"],
     timeoutMs: args["timeout-ms"],
     wait: args.wait,
   });
-  process.stdout.write(`${JSON.stringify(artifact, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }
 
 if (require.main === module) {
@@ -117,4 +120,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { normalizeLookId, renderFlatLay };
+module.exports = { normalizeLookId, renderItemFlatLays };

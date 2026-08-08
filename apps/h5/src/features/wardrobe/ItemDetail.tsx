@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
-import type { Item, Ownership } from "../../api/client";
+import { wardrobeApi, type Item, type ItemPresentation, type Ownership } from "../../api/client";
 import {
   GARMENT_CATEGORY_OPTIONS,
   garmentLabel,
@@ -35,6 +35,12 @@ function DetailContent({
   onReturnToFeed
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
   const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
+  const sourceImageUrl = useDisplayImage(
+    item.id,
+    `${item.status}:${item.updated_at}:source`,
+    !item.source_available,
+    "source"
+  );
   const [ownership, setOwnership] = useState<Ownership>(item.ownership);
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const [description, setDescription] = useState(
@@ -42,6 +48,8 @@ function DetailContent({
   );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [flatLay, setFlatLay] = useState<ItemPresentation | null>(null);
+  const [flatLayError, setFlatLayError] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const onCloseRef = useRef(onClose);
 
@@ -69,10 +77,47 @@ function DetailContent({
   }, [item]);
 
   useEffect(() => {
-    if (imageUrl) {
+    let cancelled = false;
+    let timer: number | undefined;
+    async function loadFlatLay() {
+      try {
+        const presentation = await wardrobeApi.ensureItemFlatLayPresentation(item.id);
+        if (cancelled) return;
+        setFlatLay(presentation);
+        setFlatLayError(null);
+        if (presentation.status === "queued" || presentation.status === "running") {
+          timer = window.setTimeout(() => void loadFlatLay(), 1_500);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFlatLayError(error instanceof Error ? error.message : "真实单品白底图暂时无法生成");
+        }
+      }
+    }
+    setFlatLay(null);
+    setFlatLayError(null);
+    void loadFlatLay();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [item.id, item.updated_at]);
+
+  const flatLayReady = flatLay?.status === "succeeded" && Boolean(flatLay.output_image_url);
+  const flatLayGenerating =
+    flatLayError === null &&
+    (flatLay === null || flatLay.status === "queued" || flatLay.status === "running");
+  const heroImageUrl = flatLayReady
+    ? flatLay.output_image_url
+    : flatLayGenerating
+      ? sourceImageUrl ?? imageUrl
+      : imageUrl;
+
+  useEffect(() => {
+    if (heroImageUrl) {
       setImageFailed(false);
     }
-  }, [imageUrl]);
+  }, [heroImageUrl]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
@@ -117,16 +162,24 @@ function DetailContent({
         <span className="detail-topbar__spacer" />
       </div>
 
-      <div className="detail-image">
-        {imageUrl && !imageFailed ? (
+      <div
+        className="detail-image"
+        data-flat-lay={flatLayReady ? "true" : undefined}
+        data-generating={flatLayGenerating ? "true" : undefined}
+      >
+        {heroImageUrl && !imageFailed ? (
           <img
-            src={imageUrl}
-            alt={description || "衣橱单品原图"}
+            src={heroImageUrl}
+            alt={flatLayReady ? `${description || "衣橱单品"}的白底平铺图` : description || "衣橱单品原图"}
             onError={() => setImageFailed(true)}
             data-image-kind={
-              item.display_image_kind === "derived_garment"
-                ? "wardrobe-display"
-                : "wardrobe-source-fallback"
+              flatLayReady
+                ? "generated-flat-lay"
+                : flatLayGenerating && sourceImageUrl
+                  ? "wardrobe-source-fallback"
+                  : item.display_image_kind === "derived_garment"
+                  ? "wardrobe-display"
+                  : "wardrobe-source-fallback"
             }
           />
         ) : (
@@ -137,9 +190,32 @@ function DetailContent({
             </small>
           </div>
         )}
+        {flatLayGenerating ? (
+          <div className="item-flat-lay-loading" role="status" aria-live="polite">
+            <span className="item-flat-lay-spinner" aria-hidden="true" />
+            <strong>正在生成单品图</strong>
+            <small>完成后会自动替换当前原图</small>
+          </div>
+        ) : null}
       </div>
 
       <div className="detail-content">
+        <p className="flat-lay-status" role="status">
+          {flatLayReady
+            ? "真实单品白底图 · 3:4"
+            : flatLayGenerating
+              ? "正在生成单品图…"
+              : flatLayError ?? "当前展示识别图；白底单品图暂不可用"}
+        </p>
+        {flatLayReady && (sourceImageUrl ?? imageUrl) ? (
+          <details className="flat-lay-source">
+            <summary>查看识别来源图</summary>
+            <img
+              src={sourceImageUrl ?? imageUrl ?? undefined}
+              alt={`${description || "衣橱单品"}的识别来源图`}
+            />
+          </details>
+        ) : null}
         <div className="detail-meta">
           <span>{sourceKindLabel(item.source_kind)}</span>
           <span>{item.status === "ready" ? "已完成理解" : "仍可编辑"}</span>
@@ -280,7 +356,7 @@ export function ItemDetail(props: ItemDetailProps) {
   return (
     <AnimatePresence>
       {props.item ? (
-        <div className="detail-layer">
+        <div className="detail-layer detail-layer--item">
           <DetailContent {...props} item={props.item} />
         </div>
       ) : null}

@@ -418,6 +418,20 @@ async function ensureItemPixelPresentation(itemId: string): Promise<ItemPresenta
   return response.data;
 }
 
+async function ensureItemFlatLayPresentation(itemId: string): Promise<ItemPresentation> {
+  await ensureSession();
+  const response = await client.POST("/v1/items/{item_id}/presentations/flat-lay", {
+    params: {
+      path: { item_id: itemId },
+      header: { "Idempotency-Key": `item-flat-lay:${itemId}` }
+    }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "真实单品白底图暂时无法生成");
+  }
+  return response.data;
+}
+
 async function getItemPresentation(assetId: string): Promise<ItemPresentation> {
   await ensureSession();
   const response = await client.GET("/v1/item-presentations/{asset_id}", {
@@ -680,6 +694,11 @@ async function displayImage(itemId: string): Promise<string> {
   return `/v1/items/${encodeURIComponent(itemId)}/image`;
 }
 
+async function sourceImage(itemId: string): Promise<string> {
+  await ensureSession();
+  return `/v1/items/${encodeURIComponent(itemId)}/source`;
+}
+
 async function planOutfits(input: {
   scene: string;
   style?: string;
@@ -881,6 +900,7 @@ export const wardrobeApi = {
   getPixelTrial,
   deletePixelTrial,
   ensureItemPixelPresentation,
+  ensureItemFlatLayPresentation,
   getItemPresentation,
   uploadPrivateImage,
   discardPrivateUpload,
@@ -891,6 +911,7 @@ export const wardrobeApi = {
   updateItem,
   deleteSource,
   displayImage,
+  sourceImage,
   planOutfits,
   planOutfitsProgressively,
   replaceOutfitSlot,

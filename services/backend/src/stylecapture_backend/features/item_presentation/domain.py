@@ -14,6 +14,7 @@ from stylecapture_backend.features.render.domain import (
 
 class ItemPresentationKind(StrEnum):
     PIXEL_ITEM = "pixel_item"
+    FLAT_LAY_ITEM = "flat_lay_item"
 
 
 class ItemPresentationStatus(StrEnum):
