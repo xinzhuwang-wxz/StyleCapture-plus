@@ -16,6 +16,13 @@ from stylecapture_backend.features.render.domain import (
     RenderOutput,
     RenderProviderTrace,
 )
+from stylecapture_backend.features.render.pixel_card_style import (
+    PIXEL_CARD_GUIDANCE_SCALE,
+    PIXEL_CARD_SEED,
+    PIXEL_CARD_STYLE_REFERENCE_VERSION,
+    load_pixel_card_style_references,
+    pixel_card_style_reference_hashes,
+)
 from stylecapture_backend.features.render.ports import (
     CollageRenderer,
     CollageRenderError,
@@ -63,6 +70,8 @@ class PixelGenerator(Protocol):
         prompt: str,
         images: tuple[ImagePayload, ...],
         size: str = "1024x1024",
+        seed: int | None = None,
+        guidance_scale: float | None = None,
     ) -> GeneratedImage: ...
 
 
@@ -202,8 +211,10 @@ class RenderProcessor:
         try:
             generated = await self._pixel_generator.generate(
                 prompt=PIXEL_COVER_PROMPT,
-                images=source_images,
+                images=(*source_images, *load_pixel_card_style_references()),
                 size=PIXEL_COVER_OUTPUT_SIZE,
+                seed=PIXEL_CARD_SEED,
+                guidance_scale=PIXEL_CARD_GUIDANCE_SCALE,
             )
             await self._record_provider_and_store(
                 artifact,
@@ -211,6 +222,10 @@ class RenderProcessor:
                 capability_id=PIXEL_COVER_CAPABILITY_ID,
                 prompt_version=PIXEL_COVER_PROMPT_VERSION,
                 schema_version=PIXEL_COVER_SCHEMA_VERSION,
+                extra_parameters={
+                    "style_reference_version": PIXEL_CARD_STYLE_REFERENCE_VERSION,
+                    "style_reference_hashes": pixel_card_style_reference_hashes(),
+                },
             )
         except (RenderProviderError, ValueError):
             await self._degrade(artifact, fallback, "像素生成暂不可用。展示真实单品拼贴")
@@ -418,6 +433,7 @@ class RenderProcessor:
         capability_id: str,
         prompt_version: str,
         schema_version: str,
+        extra_parameters: dict[str, object] | None = None,
     ) -> None:
         await self._renders.mark_running(
             user_id=artifact.user_id,
@@ -427,6 +443,7 @@ class RenderProcessor:
                 capability_alias="image_generation",
                 prompt_version=prompt_version,
                 schema_version=schema_version,
+                **(extra_parameters or {}),
             ),
         )
         await self._store_success(artifact, _generated_payload(generated))

@@ -1,0 +1,18 @@
+{
+  "reference_version": "pixel-card-style-v2-candidate",
+  "usage": "Local candidate anchors for refined facial features, coarse silhouette pixels, finer internal shading, card spacing, and rug structure. Do not copy anchor background palettes or decorations.",
+  "files": [
+    {
+      "name": "anchor-formal-light-pixel.png",
+      "source_pair": "user-provided positive reference; source photo is not part of the runtime bundle",
+      "role": "elegant dress positive style anchor",
+      "license": "Provided by the repository contributor for use in StyleCapture-plus and its GitHub documentation."
+    },
+    {
+      "name": "anchor-casual-dark-pixel.png",
+      "source_pair": "user-provided positive reference; source photo is not part of the runtime bundle",
+      "role": "soft layered outfit positive style anchor",
+      "license": "Provided by the repository contributor for use in StyleCapture-plus and its GitHub documentation."
+    }
+  ]
+}

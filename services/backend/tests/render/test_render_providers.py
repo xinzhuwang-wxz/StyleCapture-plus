@@ -80,6 +80,8 @@ async def test_litellm_image_generator_uses_alias_and_returns_base64_image() -> 
         prompt="生成像素小人封面",
         images=[image_payload()],
         size="1024x1024",
+        seed=482731,
+        guidance_scale=7.0,
     )
 
     assert generated.body == output
@@ -97,6 +99,25 @@ async def test_litellm_image_generator_uses_alias_and_returns_base64_image() -> 
     assert b'"image":' in payload
     assert b'"sequential_image_generation":"disabled"' in payload
     assert b'"watermark":false' in payload
+    assert b'"seed":482731' in payload
+    assert b'"guidance_scale":7.0' in payload
+    assert generated.provider_trace.parameters["seed"] == 482731
+    assert generated.provider_trace.parameters["guidance_scale"] == 7.0
+
+
+@pytest.mark.asyncio
+async def test_litellm_image_generator_rejects_invalid_stability_controls() -> None:
+    generator = LiteLLMImageGenerator(
+        capability_alias="image_generation",
+        gateway_base_url="http://litellm:4000/v1",
+        gateway_api_key="gateway-secret",
+        transport=transport_for(lambda _request: httpx.Response(500)),
+    )
+
+    with pytest.raises(ValueError, match="seed"):
+        await generator.generate(prompt="像素卡", images=[], seed=-1)
+    with pytest.raises(ValueError, match="guidance"):
+        await generator.generate(prompt="像素卡", images=[], guidance_scale=10.5)
 
 
 @pytest.mark.asyncio
