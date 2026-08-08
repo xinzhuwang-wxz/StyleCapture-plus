@@ -18,7 +18,10 @@ from stylecapture_backend.features.look.domain import (
 )
 from stylecapture_backend.features.render.application import RenderArtifactView
 from stylecapture_backend.features.render.domain import RenderArtifactKind, RenderArtifactStatus
-from stylecapture_backend.features.render.signatures import build_render_input_signature
+from stylecapture_backend.features.render.signatures import (
+    RENDER_PIPELINE_VERSIONS,
+    build_render_input_signature,
+)
 
 
 def test_dependent_render_signature_does_not_change_when_source_finishes() -> None:
@@ -153,5 +156,6 @@ def test_composition_signature_uses_item_versions_not_an_unrelated_capture() -> 
         look_display_hash="f" * 64,
     )
 
+    assert RENDER_PIPELINE_VERSIONS[RenderArtifactKind.COLLAGE] == "collage-v2-hero"
     assert original != changed_item_version
     assert original != changed_display

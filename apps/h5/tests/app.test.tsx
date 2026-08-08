@@ -145,6 +145,7 @@ const collageRender: RenderArtifact = {
   look_id: "11111111-1111-4111-8111-111111111111",
   kind: "collage",
   status: "queued",
+  current: true,
   presentation_label: "真实单品拼贴",
   subject_attached: false,
   personalized: false,
@@ -683,6 +684,8 @@ describe("StyleCapture garment ingest", () => {
     const confirmation = await screen.findByRole("dialog", {
       name: "确认加入衣橱"
     });
+    expect(confirmation.closest(".pixel-overlay")).not.toBeNull();
+    expect(confirmation.closest(".pixel-app")).toBeNull();
     expect(within(confirmation).getByRole("heading", { name: "确认加入衣橱" })).toBeInTheDocument();
     const submit = within(confirmation).getByRole("button", {
       name: "请选择保存类型"

@@ -51,6 +51,7 @@ export function CaptureSheet({
     setIntent(null);
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (dialogRef.current) dialogRef.current.scrollTop = 0;
     cancelButtonRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busyRef.current) {

@@ -414,6 +414,7 @@ export function App() {
           const collage = lookRenderQueries[index]?.data?.find(
             (render) =>
               render.kind === "collage" &&
+              render.current !== false &&
               render.status === "succeeded" &&
               Boolean(render.output_image_url)
           );
@@ -817,7 +818,7 @@ export function App() {
   useEffect(() => {
     const detail = lookQuery.data;
     const collageRenders = (rendersQuery.data ?? []).filter(
-      (render) => render.kind === "collage"
+      (render) => render.kind === "collage" && render.current !== false
     );
     const usableOrInFlightCollage = collageRenders.some(
       (render) =>
@@ -864,6 +865,7 @@ export function App() {
     const collageReady = (rendersQuery.data ?? []).some(
       (render) =>
         render.kind === "collage" &&
+        render.current !== false &&
         (render.status === "succeeded" || render.status === "degraded") &&
         render.output_image_url
     );
@@ -1237,6 +1239,7 @@ export function App() {
             />
           </Suspense>
         ) : null}
+      </div>
 
         <input
           ref={cameraInput}
@@ -1262,6 +1265,7 @@ export function App() {
           }}
         />
 
+      <div className="pixel-overlay">
         <Suspense fallback={null}>
           {selection ? (
             <CaptureSheet

@@ -152,7 +152,7 @@ class RenderProcessor:
                 artifact_id=artifact.id,
                 provider_trace=RenderProviderTrace(
                     provider="deterministic",
-                    model="pillow-collage-v1",
+                    model="pillow-collage-v2-hero",
                     parameters={
                         "component_count": len(item_images),
                         "look_version": detail.look.updated_at.isoformat(),

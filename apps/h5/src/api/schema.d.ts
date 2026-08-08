@@ -1374,6 +1374,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Current
+             * @default true
+             */
+            current: boolean;
             /** Failure Code */
             failure_code: string | null;
             /** Failure Message */

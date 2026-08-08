@@ -120,6 +120,7 @@ function DetailContent({
   const usableCollage = sortedRenders.find(
     (render) =>
       render.kind === "collage" &&
+      render.current !== false &&
       (render.status === "succeeded" || render.status === "degraded") &&
       render.output_image_url
   );

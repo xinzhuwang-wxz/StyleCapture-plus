@@ -10,6 +10,8 @@ Make every saved Look and Item tell the truth while AI presentation assets are b
 - [x] 2026-08-09: Rebuilt the API/worker with migration `20260808_0017`; verified four Item presentation tasks and both Look render tasks succeed.
 - [x] 2026-08-09: Added honest blurred pending states and corrected contradictory Item presentation copy.
 - [x] 2026-08-09: Added collage/source fallbacks for Look cards without a pixel cover.
+- [x] 2026-08-09: Unified deterministic outfit collages around a large primary item with a compact right-hand stack and versioned the artifact as `collage-v2-hero`.
+- [x] 2026-08-09: Moved capture/detail sheets into a shell-level overlay so opening the bottom-plus upload flow is independent of the wardrobe scroll position.
 - [ ] Persist and expose the user's wardrobe-cover selection.
 - [ ] Persist profile reference photos and allow try-on jobs to reuse a selected/default photo.
 - [x] 2026-08-09: Passed 31 targeted H5 tests and browser-verified both pending and completed Look states.
@@ -22,12 +24,15 @@ Make every saved Look and Item tell the truth while AI presentation assets are b
 - Profile photos on the “我的” screen currently live only in browser storage, so the backend cannot reuse them for try-on jobs.
 
 - The C: volume has only about 12.5 GB free, below the repository's 20 GB build guardrail. Further Docker rebuilds should wait until the workspace and Docker data are relocated or space is reclaimed.
+- Existing `collage-v1` artifacts would otherwise remain valid indefinitely. The API now marks stale collage signatures as `current: false`, allowing clients to queue the v2 layout without deleting historical artifacts.
 
 ## Decision Log
 
 - 2026-08-09: Keep processing states driven by Product API job/render states; do not infer completion from image appearance alone.
 - 2026-08-09: Reuse existing Look detail, RenderArtifact, ItemPresentation, TanStack Query polling, and profile photo UI. Extend their contracts rather than creating parallel presentation or upload flows.
 - 2026-08-09: Treat the source image and deterministic component collage as explicit fallbacks, never as completed AI output.
+- 2026-08-09: Generate the canonical collage once in the backend and reuse that artifact in detail, thumbnail fallback, and pixel-cover input; do not recreate divergent CSS collages on individual screens.
+- 2026-08-09: Render modal sheets as siblings of `.pixel-app` inside `.pixel-overlay`, because `.pixel-app` is the phone's scroll container and must not define overlay geometry.
 
 ## Context and Orientation
 
@@ -83,4 +88,4 @@ Make every saved Look and Item tell the truth while AI presentation assets are b
 
 ## Outcomes & Retrospective
 
-In progress. Final evidence and remaining limitations will be recorded after the browser and test pass.
+The collage-v2 renderer and shell-level capture overlay are implemented. Six targeted backend tests, 53 targeted H5 tests, contract generation, and H5 typecheck pass. A Docker rebuild and final live artifact review remain deferred until sufficient disk space is available or the workspace/runtime is moved to D:.

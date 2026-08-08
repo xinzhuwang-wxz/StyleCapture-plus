@@ -86,6 +86,7 @@ function renderArtifact(
     look_id: pendingLook.id,
     kind: "collage",
     status: "succeeded",
+    current: true,
     presentation_label: "真实单品拼贴",
     subject_attached: false,
     personalized: false,
