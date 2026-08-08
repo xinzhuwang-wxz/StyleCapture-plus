@@ -7,6 +7,7 @@ import {
   garmentLabel,
   sourceKindLabel
 } from "./localization";
+import { buildDouyinSearchUrl } from "./purchaseSearch";
 import { useDisplayImage } from "./useDisplayImage";
 
 type ItemDetailProps = {
@@ -57,8 +58,7 @@ function DetailContent({
     garmentLabel(String(item.attributes.category?.value ?? "")) ||
     "同款穿搭单品";
   const purchaseSearchUrl =
-    item.purchase_search_url ||
-    `https://www.douyin.com/search/${encodeURIComponent(purchaseSearchQuery)}`;
+    item.purchase_search_url || buildDouyinSearchUrl(purchaseSearchQuery);
 
   const displayImageNote =
     item.display_image_kind === "derived_garment"

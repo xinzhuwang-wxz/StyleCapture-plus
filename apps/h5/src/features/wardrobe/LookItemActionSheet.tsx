@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 
 import type { Ownership } from "../../api/client";
+import { buildDouyinSearchUrl } from "./purchaseSearch";
 
 export type LookItemAction = {
   itemId: string | null;
@@ -27,6 +28,8 @@ export function LookItemActionSheet({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const purchaseSearchUrl =
+    action?.purchaseSearchUrl || buildDouyinSearchUrl(action?.label ?? "");
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -134,20 +137,14 @@ export function LookItemActionSheet({
                 </button>
               ) : (
                 <>
-                  {action.purchaseSearchUrl ? (
-                    <a
-                      className="primary-action"
-                      href={action.purchaseSearchUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      未拥有，去购买
-                    </a>
-                  ) : (
-                    <button className="primary-action" type="button" disabled>
-                      暂无购买链接
-                    </button>
-                  )}
+                  <a
+                    className="primary-action"
+                    href={purchaseSearchUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    未拥有，去购买
+                  </a>
                   <button
                     className="secondary-action"
                     type="button"
