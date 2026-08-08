@@ -849,6 +849,7 @@ describe("StyleCapture garment ingest", () => {
   });
 
   it("blurs the original and shows generation progress while the item hero is queued", async () => {
+    const user = userEvent.setup();
     api.listItems.mockResolvedValue([wardrobeItem]);
     api.ensureItemFlatLayPresentation.mockResolvedValue({
       ...failedFlatLay,
@@ -859,9 +860,10 @@ describe("StyleCapture garment ingest", () => {
     });
     renderApp();
 
-    await userEvent.click(
+    await user.click(await screen.findByRole("tab", { name: "按单品" }));
+    await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 我的衣服"
+        name: /^米白色针织上衣 可搭配 上装/
       }, { timeout: 3_000 })
     );
 
