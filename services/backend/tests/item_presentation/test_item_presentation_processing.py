@@ -26,10 +26,11 @@ from stylecapture_backend.features.item_presentation.domain import (
 )
 from stylecapture_backend.features.item_presentation.processing import (
     ItemPresentationProcessor,
+    normalize_pixel_card_output,
 )
 from stylecapture_backend.features.render.domain import RenderInputSignature, RenderProviderTrace
 from stylecapture_backend.features.render.infrastructure.collage import PillowLookCollageRenderer
-from stylecapture_backend.features.render.ports import GeneratedImage
+from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
 from stylecapture_backend.features.wardrobe.domain import ItemAttributes, ItemStatus, WardrobeItem
 
 
@@ -101,6 +102,7 @@ class MemoryObjects:
 class SuccessfulGenerator:
     def __init__(self) -> None:
         self.images: tuple[ImagePayload, ...] = ()
+        self.size: str | None = None
 
     async def generate(
         self,
@@ -109,10 +111,16 @@ class SuccessfulGenerator:
         images: Sequence[ImagePayload],
         size: str = "1024x1024",
     ) -> GeneratedImage:
-        assert "只出现一个目标单品" in prompt
+        assert "严格输出 1:1 正方形 2048x2048" in prompt
+        assert "16-bit / 32-bit 商品像素画" in prompt
         assert len(images) == 1
         self.images = tuple(images)
-        body = b"real-provider-item-pixel-output"
+        self.size = size
+        rendered = Image.new("RGB", (2048, 2048), (255, 247, 251))
+        rendered.paste((223, 157, 38), (500, 480, 1548, 1580))
+        buffer = BytesIO()
+        rendered.save(buffer, format="PNG")
+        body = buffer.getvalue()
         return GeneratedImage(
             body=body,
             content_type="image/png",
@@ -207,10 +215,11 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
     repository = MemoryPresentations(asset)
     wardrobe = OneItemWardrobe(item)
     generator = SuccessfulGenerator()
+    objects = MemoryObjects(source)
     processor = ItemPresentationProcessor(
         presentations=ItemPresentationApplication(assets=repository, wardrobe=wardrobe),
         wardrobe=wardrobe,
-        objects=MemoryObjects(source),
+        objects=objects,
         generator=generator,
     )
 
@@ -218,13 +227,40 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
 
     stored = repository.assets[asset.id]
     assert stored.status is ItemPresentationStatus.SUCCEEDED
+    assert generator.size == "2048x2048"
+    assert stored.output is not None
+    with Image.open(BytesIO(objects.images[stored.output.object_key].body)) as card:
+        assert card.size == (1024, 1024)
+        assert card.format == "PNG"
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "item.pixel_presentation"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
     assert (
         stored.provider_trace.parameters["prompt_version"] == "stylecapture-item-pixel-2026-07-26"
     )
-    assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
+    assert stored.provider_trace.parameters["schema_version"] == "pastel-pixel-card-square-v1"
+    assert stored.provider_trace.parameters["output_canvas"] == "1024x1024"
+    assert stored.provider_trace.parameters["pixel_grid"] == "256x256"
+
+
+def test_pixel_card_rejects_non_square_provider_output() -> None:
+    rendered = Image.new("RGB", (1728, 2304), "white")
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm",
+            model="image_generation",
+            parameters={},
+        ),
+    )
+
+    with pytest.raises(RenderProviderError, match="2048x2048"):
+        normalize_pixel_card_output(generated)
 
 
 @pytest.mark.asyncio

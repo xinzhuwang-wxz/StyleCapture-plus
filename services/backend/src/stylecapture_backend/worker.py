@@ -27,7 +27,7 @@ from stylecapture_backend.features.item_presentation.infrastructure.repository i
     SqlAlchemyItemPresentationRepository,
 )
 from stylecapture_backend.features.item_presentation.infrastructure.scheduler import (
-    DefaultItemFlatLayScheduler,
+    DefaultItemPresentationScheduler,
 )
 from stylecapture_backend.features.item_presentation.infrastructure.tasks import (
     CeleryItemPresentationDispatcher,
@@ -136,7 +136,7 @@ processor = CaptureProcessor(
     looks=look_repository,
     grounder=grounder,
     outfit_analyzer=outfit_analyzer,
-    item_presentations=DefaultItemFlatLayScheduler(
+    item_presentations=DefaultItemPresentationScheduler(
         presentations=item_presentation_application,
         dispatcher=item_presentation_dispatcher,
     ),

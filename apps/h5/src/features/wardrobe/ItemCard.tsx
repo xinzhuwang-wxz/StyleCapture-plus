@@ -59,6 +59,10 @@ function DeferredPixelImage({ src, alt }: { src: string; alt: string }) {
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker || visible) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry?.isIntersecting) return;
@@ -79,8 +83,7 @@ function DeferredPixelImage({ src, alt }: { src: string; alt: string }) {
           alt={alt}
           loading="lazy"
           decoding="async"
-          fetchPriority="low"
-          data-image-kind="wardrobe-pixel"
+          data-image-kind="wardrobe-pixel-card"
           data-pixel="true"
         />
       ) : null}
@@ -128,9 +131,11 @@ export function WardrobeItemCard({
       >
         <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">
           <PixelItemImage item={item} category={category} />
-          <span className={`status-badge status-badge--${item.status}`}>
-            {STATUS_LABELS[item.status]}
-          </span>
+          {item.status === "ready" && item.pixel_image_url ? null : (
+            <span className={`status-badge status-badge--${item.status}`}>
+              {STATUS_LABELS[item.status]}
+            </span>
+          )}
           {item.pixel_image_status === "queued" ||
           item.pixel_image_status === "running" ? (
             <span className="item-card__pixel-status">像素图生成中</span>

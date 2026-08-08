@@ -848,6 +848,24 @@ describe("StyleCapture garment ingest", () => {
     ).toBeVisible();
   });
 
+  it("fills the direct item-grid thumbnail with the generated square pixel card", async () => {
+    api.listItems.mockResolvedValue([
+      {
+        ...wardrobeItem,
+        pixel_image_url: "/v1/item-presentations/pixel-card/image",
+        pixel_image_status: "succeeded"
+      }
+    ]);
+    renderApp();
+
+    await userEvent.click(await screen.findByRole("tab", { name: "按单品" }));
+    const card = await screen.findByRole("img", { name: "上装的像素展示图" });
+    expect(card).toHaveAttribute("data-image-kind", "wardrobe-pixel-card");
+    expect(card.closest(".wardrobe-card__cover--item")).toBeInTheDocument();
+    expect(card.closest(".item-card__image")?.querySelector(".status-badge--ready"))
+      .toBeNull();
+  });
+
   it("blurs the original and shows generation progress while the item hero is queued", async () => {
     const user = userEvent.setup();
     api.listItems.mockResolvedValue([wardrobeItem]);

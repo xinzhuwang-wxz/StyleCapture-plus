@@ -1,9 +1,9 @@
 ---
 name: real-photo-flat-lay-collage
-description: 通过 StyleCapture Product API，将新抓取的视频截图或上传穿搭图中的每个真实 Item 直接生成纯白 3:4 独立单品图。适用于新穿搭拆分完成后创建、轮询或重试单品详情页大图；不依赖整套拼贴图，也不从拼贴图裁剪单品。
+description: 通过 StyleCapture Product API，为新抓取的视频截图或上传穿搭图中的每个真实 Item 同时生成纯白 3:4 详情图与统一的 1:1 像素收藏卡。适用于新穿搭拆分完成后创建、轮询或重试单品详情页大图和“按单品”双列缩略图；不依赖整套拼贴图，也不从拼贴图裁剪单品。
 ---
 
-# 真实穿搭独立单品图
+# 真实穿搭 Item 双资产
 
 把 Product API 作为 Capture、Look、Item、任务状态和私有图片权限的唯一真源。不要在 Skill 客户端复制识别、抠图、模型选择或存储逻辑。
 
@@ -11,12 +11,13 @@ description: 通过 StyleCapture Product API，将新抓取的视频截图或上
 
 1. 通过 Feed 截图或上传流程保存一张用户有权使用的穿搭图，等待后端形成含已就绪 Item 的 `Look`。
 2. 读取 `GET /v1/looks/{look_id}`，收集不重复的 `components[].item_id`。
-3. 为每个 Item 请求 `POST /v1/items/{item_id}/presentations/flat-lay`；需要结果时轮询 `GET /v1/item-presentations/{asset_id}` 至 `succeeded` 或 `failed`。
-4. 将成功的 `output_image_url` 用作单品详情页大图。生成中继续显示虚化原图和“正在生成单品图”；失败时保留原图，不得显示空白详情页。
+3. 为每个 Item 分别请求 `POST /v1/items/{item_id}/presentations/pixel` 与 `POST /v1/items/{item_id}/presentations/flat-lay`；需要结果时轮询 `GET /v1/item-presentations/{asset_id}` 至 `succeeded` 或 `failed`。
+4. 将成功的 `flat_lay_item.output_image_url` 用作单品详情页大图。生成中继续显示虚化原图和“正在生成单品图”；失败时保留原图，不得显示空白详情页。
+5. 将成功的 `pixel_item.output_image_url` 用作 `按单品 → 双列瀑布流` 的 1:1 缩略卡。生成中显示像素占位图和状态，不得把 3:4 详情图裁成方形替代。
 
 不要先请求整套 `collage`，也不要从整套拼贴图二次裁剪单品。
 
-## 后端生成规则
+## 3:4 详情图规则
 
 - 只有带 `refined_mask` 元数据且具有有效透明通道的精细抠图，才允许用 Pillow 放入 1728×2304 白色画布。
 - 矩形截图、粗多边形、无透明通道、抠图缺失或不合格时，直接使用原始穿搭图和 Item 属性调用配置的图像生成能力。
@@ -25,7 +26,18 @@ description: 通过 StyleCapture Product API，将新抓取的视频截图或上
 - 重叠位置要先判断肩带、腰头、系带、纽扣和装饰分别属于哪件衣物，不得把其他 Item 的部件转移到目标单品；遮挡处只允许按目标单品可见材质做保守连续补全。
 - 质量门槛失败时进入可重试失败状态，不得把不合格图片发布到详情页。
 
-新 Capture 完成 Item 识别后自动排队。不要批量回填历史 Item；旧 Item 只有在产品明确请求其 `flat-lay` presentation 时才按现有 API 处理。
+## 1:1 像素卡规则
+
+生成前读取 [像素单品卡视觉规范](references/pixel-item-card-style.md)。
+
+- 严格请求 2048×2048 正方形，后端统一输出 1024×1024 PNG；不得依赖前端 CSS 裁切修正比例。
+- 只保留一个目标单品，正面居中且完整可见。鞋保留一双；明确成组的配饰才允许整组出现。
+- 主体使用统一硬边 16-bit / 32-bit 商品像素画：深一档同色描边、有限色阶、像素块大小一致；禁止半写实半像素、模糊、平滑抗锯齿、3D 和照片质感。
+- 模型只生成浅粉白底、低对比度中央光晕与目标单品；边框、星光和爱心由后端固定像素模板叠加，避免每张卡装饰漂移。
+- 后端固定执行 256×256 像素网格、96 色无抖动量化，再用最近邻放大到 1024×1024。
+- 发布前必须通过 1:1 尺寸和浅色安全边质量门槛。失败时保留内置像素图标，不得回退为人物截图或 3:4 白底图。
+
+新 Capture 完成 Item 识别后，两种资产自动排队。不要批量回填历史 Item；旧 Item 只有在产品明确请求对应 presentation 时才按现有 API 处理。
 
 ## 使用
 
@@ -43,9 +55,10 @@ node scripts/render.js --look-id "<look UUID>" --wait
 
 ```text
 视频截图/上传图 → Capture → Look 与 Item 识别
-→ 每个 Item 直接创建 flat_lay_item
-→ 精细透明抠图走 Pillow，否则走图像生成
-→ 统一质量门槛 → 单品详情页 3:4 白底大图
+→ 每个 Item 直接创建 pixel_item + flat_lay_item
+→ pixel_item → 统一像素网格与装饰模板 → 按单品 1:1 缩略卡
+→ flat_lay_item → 精细透明抠图走 Pillow，否则走图像生成
+→ 单品详情页 3:4 白底大图
 ```
 
 运行验证：

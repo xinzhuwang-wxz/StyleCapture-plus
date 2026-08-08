@@ -6,7 +6,7 @@ from io import BytesIO
 from typing import Protocol
 from uuid import UUID
 
-from PIL import Image, ImageChops, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, UnidentifiedImageError
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.item_presentation.application import (
     FLAT_LAY_ITEM_CAPABILITY_ID,
@@ -68,14 +68,20 @@ def pixel_item_prompt(item: WardrobeItem) -> str:
     subcategory = _field_text(fields, "subcategory", "")
     colors = _field_text(fields, "colors", "")
     return f"""
-从参考图中只识别并提取目标商品“{name}” (类别 {category}/{subcategory}, 主色 {colors}),
-将这个目标商品转换为 StyleCapture 可爱像素风商品展示图。
-必须是电商商品抠图式构图: 只出现一个目标单品; 若目标本来是一双鞋, 则只出现一双配对鞋;
-若目标明确是配饰组, 才可保留该组配饰。不要画模特、人体、内搭、裤子、包、货架、商店、
-街景、其他衣服或其他鞋, 不要生成完整穿搭。
-忠实保留目标单品的主色、材质、版型、图案和关键细节, 使用干净浅色或透明感背景,
-居中完整展示。禁止文字、品牌、水印、拼贴、分镜、多个候选或额外道具。
-输出像素风, 但不要改变它作为真实衣橱资产的类别和辨识度。
+只识别并提取参考图中的目标单品“{name}”(类别 {category}/{subcategory}, 主色 {colors}),
+把它转换为 StyleCapture 统一的复古像素收藏卡。严格输出 1:1 正方形 2048x2048。
+
+主体规则: 只出现一个目标单品; 鞋只保留一双配对鞋; 目标明确为一组配饰时才保留整组。
+单品正面居中、完整可见、不裁切、不拉伸, 占画面约 60% 至 72%, 四周留出装饰安全区。
+忠实保留原单品的主色、轮廓、图案、领口、袖型、褶皱、吊带和结构, 不新增看不见的部件。
+
+像素风规则: 使用清晰硬边的 16-bit / 32-bit 商品像素画, 轮廓由深一档同色像素描边,
+内部用有限色阶表达材质和褶皱; 像素块大小一致, 禁止局部写实、局部像素的混合风格,
+禁止模糊、抗锯齿、油画、3D 渲染、照片质感、矢量插画或平滑渐变。
+
+卡片背景: 很浅的粉白色背景, 中央可有低对比度圆形淡粉光晕。不要生成边框、爱心、星星或文字,
+这些装饰由后端统一叠加。禁止人物、人体、皮肤、头发、模特、衣架、场景、其他衣物、品牌、
+水印、标签、价格、文字、拼贴、分镜、多个候选和额外道具。
 """.strip()
 
 
@@ -242,15 +248,11 @@ class ItemPresentationProcessor:
             generated = await self._generator.generate(
                 prompt=pixel_item_prompt(item),
                 images=(source,),
-                size="2K",
+                size="2048x2048",
             )
+            rendered, quality = normalize_pixel_card_output(generated)
             stored = self._objects.write_derived_image(
-                ImagePayload(
-                    object_key=f"derived/items/pixel/{asset.item_id}",
-                    content_type=generated.content_type,
-                    body=generated.body,
-                    sha256=generated.sha256,
-                ),
+                rendered,
                 owner_id=user_id,
                 prefix=f"derived/items/pixel/{user_id}/{asset.item_id}",
             )
@@ -267,6 +269,9 @@ class ItemPresentationProcessor:
                     capability_alias="image_generation",
                     prompt_version=PIXEL_ITEM_PROMPT_VERSION,
                     schema_version=PIXEL_ITEM_SCHEMA_VERSION,
+                    requested_canvas="2048x2048",
+                    output_canvas="1024x1024",
+                    **quality,
                 ),
             )
         except (FileNotFoundError, KeyError):
@@ -318,6 +323,163 @@ def normalize_flat_lay_output(
     generated: GeneratedImage,
 ) -> tuple[ImagePayload, dict[str, object]]:
     return normalize_flat_lay_image(generated.body)
+
+
+def normalize_pixel_card_output(
+    generated: GeneratedImage,
+) -> tuple[ImagePayload, dict[str, object]]:
+    try:
+        with Image.open(BytesIO(generated.body)) as opened:
+            image = opened.convert("RGB")
+    except (UnidentifiedImageError, OSError) as error:
+        raise RenderProviderError(
+            "pixel_card_image_invalid",
+            "Generated pixel card is not decodable",
+            retryable=True,
+        ) from error
+    if image.size != (2048, 2048):
+        raise RenderProviderError(
+            "pixel_card_ratio_invalid",
+            "Generated pixel card is not the required 2048x2048 square canvas",
+            retryable=True,
+        )
+
+    border = 32
+    light = _light_background_mask(image, threshold=218)
+    samples = (
+        light.crop((0, 0, image.width, border)),
+        light.crop((0, image.height - border, image.width, image.height)),
+        light.crop((0, border, border, image.height - border)),
+        light.crop((image.width - border, border, image.width, image.height - border)),
+    )
+    border_pixels = sum(sample.width * sample.height for sample in samples)
+    light_border_pixels = sum(sample.histogram()[255] for sample in samples)
+    light_border_ratio = light_border_pixels / border_pixels
+    if light_border_ratio < 0.8:
+        raise RenderProviderError(
+            "pixel_card_background_invalid",
+            "Generated pixel item does not leave a light card-safe border",
+            retryable=True,
+        )
+
+    pixelated = image.resize((256, 256), Image.Resampling.BOX)
+    pixelated = pixelated.quantize(
+        colors=96,
+        method=Image.Quantize.MEDIANCUT,
+        dither=Image.Dither.NONE,
+    ).convert("RGB")
+    pixelated = pixelated.resize((1024, 1024), Image.Resampling.NEAREST)
+    _draw_pixel_card_decorations(pixelated)
+
+    output = BytesIO()
+    pixelated.save(output, format="PNG", optimize=True)
+    body = output.getvalue()
+    return (
+        ImagePayload(
+            object_key="derived/items/pixel/generated-card.png",
+            content_type="image/png",
+            body=body,
+            sha256=sha256(body).hexdigest(),
+        ),
+        {
+            "quality_gate": "pastel-pixel-card-square-v1",
+            "light_border_ratio": round(light_border_ratio, 4),
+            "pixel_grid": "256x256",
+            "palette_colors": 96,
+            "decorations": "stylecapture-pastel-frame-v1",
+        },
+    )
+
+
+def _draw_pixel_card_decorations(image: Image.Image) -> None:
+    draw = ImageDraw.Draw(image)
+    pink = "#F7A8C4"
+    pale_pink = "#FBC7D9"
+    lilac = "#C8A7F2"
+    yellow = "#F6CE7A"
+
+    _draw_corner_frame(draw, color=pale_pink)
+    for x, y, color, unit in (
+        (148, 180, pink, 8),
+        (862, 166, lilac, 8),
+        (130, 500, yellow, 10),
+        (880, 520, pink, 8),
+        (212, 820, lilac, 6),
+        (780, 824, yellow, 6),
+    ):
+        _draw_pixel_sparkle(draw, x=x, y=y, unit=unit, color=color)
+    _draw_pixel_heart(draw, x=126, y=710, unit=8, color=pink)
+    _draw_pixel_heart(draw, x=858, y=690, unit=8, color=pink)
+
+
+def _draw_corner_frame(draw: ImageDraw.ImageDraw, *, color: str) -> None:
+    width = 4
+    segments = (
+        ((40, 40), (250, 40)),
+        ((774, 40), (984, 40)),
+        ((40, 984), (250, 984)),
+        ((774, 984), (984, 984)),
+        ((40, 40), (40, 250)),
+        ((40, 774), (40, 984)),
+        ((984, 40), (984, 250)),
+        ((984, 774), (984, 984)),
+    )
+    for start, end in segments:
+        draw.line((start, end), fill=color, width=width)
+    for x, y, sx, sy in (
+        (40, 40, 1, 1),
+        (984, 40, -1, 1),
+        (40, 984, 1, -1),
+        (984, 984, -1, -1),
+    ):
+        draw.line((x, y, x + sx * 28, y), fill=color, width=8)
+        draw.line((x, y, x, y + sy * 28), fill=color, width=8)
+        draw.rectangle(
+            (
+                x + sx * 20 - 4,
+                y + sy * 20 - 4,
+                x + sx * 20 + 4,
+                y + sy * 20 + 4,
+            ),
+            fill=color,
+        )
+
+
+def _draw_pixel_sparkle(
+    draw: ImageDraw.ImageDraw,
+    *,
+    x: int,
+    y: int,
+    unit: int,
+    color: str,
+) -> None:
+    draw.rectangle((x - unit, y - unit * 3, x + unit, y + unit * 3), fill=color)
+    draw.rectangle((x - unit * 3, y - unit, x + unit * 3, y + unit), fill=color)
+    draw.rectangle((x - unit * 2, y - unit * 2, x + unit * 2, y + unit * 2), fill=color)
+
+
+def _draw_pixel_heart(
+    draw: ImageDraw.ImageDraw,
+    *,
+    x: int,
+    y: int,
+    unit: int,
+    color: str,
+) -> None:
+    pattern = (
+        "0110110",
+        "1111111",
+        "1111111",
+        "0111110",
+        "0011100",
+        "0001000",
+    )
+    for row, pixels in enumerate(pattern):
+        for column, value in enumerate(pixels):
+            if value == "1":
+                left = x + (column - 3) * unit
+                top = y + row * unit
+                draw.rectangle((left, top, left + unit - 1, top + unit - 1), fill=color)
 
 
 def normalize_flat_lay_image(
@@ -394,6 +556,10 @@ def _near_white_mask(image: Image.Image, *, threshold: int) -> Image.Image:
     channels = image.split()
     masks = [channel.point(lambda value: 255 if value >= threshold else 0) for channel in channels]
     return ImageChops.multiply(ImageChops.multiply(masks[0], masks[1]), masks[2])
+
+
+def _light_background_mask(image: Image.Image, *, threshold: int) -> Image.Image:
+    return image.convert("L").point(lambda value: 255 if value >= threshold else 0)
 
 
 def _has_refined_segmentation(metadata: Mapping[str, object]) -> bool:

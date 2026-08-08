@@ -32,12 +32,18 @@
   user-select: none;
 }
 
-.wardrobe-card__cover--item img[data-image-kind^="wardrobe-pixel"] {
+.wardrobe-card__cover--item img[data-image-kind="wardrobe-pixel-fallback"] {
   padding: 0.7rem;
   object-fit: contain;
   background:
     radial-gradient(circle at 50% 38%, rgb(255 255 255 / 88%) 0 34%, transparent 35%),
     linear-gradient(180deg, #fbf7ff, #fff);
+}
+
+.wardrobe-card__cover--item img[data-image-kind="wardrobe-pixel-card"] {
+  padding: 0;
+  object-fit: cover;
+  background: #fff7fb;
 }
 
 .wardrobe-card__deferred-image {

@@ -1,14 +1,15 @@
 # Real Item Flat-Lay Presentations ExecPlan
 
-**Goal:** For every newly captured outfit, produce one private pure-white 3:4 image for each resolved Item and use it as the Item-detail hero without rewriting historical Items or replacing source evidence.
+**Goal:** For every newly captured outfit, produce a private pure-white 3:4 Item-detail hero and a private 1:1 pastel pixel wardrobe card for each resolved Item without rewriting historical Items or replacing source evidence.
 
 ## Observable outcome
 
-1. Each new Item is queued for `flat_lay_item` as soon as Capture processing marks it ready; the job does not wait for or derive from a Look collage.
+1. Each new Item queues both `pixel_item` and `flat_lay_item` as soon as Capture processing marks it ready; neither job waits for or derives from a Look collage.
 2. A genuine transparent `refined_mask` may be placed on a 1728×2304 white canvas with Pillow. An opaque rectangle, coarse polygon, missing cutout, or other unreliable display asset must use the original Capture image through the configured `image_generation` capability.
 3. Both paths pass the same release gate: exact 1728×2304 dimensions, at least 90% near-white border pixels, and at least 50% pure-white canvas. Failed output is never published as the Item hero.
 4. In `按单品 → 单品卡片 → 单品详情页`, queued/running generation shows the authenticated original image blurred under a spinner and “正在生成单品图”. Success replaces it automatically with the generated white-background image; failure retains the existing display fallback. The separate `按穿搭 → 穿搭详情页` hero is not changed by this feature.
-5. Existing historical Items are not batch reprocessed. Source and existing display assets remain immutable.
+5. `按单品` uses the successful square `pixel_item` as its full-bleed two-column thumbnail. The generated card has a fixed 256×256 logical grid, 96-color palette, and deterministic pastel frame/decorations; it is never a crop of the 3:4 detail asset.
+6. Existing historical Items are not batch reprocessed. Source and existing display assets remain immutable.
 
 ## Progress
 
@@ -19,6 +20,8 @@
 - [x] Changed the Skill to request each Item presentation directly, without creating or cropping a Look collage.
 - [x] Ran a real Doubao/Seedream sample from the supplied outfit: blouse, skirt, and shoes were independently produced at 1728×2304 and passed the product gate.
 - [x] Added backend, scheduler, Skill, H5 behavior, static, and capture-regression coverage.
+- [x] Added the independently generated 1:1 pixel-card contract, deterministic pixel post-processing, new-Item scheduling, and direct Item-grid presentation.
+- [x] Ran three real Doubao/Seedream pixel-card generations from the previously generated blouse, suspender skirt, and clogs; all passed the square/light-border gate and were visually inspected.
 
 ## Reuse audit
 
@@ -29,6 +32,7 @@
 | Unreliable/missing cutout recovery | Existing `LiteLLMImageGenerator` and `image_generation` alias | Adapted reuse | Preserves the single server-side provider boundary and uses the original Capture evidence rather than a fake local crop. | This repository; LiteLLM MIT |
 | Private original fallback | Existing `/v1/items/{id}/source` and `useDisplayImage` | Adapted reuse | Shows honest source evidence during generation without introducing a second media path. | This repository |
 | Item discovery | Existing Capture/Look decomposition | Direct reuse | The worker already resolves Item identity and attributes; the Skill must not duplicate vision understanding. | This repository |
+| Item-grid pixel thumbnail | Existing `pixel_item` presentation and `ItemCard` | Adapted reuse | Already provides private status, retry, URL delivery, lazy loading, and a square cover slot; only the style contract and new-Item scheduling needed expansion. | This repository |
 
 ## Verification
 
@@ -39,6 +43,7 @@
 - Focused H5 Item-detail tests → passed, including the direct `按单品` entry, `/source`, blur/loading state, generation marker, and Item-over-Look layer ordering.
 - `node --test skills/real-photo-flat-lay-collage/tests/render.test.js` → 2 passed.
 - Skill Creator `quick_validate.py` → valid.
+- Real pixel-card outputs → 1024×1024 PNG, 256×256 logical grid, 96-color palette, and 1.0 light-border ratio for all three samples.
 
 ## Surprises & discoveries
 
@@ -53,3 +58,5 @@
 - 2026-08-08: Use Pillow only for verified refined-alpha cutouts; otherwise use the original Capture through the existing hosted image-generation capability.
 - 2026-08-08: Do not run a wardrobe-wide historical backfill. The automatic scheduler is attached only to new Capture completion paths.
 - 2026-08-08: Product acceptance is scoped to the Item detail opened from `按单品`; the Look-detail hero remains a separate surface.
+- 2026-08-09: Treat the 1:1 pixel card and 3:4 detail hero as independent Item derivatives with separate endpoints, outputs, fallbacks, and UI surfaces.
+- 2026-08-09: Keep the historical pixel signature stable so deploying the new style does not enqueue a wardrobe-wide regeneration; only new or explicitly retried Items receive the new card treatment.
