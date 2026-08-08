@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════
    StyleCapture Pixel Design System — Light
    像素风设计系统 · 浅色版（参考设计稿）
-   浅紫 + 粉色 + 白底，圆角卡片，像素字体点缀
+   浅紫 + 粉色 + 白底，圆角卡片，统一系统无衬线字体
    ═══════════════════════════════════════════ */
 
 /* ─── CSS Variables ─── */
@@ -44,9 +44,8 @@
 
   /* Typography */
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  /* 标题/按钮/徽章用的圆体。设计稿里出现 152 处，是它观感的主要来源。
-     字体取不到时整条链路回落到 --font-body，只是没那么圆，不会错版。 */
-  --font-pixel: "ZCOOL KuaiLe", var(--font-body);
+  /* 保留旧令牌兼容现有组件，但所有 UI 统一使用清晰的系统无衬线字体。 */
+  --font-pixel: var(--font-body);
 
   /* Shape — 圆角卡片 */
   --pixel-border-width: 2px;
@@ -144,7 +143,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 /* 视口装得下演示外壳时，才显示钛合金边框；真机/窄屏不套壳 */
-@media (min-width: 560px) and (min-height: 760px) and (display-mode: browser) {
+@media (min-width: 480px) and (min-height: 640px) and (display-mode: browser) {
   .pixel-stage {
     padding: var(--px-4);
     background:
@@ -241,7 +240,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  padding: var(--px-6) var(--px-4) 6.5rem;
+  padding: var(--px-6) var(--px-4) 6rem;
 }
 
 /* 二级页没有底部导航，不需要给它留位置，否则页尾会多出一大片空白 */
@@ -266,16 +265,16 @@ h1, h2, h3, h4, p { margin-top: 0; }
   font-family: var(--font-pixel);
   font-size: 1.5rem;
   color: var(--pixel-text);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   line-height: 1.2;
-  text-shadow: 2px 2px 0 rgba(196, 181, 253, 0.35);
+  text-shadow: none;
 }
 
 .pixel-subtitle {
   font-family: var(--font-pixel);
   font-size: 0.9rem;
   color: var(--pixel-text-muted);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.01em;
 }
 
 .pixel-label {
@@ -283,7 +282,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   font-size: 0.72rem;
   color: var(--pixel-text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.04em;
 }
 
 /* ─── Button ─── */
@@ -296,7 +295,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   padding: var(--px-3) var(--px-5);
   font-family: var(--font-pixel);
   font-size: 0.9rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   border: var(--pixel-border-width) solid var(--pixel-border);
   border-radius: 999px;
   background: var(--pixel-surface);
@@ -384,19 +383,20 @@ h1, h2, h3, h4, p { margin-top: 0; }
 /* ─── Bottom Navigation ─── */
 .pixel-nav {
   position: absolute;
-  left: var(--px-3);
-  right: var(--px-3);
-  bottom: max(var(--px-3), env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 40;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  padding: var(--px-2);
-  gap: 2px;
-  border: var(--pixel-border-width) solid var(--pixel-border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--pixel-shadow-lg);
+  gap: 0.1rem;
+  padding: 0.55rem 0.6rem calc(0.55rem + env(safe-area-inset-bottom));
+  border: 0;
+  border-top: 1px solid rgba(64, 54, 75, 0.07);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 -0.4rem 1.4rem rgba(58, 48, 69, 0.06);
 }
 
 .pixel-nav button {
@@ -404,10 +404,11 @@ h1, h2, h3, h4, p { margin-top: 0; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: var(--px-2) var(--px-1);
+  min-height: 3.4rem;
+  gap: 0.18rem;
+  padding: 0.25rem 0.1rem;
   border: 2px solid transparent;
-  border-radius: 999px;
+  border-radius: 0.8rem;
   background: transparent;
   /* 设计稿这里用的是 --pixel-text-dim(#a89cc9)，但那个色对白底只有 2.54:1，
      而导航标签是 11px 的功能性文字，AA 要 4.5:1。这里刻意比设计稿深一档
@@ -415,7 +416,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   color: var(--pixel-text-muted);
   font-family: var(--font-pixel);
   min-width: 0;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   line-height: 1.1;
   transition: all 0.12s ease;
 }
@@ -423,7 +424,8 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .pixel-nav button small {
   max-width: 100%;
   overflow: hidden;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
+  font-weight: 600;
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -459,41 +461,50 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 .pixel-nav button.is-active {
-  background: #f3edfd;
-  border-color: var(--pixel-secondary);
-  color: var(--pixel-primary-dark);
+  background: transparent;
+  border-color: transparent;
+  color: var(--pixel-primary);
 }
 
 .pixel-nav button .nav-icon {
   display: block;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.45rem;
+  height: 1.45rem;
   flex: 0 0 auto;
-  font-size: 1.35rem;
+  font-size: 1.45rem;
   line-height: 1;
 }
 
 /* 中间 ＋ 新增单品按钮：用 SVG 描边保证加号正落在圆心 */
-.pixel-nav__add {
+.pixel-nav button.pixel-nav__add {
   align-self: center;
   justify-self: center;
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 2px solid var(--pixel-primary-dark);
-  background: linear-gradient(135deg, var(--pixel-primary), var(--pixel-pink));
+  border: 0;
+  background: linear-gradient(145deg, #8255ed, #a97cf4);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.45);
+  box-shadow: 0 0.4rem 1rem rgba(116, 72, 219, 0.32);
+  transform: translateY(-0.15rem);
   transition: transform 0.12s ease;
 }
 
 .pixel-nav__add svg { display: block; }
 
-.pixel-nav__add:active { transform: scale(0.9) rotate(90deg); }
+.pixel-nav button.pixel-nav__add .nav-icon {
+  width: auto;
+  height: auto;
+  font-size: 2rem;
+  font-weight: 300;
+}
+
+.pixel-nav__add:active { transform: translateY(-0.15rem) scale(0.92); }
 
 .wardrobe-header__feed {
   grid-column: auto;
@@ -507,6 +518,25 @@ h1, h2, h3, h4, p { margin-top: 0; }
   border: 2px solid var(--pixel-border);
   border-radius: 999px;
   box-shadow: 0 3px 0 #ece5f8;
+}
+
+.wardrobe-header--home .wardrobe-header__feed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  margin-top: 0.15rem;
+  padding: 0.55rem 0.9rem;
+  border-color: #ddd4f3;
+  color: var(--pixel-primary-dark);
+  font-size: 0.72rem;
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.wardrobe-header__feed-plus {
+  font-size: 1.12rem;
+  font-weight: 400;
+  line-height: 0.75;
 }
 
 .pixel-add-sheet {

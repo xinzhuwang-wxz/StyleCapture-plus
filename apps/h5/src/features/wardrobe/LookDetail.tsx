@@ -91,6 +91,7 @@ function DetailContent({
   );
   const [tryOnValidationError, setTryOnValidationError] = useState<string | null>(null);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
+  const [heroTryOnRevealed, setHeroTryOnRevealed] = useState(false);
   const tryOnInputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -141,6 +142,11 @@ function DetailContent({
       : usableCollage?.output_image_url ??
         detail.look.display_image_url ??
         detail.look.source_image_url;
+  const completedTryOn = completedByKind.get("try_on");
+  const tryOnPreviewUrl =
+    completedTryOn?.output_image_url ??
+    detail.look.display_image_url ??
+    detail.look.source_image_url;
 
   useEffect(() => {
     setReason("");
@@ -155,6 +161,7 @@ function DetailContent({
     setPendingTryOnFile(null);
     setTryOnValidationError(null);
     setConfirmingSourceDelete(false);
+    setHeroTryOnRevealed(false);
   }, [detail.look.id]);
 
   useEffect(() => {
@@ -205,22 +212,6 @@ function DetailContent({
       : completedActiveRender ??
         (explicitFallback?.output_image_url ? explicitFallback : undefined);
   const pixelCover = completedByKind.get("pixel_cover");
-  const sourceLabel =
-    detail.look.source === "ai_generated"
-      ? "AI 搭配保存"
-      : detail.look.source === "feed_saved"
-        ? detail.look.source_available
-          ? "真实 Feed 来源"
-          : "Feed 来源画面已删除"
-        : "用户创建";
-  const lookStatusLabel =
-    detail.look.status === "ready"
-      ? "搭配分析完成"
-      : detail.look.status === "error"
-        ? "解析失败，结果已保留"
-        : detail.look.status === "partial"
-          ? "部分拆解完成"
-          : "后台处理中";
 
   /** 只下载，不走系统面板——「保存到相册」要的就是这条。 */
   async function downloadPixelCover() {
@@ -315,41 +306,53 @@ function DetailContent({
       </div>
 
       <div className="detail-image look-detail__hero">
-        {showCollagePlaceholder ? (
-          <div className="look-detail__collage-placeholder" role="img" aria-label="真实单品拼贴生成中">
-            <span aria-hidden="true">✦</span>
-            <strong>
-              {latestCollage?.status === "queued"
-                ? "真实单品拼贴排队中"
-                : "正在生成真实单品拼贴"}
-            </strong>
-            <small>完成后会优先作为这套穿搭的详情封面。</small>
-          </div>
-        ) : heroImageUrl ? (
-          <img
-            src={
-              usableCollage && !usesFixedCuratedPresentation
-                ? `${heroImageUrl}?v=${encodeURIComponent(usableCollage.updated_at)}`
-                : heroImageUrl
-            }
-            alt={
-              usableCollage && !usesFixedCuratedPresentation
-                ? usableCollage.presentation_label
-                : detail.look.source === "ai_generated"
-                ? "AI 搭配中的真实衣橱单品"
-                : "收藏的真实整套穿搭"
-            }
-          />
-        ) : (
-          <div className="item-image-placeholder">
-            <span>✦</span>
-            <small>
-              {detail.look.source === "ai_generated"
-                ? "由衣橱真实单品组成"
-                : "原始画面已删除"}
-            </small>
-          </div>
-        )}
+        <div
+          className="look-detail__hero-panel look-detail__hero-flatlay"
+          role={showCollagePlaceholder ? "img" : undefined}
+          aria-label={showCollagePlaceholder ? "真实单品拼贴生成中" : undefined}
+        >
+          {usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
+            <img
+              src={`${usableCollage.output_image_url}?v=${encodeURIComponent(usableCollage.updated_at)}`}
+              alt={usableCollage.presentation_label}
+            />
+          ) : detail.components.some((component) => component.item_image_url) ? (
+            <div className="look-detail__flatlay-items" aria-label="套装单品平面拼贴">
+              {detail.components
+                .filter((component) => component.item_image_url)
+                .slice(0, 4)
+                .map((component) => (
+                  <img
+                    key={component.component_key}
+                    src={component.item_image_url!}
+                    alt={garmentImageAlt(component.role ?? component.layer)}
+                  />
+                ))}
+            </div>
+          ) : heroImageUrl ? (
+            <img src={heroImageUrl} alt="收藏的真实整套穿搭" />
+          ) : (
+            <div className="item-image-placeholder">
+              <span>✦</span>
+              <small>
+                {detail.look.source === "ai_generated"
+                  ? "由衣橱真实单品组成"
+                  : "原始画面已删除"}
+              </small>
+            </div>
+          )}
+
+          {showCollagePlaceholder ? (
+            <div className="look-detail__collage-status" role="status">
+              <span aria-hidden="true">✦</span>
+              <strong>
+                {latestCollage?.status === "queued"
+                  ? "真实单品拼贴排队中"
+                  : "正在生成真实单品拼贴"}
+              </strong>
+            </div>
+          ) : null}
+        </div>
         {detail.look.status === "processing" ? (
           <div className="look-detail__processing">
             <strong>整套已收藏</strong>
@@ -358,12 +361,44 @@ function DetailContent({
         ) : null}
       </div>
 
-      <div className="detail-content">
-        <div className="detail-meta">
-          <span>{sourceLabel}</span>
-          <span>{lookStatusLabel}</span>
+      <div className="look-detail__tryon-card">
+        <div className={`look-detail__tryon-thumb${heroTryOnRevealed ? " is-revealed" : ""}`}>
+          {tryOnPreviewUrl ? (
+            <img src={tryOnPreviewUrl} alt="真人试穿预览" />
+          ) : (
+            <div className="look-detail__tryon-empty" aria-hidden="true">人</div>
+          )}
+          <span aria-hidden="true">✦</span>
         </div>
+        <div className="look-detail__tryon-copy">
+          <strong>查看真人试穿效果</strong>
+          <small>
+            {completedTryOn?.output_image_url
+              ? "点击查看清晰试穿效果"
+              : "点击后生成并展示模特试穿效果"}
+          </small>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (completedTryOn?.output_image_url) {
+              setHeroTryOnRevealed((current) => !current);
+            } else {
+              setActiveRenderKind("try_on");
+              tryOnInputRef.current?.click();
+            }
+          }}
+        >
+          <span aria-hidden="true">✦</span>
+          {completedTryOn?.output_image_url
+            ? heroTryOnRevealed
+              ? "收起效果"
+              : "查看效果"
+            : "生成试穿"}
+        </button>
+      </div>
 
+      <div className="detail-content">
         {detail.look.source_available && detail.source_video_ref ? (
           <button
             className="source-link"
@@ -377,7 +412,7 @@ function DetailContent({
           >
             回看原视频 · {Math.round((detail.source_timestamp_ms ?? 0) / 100) / 10}s
           </button>
-        ) : detail.source_video_ref ? (
+        ) : detail.look.source !== "ai_generated" && detail.source_video_ref ? (
           <p className="source-unavailable" role="status">
             原始画面已删除，穿搭关系和已拆出的单品仍保留。
           </p>
@@ -479,6 +514,7 @@ function DetailContent({
                           ? "衣橱里没有 · 去抖音看同款 ›"
                           : "保留中，等待补全"}
                     </small>
+                    <span className="look-component-strip__arrow" aria-hidden="true">›</span>
                   </>
                 );
 

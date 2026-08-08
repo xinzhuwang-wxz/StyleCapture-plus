@@ -111,7 +111,8 @@ describe("Look wardrobe states", () => {
     expect(
       screen.getByRole("img", { name: "像素穿搭封面生成中" })
     ).toHaveAttribute("data-image-kind", "look-pixel-pending");
-    expect(screen.getByText("正在拆解")).toBeInTheDocument();
+    expect(screen.getByText("解析中")).toBeInTheDocument();
+    expect(screen.getByText("穿搭已保存 · 正在整理")).toBeInTheDocument();
   });
 
   it("uses a successful shareable pixel artifact as the wardrobe cover", () => {
@@ -136,7 +137,8 @@ describe("Look wardrobe states", () => {
       "src",
       expect.stringContaining("55555555-5555-4555-8555-555555555555")
     );
-    expect(screen.getByText("像素封面")).toBeInTheDocument();
+    expect(screen.getByText("已解析")).toBeInTheDocument();
+    expect(screen.getByText("穿搭灵感 · 已收藏")).toBeInTheDocument();
   });
 
   it("keeps a partial Look retryable without losing its source evidence", () => {
@@ -173,14 +175,13 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("Feed 来源画面已删除")).toBeInTheDocument();
     expect(
       screen.getByText("原始画面已删除，穿搭关系和已拆出的单品仍保留。")
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重新解析" })).toBeDisabled();
   });
 
-  it("describes an AI-created Look as composed from wardrobe items instead of a deleted source", () => {
+  it("renders an AI-created Look as a component flatlay without a deleted-source warning", () => {
     const detail = readyDetail();
     detail.look = {
       ...detail.look,
@@ -204,9 +205,10 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("AI 搭配保存")).toBeInTheDocument();
-    expect(screen.getByText("由衣橱真实单品组成")).toBeInTheDocument();
-    expect(screen.queryByText("原始画面已删除")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
+    expect(
+      screen.queryByText("原始画面已删除，穿搭关系和已拆出的单品仍保留。")
+    ).not.toBeInTheDocument();
   });
 
   it("labels an errored Look as failed instead of still processing", () => {
@@ -229,7 +231,6 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("解析失败，结果已保留")).toBeInTheDocument();
     expect(screen.getByText("这次还没解析成功")).toBeInTheDocument();
     expect(screen.queryByText("后台处理中")).not.toBeInTheDocument();
   });
@@ -422,7 +423,7 @@ describe("Look wardrobe states", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("falls the hero back to the original Look image when no collage render is available", () => {
+  it("builds the hero flatlay from component images when no collage render is available", () => {
     render(
       <LookDetail
         detail={readyDetail()}
@@ -439,11 +440,10 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(
-      screen.getByRole("img", { name: "收藏的真实整套穿搭" })
-    ).toHaveAttribute(
+    const flatlay = screen.getByLabelText("套装单品平面拼贴");
+    expect(flatlay.querySelector('img[alt="上装"]')).toHaveAttribute(
       "src",
-      "/v1/looks/11111111-1111-4111-8111-111111111111/image"
+      "/v1/items/44444444-4444-4444-8444-444444444444/image"
     );
   });
 
@@ -581,7 +581,7 @@ describe("Look wardrobe states", () => {
     expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
   });
 
-  it("keeps a curated example's fixed image visible despite a stale queued collage", () => {
+  it("keeps a curated example's component flatlay visible despite a stale queued collage", () => {
     const detail = readyDetail();
     detail.look.fixed_presentation = true;
     detail.analysis = {
@@ -612,9 +612,10 @@ describe("Look wardrobe states", () => {
     );
 
     expect(screen.queryByText("真实单品拼贴排队中")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "收藏的真实整套穿搭" })).toHaveAttribute(
+    const flatlay = screen.getByLabelText("套装单品平面拼贴");
+    expect(flatlay.querySelector('img[alt="上装"]')).toHaveAttribute(
       "src",
-      detail.look.display_image_url
+      "/v1/items/44444444-4444-4444-8444-444444444444/image"
     );
   });
 

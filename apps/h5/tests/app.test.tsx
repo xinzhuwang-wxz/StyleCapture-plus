@@ -801,6 +801,50 @@ describe("StyleCapture garment ingest", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps ownership filters behind a compact menu with explicit labels", async () => {
+    const user = userEvent.setup();
+    api.listItems.mockResolvedValue([
+      wardrobeItem,
+      {
+        ...wardrobeItem,
+        id: "88888888-8888-4888-8888-888888888888",
+        ownership: "inspiration",
+        attributes: {
+          ...wardrobeItem.attributes,
+          description: {
+            ...wardrobeItem.attributes.description,
+            value: "收藏的蓝色外套"
+          }
+        }
+      }
+    ]);
+    renderApp();
+
+    await user.click(await screen.findByRole("tab", { name: "按单品" }));
+    expect(screen.queryByRole("menu", { name: "筛选衣橱" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "筛选单品：全部" }));
+    const menu = screen.getByRole("menu", { name: "筛选衣橱" });
+    expect(within(menu).getByRole("menuitemradio", { name: "全部" })).toBeChecked();
+    expect(within(menu).getByRole("menuitemradio", { name: "已拥有" })).toBeVisible();
+    expect(within(menu).getByRole("menuitemradio", { name: "未拥有" })).toBeVisible();
+
+    await user.click(within(menu).getByRole("menuitemradio", { name: "未拥有" }));
+
+    expect(screen.getByRole("button", { name: "筛选单品：未拥有" })).toBeVisible();
+    expect(screen.queryByRole("menu", { name: "筛选衣橱" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "收藏的蓝色外套 可搭配 上装 穿搭灵感"
+      })
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: "米白色针织上衣 可搭配 上装 我的衣服"
+      })
+    ).not.toBeInTheDocument();
+  });
+
   it("focuses item detail on open and lets keyboard users close it with Escape", async () => {
     const user = userEvent.setup();
     api.listItems.mockResolvedValue([wardrobeItem]);

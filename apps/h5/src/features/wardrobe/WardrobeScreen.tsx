@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Item, Look, RenderArtifact } from "../../api/client";
 import { ComboBasket } from "../combo/ComboBasket";
@@ -17,6 +17,12 @@ import "./wardrobe.css";
 
 type Filter = "all" | "owned" | "inspiration";
 type WardrobeView = "looks" | "items";
+
+const FILTER_OPTIONS: readonly [Filter, string][] = [
+  ["all", "全部"],
+  ["owned", "已拥有"],
+  ["inspiration", "未拥有"]
+];
 
 export function WardrobeScreen({
   looks,
@@ -68,6 +74,8 @@ export function WardrobeScreen({
   const [basketOpen, setBasketOpen] = useState(false);
   const [receiving, setReceiving] = useState(false);
   const [savingCombo, setSavingCombo] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
 
   function toggleInBasket(item: Item, label: string) {
     setBasket((current) => {
@@ -81,11 +89,32 @@ export function WardrobeScreen({
   }
   const [view, setView] = useState<WardrobeView>("looks");
   const [filter, setFilter] = useState<Filter>("all");
+  const filterLabel = FILTER_OPTIONS.find(([value]) => value === filter)?.[1] ?? "全部";
   useEffect(() => {
     if (view === "looks" && looks.length === 0 && items.length + pending.length > 0) {
       setView("items");
     }
   }, [items.length, looks.length, pending.length, view]);
+  useEffect(() => {
+    if (!filterOpen) return;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (!filterMenuRef.current?.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setFilterOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [filterOpen]);
   const visible = useMemo(
     () => (filter === "all" ? items : items.filter((item) => item.ownership === filter)),
     [filter, items]
@@ -133,56 +162,69 @@ export function WardrobeScreen({
 
   return (
     <section className="wardrobe-section" aria-labelledby="wardrobe-title">
-      <div className="section-heading">
-        <div>
-          <p className="section-kicker">数字资产</p>
-          <h2 id="wardrobe-title">我的数字衣橱</h2>
-        </div>
-        <span className="item-count">
-          {view === "looks" ? `${looks.length} 套` : `${items.length + pending.length} 件`}
-        </span>
-      </div>
-
-      <div className="wardrobe-view-tabs" aria-label="选择衣橱视图" role="tablist">
-        <button
-          type="button"
-          className={view === "looks" ? "is-selected" : ""}
-          aria-selected={view === "looks"}
-          role="tab"
-          onClick={() => setView("looks")}
-        >
-          按穿搭
-        </button>
-        <button
-          type="button"
-          className={view === "items" ? "is-selected" : ""}
-          aria-selected={view === "items"}
-          role="tab"
-          onClick={() => setView("items")}
-        >
-          按单品
-        </button>
-      </div>
-
-      {view === "items" ? <div className="filter-tabs" aria-label="筛选衣橱">
-        {(
-          [
-            ["all", "全部"],
-            ["owned", "我的衣服"],
-            ["inspiration", "穿搭灵感"]
-          ] as const
-        ).map(([value, label]) => (
+      <div className="wardrobe-toolbar">
+        <div className="wardrobe-view-tabs" aria-label="选择衣橱视图" role="tablist">
           <button
-            key={value}
             type="button"
-            className={filter === value ? "is-selected" : ""}
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
+            className={view === "looks" ? "is-selected" : ""}
+            aria-selected={view === "looks"}
+            role="tab"
+            onClick={() => {
+              setView("looks");
+              setFilterOpen(false);
+            }}
           >
-            {label}
+            按穿搭
           </button>
-        ))}
-      </div> : null}
+          <button
+            type="button"
+            className={view === "items" ? "is-selected" : ""}
+            aria-selected={view === "items"}
+            role="tab"
+            onClick={() => setView("items")}
+          >
+            按单品
+          </button>
+        </div>
+
+        {view === "items" ? (
+          <div className="wardrobe-filter" ref={filterMenuRef}>
+            <button
+              type="button"
+              className={`wardrobe-filter__trigger${filter !== "all" ? " is-active" : ""}`}
+              aria-label={`筛选单品：${filterLabel}`}
+              aria-haspopup="menu"
+              aria-expanded={filterOpen}
+              onClick={() => setFilterOpen((current) => !current)}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                <path d="M4 6h16M7 12h10M10 18h4" />
+              </svg>
+            </button>
+
+            {filterOpen ? (
+              <div className="wardrobe-filter__menu" role="menu" aria-label="筛选衣橱">
+                {FILTER_OPTIONS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={filter === value}
+                    className={filter === value ? "is-selected" : ""}
+                    onClick={() => {
+                      setFilter(value);
+                      setFilterOpen(false);
+                    }}
+                  >
+                    <span>{label}</span>
+                    <span aria-hidden="true">{filter === value ? "✓" : ""}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {loading ? (
         <div className="wardrobe-loading" aria-label="正在加载衣橱">
