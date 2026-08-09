@@ -40,6 +40,7 @@ from stylecapture_backend.features.render.prompt_contracts import (
     PIXEL_COVER_PROMPT_VERSION,
     PIXEL_COVER_SCHEMA_VERSION,
     TRY_ON_CAPABILITY_ID,
+    TRY_ON_OUTPUT_SIZE,
     TRY_ON_PROMPT,
     TRY_ON_PROMPT_VERSION,
     TRY_ON_SCHEMA_VERSION,
@@ -303,7 +304,7 @@ class RenderProcessor:
                 generated = await self._pixel_generator.generate(
                     prompt=TRY_ON_PROMPT,
                     images=(model_image, *all_references),
-                    size="1024x1365",
+                    size=TRY_ON_OUTPUT_SIZE,
                 )
                 trace = generated.provider_trace.with_parameters(
                     capability_id=TRY_ON_CAPABILITY_ID,

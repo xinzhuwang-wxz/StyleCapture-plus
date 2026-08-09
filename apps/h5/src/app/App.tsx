@@ -26,6 +26,10 @@ import type { PendingItem } from "../features/wardrobe/ItemCard";
 import type { LookItemAction } from "../features/wardrobe/LookItemActionSheet";
 import type { WardrobeView } from "../features/wardrobe/WardrobeScreen";
 import {
+  readPhotoAlbum,
+  type PhotoAlbum
+} from "../features/profile/photoStorage";
+import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
 } from "../media/browserImagePreview";
@@ -260,6 +264,7 @@ export function App() {
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [photoAlbum, setPhotoAlbum] = useState<PhotoAlbum>(readPhotoAlbum);
 
   useEffect(() => {
     if (!notice) return;
@@ -1253,6 +1258,8 @@ export function App() {
           <Suspense fallback={<DeferredScreenFallback />}>
             <ProfileScreen
               itemCount={items.length + pending.length}
+              photoAlbum={photoAlbum}
+              onPhotoAlbumChange={setPhotoAlbum}
               onNotice={setNotice}
             />
           </Suspense>
@@ -1356,6 +1363,8 @@ export function App() {
                     : null
               }
               tryOnUploading={tryOnMutation.isPending}
+              photoAlbum={photoAlbum}
+              onPhotoAlbumChange={setPhotoAlbum}
               deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
               deletingSource={false}
               deletingLook={deleteLookMutation.isPending}

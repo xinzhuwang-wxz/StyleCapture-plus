@@ -7,6 +7,7 @@ import {
   isAlbumFull,
   photoAlbumStore,
   readPhotoAlbum,
+  referencePhotoFile,
   removePhotos,
   setActivePhoto,
   writePhotoAlbum,
@@ -128,6 +129,16 @@ describe("reference photo album", () => {
       })
     );
     expect(readPhotoAlbum().photos).toHaveLength(MAX_REFERENCE_PHOTOS);
+  });
+
+  it("turns an existing local portrait back into an uploadable file", () => {
+    const file = referencePhotoFile({
+      ...photo("ready"),
+      dataUrl: `data:image/png;base64,${window.btoa("portrait")}`
+    });
+    expect(file.name).toBe("stylecapture-reference-ready.png");
+    expect(file.type).toBe("image/png");
+    expect(file.size).toBe("portrait".length);
   });
 });
 
