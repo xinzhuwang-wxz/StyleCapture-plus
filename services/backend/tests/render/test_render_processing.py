@@ -595,19 +595,23 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
     assert (
         stored_pixel.provider_trace.parameters["prompt_version"]
-        == "look-pixel-cover-zh-v9-candidate"
+        == "look-pixel-cover-zh-v10-candidate"
     )
     assert (
         stored_pixel.provider_trace.parameters["style_reference_version"]
         == "pixel-card-style-v2-candidate"
     )
     assert "最后两张图只提供画风" in pixel_generator.prompt
+    assert "单品拼贴只用于还原人物穿搭" in pixel_generator.prompt
+    assert "不得成为背景装饰" in pixel_generator.prompt
     assert "3:4" in pixel_generator.prompt
     assert "不画完整场景" in pixel_generator.prompt
     assert "眼睛较大圆润有高光" in pixel_generator.prompt
     assert "鼻子只用" not in pixel_generator.prompt
     assert "避免大面积纯白或中性灰" in pixel_generator.prompt
     assert "单个不超过人物头宽四分之一" in pixel_generator.prompt
+    assert "服装、鞋、包和首饰只属于人物" in pixel_generator.prompt
+    assert "禁止复制为漂浮图标" in pixel_generator.prompt
     assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert len(pixel_generator.images) == 4
     assert pixel_generator.size == "1728x2304"
