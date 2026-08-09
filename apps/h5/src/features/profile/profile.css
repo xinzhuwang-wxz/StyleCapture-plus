@@ -127,6 +127,20 @@
   border-radius: 14px;
 }
 
+.profile__manage.pixel-button {
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--pixel-text-muted);
+  font-size: 0.68rem;
+  box-shadow: none;
+}
+
+.profile__manage.pixel-button:active {
+  transform: none;
+  box-shadow: none;
+}
+
 /* ─── 像素小人陈列馆 ─── */
 .profile__pixel-gallery {
   display: flex;

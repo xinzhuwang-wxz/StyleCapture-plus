@@ -107,10 +107,13 @@ export function ProfileScreen({
       </button>
 
       <PixelSectionHeader
-        kicker="AI 真人试穿参考"
         title="我的形象照"
         action={
-          <PixelButton variant="ghost" onClick={() => setManagingPhotos(true)}>
+          <PixelButton
+            variant="ghost"
+            className="profile__manage"
+            onClick={() => setManagingPhotos(true)}
+          >
             管理 ›
           </PixelButton>
         }
@@ -144,7 +147,6 @@ export function ProfileScreen({
       </div>
 
       <PixelSectionHeader
-        kicker="穿搭像素资产"
         title="我的像素小人"
         action={<span className="pixel-label">{pixelPeople.length} 张</span>}
       />
@@ -185,16 +187,6 @@ export function ProfileScreen({
         )}
       </section>
 
-      <section className="profile__tips">
-        <h3 className="pixel-subtitle" style={{ marginBottom: "var(--px-2)" }}>
-          使用提示
-        </h3>
-        <ul>
-          <li>像素小人来自已经保存的穿搭，不再单独上传照片试验。</li>
-          <li>每张像素卡片都与对应穿搭关联，可设为那套穿搭的封面。</li>
-          <li>这里保存的默认形象照，会在穿搭详情的“真人试穿”中优先选中。</li>
-        </ul>
-      </section>
     </div>
   );
 }
