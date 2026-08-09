@@ -267,11 +267,17 @@ describe("StyleCapture garment ingest", () => {
     expect(navigationButtons).toHaveLength(5);
     expect(navigationButtons[0]).toHaveAccessibleName("衣橱");
     expect(navigationButtons[1]).toHaveAccessibleName("AI");
-    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服或试试像素形象");
+    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服");
     expect(navigationButtons[3]).toHaveAccessibleName("像素世界");
     expect(navigationButtons[4]).toHaveAccessibleName("我的");
     expect(within(navigation).queryByRole("button", { name: "分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刷灵感 Feed" })).toBeVisible();
+
+    await userEvent.click(navigationButtons[2]);
+
+    expect(screen.getByRole("button", { name: /拍下真实衣服/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /从相册导入/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /试试像素形象/ })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
 

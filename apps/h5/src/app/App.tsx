@@ -1547,7 +1547,7 @@ export function App() {
           ref={addMenuTrigger}
           className="pixel-nav__add"
           type="button"
-          aria-label="添加衣服或试试像素形象"
+          aria-label="添加衣服"
           onClick={() => setAddMenuOpen(true)}
         >
           <span className="nav-icon" aria-hidden="true">＋</span>
@@ -1620,18 +1620,6 @@ export function App() {
               <span aria-hidden="true">✦</span>
               <strong>从相册导入</strong>
               <small>支持实物图、穿搭照和收藏图片</small>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAddMenuOpen(false);
-                setDestination("profile");
-                setNotice("在“我的”里上传全身照，生成不入库的像素形象");
-              }}
-            >
-              <span aria-hidden="true">👾</span>
-              <strong>试试像素形象</strong>
-              <small>只生成展示，不加入数字衣橱</small>
             </button>
           </section>
         </div>
