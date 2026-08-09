@@ -85,6 +85,7 @@ class OutfitPlanTicketSigner:
                 "must_include_item_ids": [
                     str(item_id) for item_id in request.must_include_item_ids
                 ],
+                "plan_count": request.plan_count,
                 "scene": request.scene,
                 "style": request.style,
                 "weather": request.weather,
@@ -175,6 +176,7 @@ class OutfitPlanTicketSigner:
                 weather=request_payload["weather"],
                 formality=request_payload["formality"],
                 comfort=request_payload["comfort"],
+                plan_count=int(request_payload.get("plan_count", 4)),
                 anchor_item_id=(
                     UUID(str(request_payload["anchor_item_id"]))
                     if request_payload["anchor_item_id"] is not None

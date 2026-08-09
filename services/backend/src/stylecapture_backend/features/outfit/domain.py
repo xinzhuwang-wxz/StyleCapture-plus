@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from types import MappingProxyType
+from typing import Any
 from uuid import UUID, uuid4
 
 
@@ -45,6 +48,7 @@ class OutfitRequest:
     weather: str | None = None
     formality: str | None = None
     comfort: str | None = None
+    plan_count: int = 4
     anchor_item_id: UUID | None = None
     must_include_item_ids: tuple[UUID, ...] = ()
     exclude_item_ids: tuple[UUID, ...] = ()
@@ -52,6 +56,8 @@ class OutfitRequest:
     def __post_init__(self) -> None:
         if not self.scene.strip():
             raise ValueError("scene must not be empty")
+        if self.plan_count not in {3, 4}:
+            raise ValueError("plan count must be 3 or 4")
         if len(set(self.must_include_item_ids)) != len(self.must_include_item_ids):
             raise ValueError("must-include item ids must be unique")
         if len(set(self.exclude_item_ids)) != len(self.exclude_item_ids):
@@ -77,10 +83,17 @@ class OutfitSlot:
     image_url: str | None
     search_query: str | None
     source_kind: str | None = None
+    style_facts: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if (self.item_id is None) == (self.search_query is None):
             raise ValueError("slot must contain either a wardrobe item or a search demand")
+        if self.style_facts is not None:
+            object.__setattr__(
+                self,
+                "style_facts",
+                MappingProxyType(dict(self.style_facts)),
+            )
 
     @property
     def purchase_item_id(self) -> UUID | None:

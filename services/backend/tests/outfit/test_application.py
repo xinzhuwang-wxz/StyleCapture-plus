@@ -471,6 +471,69 @@ async def test_reasoning_only_reranks_closed_candidates_and_returns_chinese_expl
 
 
 @pytest.mark.asyncio
+async def test_plan_slots_include_wardrobe_style_facts_from_item_attributes() -> None:
+    user_id = uuid4()
+    application = OutfitApplication(
+        wardrobe=WardrobeStub(
+            [
+                item(
+                    user_id,
+                    category="tops",
+                    description="浅绿圆领针织开衫",
+                    extra_fields={
+                        "subcategory": "针织开衫",
+                        "colors": ["浅绿", "薄荷绿"],
+                        "materials": ["针织", "棉混纺"],
+                        "pattern": "纯色",
+                        "silhouette": "短款直筒",
+                        "fit": "合身",
+                        "styles": ["温柔", "学院", "清新", "叠穿"],
+                        "seasons": ["春", "秋"],
+                        "occasions": ["日常", "约会"],
+                        "length": "短款",
+                        "neckline": "圆领",
+                        "sleeve_type": "长袖",
+                        "details": ["纽扣", "罗纹边"],
+                    },
+                ),
+                item(user_id, category="bottoms", description="灰色半身裙"),
+                item(user_id, category="shoes", description="白色厚底运动鞋"),
+            ]
+        ),
+        reranker=None,
+    )
+
+    result = await application.draft_plans(
+        user_id=user_id,
+        request=OutfitRequest(scene="周末约会", style="温柔有层次", plan_count=3),
+    )
+
+    top_slot = next(
+        slot
+        for plan in result.plans
+        for slot in plan.slots
+        if slot.item_name == "浅绿圆领针织开衫"
+    )
+    assert top_slot.style_facts == {
+        "category": "tops",
+        "subcategory": "针织开衫",
+        "description": "浅绿圆领针织开衫",
+        "colors": ("浅绿", "薄荷绿"),
+        "materials": ("针织", "棉混纺"),
+        "pattern": "纯色",
+        "silhouette": "短款直筒",
+        "fit": "合身",
+        "styles": ("温柔", "学院", "清新", "叠穿"),
+        "seasons": ("春", "秋"),
+        "occasions": ("日常", "约会"),
+        "length": "短款",
+        "neckline": "圆领",
+        "sleeve_type": "长袖",
+        "details": ("纽扣", "罗纹边"),
+    }
+
+
+@pytest.mark.asyncio
 async def test_scene_semantics_change_real_items_and_each_result_has_visible_variety() -> None:
     user_id = uuid4()
     wardrobe = WardrobeStub(
@@ -748,7 +811,11 @@ async def test_stream_returns_each_real_draft_before_final_ai_refinement() -> No
     ) as client:
         response = await client.post(
             "/v1/outfit-plans/stream",
-            json={"scene": "客户提案", "style": "简洁正式"},
+            json={
+                "scene": "客户提案",
+                "style": "简洁正式",
+                "outfit_count": 3,
+            },
         )
 
     assert response.status_code == 200
@@ -757,14 +824,14 @@ async def test_stream_returns_each_real_draft_before_final_ai_refinement() -> No
         "plan",
         "plan",
         "plan",
-        "plan",
         "complete",
     ]
-    assert all(event["plan"]["rationale"] for event in events[:4])
+    assert all(event["plan"]["rationale"] for event in events[:3])
     final = events[-1]["result"]
+    assert len(final["plans"]) == 3
     assert final["explanation_state"] == "llm_ranked"
     assert all("客户提案" in plan["rationale"] for plan in final["plans"])
-    assert all(event["trace_id"] == final["trace_id"] for event in events[:4])
+    assert all(event["trace_id"] == final["trace_id"] for event in events[:3])
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -777,7 +844,7 @@ async def test_stream_returns_each_real_draft_before_final_ai_refinement() -> No
     assert trace["request_id"] == final["request_id"]
     assert trace["status"] == "completed"
     assert trace["explanation_state"] == "llm_ranked"
-    assert trace["plan_count"] == 4
+    assert trace["plan_count"] == 3
     assert trace["capability_alias"] == "reasoning"
     assert trace["model_version"] == "test-model"
     assert trace["steps"][-1] == {

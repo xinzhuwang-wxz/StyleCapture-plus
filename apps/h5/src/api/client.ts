@@ -701,6 +701,7 @@ async function sourceImage(itemId: string): Promise<string> {
 
 async function planOutfits(input: {
   scene: string;
+  outfitCount?: 3 | 4;
   style?: string;
   weather?: string;
   formality?: string;
@@ -713,6 +714,7 @@ async function planOutfits(input: {
   const response = await client.POST("/v1/outfit-plans", {
     body: {
       scene: input.scene,
+      outfit_count: input.outfitCount ?? 4,
       style: input.style,
       weather: input.weather,
       formality: input.formality,
@@ -731,6 +733,7 @@ async function planOutfits(input: {
 async function planOutfitsProgressively(
   input: {
     scene: string;
+    outfitCount?: 3 | 4;
     style?: string;
     weather?: string;
     formality?: string;
@@ -748,6 +751,7 @@ async function planOutfitsProgressively(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       scene: input.scene,
+      outfit_count: input.outfitCount ?? 4,
       style: input.style,
       weather: input.weather,
       formality: input.formality,

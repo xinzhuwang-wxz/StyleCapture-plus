@@ -40,6 +40,7 @@ class OutfitHttpServices:
 
 class OutfitRequestBody(BaseModel):
     scene: str = Field(min_length=1, max_length=200)
+    outfit_count: int = Field(default=4, ge=3, le=4)
     style: str | None = Field(default=None, max_length=120)
     weather: str | None = Field(default=None, max_length=120)
     formality: str | None = Field(default=None, max_length=120)
@@ -270,6 +271,7 @@ def build_outfit_router(
                 weather=body.weather,
                 formality=body.formality,
                 comfort=body.comfort,
+                plan_count=body.outfit_count,
                 anchor_item_id=body.anchor_item_id,
                 must_include_item_ids=tuple(body.must_include_item_ids),
                 exclude_item_ids=tuple(body.exclude_item_ids),
@@ -285,6 +287,7 @@ def build_outfit_router(
                 weather=body.weather,
                 formality=body.formality,
                 comfort=body.comfort,
+                plan_count=body.outfit_count,
                 anchor_item_id=body.anchor_item_id,
                 must_include_item_ids=tuple(body.must_include_item_ids),
                 exclude_item_ids=tuple(body.exclude_item_ids),
@@ -305,6 +308,7 @@ def build_outfit_router(
             weather=body.weather,
             formality=body.formality,
             comfort=body.comfort,
+            plan_count=body.outfit_count,
             anchor_item_id=body.anchor_item_id,
             must_include_item_ids=tuple(body.must_include_item_ids),
             exclude_item_ids=tuple(body.exclude_item_ids),

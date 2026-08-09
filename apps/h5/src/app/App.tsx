@@ -1169,9 +1169,15 @@ export function App() {
         {destination === "ai" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
             <AIRecommendScreen
+              wardrobeItems={items}
+              onSelectAnchorItem={setAiAnchorItemId}
               historyOpen={aiHistoryOpen}
               onHistoryOpenChange={setAiHistoryOpen}
               onGoWardrobe={() => setDestination("wardrobe")}
+              onGoWardrobeItems={() => {
+                setWardrobeViewMode("items");
+                setDestination("wardrobe");
+              }}
               onSavedLook={(result) => {
                 const lookId = result.look_id;
                 setNotice(

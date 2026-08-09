@@ -1165,6 +1165,11 @@ export interface components {
             formality?: string | null;
             /** Must Include Item Ids */
             must_include_item_ids?: string[];
+            /**
+             * Outfit Count
+             * @default 4
+             */
+            outfit_count: number;
             /** Scene */
             scene: string;
             /** Style */
