@@ -9,7 +9,7 @@ from stylecapture_backend.features.capture.domain import (
     OwnershipState,
     ProcessingJob,
 )
-from stylecapture_backend.features.wardrobe.domain import WardrobeItem
+from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeItem
 from stylecapture_backend.platform.image_normalization import (
     normalize_provider_image,
     optimize_browser_image,
@@ -45,6 +45,8 @@ class WardrobeRepository(Protocol):
 
     async def save_user_state(self, item: WardrobeItem) -> WardrobeItem: ...
 
+    async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool: ...
+
 
 class SourceStore(Protocol):
     def read_image(self, object_key: str) -> ImagePayload: ...
@@ -74,6 +76,10 @@ class WardrobeValidationError(ValueError):
 
 class SourceDeletedNotRetryableError(ValueError):
     pass
+
+
+class WardrobeDeletionInProgressError(RuntimeError):
+    """A running worker still owns the item and could recreate deleted rows."""
 
 
 def _wardrobe_display_order(item: WardrobeItem) -> tuple[int, int]:
@@ -149,6 +155,17 @@ class WardrobeApplication:
         self._sources.delete(item.source_object_key)
         if item.source_available:
             await self._wardrobe.save_user_state(item.with_source_deleted())
+
+    async def delete_item(self, user_id: UUID, item_id: UUID) -> None:
+        # Resolve ownership first so an unknown or another user's UUID has the
+        # same non-revealing 404 behavior as every other item operation.
+        item = await self.get_item(user_id, item_id)
+        if item.status is ItemStatus.PROCESSING:
+            raise WardrobeDeletionInProgressError(
+                "The item is still processing; retry deletion after processing finishes"
+            )
+        if not await self._wardrobe.delete_for_user(item_id, user_id):
+            raise WardrobeNotFoundError(item_id)
 
     async def retry_item(self, user_id: UUID, item_id: UUID) -> ProcessingJob:
         item = await self.get_item(user_id, item_id)

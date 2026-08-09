@@ -672,6 +672,47 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
 
+  const deleteItemMutation = useMutation({
+    mutationFn: (itemId: string) => wardrobeApi.deleteItem(itemId),
+    onSuccess: (_, itemId) => {
+      queryClient.setQueryData<Item[]>(["wardrobe-items"], (current) =>
+        current?.filter((item) => item.id !== itemId)
+      );
+      setSelectedItem(null);
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      setNotice("单品已从数字衣橱删除");
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
+  const deleteLookMutation = useMutation({
+    mutationFn: ({
+      lookId,
+      deleteItems
+    }: {
+      lookId: string;
+      deleteItems: boolean;
+    }) => wardrobeApi.deleteLook(lookId, deleteItems),
+    onSuccess: (result) => {
+      queryClient.setQueryData<Look[]>(["wardrobe-looks"], (current) =>
+        current?.filter((look) => look.id !== result.look_id)
+      );
+      setLookItemAction(null);
+      setSelectedLookId(null);
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      setNotice(
+        result.preserved_shared_item_ids.length > 0
+          ? `穿搭已删除；${result.preserved_shared_item_ids.length} 件仍被其他搭配使用的单品已保留`
+          : result.deleted_item_ids.length > 0
+            ? `穿搭和 ${result.deleted_item_ids.length} 件单品已删除`
+            : "穿搭已删除，单品仍保留在数字衣橱"
+      );
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
   const lookReasonMutation = useMutation({
     mutationFn: ({ lookId, reason }: { lookId: string; reason: string }) =>
       wardrobeApi.addLikingReason(lookId, reason, crypto.randomUUID()),
@@ -1254,11 +1295,13 @@ export function App() {
             <ItemDetail
             item={selectedItem}
             saving={updateMutation.isPending}
+            deleting={deleteItemMutation.isPending}
             onClose={() => setSelectedItem(null)}
             onSave={(itemId, changes) =>
               updateMutation.mutate({ itemId, changes })
             }
             onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+            onDeleteItem={(itemId) => deleteItemMutation.mutate(itemId)}
             onBuildOutfit={(itemId) => {
               setAiAnchorItemId(itemId);
               setSelectedItem(null);
@@ -1309,6 +1352,7 @@ export function App() {
               tryOnUploading={tryOnMutation.isPending}
               deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
               deletingSource={false}
+              deletingLook={deleteLookMutation.isPending}
               retrying={lookRetryMutation.isPending}
               saving={lookReasonMutation.isPending}
               onClose={() => {
@@ -1340,6 +1384,12 @@ export function App() {
               }
               onDeleteTryOnPhoto={(artifactId) =>
                 deleteTryOnPhotoMutation.mutate(artifactId)
+              }
+              onDeleteLook={(lookId, scope) =>
+                deleteLookMutation.mutate({
+                  lookId,
+                  deleteItems: scope === "look_and_items"
+                })
               }
               onAdvancePurchaseDemand={(demandId, status) =>
                 purchaseDemandMutation.mutate({ demandId, status })

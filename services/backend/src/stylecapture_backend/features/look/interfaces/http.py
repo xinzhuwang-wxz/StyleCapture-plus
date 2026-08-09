@@ -244,6 +244,12 @@ class LookRetryResponse(BaseModel):
     attempt: int
 
 
+class LookDeletionResponse(BaseModel):
+    look_id: UUID
+    deleted_item_ids: list[UUID]
+    preserved_shared_item_ids: list[UUID]
+
+
 def build_look_router(
     services: LookHttpServices,
     *,
@@ -353,6 +359,27 @@ def build_look_router(
             capture,
             source_available=source_available(detail.look, capture),
             flat_lays=flat_lays,
+        )
+
+    @router.delete(
+        "/{look_id}",
+        response_model=LookDeletionResponse,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def delete_look(
+        look_id: UUID,
+        delete_items: bool = False,
+        user_id: UUID = principal,
+    ) -> LookDeletionResponse:
+        result = await services.looks.delete_look(
+            user_id=user_id,
+            look_id=look_id,
+            delete_items=delete_items,
+        )
+        return LookDeletionResponse(
+            look_id=result.look_id,
+            deleted_item_ids=list(result.deleted_item_ids),
+            preserved_shared_item_ids=list(result.preserved_shared_item_ids),
         )
 
     @router.get("/{look_id}/image", responses=STABLE_ERROR_RESPONSES)

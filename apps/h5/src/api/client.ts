@@ -9,6 +9,7 @@ export type ItemPresentation = components["schemas"]["ItemPresentationResponse"]
 export type Job = components["schemas"]["JobResponse"];
 export type Look = components["schemas"]["LookSummaryResponse"];
 export type LookDetail = components["schemas"]["LookDetailResponse"];
+export type LookDeletion = components["schemas"]["LookDeletionResponse"];
 export type OutfitPlan = components["schemas"]["OutfitPlanResponse"];
 export type OutfitPlanSet = components["schemas"]["OutfitPlanSetResponse"];
 export type PixelTrial = components["schemas"]["PixelTrialResponse"];
@@ -689,6 +690,35 @@ async function deleteSource(itemId: string): Promise<void> {
   }
 }
 
+async function deleteItem(itemId: string): Promise<void> {
+  await ensureSession();
+  const response = await client.DELETE("/v1/items/{item_id}", {
+    params: {
+      path: { item_id: itemId }
+    }
+  });
+  if (response.error) {
+    throwApiError(response.error, "这件单品暂时无法删除");
+  }
+}
+
+async function deleteLook(
+  lookId: string,
+  deleteItems: boolean
+): Promise<LookDeletion> {
+  await ensureSession();
+  const response = await client.DELETE("/v1/looks/{look_id}", {
+    params: {
+      path: { look_id: lookId },
+      query: { delete_items: deleteItems }
+    }
+  });
+  if (!response.data) {
+    throwApiError(response.error, "这套穿搭暂时无法删除");
+  }
+  return response.data;
+}
+
 async function displayImage(itemId: string): Promise<string> {
   await ensureSession();
   return `/v1/items/${encodeURIComponent(itemId)}/image`;
@@ -909,6 +939,8 @@ export const wardrobeApi = {
   retryItem,
   retryItemPixel,
   updateItem,
+  deleteItem,
+  deleteLook,
   deleteSource,
   displayImage,
   sourceImage,

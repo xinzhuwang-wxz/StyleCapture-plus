@@ -30,6 +30,20 @@ class LookComponentStatus(StrEnum):
     ERROR = "error"
 
 
+@dataclass(frozen=True, slots=True)
+class LookDeletionResult:
+    """The durable result of deleting one saved look.
+
+    Items which are still used by another look are intentionally preserved even
+    when ``delete_items`` was requested. This prevents deleting a shared digital
+    wardrobe asset as a side effect of removing just one outfit.
+    """
+
+    look_id: UUID
+    deleted_item_ids: tuple[UUID, ...] = ()
+    preserved_shared_item_ids: tuple[UUID, ...] = ()
+
+
 class PreferenceSignalKind(StrEnum):
     LOOK_SAVED = "look_saved"
     LIKING_REASON_ADDED = "liking_reason_added"

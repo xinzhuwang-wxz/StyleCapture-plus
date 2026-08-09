@@ -4,15 +4,20 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import case, or_, select, update
+from sqlalchemy import case, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stylecapture_backend.features.capture.domain import CaptureSourceKind, OwnershipState
 from stylecapture_backend.features.capture.infrastructure.models import CaptureRecord
+from stylecapture_backend.features.look.infrastructure.models import (
+    LookComponentRecord,
+    LookRecord,
+)
 from stylecapture_backend.features.outfit.domain import (
     OutfitCategory,
     OutfitRecallRequirements,
 )
+from stylecapture_backend.features.render.infrastructure.models import RenderArtifactRecord
 from stylecapture_backend.features.wardrobe.domain import (
     WHOLE_CAPTURE_SELECTION_KEY,
     FieldEnvelope,
@@ -234,6 +239,62 @@ class SqlAlchemyWardrobeRepository:
         record.ownership = ownership.value
         record.updated_at = updated_at
         return True
+
+    async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool:
+        """Remove an item and every outfit-component reference to it atomically."""
+
+        async with self._sessions() as session:
+            item = (
+                await session.execute(
+                    select(ItemRecord)
+                    .where(ItemRecord.id == item_id, ItemRecord.user_id == user_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if item is None:
+                return False
+
+            affected_look_ids = tuple(
+                dict.fromkeys(
+                    await session.scalars(
+                        select(LookComponentRecord.look_id).where(
+                            LookComponentRecord.item_id == item_id
+                        )
+                    )
+                )
+            )
+            await session.execute(
+                delete(LookComponentRecord).where(LookComponentRecord.item_id == item_id)
+            )
+            if affected_look_ids:
+                # A generated cover can contain the removed item. Invalidate it
+                # so clients do not continue presenting stale wardrobe data.
+                await session.execute(
+                    update(LookRecord)
+                    .where(
+                        LookRecord.id.in_(affected_look_ids),
+                        LookRecord.user_id == user_id,
+                    )
+                    .values(status="partial", display_object_key=None)
+                )
+                # Generated collages/covers can still contain the removed item.
+                # Remove their database presentations so render reads cannot
+                # surface stale wardrobe state. Output blobs are retained for
+                # the deployment's normal object-retention cleanup.
+                await session.execute(
+                    delete(RenderArtifactRecord).where(
+                        RenderArtifactRecord.look_id.in_(affected_look_ids),
+                        RenderArtifactRecord.fallback_artifact_id.is_not(None),
+                    )
+                )
+                await session.execute(
+                    delete(RenderArtifactRecord).where(
+                        RenderArtifactRecord.look_id.in_(affected_look_ids)
+                    )
+                )
+            await session.delete(item)
+            await session.commit()
+            return True
 
 
 def _item_record(item: WardrobeItem) -> ItemRecord:

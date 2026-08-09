@@ -64,6 +64,20 @@ class MemoryWardrobe:
     async def save_user_state(self, item: WardrobeItem) -> WardrobeItem:
         return await self.save(item)
 
+    async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool:
+        identity = next(
+            (
+                key
+                for key, item in self.items.items()
+                if item.id == item_id and item.user_id == user_id
+            ),
+            None,
+        )
+        if identity is None:
+            return False
+        del self.items[identity]
+        return True
+
 
 class MemoryLooks:
     def __init__(self) -> None:

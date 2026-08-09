@@ -40,6 +40,13 @@ class MemoryWardrobe:
     async def save_user_state(self, item: WardrobeItem) -> WardrobeItem:
         return await self.save(item)
 
+    async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool:
+        item = await self.get_for_user(item_id, user_id)
+        if item is None:
+            return False
+        del self.items[item_id]
+        return True
+
 
 class MemorySources:
     def __init__(self, image: ImagePayload) -> None:

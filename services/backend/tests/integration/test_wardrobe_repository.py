@@ -116,6 +116,10 @@ async def test_wardrobe_repository_round_trips_locked_fields_metadata_and_vector
     assert stored.model_metadata["embedding_model"] == "doubao-embedding-vision-250615"
     assert stored.embedding == (1.0,) + (0.0,) * 2047
 
+    assert await repository.delete_for_user(item.id, uuid4()) is False
+    assert await repository.delete_for_user(item.id, capture.user_id) is True
+    assert await repository.get_for_user(item.id, capture.user_id) is None
+
 
 @pytest.mark.asyncio
 async def test_outfit_recall_filters_assets_and_stably_ranks_owned_vectors() -> None:
