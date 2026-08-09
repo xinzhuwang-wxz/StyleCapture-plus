@@ -58,6 +58,11 @@ class BackendSettings(BaseSettings):
     render_download_max_bytes: int = 20 * 1024 * 1024
     fashn_api_base: str = "https://api.fashn.ai/v1"
     fashn_api_key: SecretStr = SecretStr("")
+    ark_api_key: SecretStr = SecretStr("")
+    try_on_skill_path: Path = Path("/app/skills/doubao-virtual-try-on/scripts/virtual_try_on.py")
+    try_on_skill_timeout_seconds: float = 1800
+    try_on_understanding_model: str = "doubao-seed-2-0-lite-260428"
+    try_on_image_model: str = "doubao-seedream-5-0-260128"
     fixed_model_object_key: str | None = None
     demo_seed_enabled: bool = True
     demo_seed_new_session_quota: int = 512
@@ -108,6 +113,7 @@ class BackendSettings(BaseSettings):
         "render_poll_interval_seconds",
         "render_poll_timeout_seconds",
         "outfit_reasoning_timeout_seconds",
+        "try_on_skill_timeout_seconds",
     )
     @classmethod
     def validate_render_timeouts(cls, value: float) -> float:

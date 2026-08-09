@@ -37,7 +37,10 @@ from stylecapture_backend.features.render.domain import (
 from stylecapture_backend.features.render.infrastructure.collage import (
     PillowLookCollageRenderer,
 )
-from stylecapture_backend.features.render.infrastructure.providers import GeneratedImage
+from stylecapture_backend.features.render.infrastructure.providers import (
+    GeneratedImage,
+    RenderProviderError,
+)
 from stylecapture_backend.features.render.processing import RenderProcessor, RetryableRenderError
 from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeItem
 
@@ -228,6 +231,50 @@ class SuccessfulTryOnGenerator:
                 model="test-try-on-model",
                 parameters={"category": category, "mode": mode},
             ),
+        )
+
+
+class SuccessfulAuditedTryOnGenerator:
+    def __init__(self) -> None:
+        self.model_image: ImagePayload | None = None
+        self.outfit_board: ImagePayload | None = None
+
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage:
+        self.model_image = model_image
+        self.outfit_board = outfit_board
+        body = png((80, 120, 200))
+        return GeneratedImage(
+            body=body,
+            content_type="image/jpeg",
+            sha256=sha256(body).hexdigest(),
+            provider_trace=RenderProviderTrace(
+                provider="doubao_virtual_try_on_skill",
+                model="audited_identity_locked_workflow",
+                parameters={"skill_version": "1.3.0", "hard_pass": True},
+            ),
+        )
+
+
+class FailingAuditedTryOnGenerator:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage:
+        self.calls += 1
+        raise RenderProviderError(
+            "try_on_identity_audit_failed",
+            "candidate did not preserve identity",
+            retryable=False,
         )
 
 
@@ -917,6 +964,109 @@ async def test_personal_try_on_uses_uploaded_subject_and_real_image_provider_fal
     assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v3"
     assert stored.provider_trace.parameters["image_count"] == 2
     assert stored.provider_trace.parameters["size"] == "1728x2304"
+    assert dedicated_try_on.categories == []
+
+
+@pytest.mark.asyncio
+async def test_personal_try_on_prefers_audited_doubao_skill_workflow() -> None:
+    user_id, detail, item, objects = fixture()
+    subject = payload("originals/upload/my-full-body.png", (160, 130, 110))
+    objects.images[subject.object_key] = subject
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage",
+    )
+    repository = MemoryRenderRepository([collage])
+    renders = RenderApplication(artifacts=repository)
+    audited = SuccessfulAuditedTryOnGenerator()
+    legacy_image_generator = SuccessfulPixelGenerator()
+    dedicated_try_on = SuccessfulTryOnGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=renders,
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=legacy_image_generator,
+        try_on_generator=dedicated_try_on,
+        audited_try_on_generator=audited,
+        fixed_model_object_key=None,
+    )
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    artifact = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="personal-audited-skill",
+        source_artifact_id=collage.id,
+        subject_object_key=subject.object_key,
+    )
+    repository.artifacts[artifact.id] = artifact
+
+    await processor.process(user_id=user_id, artifact_id=artifact.id)
+
+    stored = repository.artifacts[artifact.id]
+    assert stored.status is RenderArtifactStatus.SUCCEEDED
+    assert audited.model_image is not None
+    assert audited.model_image.sha256 == subject.sha256
+    assert audited.outfit_board is not None
+    assert dedicated_try_on.categories == []
+    assert stored.provider_trace is not None
+    assert stored.provider_trace.parameters["capability_alias"] == ("doubao_virtual_try_on_skill")
+    assert stored.provider_trace.parameters["strategy"] == ("analyze_generate_audit_retry")
+    assert stored.provider_trace.parameters["prompt_version"] == (
+        "doubao-virtual-try-on-skill-v1.3.0"
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_audited_try_on_degrades_without_legacy_provider_fallback() -> None:
+    user_id, detail, item, objects = fixture()
+    subject = payload("originals/upload/my-full-body.png", (160, 130, 110))
+    objects.images[subject.object_key] = subject
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage",
+    )
+    repository = MemoryRenderRepository([collage])
+    renders = RenderApplication(artifacts=repository)
+    audited = FailingAuditedTryOnGenerator()
+    legacy_image_generator = SuccessfulPixelGenerator()
+    dedicated_try_on = SuccessfulTryOnGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=renders,
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=legacy_image_generator,
+        try_on_generator=dedicated_try_on,
+        audited_try_on_generator=audited,
+        fixed_model_object_key=None,
+    )
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    artifact = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="personal-failed-audited-skill",
+        source_artifact_id=collage.id,
+        subject_object_key=subject.object_key,
+    )
+    repository.artifacts[artifact.id] = artifact
+
+    await processor.process(user_id=user_id, artifact_id=artifact.id)
+
+    stored = repository.artifacts[artifact.id]
+    assert stored.status is RenderArtifactStatus.DEGRADED
+    assert audited.calls == 1
+    assert legacy_image_generator.images == ()
     assert dedicated_try_on.categories == []
 
 

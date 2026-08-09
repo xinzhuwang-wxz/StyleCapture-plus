@@ -25,7 +25,7 @@ from typing import Any
 DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 DEFAULT_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260428"
 DEFAULT_IMAGE_MODEL = "doubao-seedream-5-0-260128"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 TRANSIENT_HTTP_CODES = {408, 409, 429, 500, 502, 503, 504}
 MAX_IMAGE_DOWNLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -266,7 +266,13 @@ Return only valid JSON with this schema:
 
 Requirements for generation_prompt:
 - State that IMAGE 1 is the only source of identity, facial features, hairstyle, skin tone and
-  body proportions. Keep the person unmistakably recognizable.
+  body proportions. Keep the exact same person, not a merely similar person.
+- Lock observable facial geometry: face shape and jawline, hairline, eyebrow shape and spacing,
+  eye shape and spacing, eyelids, nose bridge and width, lip shape, mouth corners, ears, skin
+  tone, age cues, glasses and distinctive details. Preserve expression, makeup and hairstyle.
+- Prohibit beautification, face slimming, eye enlargement, nose reshaping, skin smoothing or
+  whitening, age/gender changes, and any reinterpretation of the face. Except where a new collar
+  meets hair or skin, preserve IMAGE 1's head and face region instead of repainting it.
 - State that IMAGE 2 is the only source of replacement clothing and accessories. The person must
   naturally wear or carry every visible outfit-board item exactly once in the correct place.
 - Replace all clothes and accessories from IMAGE 1. Do not retain an item from IMAGE 1 unless the
@@ -393,10 +399,12 @@ Return only valid JSON with exactly this structure:
 }
 
 Compare IMAGE 3's person only against IMAGE 1 and IMAGE 3's clothing/items only against IMAGE 2.
-Check every board item, colors, materials, cut, hardware, item count, shoes, bag, anatomy, hands,
-feet and unintended carry-over from IMAGE 1's original clothes/accessories. Pass only when
-overall_score >= 75, identity_preservation.score >= 75, outfit_fidelity.score >= 80, and there is
-no severe anatomical or object-duplication artifact."""
+Do not award identity points for merely matching gender, ethnicity, hair color or general vibe.
+Compare exact face shape, jawline, eye spacing and shape, eyebrows, nose, mouth, hairline, ears,
+glasses, skin tone and age cues. Check every board item, colors, materials, cut, hardware, item
+count, shoes, bag, anatomy, hands, feet and unintended carry-over from IMAGE 1's original
+clothes/accessories. Pass only when overall_score >= 88, identity_preservation.score >= 88,
+outfit_fidelity.score >= 80, and there is no severe anatomical or object-duplication artifact."""
     audit = chat(
         api_key=api_key,
         api_base=api_base,
@@ -435,7 +443,7 @@ def audit_passes(audit: dict[str, Any]) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
     return (
-        audit.get("pass") is True and overall_score(audit) >= 75 and identity >= 75 and outfit >= 80
+        audit.get("pass") is True and overall_score(audit) >= 88 and identity >= 88 and outfit >= 80
     )
 
 

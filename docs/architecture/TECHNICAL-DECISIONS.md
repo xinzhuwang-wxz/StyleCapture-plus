@@ -279,8 +279,8 @@ sequenceDiagram
 
 ### 8.1 真人试穿
 
-- 默认使用托管 FASHN `tryon-v1.6` 的 performance/balanced 模式，不在核心服务器加载试穿权重；需要更高成片质量时按任务切换 `tryon-max`。
-- FastFit 与本地 FASHN VTON 1.5 保留为 `ai-heavy` 可选适配器，只有真实输入对比证明托管轻量方案无法达到验收门槛时才启用。
+- 产品 `look.virtual_try_on` 默认执行 `doubao-virtual-try-on` Skill 的分析、生成、身份/服装审计与有界重试流程；只有审计硬通过的结果才能作为成功试穿图保存。
+- LiteLLM/FASHN/FastFit 适配器保留为历史兼容与质量研究实现，但标准 Compose Worker 不把它们配置为产品试穿回退；Skill 未通过时明确降级为真实单品拼贴。
 - 用户上传的全身参考照是可选资料；没有参考照时显示固定模特或真实单品拼贴，不假装是用户本人。
 - 现场演示允许命中同一真实输入的内容哈希缓存，但缓存必须来自此前真实任务，并显示 cached 状态；禁止 hardcode 某个请求返回预制图。
 - FastFit 当前许可证只允许非商业 Demo；商业化前必须取得授权或替换。
@@ -407,7 +407,7 @@ Product API 必须满足：
 - Docker Compose 划分 `core`、`ai-light` 和 `ai-heavy` profiles；默认笔记本只运行带健康检查、持久卷和资源限制的 core，CUDA 与重模型镜像不进入默认 profile。
 - 长时构建、E2E 或媒体任务每五分钟检查 CPU、内存压力、温控、swap、磁盘和容器资源；触发 `docs/engineering/LOCAL-RESOURCE-GUARDRAILS.md` 时立即降并发或停止昂贵任务。
 - 视觉理解、分割、试穿和像素生成统一通过 provider contract 调用；开发期优先选择真实托管 API、Apple Silicon/CPU 可运行的轻量模型或已有 StyleCapture provider。
-- 默认 Demo provider 组合为：豆包视觉理解/定位/多模态向量，SAM2.1 Hiera Tiny 单帧 CPU 精修，FASHN `tryon-v1.6` 托管试穿，Seedream 托管生图；SAM2 仅进入单并发 `ai-light` 媒体 Worker，粗圈选为失败兜底，API 与同步 Feed 路径不加载模型。
+- 默认 Demo provider 组合为：豆包视觉理解/定位/多模态向量，SAM2.1 Hiera Tiny 单帧 CPU 精修，`doubao-virtual-try-on` Skill 审计式真人试穿，Seedream 托管生图；SAM2 仅进入单并发 `ai-light` 媒体 Worker，粗圈选为失败兜底，API 与同步 Feed 路径不加载模型。
 - runtime 仍禁止 mock、stub 和固定结果。某个重 provider 暂时不可运行时，必须使用真实轻量 provider、真实托管 provider，或明确降级为真实单品拼贴，而不是伪造 AI 产物。
 - FastFit/FASHN 的适配器、合同测试和容器配置可以先完成；自托管重模型的 live smoke 放到最终部署 Issue，不阻塞前端、领域、API、任务编排和完整交互开发。
 
@@ -505,8 +505,8 @@ Product API 必须满足：
 | 分类与属性词表 | Shopify Product Taxonomy + 本项目服装扩展 |
 | 服装相似检索 | `doubao-embedding-vision` + 确定性特征 + pgvector；FashionSigLIP 可选质量对照 |
 | 搭配推荐 | SQL/向量召回 + 硬约束规则 + LLM/VLM 重排 |
-| 真人试穿 | FASHN 托管 `tryon-v1.6` 默认，`tryon-max` 高质量层 |
-| 自托管试穿 | FastFit / FASHN VTON 1.5 仅 `ai-heavy` 可选 |
+| 真人试穿 | `doubao-virtual-try-on` Skill：理解、生成、身份/服装审计、有界重试 |
+| 历史/研究试穿适配器 | LiteLLM、FASHN、FastFit 保留但不作为标准产品 Worker 回退 |
 | 像素封面 | StyleCapture pixel provider router |
 | 异步任务 | Redis + Celery |
 | 开发/部署 | 4核8G CPU core + COS/CDN + 托管 AI 默认；测量不通过才启用单台 GPU |

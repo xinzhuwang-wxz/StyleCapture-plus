@@ -71,7 +71,16 @@ class DoubaoSkillContractTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(version_run.returncode, 0, version_run.stderr)
-            self.assertIn("1.2.0", version_run.stdout)
+            self.assertIn("1.3.0", version_run.stdout)
+
+    def test_single_try_on_contract_strictly_locks_exact_face_geometry(self) -> None:
+        core = load_script_module("virtual_try_on")
+        source = Path(core.__file__).read_text(encoding="utf-8")
+
+        self.assertIn("Keep the exact same person, not a merely similar person", source)
+        self.assertIn("face shape and jawline", source)
+        self.assertIn("identity_preservation.score >= 88", source)
+        self.assertIn("overall_score >= 88", source)
 
     def test_download_rejects_non_https_private_and_local_urls(self) -> None:
         core = load_script_module("virtual_try_on")
