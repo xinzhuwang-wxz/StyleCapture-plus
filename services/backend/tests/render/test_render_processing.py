@@ -603,31 +603,76 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
     assert (
         stored_pixel.provider_trace.parameters["prompt_version"]
-        == "look-pixel-cover-zh-v10-candidate"
+        == "look-pixel-cover-zh-v11-single-content-source"
     )
     assert (
         stored_pixel.provider_trace.parameters["style_reference_version"]
         == "pixel-card-style-v2-candidate"
     )
+    assert "第一张图是唯一内容图" in pixel_generator.prompt
     assert "最后两张图只提供画风" in pixel_generator.prompt
-    assert "单品拼贴只用于还原人物穿搭" in pixel_generator.prompt
-    assert "不得成为背景装饰" in pixel_generator.prompt
+    assert "若第一张图是单品拼贴" in pixel_generator.prompt
     assert "3:4" in pixel_generator.prompt
     assert "不画完整场景" in pixel_generator.prompt
     assert "眼睛较大圆润有高光" in pixel_generator.prompt
     assert "鼻子只用" not in pixel_generator.prompt
     assert "避免大面积纯白或中性灰" in pixel_generator.prompt
     assert "单个不超过人物头宽四分之一" in pixel_generator.prompt
-    assert "服装、鞋、包和首饰只属于人物" in pixel_generator.prompt
-    assert "禁止复制为漂浮图标" in pixel_generator.prompt
+    assert "图标从原场景语义抽象" in pixel_generator.prompt
     assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
-    assert len(pixel_generator.images) == 4
+    assert len(pixel_generator.images) == 3
     assert pixel_generator.size == "1728x2304"
     assert pixel_generator.images[0].object_key == look_source.object_key
+    assert stored_pixel.provider_trace.parameters["input_source_kind"] == "look_display"
+    assert stored_pixel.provider_trace.parameters["content_image_count"] == 1
     assert pixel_generator.images[-2].object_key.endswith("anchor-formal-light-pixel.png")
     assert pixel_generator.images[-1].object_key.endswith("anchor-casual-dark-pixel.png")
     assert pixel_generator.seed is not None
     assert pixel_generator.guidance_scale is None
+
+
+@pytest.mark.asyncio
+async def test_pixel_cover_uses_collage_only_when_look_has_no_original_image() -> None:
+    user_id, detail, item, objects = fixture()
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage-only-source",
+    )
+    pixel = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        request_key="pixel-from-collage-only",
+        source_artifact_id=collage.id,
+    )
+    repository = MemoryRenderRepository([collage, pixel])
+    pixel_generator = SuccessfulPixelGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=pixel_generator,
+        try_on_generator=None,
+        fixed_model_object_key=None,
+        pixel_sprite_extractor=RecordingSpriteExtractor(),
+    )
+
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    await processor.process(user_id=user_id, artifact_id=pixel.id)
+
+    stored_collage = repository.artifacts[collage.id]
+    stored_pixel = repository.artifacts[pixel.id]
+    assert stored_collage.output is not None
+    assert pixel_generator.images[0].object_key == stored_collage.output.object_key
+    assert len(pixel_generator.images) == 3
+    assert stored_pixel.provider_trace is not None
+    assert stored_pixel.provider_trace.parameters["input_source_kind"] == "collage"
+    assert stored_pixel.provider_trace.parameters["content_image_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -681,6 +726,7 @@ async def test_pixel_cover_uses_completed_try_on_as_its_only_content_source() ->
     assert len(pixel_generator.images) == 3
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["input_source_kind"] == "try_on"
+    assert stored.provider_trace.parameters["content_image_count"] == 1
 
 
 @pytest.mark.asyncio
