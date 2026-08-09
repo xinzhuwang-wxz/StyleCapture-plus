@@ -852,7 +852,6 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
   const autoRenderKey = useRef<string | null>(null);
-  const autoCollageAttemptedLookIds = useRef(new Set<string>());
   const flatLayAttemptedItemIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -872,7 +871,6 @@ export function App() {
       detail.look.fixed_presentation ||
       !rendersQuery.isSuccess ||
       usableOrInFlightCollage ||
-      autoCollageAttemptedLookIds.current.has(detail.look.id) ||
       !detail.components.some((component) => component.item_id !== null) ||
       (detail.look.status !== "ready" && detail.look.status !== "partial")
     ) {
@@ -892,7 +890,6 @@ export function App() {
       : `auto-${kind}:${detail.look.id}:${detail.look.updated_at}`;
     if (autoRenderKey.current === key) return;
     autoRenderKey.current = key;
-    autoCollageAttemptedLookIds.current.add(detail.look.id);
     renderMutation.mutate({
       lookId: detail.look.id,
       kind,
@@ -941,7 +938,14 @@ export function App() {
       if (look.fixed_presentation) return false;
       const query = lookRenderQueries[index];
       if (!query?.isSuccess || ensuredPixelLookIds.current.has(look.id)) return false;
-      return !query.data.some((render) => render.kind === "pixel_cover");
+      return !query.data.some(
+        (render) =>
+          render.kind === "pixel_cover" &&
+          (render.status === "queued" ||
+            render.status === "running" ||
+            ((render.status === "succeeded" || render.status === "degraded") &&
+              Boolean(render.output_image_url)))
+      );
     });
     if (!candidate) return;
     ensuredPixelLookIds.current.add(candidate.id);

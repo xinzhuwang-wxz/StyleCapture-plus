@@ -259,8 +259,8 @@ export function ProfileScreen({
             </div>
           ) : (
             <img
-              src={pixelAvatarDataUrl("profile-empty", { size: 260, hat: false })}
-              alt="默认像素小人"
+              src="/assets/profile-pixel-trial-placeholder.png"
+              alt="默认像素形象预览"
               data-pixel="true"
             />
           )}

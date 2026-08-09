@@ -1,0 +1,4 @@
+interface:
+  display_name: "Look Collage"
+  short_description: "Generate balanced white-background outfit collages."
+  default_prompt: "Use $generate-look-collage to create or retry the real flat-lay collage for a StyleCapture Look."
