@@ -671,6 +671,7 @@ function DetailContent({
                       onClick={() => {
                         setPixelTaskOpen(true);
                         setPixelTaskCollapsed(false);
+                        setPixelCoverConfirmed(false);
                         onGenerate(
                           detail.look.id,
                           "pixel_cover",
@@ -913,13 +914,14 @@ function DetailContent({
                   className="primary-action"
                   type="button"
                   disabled={generatingKind !== null}
-                  onClick={() =>
+                  onClick={() => {
+                    setPixelCoverConfirmed(false);
                     onGenerate(
                       detail.look.id,
                       "pixel_cover",
                       completedTryOn?.id
-                    )
-                  }
+                    );
+                  }}
                 >
                   重新生成像素卡片
                 </button>

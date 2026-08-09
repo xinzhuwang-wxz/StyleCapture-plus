@@ -62,6 +62,15 @@ Automatic pixel generation elsewhere keeps the legacy original-Look/collage path
   module cannot collect directly on Windows because the existing local object store
   imports Unix-only `fcntl`; its request contract is still represented in the
   generated OpenAPI contract.
+- Asset-selection follow-up: the profile gallery now lists every successful pixel
+  artifact (including multiple try-on-derived cards for the same Look), while the
+  wardrobe grid resolves the exact artifact id selected by the user instead of
+  falling back to the collage placeholder.
+- Completed item flat-lays are no longer sent through the frontend ensure call when
+  a try-on render is active. The ensure endpoint remains idempotent for genuinely
+  missing assets, but successful assets now trigger no redundant request at all.
+- Final focused H5 verification passed: 58 tests across `app.test.tsx` and
+  `look-wardrobe.test.tsx`; H5 typecheck and the production Vite build passed.
 
 ## Surprises & discoveries
 
@@ -80,5 +89,8 @@ Automatic pixel generation elsewhere keeps the legacy original-Look/collage path
 - [x] Add the inline completed try-on result and actions.
 - [x] Add collapsible pixel-card background task UI.
 - [x] Replace profile pixel lab with the Look-linked pixel gallery.
+- [x] Persist and display the exact selected pixel artifact as the wardrobe cover.
+- [x] Show every successful Look-linked pixel artifact in the profile gallery.
+- [x] Avoid re-ensuring completed item flat-lays during try-on activity.
 - [x] Update behavior tests and pass production build.
 - [ ] Complete mobile browser visual review on the isolated local port.
