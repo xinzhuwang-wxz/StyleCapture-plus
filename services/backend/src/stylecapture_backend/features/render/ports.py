@@ -32,6 +32,14 @@ class CollageRenderError(ValueError):
     """The Look cannot be rendered as a deterministic Item collage."""
 
 
+class PixelSpriteExtractionError(ValueError):
+    """A generated pixel card did not contain a safe extractable character sprite."""
+
+
+class PixelSpriteExtractor(Protocol):
+    def extract(self, image: ImagePayload) -> ImagePayload: ...
+
+
 class RenderProviderError(RuntimeError):
     def __init__(self, code: str, message: str, *, retryable: bool) -> None:
         super().__init__(message)

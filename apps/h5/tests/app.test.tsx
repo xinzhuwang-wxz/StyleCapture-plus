@@ -150,6 +150,8 @@ const collageRender: RenderArtifact = {
   subject_attached: false,
   personalized: false,
   output_image_url: null,
+  sprite_image_url: null,
+  sprite_status: "not_applicable",
   fallback_artifact_id: null,
   failure_code: null,
   failure_message: null,

@@ -53,6 +53,9 @@ from stylecapture_backend.features.render.application import RenderApplication
 from stylecapture_backend.features.render.infrastructure.collage import (
     PillowLookCollageRenderer,
 )
+from stylecapture_backend.features.render.infrastructure.pixel_sprite_cutout import (
+    PillowPixelSpriteExtractor,
+)
 from stylecapture_backend.features.render.infrastructure.providers import (
     FashnTryOnGenerator,
     LiteLLMImageGenerator,
@@ -169,6 +172,7 @@ render_processor = RenderProcessor(
     ),
     fixed_model_object_key=settings.fixed_model_object_key,
     item_presentations=item_presentation_application,
+    pixel_sprite_extractor=PillowPixelSpriteExtractor(),
 )
 render_task = register_render_task(
     celery,

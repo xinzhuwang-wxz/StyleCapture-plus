@@ -68,6 +68,9 @@ class RenderArtifactRecord(Base):
     object_key: Mapped[str | None] = mapped_column(String(512))
     content_hash: Mapped[str | None] = mapped_column(String(64))
     content_type: Mapped[str | None] = mapped_column(String(80))
+    sprite_object_key: Mapped[str | None] = mapped_column(String(512))
+    sprite_content_hash: Mapped[str | None] = mapped_column(String(64))
+    sprite_content_type: Mapped[str | None] = mapped_column(String(80))
     share_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     source_artifact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("render_artifacts.id", ondelete="SET NULL")

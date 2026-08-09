@@ -53,6 +53,9 @@ def test_dependent_render_signature_does_not_change_when_source_finishes() -> No
         object_key=None,
         content_hash=None,
         content_type=None,
+        sprite_object_key=None,
+        sprite_content_hash=None,
+        sprite_content_type=None,
         source_artifact_id=None,
         fallback_artifact_id=None,
         failure_code=None,
@@ -62,6 +65,7 @@ def test_dependent_render_signature_does_not_change_when_source_finishes() -> No
         updated_at=look.updated_at,
         subject_object_key=None,
         subject_used=False,
+        sprite_extraction_failed=False,
     )
 
     queued_signature = build_render_input_signature(

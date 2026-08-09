@@ -28,6 +28,8 @@ from stylecapture_backend.features.render.ports import (
     CollageRenderer,
     CollageRenderError,
     GeneratedImage,
+    PixelSpriteExtractionError,
+    PixelSpriteExtractor,
     RenderArtifactRepository,
     RenderProviderError,
 )
@@ -126,6 +128,7 @@ class RenderProcessor:
         try_on_generator: TryOnGenerator | None,
         fixed_model_object_key: str | None,
         item_presentations: ItemFlatLayReader | None = None,
+        pixel_sprite_extractor: PixelSpriteExtractor | None = None,
     ) -> None:
         self._artifacts = artifacts
         self._renders = renders
@@ -139,6 +142,7 @@ class RenderProcessor:
             fixed_model_object_key.strip() if fixed_model_object_key else None
         )
         self._item_presentations = item_presentations
+        self._pixel_sprite_extractor = pixel_sprite_extractor
 
     async def process(self, *, user_id: UUID, artifact_id: UUID) -> None:
         artifact = await self._artifacts.get_for_user(
@@ -151,6 +155,14 @@ class RenderProcessor:
             RenderArtifactStatus.SUCCEEDED,
             RenderArtifactStatus.DEGRADED,
         }:
+            if (
+                artifact.status is RenderArtifactStatus.SUCCEEDED
+                and artifact.kind is RenderArtifactKind.PIXEL_COVER
+                and artifact.output is not None
+                and artifact.sprite_output is None
+                and not artifact.sprite_extraction_failed
+            ):
+                await self._backfill_pixel_sprite(artifact)
             return
         if artifact.kind is RenderArtifactKind.COLLAGE:
             await self._process_collage(artifact)
@@ -487,17 +499,76 @@ class RenderProcessor:
                 **(extra_parameters or {}),
             ),
         )
-        await self._store_success(artifact, _generated_payload(generated))
+        generated_payload = _generated_payload(generated)
+        sprite: ImagePayload | None = None
+        sprite_extraction_failed = False
+        if (
+            artifact.kind is RenderArtifactKind.PIXEL_COVER
+            and self._pixel_sprite_extractor is not None
+        ):
+            try:
+                sprite = self._pixel_sprite_extractor.extract(generated_payload)
+            except PixelSpriteExtractionError:
+                # The card remains useful in the wardrobe. Older and unusual cards
+                # continue through the browser-side compatibility cutout until a
+                # replacement sprite can be generated.
+                sprite = None
+                sprite_extraction_failed = True
+        await self._store_success(
+            artifact,
+            generated_payload,
+            sprite=sprite,
+            sprite_extraction_failed=sprite_extraction_failed,
+        )
+
+    async def _backfill_pixel_sprite(self, artifact: RenderArtifact) -> None:
+        if self._pixel_sprite_extractor is None or artifact.output is None:
+            return
+        try:
+            card = self._objects.read_image(artifact.output.object_key)
+            sprite = self._pixel_sprite_extractor.extract(card)
+        except (FileNotFoundError, KeyError, OSError, PixelSpriteExtractionError):
+            await self._renders.mark_sprite_extraction_failed(
+                user_id=artifact.user_id,
+                artifact_id=artifact.id,
+            )
+            return
+        stored_sprite = self._objects.write_derived_image(
+            sprite,
+            owner_id=artifact.user_id,
+            prefix="derived/render-sprites",
+        )
+        await self._renders.attach_sprite(
+            user_id=artifact.user_id,
+            artifact_id=artifact.id,
+            sprite_output=RenderOutput(
+                object_key=stored_sprite.object_key,
+                content_hash=stored_sprite.sha256,
+                content_type=stored_sprite.content_type,
+            ),
+        )
 
     async def _store_success(
         self,
         artifact: RenderArtifact,
         image: ImagePayload,
+        *,
+        sprite: ImagePayload | None = None,
+        sprite_extraction_failed: bool = False,
     ) -> None:
         stored = self._objects.write_derived_image(
             image,
             owner_id=artifact.user_id,
             prefix="derived/renders",
+        )
+        stored_sprite = (
+            self._objects.write_derived_image(
+                sprite,
+                owner_id=artifact.user_id,
+                prefix="derived/render-sprites",
+            )
+            if sprite is not None
+            else None
         )
         await self._renders.mark_succeeded(
             user_id=artifact.user_id,
@@ -507,6 +578,16 @@ class RenderProcessor:
                 content_hash=stored.sha256,
                 content_type=stored.content_type,
             ),
+            sprite_output=(
+                RenderOutput(
+                    object_key=stored_sprite.object_key,
+                    content_hash=stored_sprite.sha256,
+                    content_type=stored_sprite.content_type,
+                )
+                if stored_sprite is not None
+                else None
+            ),
+            sprite_extraction_failed=sprite_extraction_failed,
         )
 
     async def _degrade(
