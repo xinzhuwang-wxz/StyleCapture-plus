@@ -112,30 +112,17 @@ export function CaptureSheet({
           >
             {/* Handle */}
             <div
-              style={{
-                width: "3rem",
-                height: "4px",
-                margin: "0 auto var(--px-4)",
-                background: "var(--pixel-border)"
-              }}
+              className="capture-sheet__handle"
               aria-hidden="true"
             />
 
             {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "var(--px-4)"
-              }}
-            >
+            <div className="capture-sheet__header">
               <div>
-                <p className="pixel-label">最后一步</p>
+                <p className="capture-sheet__eyebrow">最后一步</p>
                 <h2
                   id="capture-sheet-title"
-                  className="pixel-subtitle"
-                  style={{ color: "var(--pixel-text)" }}
+                  className="capture-sheet__title"
                 >
                   确认加入衣橱
                 </h2>
@@ -143,8 +130,7 @@ export function CaptureSheet({
               <button
                 ref={cancelButtonRef}
                 type="button"
-                className="pixel-button pixel-button--ghost"
-                style={{ width: "2.5rem", height: "2.5rem", padding: 0 }}
+                className="capture-sheet__close"
                 aria-label="取消入库"
                 disabled={busy}
                 onClick={onCancel}
@@ -154,22 +140,12 @@ export function CaptureSheet({
             </div>
 
             {/* Preview */}
-            <div
-              style={{
-                position: "relative",
-                height: "var(--capture-preview-height, 12rem)",
-                border: "3px solid var(--pixel-border)",
-                boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
-                overflow: "hidden",
-                marginBottom: "var(--px-4)",
-                background: "var(--pixel-surface-raised)"
-              }}
-            >
+            <div className="capture-sheet__preview">
               {browserCanPreviewSelection && selection.previewUrl ? (
                 <img
                   src={selection.previewUrl}
                   alt="待加入衣橱的衣服"
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  className="capture-sheet__preview-image"
                 />
               ) : (
                 <div className="capture-heic-preview" role="status">
@@ -178,39 +154,16 @@ export function CaptureSheet({
                   <small>上传后会先转成可展示的真实图片，再进入识别和像素化</small>
                 </div>
               )}
-              <span
-                style={{
-                  position: "absolute",
-                  bottom: "var(--px-2)",
-                  right: "var(--px-2)",
-                  padding: "var(--px-1) var(--px-3)",
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.65rem",
-                  background: "var(--pixel-surface)",
-                  border: "2px solid var(--pixel-border)",
-                  color: "var(--pixel-text-muted)"
-                }}
-              >
+              <span className="capture-sheet__source">
                 {selection.sourceKind === "camera" ? "📷 刚刚拍摄" : "🖼️ 来自相册"}
               </span>
             </div>
 
             <fieldset
               disabled={busy}
-              style={{
-                border: "none",
-                padding: 0,
-                margin: "0 0 var(--capture-section-gap, var(--px-4))"
-              }}
+              className="capture-sheet__fieldset"
             >
-              <legend
-                style={{
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.75rem",
-                  color: "var(--pixel-text-muted)",
-                  marginBottom: "var(--px-3)"
-                }}
-              >
+              <legend className="capture-sheet__legend">
                 这张图要保存成什么？
               </legend>
               <div className="capture-kind-options">
@@ -220,6 +173,7 @@ export function CaptureSheet({
                   aria-pressed={intent === "item"}
                   onClick={() => setIntent("item")}
                 >
+                  <span className="capture-sheet__kind-icon" aria-hidden="true">👕</span>
                   <strong>单件衣服</strong>
                   <small>提取并标准化单品实物图，归入单品分类</small>
                 </button>
@@ -229,6 +183,7 @@ export function CaptureSheet({
                   aria-pressed={intent === "whole_outfit"}
                   onClick={() => setIntent("whole_outfit")}
                 >
+                  <span className="capture-sheet__kind-icon" aria-hidden="true">👗</span>
                   <strong>整套穿搭</strong>
                   <small>拆成多件单品，并生成像素小人</small>
                 </button>
@@ -238,88 +193,35 @@ export function CaptureSheet({
             {/* Ownership Selection */}
             <fieldset
               disabled={busy}
-              style={{ border: "none", padding: 0, margin: 0 }}
+              className="capture-sheet__fieldset capture-sheet__fieldset--ownership"
             >
-              <legend
-                style={{
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.75rem",
-                  color: "var(--pixel-text-muted)",
-                  marginBottom: "var(--px-3)",
-                  display: "block"
-                }}
-              >
+              <legend className="capture-sheet__legend">
                 这件衣服属于哪里？
               </legend>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "var(--capture-option-gap, var(--px-3))",
-                  marginBottom: "var(--capture-section-gap, var(--px-4))"
-                }}
-              >
+              <div className="capture-sheet__ownership-options">
                 <button
                   type="button"
-                  className="pixel-button"
-                  style={{
-                    padding: "var(--px-2) var(--px-3)",
-                    minHeight: "3.25rem",
-                    background:
-                      ownership === "owned"
-                        ? "var(--pixel-accent)"
-                        : "var(--pixel-surface-raised)",
-                    borderColor:
-                      ownership === "owned"
-                        ? "var(--pixel-accent-glow)"
-                        : "var(--pixel-border)",
-                    color:
-                      ownership === "owned"
-                        ? "var(--pixel-surface)"
-                        : "var(--pixel-text)"
-                  }}
+                  className={`capture-sheet__ownership-option${ownership === "owned" ? " is-selected" : ""}`}
                   aria-pressed={ownership === "owned"}
                   onClick={() => setOwnership("owned")}
                 >
-                  <span style={{ fontSize: "1.15rem", lineHeight: 1 }}>⭐</span>
-                  <strong style={{ fontSize: "0.78rem", lineHeight: 1 }}>已拥有</strong>
+                  <span aria-hidden="true">☆</span>
+                  <strong>已拥有</strong>
                 </button>
                 <button
                   type="button"
-                  className="pixel-button"
-                  style={{
-                    padding: "var(--px-2) var(--px-3)",
-                    minHeight: "3.25rem",
-                    background:
-                      ownership === "inspiration"
-                        ? "var(--pixel-primary)"
-                        : "var(--pixel-surface-raised)",
-                    borderColor:
-                      ownership === "inspiration"
-                        ? "var(--pixel-primary-dark)"
-                        : "var(--pixel-border)",
-                    color:
-                      ownership === "inspiration" ? "#fff" : "var(--pixel-text)"
-                  }}
+                  className={`capture-sheet__ownership-option${ownership === "inspiration" ? " is-selected" : ""}`}
                   aria-pressed={ownership === "inspiration"}
                   onClick={() => setOwnership("inspiration")}
                 >
-                  <span style={{ fontSize: "1.15rem", lineHeight: 1 }}>💖</span>
-                  <strong style={{ fontSize: "0.78rem", lineHeight: 1 }}>待拥有</strong>
+                  <span aria-hidden="true">💞</span>
+                  <strong>待拥有</strong>
                 </button>
               </div>
             </fieldset>
 
             {error ? (
-              <p
-                style={{
-                  color: "var(--pixel-error)",
-                  fontFamily: "var(--font-pixel)",
-                  fontSize: "0.75rem",
-                  marginBottom: "var(--px-3)"
-                }}
-                role="alert"
-              >
+              <p className="capture-sheet__error" role="alert">
                 ⚠️ {error}
               </p>
             ) : null}
@@ -327,10 +229,9 @@ export function CaptureSheet({
             <div className="capture-sheet__footer">
               <button
                 type="button"
-                className="pixel-button pixel-button--primary w-full"
+                className="capture-sheet__submit"
                 disabled={!ownership || !intent || busy}
                 onClick={() => ownership && intent && onConfirm(ownership, intent)}
-                style={{ marginBottom: "var(--px-3)", fontSize: "0.78rem" }}
               >
                 {busy
                   ? "🔄 正在入库…"
@@ -340,14 +241,7 @@ export function CaptureSheet({
                       ? "⭐ 加入单品衣橱"
                       : "请选择保存类型"}
               </button>
-              <p
-                style={{
-                  textAlign: "center",
-                  fontSize: "0.6rem",
-                  color: "var(--pixel-text-dim)",
-                  fontFamily: "var(--font-pixel)"
-                }}
-              >
+              <p className="capture-sheet__hint">
                 原图仅用于你的数字衣橱，可随时删除
               </p>
             </div>

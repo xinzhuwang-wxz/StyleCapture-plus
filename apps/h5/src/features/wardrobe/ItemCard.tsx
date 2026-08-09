@@ -16,13 +16,6 @@ export type PendingItem = {
   errorMessage?: string | null;
 };
 
-const STATUS_LABELS: Record<Item["status"], string> = {
-  processing: "正在识别",
-  partial: "已入库 · 待补全",
-  ready: "可搭配",
-  error: "识别失败"
-};
-
 function PixelItemImage({
   item,
   category
@@ -128,6 +121,7 @@ export function WardrobeItemCard({
   );
   const description = String(item.attributes.description?.value ?? category);
   const ownershipLabel = item.ownership === "owned" ? "已拥有" : "待拥有";
+  const organizationLabel = item.status === "ready" ? "已整理" : "正在整理";
   return (
     <motion.article
       className="item-card pixel-card wardrobe-card"
@@ -138,26 +132,18 @@ export function WardrobeItemCard({
       {...(combo?.dragHandlers ?? {})}
     >
       <button
-        aria-label={`${description} ${STATUS_LABELS[item.status]} ${category} ${ownershipLabel}`}
+        aria-label={`${description} ${organizationLabel} ${category} ${ownershipLabel}`}
         className="item-card__open"
         type="button"
         onClick={onOpen}
       >
         <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">
           <PixelItemImage item={item} category={category} />
-          <span className={`status-badge status-badge--${item.status}`}>
-            {STATUS_LABELS[item.status]}
-          </span>
-          {item.pixel_image_status === "queued" ||
-          item.pixel_image_status === "running" ? (
-            <span className="item-card__pixel-status">像素图生成中</span>
-          ) : item.pixel_image_status === "failed" ? (
-            <span className="item-card__pixel-status">像素图未生成</span>
-          ) : null}
+          {item.status !== "ready" ? <div className="processing-sheen" aria-hidden="true" /> : null}
         </div>
         <div className="item-card__body wardrobe-card__meta">
           <strong>{category}</strong>
-          <span>{ownershipLabel} · 点开看真实图</span>
+          <span>{item.status === "ready" ? `${ownershipLabel} · ${organizationLabel}` : organizationLabel}</span>
         </div>
       </button>
       {combo ? (

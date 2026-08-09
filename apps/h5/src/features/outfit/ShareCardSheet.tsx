@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { createPortal } from "react-dom";
 
-import { PixelButton } from "../../components/PixelUI";
+import "./outfit.css";
 
 type ShareCardSheetProps = {
   /** 要分享的像素封面；拿不到就不该打开这个面板。 */
@@ -16,14 +15,11 @@ type ShareCardSheetProps = {
 };
 
 /**
- * 「分享图鉴」面板。
+ * 像素封面分享面板。
  *
  * 关于抖音：H5 里没有任何办法代替用户发布内容。能做的是把图交给系统分享面板
- * ——用户在那里选抖音——或者存进相册再自己发。所以按钮写的是「分享到…」和
+ * ——用户在那里选抖音——或者存进相册再自己发。所以按钮写的是「分享到抖音」和
  * 「保存到相册」，不写「一键发抖音」，也不显示假的发布成功。
- *
- * 关于扫码：这里不画二维码。画一个扫不出东西的码比不画更糟，所以给的是"复制
- * 链接"，用户拿到的是真的可以打开的地址。
  */
 export function ShareCardSheet({
   imageUrl,
@@ -34,18 +30,6 @@ export function ShareCardSheet({
   message,
   onClose
 }: ShareCardSheetProps) {
-  const [copied, setCopied] = useState<string | null>(null);
-
-  async function copyLink() {
-    const link = window.location.href;
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied("链接已复制，发给朋友就能看同款");
-    } catch {
-      setCopied("这台设备不让自动复制，请手动复制地址栏链接");
-    }
-  }
-
   /*
    * 这层是 position:absolute，它找的是最近的定位祖先。原地渲染时那个祖先在
    * 详情页的滚动内容里，于是弹层落在了卡片下方、跟着内容滚。挂到 .pixel-screen
@@ -58,15 +42,14 @@ export function ShareCardSheet({
       : document.querySelector(".pixel-screen");
 
   const sheet = (
-    <div className="share-card" role="dialog" aria-label="分享图鉴" aria-modal="true">
+    <div className="share-card" role="dialog" aria-label="分享像素封面" aria-modal="true">
       <div className="share-card__inner">
         <div className="share-card__paper">
-          <span className="share-card__doodle share-card__doodle--star" aria-hidden="true">
-            ✦
-          </span>
-          <span className="share-card__doodle share-card__doodle--heart" aria-hidden="true">
-            ♡
-          </span>
+          <button className="share-card__close" type="button" aria-label="关闭分享" onClick={onClose}>
+            ×
+          </button>
+          <h2>✦ 分享像素封面 ✦</h2>
+          <p className="share-card__subtitle">仅分享像素封面，不包含原始穿搭照片。</p>
 
           <div className="share-card__frame">
             {sharing ? (
@@ -76,43 +59,36 @@ export function ShareCardSheet({
             ) : (
               <img src={imageUrl} alt={`${title}的像素图鉴`} />
             )}
-            <span className="share-card__tag">@码上搭 · 我的数字衣橱</span>
           </div>
 
-          <p className="share-card__note">
-            图鉴只包含像素形象和公开风格标签，不含原始穿搭照片。
-          </p>
-
-          {message || copied ? (
+          {message ? (
             <p className="share-card__note" role="status">
-              {message ?? copied}
+              {message}
             </p>
           ) : null}
 
-          <div className="profile__actions">
-            <PixelButton
-              variant="primary"
+          <div className="share-card__actions">
+            <button
+              className="share-card__douyin"
+              type="button"
+              aria-label="分享到抖音"
               disabled={sharing}
               onClick={() => void onShare()}
             >
-              分享到…
-            </PixelButton>
-            <PixelButton
-              variant="accent"
+              ♫ 分享至抖音
+            </button>
+            <button
+              className="share-card__save"
+              type="button"
+              aria-label="保存到相册"
               disabled={sharing}
               onClick={() => void onSave()}
             >
-              保存到相册
-            </PixelButton>
-            <PixelButton variant="ghost" onClick={() => void copyLink()}>
-              复制链接看同款
-            </PixelButton>
-          </div>
-
-          <div style={{ marginTop: "var(--px-2)" }}>
-            <PixelButton variant="ghost" onClick={onClose}>
+              ▣ 保存到相册
+            </button>
+            <button className="share-card__dismiss" type="button" onClick={onClose}>
               关闭
-            </PixelButton>
+            </button>
           </div>
         </div>
       </div>

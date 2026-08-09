@@ -391,6 +391,13 @@ export function App() {
       ),
     [lookRenderQueries, looks]
   );
+  const lookRenders = useMemo(
+    () =>
+      Object.fromEntries(
+        looks.map((look, index) => [look.id, lookRenderQueries[index]?.data ?? []])
+      ),
+    [lookRenderQueries, looks]
+  );
   const collageCovers = useMemo(
     () =>
       Object.fromEntries(
@@ -1121,7 +1128,13 @@ export function App() {
         hidden={destination === "feed" || destination === "world"}
       >
         {destination !== "feed" ? (
-          <header className={`wardrobe-header${destination === "wardrobe" ? " wardrobe-header--home" : ""}`}>
+          <header
+            className={`wardrobe-header${
+              destination === "wardrobe"
+                ? " wardrobe-header--home"
+                : " wardrobe-header--section"
+            }`}
+          >
             {destination === "wardrobe" ? (
               <div className="wardrobe-header__intro">
                 <h1 id="wardrobe-title" className="pixel-title wardrobe-header__title">
@@ -1134,20 +1147,20 @@ export function App() {
                   <strong>{looks.length}</strong> 套穿搭
                 </p>
               </div>
+            ) : destination === "ai" ? (
+              <div className="wardrobe-header__intro">
+                <h1 className="pixel-title wardrobe-header__title">AI推荐</h1>
+                <p className="subtitle wardrobe-header__summary">今天你想穿什么？</p>
+              </div>
             ) : (
-              <>
-                <h1
-                  className={`pixel-title wardrobe-header__title${
-                    destination === "profile" ? " wardrobe-header__title--profile" : ""
-                  }`}
-                >
-                  {destination === "ai" ? "AI 推荐" : "我的"}
+              <div className="wardrobe-header__intro">
+                <h1 className="pixel-title wardrobe-header__title wardrobe-header__title--profile">
+                  我的
                 </h1>
                 <p className="subtitle wardrobe-header__summary">
-                  拥有的和喜欢的，<br />
-                  都是可搭配的数字资产
+                  拥有的和喜欢的，都是可搭配的数字资产
                 </p>
-              </>
+              </div>
             )}
             {/* AI 页的右上角是这次聊天的出口，不是再去刷 Feed——
                 正在跟闺蜜聊搭配的人，想回看的是聊过什么。 */}
@@ -1157,7 +1170,8 @@ export function App() {
                 className="wardrobe-header__feed"
                 onClick={() => setAiHistoryOpen(true)}
               >
-                对话记录 ›
+                <span className="wardrobe-header__feed-plus" aria-hidden="true">＋</span>
+                <span>对话记录</span>
               </button>
             ) : (
               <button
@@ -1192,12 +1206,13 @@ export function App() {
 
         {destination === "wardrobe" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
-            <WardrobeScreen
+              <WardrobeScreen
               view={wardrobeViewMode}
               onViewChange={setWardrobeViewMode}
               looks={looks}
-              pixelCovers={pixelCovers}
-              collageCovers={collageCovers}
+                pixelCovers={pixelCovers}
+                collageCovers={collageCovers}
+                lookRenders={lookRenders}
               items={items}
               pending={pending}
               itemsLoading={itemsQuery.isLoading}

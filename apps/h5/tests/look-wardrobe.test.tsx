@@ -113,8 +113,8 @@ describe("Look wardrobe states", () => {
     expect(
       screen.getByRole("img", { name: "单品拼贴封面占位" })
     ).toHaveAttribute("data-image-kind", "look-source-placeholder");
-    expect(screen.getByText("解析中")).toBeInTheDocument();
-    expect(screen.getByText("穿搭已保存 · 正在整理")).toBeInTheDocument();
+    expect(screen.queryByText("解析中")).not.toBeInTheDocument();
+    expect(screen.getByText("灵感收藏 · 正在整理")).toBeInTheDocument();
   });
 
   it("uses a blurred real collage while no pixel cover is selected", () => {
@@ -153,8 +153,8 @@ describe("Look wardrobe states", () => {
       "src",
       expect.stringContaining("55555555-5555-4555-8555-555555555555")
     );
-    expect(screen.getByText("已解析")).toBeInTheDocument();
-    expect(screen.getByText("穿搭灵感 · 已收藏")).toBeInTheDocument();
+    expect(screen.queryByText("已解析")).not.toBeInTheDocument();
+    expect(screen.getByText("灵感收藏 · 已整理")).toBeInTheDocument();
   });
 
   it("keeps a partial Look retryable without losing its source evidence", () => {

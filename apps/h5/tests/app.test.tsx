@@ -8,6 +8,7 @@ import {
   type CaptureAccepted,
   type Item,
   type ItemPresentation,
+  type Look,
   ProductApiError,
   type RenderArtifact,
   wardrobeApi
@@ -456,7 +457,7 @@ describe("StyleCapture garment ingest", () => {
     expect(within(actionDialog).getByText("衣橱单品")).toBeVisible();
 
     await user.click(within(actionDialog).getByRole("button", { name: "已拥有，去搭配" }));
-    expect(await screen.findByText("从真实衣橱开始搭")).toBeVisible();
+    expect(await screen.findByText("今天你想穿什么？")).toBeVisible();
     expect(screen.queryByRole("dialog", { name: "穿搭详情" })).not.toBeInTheDocument();
   });
 
@@ -881,7 +882,7 @@ describe("StyleCapture garment ingest", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 已拥有"
+        name: "米白色针织上衣 已整理 上装 已拥有"
       })
     );
     await user.click(
@@ -920,7 +921,7 @@ describe("StyleCapture garment ingest", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 已拥有"
+        name: "米白色针织上衣 已整理 上装 已拥有"
       })
     );
 
@@ -929,6 +930,9 @@ describe("StyleCapture garment ingest", () => {
     expect(screen.getByRole("option", { name: "上装" })).toHaveValue("tops");
 
     await user.selectOptions(category, "dresses");
+    await user.click(
+      await screen.findByRole("button", { name: "确认切换" })
+    );
 
     await waitFor(() =>
       expect(api.updateItem).toHaveBeenCalledWith(
@@ -956,7 +960,7 @@ describe("StyleCapture garment ingest", () => {
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 已拥有"
+        name: "米白色针织上衣 已整理 上装 已拥有"
       })
     );
     await waitFor(() =>
@@ -966,8 +970,8 @@ describe("StyleCapture garment ingest", () => {
       await screen.findByRole("img", { name: "米白色针织上衣" })
     ).toHaveAttribute("data-image-kind", "wardrobe-display");
     expect(
-      screen.getByText("当前展示已标准化的单品实物图；像素图只用于衣橱封面。")
-    ).toBeVisible();
+      screen.queryByText("当前展示已标准化的单品实物图；像素图只用于衣橱封面。")
+    ).not.toBeInTheDocument();
   });
 
   it("blurs the original and shows generation progress while the item hero is queued", async () => {
@@ -985,7 +989,7 @@ describe("StyleCapture garment ingest", () => {
     await user.click(await screen.findByRole("tab", { name: "按单品" }));
     await user.click(
       await screen.findByRole("button", {
-        name: /^米白色针织上衣 可搭配 上装/
+        name: /^米白色针织上衣 已整理 上装/
       }, { timeout: 3_000 })
     );
 
@@ -1019,7 +1023,7 @@ describe("StyleCapture garment ingest", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 已拥有"
+        name: "米白色针织上衣 已整理 上装 已拥有"
       })
     ).toBeInTheDocument();
   });
@@ -1044,10 +1048,10 @@ describe("StyleCapture garment ingest", () => {
     renderApp();
 
     await user.click(await screen.findByRole("tab", { name: "按单品" }));
-    expect(screen.queryByRole("menu", { name: "筛选衣橱" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "筛选单品归属" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "筛选单品：全部" }));
-    const menu = screen.getByRole("menu", { name: "筛选衣橱" });
+    const menu = screen.getByRole("menu", { name: "筛选单品归属" });
     expect(within(menu).getByRole("menuitemradio", { name: "全部" })).toBeChecked();
     expect(within(menu).getByRole("menuitemradio", { name: "已拥有" })).toBeVisible();
     expect(within(menu).getByRole("menuitemradio", { name: "未拥有" })).toBeVisible();
@@ -1055,10 +1059,10 @@ describe("StyleCapture garment ingest", () => {
     await user.click(within(menu).getByRole("menuitemradio", { name: "未拥有" }));
 
     expect(screen.getByRole("button", { name: "筛选单品：未拥有" })).toBeVisible();
-    expect(screen.queryByRole("menu", { name: "筛选衣橱" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "筛选单品归属" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "收藏的蓝色外套 可搭配 上装 待拥有"
+        name: "收藏的蓝色外套 已整理 上装 待拥有"
       })
     ).toBeVisible();
     expect(
@@ -1068,6 +1072,50 @@ describe("StyleCapture garment ingest", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("filters looks by the same source label shown on each card", async () => {
+    const user = userEvent.setup();
+    const baseLook: Look = {
+      id: "11111111-1111-4111-8111-111111111111",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      status: "ready",
+      source: "feed_saved",
+      display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image",
+      source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
+      display_ready: true,
+      source_available: true,
+      fixed_presentation: false,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:00:00Z"
+    };
+    api.listLooks.mockResolvedValue([
+      baseLook,
+      {
+        ...baseLook,
+        id: "33333333-3333-4333-8333-333333333333",
+        source: "user_created"
+      },
+      {
+        ...baseLook,
+        id: "55555555-5555-4555-8555-555555555555",
+        source: "ai_generated"
+      }
+    ]);
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "筛选穿搭：全部" }));
+    const menu = screen.getByRole("menu", { name: "筛选穿搭来源" });
+    expect(within(menu).getByRole("menuitemradio", { name: "本地上传" })).toBeVisible();
+    expect(within(menu).getByRole("menuitemradio", { name: "灵感收藏" })).toBeVisible();
+    expect(within(menu).getByRole("menuitemradio", { name: "AI 推荐" })).toBeVisible();
+
+    await user.click(within(menu).getByRole("menuitemradio", { name: "本地上传" }));
+
+    expect(screen.getByRole("button", { name: "筛选穿搭：本地上传" })).toBeVisible();
+    expect(screen.getByText("本地上传 · 已整理")).toBeVisible();
+    expect(screen.queryByText("灵感收藏 · 已整理")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI 推荐 · 已整理")).not.toBeInTheDocument();
+  });
+
   it("focuses item detail on open and lets keyboard users close it with Escape", async () => {
     const user = userEvent.setup();
     api.listItems.mockResolvedValue([wardrobeItem]);
@@ -1075,7 +1123,7 @@ describe("StyleCapture garment ingest", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 已拥有"
+        name: "米白色针织上衣 已整理 上装 已拥有"
       })
     );
 
@@ -1101,7 +1149,7 @@ describe("StyleCapture garment ingest", () => {
 
     await userEvent.click(
       await screen.findByRole("button", {
-        name: "米白色针织上衣 可搭配 上装 已拥有"
+        name: "米白色针织上衣 已整理 上装 已拥有"
       })
     );
 
@@ -1109,8 +1157,8 @@ describe("StyleCapture garment ingest", () => {
       await screen.findByRole("img", { name: "米白色针织上衣" })
     ).toHaveAttribute("data-image-kind", "wardrobe-source-fallback");
     expect(
-      screen.getByText(/照片里识别到多件衣服。为避免抠错，当前保留原图/)
-    ).toBeVisible();
+      screen.queryByText(/照片里识别到多件衣服。为避免抠错，当前保留原图/)
+    ).not.toBeInTheDocument();
   });
 
   it("keeps profile pixel-trial uploads visible when status polling fails", async () => {
