@@ -72,9 +72,10 @@ def test_collage_transparent_background_is_explicit() -> None:
     assert pixel_rgba(image, (0, 0))[3] == 0
 
 
-def test_collage_preserves_input_order_in_layout() -> None:
+def test_collage_uses_a_large_primary_item_and_a_right_hand_stack() -> None:
     first = payload("first", (250, 0, 0), size=(80, 80))
     second = payload("second", (0, 0, 250), size=(80, 80))
+    third = payload("third", (0, 200, 80), size=(80, 80))
     renderer = PillowLookCollageRenderer(
         canvas_width=320,
         canvas_height=426,
@@ -82,10 +83,11 @@ def test_collage_preserves_input_order_in_layout() -> None:
         gap=12,
     )
 
-    image = decode(renderer.render([first, second]).body).convert("RGBA")
+    image = decode(renderer.render([first, second, third]).body).convert("RGBA")
 
-    assert pixel_rgba(image, (64, 64))[:3] == (250, 0, 0)
-    assert pixel_rgba(image, (208, 64))[:3] == (0, 0, 250)
+    assert pixel_rgba(image, (100, 213))[:3] == (250, 0, 0)
+    assert pixel_rgba(image, (249, 100))[:3] == (0, 0, 250)
+    assert pixel_rgba(image, (249, 320))[:3] == (0, 200, 80)
 
 
 def test_collage_rejects_empty_or_too_many_inputs() -> None:

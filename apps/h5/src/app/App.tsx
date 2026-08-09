@@ -24,6 +24,7 @@ import type { CommunityAvatarSource } from "../features/community/CommunityScree
 import { FeedScreen } from "../features/feed/FeedScreen";
 import type { PendingItem } from "../features/wardrobe/ItemCard";
 import type { LookItemAction } from "../features/wardrobe/LookItemActionSheet";
+import type { WardrobeView } from "../features/wardrobe/WardrobeScreen";
 import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
@@ -266,6 +267,7 @@ export function App() {
   const wardrobeView = useRef<HTMLDivElement>(null);
   const restoredLookId = useRef(restoreSelectedLookId());
   const [destination, setDestination] = useState<Destination>("wardrobe");
+  const [wardrobeViewMode, setWardrobeViewMode] = useState<WardrobeView>("looks");
   const [feedRestoreTarget, setFeedRestoreTarget] =
     useState<FeedRestoreTarget | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -405,6 +407,22 @@ export function App() {
       ),
     [lookRenderQueries, looks]
   );
+  const collageCovers = useMemo(
+    () =>
+      Object.fromEntries(
+        looks.flatMap((look, index) => {
+          const collage = lookRenderQueries[index]?.data?.find(
+            (render) =>
+              render.kind === "collage" &&
+              render.current !== false &&
+              render.status === "succeeded" &&
+              Boolean(render.output_image_url)
+          );
+          return collage ? [[look.id, collage] as const] : [];
+        })
+      ),
+    [lookRenderQueries, looks]
+  );
   const communityLooks = useMemo<CommunityAvatarSource[]>(
     () =>
       looks.flatMap((look, index) => {
@@ -435,7 +453,12 @@ export function App() {
     refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       query.state.data?.look.status === "processing" ||
-      query.state.data?.look.status === "partial"
+      query.state.data?.look.status === "partial" ||
+      query.state.data?.components.some(
+        (component) =>
+          component.item_image_status === "queued" ||
+          component.item_image_status === "running"
+      )
         ? 2_000
         : false
   });
@@ -800,7 +823,7 @@ export function App() {
   useEffect(() => {
     const detail = lookQuery.data;
     const collageRenders = (rendersQuery.data ?? []).filter(
-      (render) => render.kind === "collage"
+      (render) => render.kind === "collage" && render.current !== false
     );
     const usableOrInFlightCollage = collageRenders.some(
       (render) =>
@@ -811,7 +834,6 @@ export function App() {
     );
     if (
       !detail ||
-      detail.look.source === "ai_generated" ||
       detail.look.fixed_presentation ||
       !rendersQuery.isSuccess ||
       usableOrInFlightCollage ||
@@ -848,6 +870,7 @@ export function App() {
     const collageReady = (rendersQuery.data ?? []).some(
       (render) =>
         render.kind === "collage" &&
+        render.current !== false &&
         (render.status === "succeeded" || render.status === "degraded") &&
         render.output_image_url
     );
@@ -925,6 +948,7 @@ export function App() {
         intent
       );
       if (accepted.look_id) {
+        setWardrobeViewMode("looks");
         releaseBrowserImagePreview(selection.previewUrl);
         setSelection(null);
         setNotice("整套已保存，AI 正在拆解单品并准备像素小人");
@@ -942,6 +966,7 @@ export function App() {
         },
         ...current
       ]);
+      setWardrobeViewMode("items");
       setSelection(null);
       setNotice("已安全加入，识别会在后台继续");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
@@ -954,6 +979,7 @@ export function App() {
 
   function acceptFeedCapture(accepted: CaptureAccepted, file: File) {
     if (accepted.look_id) {
+      setWardrobeViewMode("looks");
       setNotice("整套已收藏，AI 正在后台拆成真实单品");
       setFeedLikingLookId(accepted.look_id);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
@@ -970,6 +996,7 @@ export function App() {
       },
       ...current
     ]);
+    setWardrobeViewMode("items");
     void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
   }
 
@@ -1135,8 +1162,11 @@ export function App() {
         {destination === "wardrobe" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
             <WardrobeScreen
+              view={wardrobeViewMode}
+              onViewChange={setWardrobeViewMode}
               looks={looks}
               pixelCovers={pixelCovers}
+              collageCovers={collageCovers}
               items={items}
               pending={pending}
               itemsLoading={itemsQuery.isLoading}
@@ -1214,6 +1244,7 @@ export function App() {
             />
           </Suspense>
         ) : null}
+      </div>
 
         <input
           ref={cameraInput}
@@ -1239,6 +1270,7 @@ export function App() {
           }}
         />
 
+      <div className="pixel-overlay">
         <Suspense fallback={null}>
           {selection ? (
             <CaptureSheet

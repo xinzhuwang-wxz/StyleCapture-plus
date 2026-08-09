@@ -7,8 +7,9 @@
 1. Each new Item is queued for `flat_lay_item` as soon as Capture processing marks it ready; the job does not wait for or derive from a Look collage.
 2. A genuine transparent `refined_mask` may be placed on a 1728×2304 white canvas with Pillow. An opaque rectangle, coarse polygon, missing cutout, or other unreliable display asset must use the original Capture image through the configured `image_generation` capability.
 3. Both paths pass the same release gate: exact 1728×2304 dimensions, at least 90% near-white border pixels, and at least 50% pure-white canvas. Failed output is never published as the Item hero.
-4. In `按单品 → 单品卡片 → 单品详情页`, queued/running generation shows the authenticated original image blurred under a spinner and “正在生成单品图”. Success replaces it automatically with the generated white-background image; failure retains the existing display fallback. The separate `按穿搭 → 穿搭详情页` hero is not changed by this feature.
-5. Existing historical Items are not batch reprocessed. Source and existing display assets remain immutable.
+4. In `按单品 → 单品卡片 → 单品详情页`, queued/running generation shows the authenticated original image blurred under a spinner and “正在生成单品图”. Success replaces it automatically with the generated white-background image; failure retains the existing display fallback.
+5. `按穿搭 → 穿搭详情页` resolves each component through the same successful `flat_lay_item`; the component strip and canonical Look collage must not fall back to capture crops after the generated asset is ready.
+6. Existing historical Items are not batch reprocessed. Source and existing display assets remain immutable.
 
 ## Progress
 
@@ -19,6 +20,7 @@
 - [x] Changed the Skill to request each Item presentation directly, without creating or cropping a Look collage.
 - [x] Ran a real Doubao/Seedream sample from the supplied outfit: blouse, skirt, and shoes were independently produced at 1728×2304 and passed the product gate.
 - [x] Added backend, scheduler, Skill, H5 behavior, static, and capture-regression coverage.
+- [x] 2026-08-09: Connected successful Item flat-lays to Look component responses and the canonical Look collage input.
 
 ## Reuse audit
 
@@ -45,6 +47,7 @@
 - The previous Pillow path only placed an opaque rectangular display crop on a white canvas. It was visually a screenshot, not a cutout, even though the canvas itself was 3:4.
 - A display asset is usable for deterministic composition only when its segmentation provenance is `refined_mask` and the encoded image contains meaningful alpha transparency.
 - Full-outfit overlaps can make an image model transfer a strap or tie to the wrong garment. The generation constraint now assigns overlapping parts to their owner and permits only conservative material continuation under occlusion.
+- PR #52 intentionally scoped acceptance to Item detail and explicitly left Look detail unchanged. The generated assets and `item_id` relationship were correct; the missing piece was the Look API/render read path, which continued to use `/v1/items/{id}/image` and `display_object_key`.
 
 ## Decision log
 
@@ -53,3 +56,4 @@
 - 2026-08-08: Use Pillow only for verified refined-alpha cutouts; otherwise use the original Capture through the existing hosted image-generation capability.
 - 2026-08-08: Do not run a wardrobe-wide historical backfill. The automatic scheduler is attached only to new Capture completion paths.
 - 2026-08-08: Product acceptance is scoped to the Item detail opened from `按单品`; the Look-detail hero remains a separate surface.
+- 2026-08-09: Supersede the previous surface boundary: Look detail and collage rendering now reuse the current successful `flat_lay_item` by `item_id`, while retaining the capture crop only as a pending/failed fallback.

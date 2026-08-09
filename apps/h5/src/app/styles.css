@@ -1076,6 +1076,12 @@ p {
   backdrop-filter: blur(0.55rem);
 }
 
+.look-detail__pending-source {
+  opacity: 0.5;
+  filter: blur(8px) saturate(0.78);
+  transform: scale(1.035);
+}
+
 .look-detail__collage-status span {
   font-size: 0.85rem;
 }

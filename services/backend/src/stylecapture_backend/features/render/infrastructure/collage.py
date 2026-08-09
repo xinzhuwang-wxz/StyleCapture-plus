@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
+from math import ceil
 from typing import cast
 
 from PIL import Image, ImageChops, ImageFilter, ImageOps, UnidentifiedImageError
@@ -43,7 +44,7 @@ class PillowLookCollageRenderer:
             gap=self.gap,
         )
         for image, cell in zip(images, cells, strict=True):
-            source = _decode_image(image, trim_near_white_edges=len(images) == 1)
+            source = _decode_image(image, trim_near_white_edges=True)
             fitted = ImageOps.contain(source, (cell.width, cell.height))
             shadow_position = (
                 cell.x + (cell.width - fitted.width) // 2 + 8,
@@ -143,31 +144,40 @@ def _cells_for_count(
     padding: int,
     gap: int,
 ) -> tuple[_Cell, ...]:
-    columns, rows = _grid_for_count(count)
-    available_width = canvas_width - padding * 2 - gap * (columns - 1)
-    available_height = canvas_height - padding * 2 - gap * (rows - 1)
+    available_width = canvas_width - padding * 2
+    available_height = canvas_height - padding * 2
     if available_width <= 0 or available_height <= 0:
         raise CollageRenderError("collage spacing leaves no drawable area")
-    cell_width = available_width // columns
-    cell_height = available_height // rows
-    cells: list[_Cell] = []
-    for index in range(count):
-        row = index // columns
-        column = index % columns
+    if count == 1:
+        return (_Cell(padding, padding, available_width, available_height),)
+
+    # The first component is the visual anchor. Two or three-piece Looks mirror
+    # the product reference exactly: one large garment on the left and a vertical
+    # stack on the right. Larger Looks retain the same hierarchy while using a
+    # compact two-column accessory grid so every generated component remains visible.
+    secondary_count = count - 1
+    secondary_columns = 1 if secondary_count <= 3 else 2
+    secondary_rows = ceil(secondary_count / secondary_columns)
+    main_ratio = 0.62 if secondary_columns == 1 else 0.56
+    split_width = available_width - gap
+    main_width = int(split_width * main_ratio)
+    secondary_width = split_width - main_width
+    secondary_cell_width = (secondary_width - gap * (secondary_columns - 1)) // secondary_columns
+    secondary_cell_height = (available_height - gap * (secondary_rows - 1)) // secondary_rows
+    if main_width <= 0 or secondary_cell_width <= 0 or secondary_cell_height <= 0:
+        raise CollageRenderError("collage spacing leaves no drawable area")
+
+    cells = [_Cell(padding, padding, main_width, available_height)]
+    secondary_x = padding + main_width + gap
+    for index in range(secondary_count):
+        row = index // secondary_columns
+        column = index % secondary_columns
         cells.append(
             _Cell(
-                x=padding + column * (cell_width + gap),
-                y=padding + row * (cell_height + gap),
-                width=cell_width,
-                height=cell_height,
+                x=secondary_x + column * (secondary_cell_width + gap),
+                y=padding + row * (secondary_cell_height + gap),
+                width=secondary_cell_width,
+                height=secondary_cell_height,
             )
         )
     return tuple(cells)
-
-
-def _grid_for_count(count: int) -> tuple[int, int]:
-    if count == 1:
-        return 1, 1
-    if count <= 4:
-        return 2, 2
-    return 3, 2

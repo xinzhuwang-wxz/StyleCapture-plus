@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 from hashlib import sha256
 from io import BytesIO
 from uuid import UUID, uuid4
@@ -17,6 +19,11 @@ from stylecapture_backend.features.capture.domain import (
     OwnershipState,
 )
 from stylecapture_backend.features.capture.ports import StoredObject
+from stylecapture_backend.features.item_presentation.application import ItemPresentationView
+from stylecapture_backend.features.item_presentation.domain import (
+    ItemPresentationKind,
+    ItemPresentationStatus,
+)
 from stylecapture_backend.features.look.domain import Look, LookComponent, LookDetail
 from stylecapture_backend.features.render.application import RenderApplication
 from stylecapture_backend.features.render.domain import (
@@ -31,7 +38,7 @@ from stylecapture_backend.features.render.infrastructure.collage import (
     PillowLookCollageRenderer,
 )
 from stylecapture_backend.features.render.infrastructure.providers import GeneratedImage
-from stylecapture_backend.features.render.processing import RenderProcessor
+from stylecapture_backend.features.render.processing import RenderProcessor, RetryableRenderError
 from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeItem
 
 
@@ -126,6 +133,32 @@ class MemoryObjectStore:
         )
         self.images[stored.object_key] = stored
         return stored
+
+
+class MemoryFlatLays:
+    def __init__(self, view: ItemPresentationView | None) -> None:
+        self.view = view
+
+    async def get_current_flat_lay_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+    ) -> ItemPresentationView | None:
+        if self.view is None:
+            return None
+        if self.view.user_id != user_id or self.view.item_id != item_id:
+            return None
+        return self.view
+
+
+class RecordingCollageRenderer:
+    def __init__(self) -> None:
+        self.images: tuple[ImagePayload, ...] = ()
+
+    def render(self, images: Sequence[ImagePayload]) -> ImagePayload:
+        self.images = tuple(images)
+        return payload("derived/renders/recorded.png", (250, 250, 250))
 
 
 class SuccessfulPixelGenerator:
@@ -349,6 +382,103 @@ def queued(
             else RenderPrivacy.PRIVATE
         ),
     )
+
+
+def flat_lay_view(
+    *,
+    user_id: UUID,
+    item_id: UUID,
+    object_key: str | None,
+    status: ItemPresentationStatus,
+) -> ItemPresentationView:
+    now = datetime.now(UTC)
+    return ItemPresentationView(
+        id=uuid4(),
+        user_id=user_id,
+        item_id=item_id,
+        kind=ItemPresentationKind.FLAT_LAY_ITEM,
+        status=status,
+        object_key=object_key,
+        content_hash="f" * 64 if object_key is not None else None,
+        content_type="image/png" if object_key is not None else None,
+        failure_code=None,
+        failure_message=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+@pytest.mark.asyncio
+async def test_collage_prefers_the_generated_item_flat_lay_over_the_capture_crop() -> None:
+    user_id, detail, item, objects = fixture()
+    generated_flat_lay = payload("derived/items/flat-lay/top.png", (255, 255, 255))
+    objects.images[generated_flat_lay.object_key] = generated_flat_lay
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="flat-lay-collage",
+    )
+    repository = MemoryRenderRepository([collage])
+    renderer = RecordingCollageRenderer()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=renderer,
+        pixel_generator=None,
+        try_on_generator=None,
+        fixed_model_object_key=None,
+        item_presentations=MemoryFlatLays(
+            flat_lay_view(
+                user_id=user_id,
+                item_id=item.id,
+                object_key=generated_flat_lay.object_key,
+                status=ItemPresentationStatus.SUCCEEDED,
+            )
+        ),
+    )
+
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+
+    assert renderer.images[0].object_key == generated_flat_lay.object_key
+    assert renderer.images[0].object_key != item.display_object_key
+
+
+@pytest.mark.asyncio
+async def test_collage_waits_while_the_generated_item_flat_lay_is_running() -> None:
+    user_id, detail, item, objects = fixture()
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="wait-for-flat-lay",
+    )
+    repository = MemoryRenderRepository([collage])
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=RecordingCollageRenderer(),
+        pixel_generator=None,
+        try_on_generator=None,
+        fixed_model_object_key=None,
+        item_presentations=MemoryFlatLays(
+            flat_lay_view(
+                user_id=user_id,
+                item_id=item.id,
+                object_key=None,
+                status=ItemPresentationStatus.RUNNING,
+            )
+        ),
+    )
+
+    with pytest.raises(RetryableRenderError, match="flat-lay is not ready"):
+        await processor.process(user_id=user_id, artifact_id=collage.id)
 
 
 @pytest.mark.asyncio
