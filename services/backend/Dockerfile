@@ -33,6 +33,7 @@ RUN if [ "$INSTALL_GATEWAY" = "true" ]; then \
 
 COPY services/backend services/backend
 COPY config config
+COPY skills/doubao-virtual-try-on skills/doubao-virtual-try-on
 RUN if [ "$INSTALL_GATEWAY" = "true" ]; then \
       uv sync --frozen --no-dev --package stylecapture-backend --extra gateway; \
     elif [ "$INSTALL_AI_LIGHT" = "true" ]; then \

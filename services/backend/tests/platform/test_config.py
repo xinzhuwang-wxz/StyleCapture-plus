@@ -43,6 +43,10 @@ def test_settings_keep_runtime_secrets_out_of_plain_serialization(
     assert settings.outfit_reasoning_timeout_seconds == 60
     assert settings.outfit_analysis_model_alias == "outfit_analysis"
     assert settings.outfit_analysis_fallback_model_alias == "outfit_analysis_fallback"
+    assert settings.try_on_skill_path.name == "virtual_try_on.py"
+    assert settings.try_on_skill_timeout_seconds == 1800
+    assert settings.try_on_understanding_model == "doubao-seed-2-0-lite-260428"
+    assert settings.try_on_image_model == "doubao-seedream-5-0-260128"
     assert settings.demo_seed_new_session_quota == 512
 
 

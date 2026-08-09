@@ -9,12 +9,12 @@ from stylecapture_backend.features.render.application import RenderArtifactView
 from stylecapture_backend.features.render.domain import RenderArtifactKind, RenderInputSignature
 from stylecapture_backend.features.render.prompt_contracts import (
     PIXEL_COVER_PROMPT_VERSION,
-    TRY_ON_PROMPT_VERSION,
+    TRY_ON_PIPELINE_VERSION,
 )
 
 RENDER_PIPELINE_VERSIONS = {
     RenderArtifactKind.COLLAGE: "collage-v3-flat-lay-hero",
-    RenderArtifactKind.TRY_ON: TRY_ON_PROMPT_VERSION,
+    RenderArtifactKind.TRY_ON: TRY_ON_PIPELINE_VERSION,
     RenderArtifactKind.PIXEL_COVER: PIXEL_COVER_PROMPT_VERSION,
 }
 

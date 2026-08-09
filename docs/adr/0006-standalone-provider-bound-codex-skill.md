@@ -2,6 +2,8 @@
 
 Status: Accepted
 Date: 2026-07-26
+Superseded in part: ADR-0007 intentionally reuses this Skill as the server-side executor for
+product `look.virtual_try_on`; its standalone distribution contract remains accepted.
 
 ## Context
 

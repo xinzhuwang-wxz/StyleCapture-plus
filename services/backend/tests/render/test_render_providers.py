@@ -4,6 +4,7 @@ import base64
 import json
 from collections.abc import Callable
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -12,11 +13,103 @@ from PIL import Image
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.render.infrastructure import providers
 from stylecapture_backend.features.render.infrastructure.providers import (
+    DoubaoVirtualTryOnSkillGenerator,
     FashnTryOnGenerator,
     LiteLLMImageGenerator,
     RenderProviderError,
     RenderProviderUnavailable,
 )
+
+
+class FakeSkillProcess:
+    def __init__(self, output_dir: Path, *, returncode: int = 0) -> None:
+        self.returncode = returncode
+        self._output_dir = output_dir
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        self._output_dir.mkdir(parents=True)
+        (self._output_dir / "result.jpg").write_bytes(png_body())
+        (self._output_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "hard_pass": self.returncode == 0,
+                    "quality_status": "pass" if self.returncode == 0 else "hard_fail",
+                    "selected_attempt": 2,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return b"completed", b""
+
+
+@pytest.mark.asyncio
+async def test_doubao_skill_generator_runs_audited_skill_and_returns_only_passed_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill_path = tmp_path / "virtual_try_on.py"
+    skill_path.write_text("# test entry", encoding="utf-8")
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    async def create_process(*args: object, **kwargs: object) -> FakeSkillProcess:
+        calls.append((args, kwargs))
+        output_dir = Path(str(args[args.index("--output-dir") + 1]))
+        return FakeSkillProcess(output_dir)
+
+    monkeypatch.setattr(providers.asyncio, "create_subprocess_exec", create_process)
+    generator = DoubaoVirtualTryOnSkillGenerator(
+        skill_path=skill_path,
+        api_key="ark-secret",
+        understanding_model="understanding-model",
+        image_model="image-model",
+        timeout_seconds=10,
+    )
+
+    generated = await generator.try_on(
+        model_image=image_payload(color=(1, 2, 3)),
+        outfit_board=image_payload(color=(4, 5, 6)),
+    )
+
+    assert generated.content_type == "image/jpeg"
+    assert generated.provider_trace.provider == "doubao_virtual_try_on_skill"
+    assert generated.provider_trace.parameters["hard_pass"] is True
+    assert generated.provider_trace.parameters["selected_attempt"] == 2
+    args, kwargs = calls[0]
+    assert str(skill_path) in args
+    assert "--max-attempts" in args
+    assert kwargs["env"]["ARK_API_KEY"] == "ark-secret"  # type: ignore[index]
+    assert "ark-secret" not in str(args)
+
+
+@pytest.mark.asyncio
+async def test_doubao_skill_generator_rejects_a_result_that_failed_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill_path = tmp_path / "virtual_try_on.py"
+    skill_path.write_text("# test entry", encoding="utf-8")
+
+    async def create_process(*args: object, **kwargs: object) -> FakeSkillProcess:
+        output_dir = Path(str(args[args.index("--output-dir") + 1]))
+        return FakeSkillProcess(output_dir, returncode=3)
+
+    monkeypatch.setattr(providers.asyncio, "create_subprocess_exec", create_process)
+    generator = DoubaoVirtualTryOnSkillGenerator(
+        skill_path=skill_path,
+        api_key="ark-secret",
+        understanding_model="understanding-model",
+        image_model="image-model",
+        timeout_seconds=10,
+    )
+
+    with pytest.raises(RenderProviderError) as captured:
+        await generator.try_on(
+            model_image=image_payload(color=(1, 2, 3)),
+            outfit_board=image_payload(color=(4, 5, 6)),
+        )
+
+    assert captured.value.code == "try_on_identity_audit_failed"
+    assert captured.value.retryable is False
 
 
 def image_payload(

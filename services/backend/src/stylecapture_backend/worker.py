@@ -57,7 +57,7 @@ from stylecapture_backend.features.render.infrastructure.pixel_sprite_cutout imp
     PillowPixelSpriteExtractor,
 )
 from stylecapture_backend.features.render.infrastructure.providers import (
-    FashnTryOnGenerator,
+    DoubaoVirtualTryOnSkillGenerator,
     LiteLLMImageGenerator,
 )
 from stylecapture_backend.features.render.infrastructure.repository import (
@@ -163,12 +163,13 @@ render_processor = RenderProcessor(
         timeout_seconds=settings.render_request_timeout_seconds,
         download_max_bytes=settings.render_download_max_bytes,
     ),
-    try_on_generator=FashnTryOnGenerator(
-        api_base_url=settings.fashn_api_base,
-        api_key=settings.fashn_api_key.get_secret_value(),
-        timeout_seconds=settings.render_request_timeout_seconds,
-        poll_interval_seconds=settings.render_poll_interval_seconds,
-        poll_timeout_seconds=settings.render_poll_timeout_seconds,
+    try_on_generator=None,
+    audited_try_on_generator=DoubaoVirtualTryOnSkillGenerator(
+        skill_path=settings.try_on_skill_path,
+        api_key=settings.ark_api_key.get_secret_value(),
+        understanding_model=settings.try_on_understanding_model,
+        image_model=settings.try_on_image_model,
+        timeout_seconds=settings.try_on_skill_timeout_seconds,
     ),
     fixed_model_object_key=settings.fixed_model_object_key,
     item_presentations=item_presentation_application,

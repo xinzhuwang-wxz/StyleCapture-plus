@@ -25,7 +25,7 @@ infrastructure/interface 模块；这里不复制 Prompt 或业务逻辑。
 | `item.pixel_presentation` | item_presentation | Item presentation API/Worker | LiteLLM `image_generation` | `item_presentation/application.py`, `processing.py` | 内部派生能力 |
 | `photo.pixel_trial` | pixel_trial | `/v1/pixel-trials*` | LiteLLM `image_generation` | `pixel_trial/processing.py`, `render/pixel_card_style.py` | `pixel-character-card` |
 | `look.pixel_cover` | render | Look render API/Worker | LiteLLM `image_generation` | `render/prompt_contracts.py`, `render/pixel_card_style.py`, `render/signatures.py` | 产品能力，随 Look 详情调用 |
-| `look.virtual_try_on` | render | Look render API/Worker | LiteLLM 图像编辑优先；FASHN 专用适配器后备 | `render/processing.py`, `signatures.py` | 产品能力，随 Look 详情调用 |
+| `look.virtual_try_on` | render | Look render API/Worker | `doubao-virtual-try-on` Skill：分析、生成、审计、重试 | `render/processing.py`, `render/infrastructure/providers.py`, `signatures.py` | 产品能力，随 Look 详情调用 |
 
 ## 版本与变更门槛
 
@@ -49,15 +49,13 @@ Provider 进入真实链路。测试分两档：
 文件有效性、主体数量、服装保真、自我一致性、视觉 rubric，并继续由真实移动端截图
 和人工视觉审查兜底。
 
-## Proposed standalone distribution exception
+## Audited Doubao try-on Skill
 
-[`doubao-virtual-try-on`](../../skills/doubao-virtual-try-on/) is a proposed,
-provider-bound Codex artifact for installation outside the StyleCapture product
-runtime. It accepts local person/outfit images and calls the user-selected Ark
-models directly so the package can be shared without deploying the Product API.
-
-This is not a Product API facade and is not used by H5, backend, Worker, or
-production render flows. Those paths remain governed by ADR-0005 and the
-`look.virtual_try_on` capability above. The narrow exception, security boundary,
-and migration condition are reviewable in
-[ADR-0006](../adr/0006-standalone-provider-bound-codex-skill.md).
+[`doubao-virtual-try-on`](../../skills/doubao-virtual-try-on/) remains a provider-bound,
+independently installable Codex artifact, and is also the audited executor used by the server-side
+`look.virtual_try_on` Worker adapter. The Product API continues to own authenticated Looks,
+RenderArtifacts, privacy, persistence and honest degradation; the Skill owns its linear
+understand-generate-audit-retry workflow. The standalone exception is documented in
+[ADR-0006](../adr/0006-standalone-provider-bound-codex-skill.md), and the explicit product-runtime
+reuse decision is documented in
+[ADR-0007](../adr/0007-product-audited-doubao-try-on.md).

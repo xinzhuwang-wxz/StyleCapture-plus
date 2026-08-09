@@ -90,6 +90,12 @@ def test_dependent_render_signature_does_not_change_when_source_finishes() -> No
     assert completed_signature == queued_signature
 
 
+def test_try_on_signature_uses_audited_doubao_skill_pipeline_version() -> None:
+    assert RENDER_PIPELINE_VERSIONS[RenderArtifactKind.TRY_ON] == (
+        "doubao-virtual-try-on-skill-v1.3.0"
+    )
+
+
 def test_composition_signature_uses_item_versions_not_an_unrelated_capture() -> None:
     user_id = uuid4()
     field = LookAnalysisField(value="通勤", confidence=0.9)
