@@ -1878,6 +1878,18 @@
             "title": "Share Eligible",
             "type": "boolean"
           },
+          "source_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Artifact Id"
+          },
           "sprite_image_url": {
             "anyOf": [
               {

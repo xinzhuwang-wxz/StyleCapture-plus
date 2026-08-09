@@ -58,7 +58,7 @@ const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
 const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
 const LOOK_PIXEL_COVERS_STORAGE_KEY = "stylecapture:look-pixel-covers:v1";
 
-function readPixelCoverSelections(): Record<string, string | null> {
+function readPixelCoverSelections(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(LOOK_PIXEL_COVERS_STORAGE_KEY);
@@ -67,8 +67,7 @@ function readPixelCoverSelections(): Record<string, string | null> {
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
     return Object.fromEntries(
       Object.entries(value).filter(
-        (entry): entry is [string, string | null] =>
-          typeof entry[1] === "string" || entry[1] === null
+        (entry): entry is [string, string] => typeof entry[1] === "string"
       )
     );
   } catch {
@@ -260,7 +259,7 @@ function DeferredScreenFallback() {
 export function App() {
   const queryClient = useQueryClient();
   const [activePixelCoverIds, setActivePixelCoverIds] = useState<
-    Record<string, string | null>
+    Record<string, string>
   >(readPixelCoverSelections);
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -424,11 +423,11 @@ export function App() {
               Boolean(render.output_image_url)
           );
           const selectedId = activePixelCoverIds[look.id];
-          if (selectedId === null) return [];
           const cover =
             selectedId === undefined
               ? candidates[0]
-              : candidates.find((artifact) => artifact.id === selectedId);
+              : candidates.find((artifact) => artifact.id === selectedId) ??
+                candidates[0];
           return cover ? [[look.id, cover] as const] : [];
         })
       ),
@@ -835,16 +834,6 @@ export function App() {
           ...current.filter((candidate) => candidate.id !== render.id)
         ]
       );
-      if (render.kind === "pixel_cover") {
-        setActivePixelCoverIds((current) => {
-          const next = { ...current, [render.look_id]: null };
-          window.localStorage.setItem(
-            LOOK_PIXEL_COVERS_STORAGE_KEY,
-            JSON.stringify(next)
-          );
-          return next;
-        });
-      }
     },
     onError: (error) => setNotice(errorMessage(error)),
     onSettled: (_data, _error, variables) => {
@@ -871,16 +860,6 @@ export function App() {
           ...current.filter((candidate) => candidate.id !== render.id)
         ]
       );
-      if (render.kind === "pixel_cover") {
-        setActivePixelCoverIds((current) => {
-          const next = { ...current, [render.look_id]: null };
-          window.localStorage.setItem(
-            LOOK_PIXEL_COVERS_STORAGE_KEY,
-            JSON.stringify(next)
-          );
-          return next;
-        });
-      }
     },
     onSettled: (_data, _error, variables) => {
       void queryClient.invalidateQueries({

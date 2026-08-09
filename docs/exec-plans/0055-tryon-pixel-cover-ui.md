@@ -51,6 +51,21 @@ Automatic pixel generation elsewhere keeps the legacy original-Look/collage path
 
 ## Verification results
 
+- Try-on lineage follow-up: `RenderArtifactResponse` now exposes the persisted
+  `source_artifact_id`, and the generated H5 OpenAPI types carry the same field.
+  Look detail binds its pixel task sheet only to pixel artifacts whose source is
+  the currently completed try-on, so an older automatic card can no longer be
+  presented as the result of a new try-on request.
+- Cover-selection follow-up: starting a new background pixel task no longer clears
+  the existing wardrobe cover. The original automatic card remains the default;
+  a try-on-derived card replaces it only after the user selects
+  `设为像素封面`. Legacy local `null` selections are ignored and migrate back to
+  the automatic default.
+- Final verification after rebasing onto the single-content-source backend change:
+  H5 typecheck passed, 63 focused H5 behavior tests passed, the production Vite
+  build passed (547 modules), 18 backend render-processing tests passed, and Ruff
+  passed for the changed backend contract and HTTP tests.
+
 - `tsc -b apps/h5/tsconfig.json --noEmit` passed.
 - `vitest run tests/look-wardrobe.test.tsx` passed: 27 tests.
 - `vitest run tests/app.test.tsx` passed: 30 tests.
@@ -75,6 +90,14 @@ Automatic pixel generation elsewhere keeps the legacy original-Look/collage path
 
 ## Surprises & discoveries
 
+- The backend already stored pixel-card lineage and the worker already used the
+  completed try-on as its sole content image (plus two style-reference assets),
+  but the HTTP response omitted that lineage. The frontend therefore could not
+  distinguish an automatic original-image card from a try-on-derived card.
+- Clearing the local cover selection when any pixel task started made the wardrobe
+  cover disappear before the user explicitly chose a replacement. Task creation
+  and cover selection are separate product actions and must remain independent.
+
 - A successful older pixel artifact may coexist with a newer running artifact. The
   task sheet must show the running state instead of presenting the older result as
   newly completed.
@@ -85,6 +108,10 @@ Automatic pixel generation elsewhere keeps the legacy original-Look/collage path
   user had clicked.
 
 ## Progress
+
+- [x] Expose render source lineage through the HTTP and generated H5 contracts.
+- [x] Bind manual pixel task state and actions to the current try-on artifact.
+- [x] Preserve the automatic cover until explicit try-on-card selection.
 
 - [x] Move the shared try-on picker entry to `查看效果`.
 - [x] Add the inline completed try-on result and actions.

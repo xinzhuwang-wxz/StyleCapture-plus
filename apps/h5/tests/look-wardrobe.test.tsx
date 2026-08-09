@@ -268,11 +268,22 @@ describe("Look wardrobe states", () => {
             updated_at: "2026-07-25T00:00:30Z"
           }),
           renderArtifact({
+            id: "77777777-7777-4777-8777-777777777777",
+            kind: "pixel_cover",
+            presentation_label: "像素穿搭封面",
+            share_eligible: true,
+            source_artifact_id: "55555555-5555-4555-8555-555555555555",
+            output_image_url:
+              "/v1/render-artifacts/77777777-7777-4777-8777-777777777777/image",
+            updated_at: "2026-07-25T00:00:45Z"
+          }),
+          renderArtifact({
             id: "66666666-6666-4666-8666-666666666666",
             kind: "pixel_cover",
             status: "degraded",
             presentation_label: "像素生成失败。展示真实拼贴",
             fallback_artifact_id: "55555555-5555-4555-8555-555555555555",
+            source_artifact_id: "99999999-9999-4999-8999-999999999999",
             failure_message: "像素生成暂不可用。展示真实单品拼贴",
             retryable: true,
             updated_at: "2026-07-25T00:01:00Z"
@@ -304,6 +315,9 @@ describe("Look wardrobe states", () => {
       "99999999-9999-4999-8999-999999999999"
     );
     expect(screen.getByRole("dialog", { name: "像素卡片暂未生成" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "已生成的像素穿搭卡片" })
+    ).not.toBeInTheDocument();
     expect(screen.getByText("这次没有生成成功")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重新生成像素卡片" })).toBeInTheDocument();
   });
@@ -328,6 +342,7 @@ describe("Look wardrobe states", () => {
             kind: "pixel_cover",
             presentation_label: "像素穿搭封面",
             share_eligible: true,
+            source_artifact_id: "99999999-9999-4999-8999-999999999999",
             output_image_url:
               "/v1/render-artifacts/77777777-7777-4777-8777-777777777777/image",
             updated_at: "2026-07-25T00:01:00Z"
@@ -337,6 +352,7 @@ describe("Look wardrobe states", () => {
             kind: "pixel_cover",
             status: "running",
             presentation_label: "像素穿搭封面",
+            source_artifact_id: "99999999-9999-4999-8999-999999999999",
             output_image_url: null,
             updated_at: "2026-07-25T00:02:00Z"
           })
@@ -376,6 +392,7 @@ describe("Look wardrobe states", () => {
             kind: "pixel_cover",
             status: "running",
             presentation_label: "像素穿搭封面",
+            source_artifact_id: "99999999-9999-4999-8999-999999999999",
             output_image_url: null,
             updated_at: "2026-07-25T00:02:00Z"
           })
@@ -401,6 +418,66 @@ describe("Look wardrobe states", () => {
     expect(
       screen.getByRole("button", { name: "查看像素卡片生成进度" })
     ).toBeInTheDocument();
+  });
+
+  it("sets only the pixel card derived from the current try-on as the wardrobe cover", () => {
+    const tryOnId = "99999999-9999-4999-8999-999999999999";
+    const automaticPixelId = "77777777-7777-4777-8777-777777777777";
+    const tryOnPixelId = "88888888-8888-4888-8888-888888888888";
+    const onSetPixelCover = vi.fn();
+
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact(),
+          renderArtifact({
+            id: tryOnId,
+            kind: "try_on",
+            presentation_label: "真人试穿",
+            output_image_url: `/v1/render-artifacts/${tryOnId}/image`,
+            updated_at: "2026-07-25T00:00:30Z"
+          }),
+          renderArtifact({
+            id: automaticPixelId,
+            kind: "pixel_cover",
+            presentation_label: "自动像素穿搭封面",
+            share_eligible: true,
+            source_artifact_id: "55555555-5555-4555-8555-555555555555",
+            output_image_url: `/v1/render-artifacts/${automaticPixelId}/image`,
+            updated_at: "2026-07-25T00:00:45Z"
+          }),
+          renderArtifact({
+            id: tryOnPixelId,
+            kind: "pixel_cover",
+            presentation_label: "真人试穿像素卡片",
+            share_eligible: true,
+            source_artifact_id: tryOnId,
+            output_image_url: `/v1/render-artifacts/${tryOnPixelId}/image`,
+            updated_at: "2026-07-25T00:01:00Z"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onGenerate={vi.fn()}
+        onSetPixelCover={onSetPixelCover}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "生成像素卡片" }));
+    expect(screen.getByRole("img", { name: "已生成的像素穿搭卡片" })).toHaveAttribute(
+      "src",
+      expect.stringContaining(tryOnPixelId)
+    );
+    fireEvent.click(screen.getByRole("button", { name: "设为像素封面" }));
+    expect(onSetPixelCover).toHaveBeenCalledWith(pendingLook.id, tryOnPixelId);
   });
 
   it("presents the running try-on task as a structured background job", () => {

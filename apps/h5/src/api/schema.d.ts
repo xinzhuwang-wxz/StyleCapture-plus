@@ -1445,6 +1445,8 @@ export interface components {
             retryable: boolean;
             /** Share Eligible */
             share_eligible: boolean;
+            /** Source Artifact Id */
+            source_artifact_id?: string | null;
             /** Sprite Image Url */
             sprite_image_url?: string | null;
             /**
