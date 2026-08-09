@@ -209,7 +209,7 @@ export function PendingItemCard({
     <motion.article
       className="item-card item-card--pending pixel-card wardrobe-card"
       layout
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
     >
       <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">

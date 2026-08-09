@@ -89,9 +89,7 @@ def test_look_component_response_reuses_the_generated_item_flat_lay() -> None:
 
     response = LookComponentResponse.from_domain(component, flat_lay=presentation)
 
-    assert response.item_image_url == (
-        f"/v1/item-presentations/{presentation.id}/image"
-    )
+    assert response.item_image_url == (f"/v1/item-presentations/{presentation.id}/image")
     assert response.item_image_status is ItemPresentationStatus.SUCCEEDED
 
 

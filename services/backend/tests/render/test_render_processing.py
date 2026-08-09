@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -155,8 +156,8 @@ class RecordingCollageRenderer:
     def __init__(self) -> None:
         self.images: tuple[ImagePayload, ...] = ()
 
-    def render(self, images: tuple[ImagePayload, ...]) -> ImagePayload:
-        self.images = images
+    def render(self, images: Sequence[ImagePayload]) -> ImagePayload:
+        self.images = tuple(images)
         return payload("derived/renders/recorded.png", (250, 250, 250))
 
 

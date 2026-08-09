@@ -6,7 +6,6 @@ from uuid import UUID
 
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.ports import StoredObject
-from stylecapture_backend.features.item_presentation.application import ItemPresentationView
 from stylecapture_backend.features.item_presentation.domain import ItemPresentationStatus
 from stylecapture_backend.features.look.domain import LookComponentStatus, LookDetail
 from stylecapture_backend.features.look.ports import LookRepository
@@ -96,13 +95,21 @@ class WardrobeReader(Protocol):
     ) -> WardrobeItem | None: ...
 
 
+class ItemFlatLayView(Protocol):
+    @property
+    def status(self) -> ItemPresentationStatus: ...
+
+    @property
+    def object_key(self) -> str | None: ...
+
+
 class ItemFlatLayReader(Protocol):
     async def get_current_flat_lay_item(
         self,
         *,
         user_id: UUID,
         item_id: UUID,
-    ) -> ItemPresentationView | None: ...
+    ) -> ItemFlatLayView | None: ...
 
 
 class RenderProcessor:
@@ -424,13 +431,15 @@ class RenderProcessor:
             }:
                 raise RetryableRenderError("generated Item flat-lay is not ready")
             object_key = (
-                flat_lay.object_key
-                if flat_lay is not None
-                and flat_lay.status is ItemPresentationStatus.SUCCEEDED
-                and flat_lay.object_key is not None
-                else None
-            ) or item.display_object_key or (
-                item.source_object_key if item.source_available else None
+                (
+                    flat_lay.object_key
+                    if flat_lay is not None
+                    and flat_lay.status is ItemPresentationStatus.SUCCEEDED
+                    and flat_lay.object_key is not None
+                    else None
+                )
+                or item.display_object_key
+                or (item.source_object_key if item.source_available else None)
             )
             if object_key is None:
                 raise CollageRenderError("render Item has no available display image")

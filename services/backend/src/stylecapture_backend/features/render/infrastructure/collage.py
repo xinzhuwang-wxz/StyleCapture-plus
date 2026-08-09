@@ -162,12 +162,8 @@ def _cells_for_count(
     split_width = available_width - gap
     main_width = int(split_width * main_ratio)
     secondary_width = split_width - main_width
-    secondary_cell_width = (
-        secondary_width - gap * (secondary_columns - 1)
-    ) // secondary_columns
-    secondary_cell_height = (
-        available_height - gap * (secondary_rows - 1)
-    ) // secondary_rows
+    secondary_cell_width = (secondary_width - gap * (secondary_columns - 1)) // secondary_columns
+    secondary_cell_height = (available_height - gap * (secondary_rows - 1)) // secondary_rows
     if main_width <= 0 or secondary_cell_width <= 0 or secondary_cell_height <= 0:
         raise CollageRenderError("collage spacing leaves no drawable area")
 

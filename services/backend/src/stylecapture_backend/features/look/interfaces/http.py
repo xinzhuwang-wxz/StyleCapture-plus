@@ -111,19 +111,22 @@ class LookComponentResponse(BaseModel):
         *,
         flat_lay: ItemPresentationView | None = None,
     ) -> LookComponentResponse:
-        flat_lay_ready = (
-            flat_lay is not None
-            and flat_lay.status is ItemPresentationStatus.SUCCEEDED
-            and flat_lay.object_key is not None
+        flat_lay_image_url = (
+            f"/v1/item-presentations/{flat_lay.id}/image"
+            if (
+                flat_lay is not None
+                and flat_lay.status is ItemPresentationStatus.SUCCEEDED
+                and flat_lay.object_key is not None
+            )
+            else None
         )
         return cls(
             component_key=component.component_key,
             status=component.status.value,
             item_id=component.item_id,
             item_image_url=(
-                f"/v1/item-presentations/{flat_lay.id}/image"
-                if flat_lay_ready
-                else (
+                flat_lay_image_url
+                or (
                     f"/v1/items/{component.item_id}/image"
                     if component.item_id is not None
                     else None
@@ -210,7 +213,11 @@ class LookDetailResponse(BaseModel):
             components=[
                 LookComponentResponse.from_domain(
                     component,
-                    flat_lay=(flat_lays or {}).get(component.item_id),
+                    flat_lay=(
+                        (flat_lays or {}).get(component.item_id)
+                        if component.item_id is not None
+                        else None
+                    ),
                 )
                 for component in detail.components
             ],
