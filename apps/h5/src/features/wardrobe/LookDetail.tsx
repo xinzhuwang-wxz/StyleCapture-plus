@@ -16,6 +16,7 @@ import {
 } from "../../media/browserImagePreview";
 import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
 import type { LookItemAction } from "./LookItemActionSheet";
+import { DeleteAssetDialog, type LookDeleteScope } from "./DeleteAssetDialog";
 
 type LookDetailProps = {
   detail: LookDetailData | null;
@@ -29,6 +30,7 @@ type LookDetailProps = {
   tryOnUploading?: boolean;
   deletingTryOnPhoto?: boolean;
   deletingSource?: boolean;
+  deletingLook?: boolean;
   retrying: boolean;
   saving: boolean;
   onClose: () => void;
@@ -39,6 +41,7 @@ type LookDetailProps = {
   onTryOn?: (lookId: string, file: File) => void;
   onDeleteTryOnPhoto?: (artifactId: string) => void;
   onDeleteSource?: (lookId: string) => void;
+  onDeleteLook?: (lookId: string, scope: LookDeleteScope) => void;
   onAdvancePurchaseDemand?: (
     demandId: string,
     status: PurchaseDemand["status"]
@@ -65,6 +68,7 @@ function DetailContent({
   tryOnUploading = false,
   deletingTryOnPhoto = false,
   deletingSource = false,
+  deletingLook = false,
   retrying,
   saving,
   onOpenItem,
@@ -76,6 +80,7 @@ function DetailContent({
   onTryOn,
   onDeleteTryOnPhoto,
   onDeleteSource,
+  onDeleteLook,
   onAdvancePurchaseDemand
 }: Omit<LookDetailProps, "detail" | "loading"> & {
   detail: LookDetailData;
@@ -92,6 +97,7 @@ function DetailContent({
   );
   const [tryOnValidationError, setTryOnValidationError] = useState<string | null>(null);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
+  const [deletingLookOpen, setDeletingLookOpen] = useState(false);
   const [heroTryOnRevealed, setHeroTryOnRevealed] = useState(false);
   const tryOnInputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -159,6 +165,7 @@ function DetailContent({
     setPendingTryOnFile(null);
     setTryOnValidationError(null);
     setConfirmingSourceDelete(false);
+    setDeletingLookOpen(false);
     setHeroTryOnRevealed(false);
   }, [detail.look.id]);
 
@@ -172,7 +179,8 @@ function DetailContent({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      onCloseRef.current();
+      if (deletingLookOpen) setDeletingLookOpen(false);
+      else onCloseRef.current();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
@@ -181,7 +189,7 @@ function DetailContent({
         previouslyFocused.focus();
       }
     };
-  }, [detail.look.id]);
+  }, [deletingLookOpen, detail.look.id]);
 
   useEffect(() => {
     if (!pendingTryOnFile) {
@@ -300,7 +308,20 @@ function DetailContent({
           ‹
         </button>
         <strong id="look-detail-title">穿搭详情</strong>
-        <span className="detail-topbar__spacer" />
+        {onDeleteLook ? (
+          <button
+            className="icon-button detail-delete-button"
+            type="button"
+            aria-label="删除穿搭"
+            onClick={() => setDeletingLookOpen(true)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+            </svg>
+          </button>
+        ) : (
+          <span className="detail-topbar__spacer" />
+        )}
       </div>
 
       <div className="detail-image look-detail__hero">
@@ -910,6 +931,15 @@ function DetailContent({
           {saving ? "保存中…" : "补充喜欢原因"}
         </button>
       </div>
+      <DeleteAssetDialog
+        kind="look"
+        open={deletingLookOpen}
+        busy={deletingLook}
+        onClose={() => setDeletingLookOpen(false)}
+        onConfirm={(scope) => {
+          if (scope) onDeleteLook?.(detail.look.id, scope);
+        }}
+      />
     </motion.section>
   );
 }
@@ -936,6 +966,7 @@ export function LookDetail(props: LookDetailProps) {
             tryOnUploading={props.tryOnUploading}
             deletingTryOnPhoto={props.deletingTryOnPhoto}
             deletingSource={props.deletingSource}
+            deletingLook={props.deletingLook}
             retrying={props.retrying}
             saving={props.saving}
             onOpenItem={props.onOpenItem}
@@ -947,6 +978,7 @@ export function LookDetail(props: LookDetailProps) {
             onTryOn={props.onTryOn}
             onDeleteTryOnPhoto={props.onDeleteTryOnPhoto}
             onDeleteSource={props.onDeleteSource}
+            onDeleteLook={props.onDeleteLook}
             onAdvancePurchaseDemand={props.onAdvancePurchaseDemand}
           />
         </div>

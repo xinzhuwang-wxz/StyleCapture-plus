@@ -9,10 +9,12 @@ import {
 } from "./localization";
 import { buildDouyinSearchUrl } from "./purchaseSearch";
 import { useDisplayImage } from "./useDisplayImage";
+import { DeleteAssetDialog } from "./DeleteAssetDialog";
 
 type ItemDetailProps = {
   item: Item | null;
   saving: boolean;
+  deleting?: boolean;
   onClose: () => void;
   onSave: (
     itemId: string,
@@ -22,6 +24,7 @@ type ItemDetailProps = {
     }
   ) => void;
   onDeleteSource: (itemId: string) => void;
+  onDeleteItem?: (itemId: string) => void;
   onBuildOutfit: (itemId: string) => void;
   onReturnToFeed: (videoRef: string, timestampMs: number) => void;
 };
@@ -29,9 +32,11 @@ type ItemDetailProps = {
 function DetailContent({
   item,
   saving,
+  deleting = false,
   onClose,
   onSave,
   onDeleteSource,
+  onDeleteItem,
   onBuildOutfit,
   onReturnToFeed
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
@@ -46,6 +51,7 @@ function DetailContent({
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const description = String(item.attributes.description?.value ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletingItemOpen, setDeletingItemOpen] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [flatLay, setFlatLay] = useState<ItemPresentation | null>(null);
   const [flatLayError, setFlatLayError] = useState<string | null>(null);
@@ -79,6 +85,7 @@ function DetailContent({
     setOwnership(item.ownership);
     setCategory(String(item.attributes.category?.value ?? ""));
     setConfirmingDelete(false);
+    setDeletingItemOpen(false);
     setImageFailed(false);
   }, [item]);
 
@@ -133,7 +140,8 @@ function DetailContent({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onCloseRef.current();
+        if (deletingItemOpen) setDeletingItemOpen(false);
+        else onCloseRef.current();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -143,7 +151,7 @@ function DetailContent({
         previouslyFocused.focus();
       }
     };
-  }, [item.id]);
+  }, [deletingItemOpen, item.id]);
 
   return (
     <motion.section
@@ -167,7 +175,20 @@ function DetailContent({
           ‹
         </button>
         <strong id="item-detail-title">单品详情</strong>
-        <span className="detail-topbar__spacer" />
+        {onDeleteItem ? (
+          <button
+            className="icon-button detail-delete-button"
+            type="button"
+            aria-label="删除单品"
+            onClick={() => setDeletingItemOpen(true)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+            </svg>
+          </button>
+        ) : (
+          <span className="detail-topbar__spacer" />
+        )}
       </div>
 
       <div
@@ -360,6 +381,13 @@ function DetailContent({
           </button>
         )}
       </div>
+      <DeleteAssetDialog
+        kind="item"
+        open={deletingItemOpen}
+        busy={deleting}
+        onClose={() => setDeletingItemOpen(false)}
+        onConfirm={() => onDeleteItem?.(item.id)}
+      />
     </motion.section>
   );
 }
