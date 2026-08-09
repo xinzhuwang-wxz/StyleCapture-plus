@@ -18,7 +18,7 @@ from stylecapture_backend.features.outfit.domain import (
 CompletionCall = Callable[..., Awaitable[object]]
 
 OUTFIT_RERANK_MODEL_VERSION = "outfit-rerank-model-v1"
-OUTFIT_RERANK_PROMPT_VERSION = "outfit-rerank-v1"
+OUTFIT_RERANK_PROMPT_VERSION = "outfit-rerank-v2"
 OUTFIT_RERANK_SCHEMA_VERSION = "outfit-rerank-json-v1"
 
 
@@ -55,6 +55,7 @@ class LiteLLMOutfitReranker:
                         "role": slot.role.value,
                         "item_name": slot.item_name,
                         "ownership": slot.ownership,
+                        "style_facts": dict(slot.style_facts or {}),
                         "missing_search": slot.search_query,
                     }
                     for slot in plan.slots
@@ -65,6 +66,8 @@ class LiteLLMOutfitReranker:
         started = monotonic()
         async with asyncio.timeout(self._timeout_seconds):
             response = await self._completion(
+                # LiteLLM's Python SDK needs a provider prefix even when the
+                # request is routed through our local OpenAI-compatible proxy.
                 model=f"openai/{self._alias}",
                 api_base=self._base_url,
                 api_key=self._api_key,
@@ -76,7 +79,11 @@ class LiteLLMOutfitReranker:
                     {
                         "role": "system",
                         "content": (
-                            "重排给定穿搭候选并写简洁中文理由。不得改变单品。严格返回 JSON:"
+                            "你是穿搭重排器。只重排给定候选并写简洁中文理由。不得新增、删除或改变任何单品。"
+                            "必须优先依据每个单品的 style_facts 判断真实视觉效果, 不要只根据 item_name 猜测。"
+                            "综合评估同色或邻近色协调、受控撞色、上下视觉重量与廓形平衡、叠穿和开合是否合理。"
+                            "关注颜色、材质、图案、版型、长短、领型袖型、风格标签、季节和场景是否互相支持。"
+                            "并尽量减少不同方案重复使用同一件衣服。严格返回 JSON:"
                             '{"rankedPlans":[{"id":string,"rationale":string,'
                             '"styleMatchScore":0..100}]}。理由不超过50字。'
                         ),
@@ -91,6 +98,7 @@ class LiteLLMOutfitReranker:
                                     "weather": request.weather,
                                     "formality": request.formality,
                                     "comfort": request.comfort,
+                                    "outfit_count": request.plan_count,
                                 },
                                 "candidates": closed_candidates,
                             },

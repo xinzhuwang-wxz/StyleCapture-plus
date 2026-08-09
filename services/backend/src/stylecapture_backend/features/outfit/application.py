@@ -596,6 +596,7 @@ def _request_id(
         (
             f"{user_id}:{request.scene}:{request.style or ''}:{request.weather or ''}:"
             f"{request.formality or ''}:{request.comfort or ''}:"
+            f"{request.plan_count}:"
             f"{','.join(str(item_id) for item_id in request.required_item_ids)}:"
             f"{','.join(str(item_id) for item_id in request.exclude_item_ids)}:"
             f"{','.join(str(plan.id) for plan in plans)}"
@@ -656,8 +657,8 @@ def _build_plans(
     # a real wardrobe that showed up as the same knit cardigan in every single
     # recommendation - even at "炎热高温".
     #
-    # Only drop them when four distinct plans still remain: a small wardrobe
-    # would otherwise collapse from four suggestions to one. An explicitly
+    # Only drop them when the requested number of distinct plans still remains:
+    # a small wardrobe would otherwise collapse to one. An explicitly
     # required coat is left alone.
     if _is_hot(request.weather) and OutfitCategory.OUTERWEAR not in required_categories:
         without_outerwear = tuple(
@@ -666,7 +667,7 @@ def _build_plans(
             if OutfitCategory.OUTERWEAR not in template
         )
         # Keep the variety when there is not enough left without a coat.
-        if len(without_outerwear) >= 4:
+        if len(without_outerwear) >= request.plan_count:
             compatible_templates = without_outerwear
     if not compatible_templates:
         raise OutfitPlanInvalidError("必须使用的单品无法组成不冲突的完整穿搭")
@@ -701,7 +702,7 @@ def _build_plans(
                 grouped=grouped,
                 required_by_category=required_by_category,
                 request=request,
-                # Do not let the first four templates all reuse candidate zero.
+                # Do not let the first templates all reuse candidate zero.
                 # Rotating by the number of accepted plans makes the progressive
                 # cards visibly different while preserving deterministic output.
                 variant_index=variant_index + len(plans),
@@ -734,9 +735,9 @@ def _build_plans(
                     style_match_score=max(62, 92 - plan_index * 4 - missing * 3),
                 )
             )
-            if len(plans) == 4:
+            if len(plans) == request.plan_count:
                 return tuple(plans)
-    raise OutfitPlanInvalidError("当前衣橱不足以生成 4 套结构有差异的合法穿搭")
+    raise OutfitPlanInvalidError(f"当前衣橱不足以生成 {request.plan_count} 套结构有差异的合法穿搭")
 
 
 def _build_template_slots(
@@ -857,7 +858,49 @@ def _item_slot(category: OutfitCategory, item: WardrobeItem) -> OutfitSlot:
         image_url=f"/v1/items/{item.id}/image",
         search_query=None,
         source_kind=item.source_kind.value,
+        style_facts=_style_facts(item),
     )
+
+
+STYLE_FACT_FIELDS = (
+    "category",
+    "subcategory",
+    "description",
+    "colors",
+    "materials",
+    "pattern",
+    "silhouette",
+    "fit",
+    "styles",
+    "seasons",
+    "occasions",
+    "length",
+    "neckline",
+    "sleeve_type",
+    "details",
+)
+
+
+def _style_facts(item: WardrobeItem) -> dict[str, object]:
+    facts: dict[str, object] = {}
+    for name in STYLE_FACT_FIELDS:
+        field = item.attributes.fields.get(name)
+        if field is None or field.value is None:
+            continue
+        value = _style_fact_value(field.value)
+        if value is not None:
+            facts[name] = value
+    return facts
+
+
+def _style_fact_value(value: object) -> object | None:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    if isinstance(value, list | tuple):
+        values = tuple(stripped for raw in value if (stripped := str(raw).strip()))
+        return values or None
+    return value
 
 
 def _slot_signature(slots: tuple[OutfitSlot, ...]) -> tuple[str, ...]:
@@ -882,10 +925,10 @@ def _validate_plan_hard_rules(
     request: OutfitRequest,
     items: tuple[WardrobeItem, ...],
 ) -> None:
-    if len(plans) != 4:
-        raise OutfitPlanInvalidError("每次必须生成 4 套合法穿搭")
-    if len({plan.structure_signature for plan in plans}) != 4:
-        raise OutfitPlanInvalidError("4 套穿搭必须在结构或真实单品上有明确差异")
+    if len(plans) != request.plan_count:
+        raise OutfitPlanInvalidError(f"每次必须生成 {request.plan_count} 套合法穿搭")
+    if len({plan.structure_signature for plan in plans}) != request.plan_count:
+        raise OutfitPlanInvalidError(f"{request.plan_count} 套穿搭必须在结构或真实单品上有明确差异")
     by_id = {item.id: item for item in items}
     required = set(request.required_item_ids)
     excluded = set(request.exclude_item_ids)
@@ -921,8 +964,9 @@ def _validate_reranked_plans(
     drafts: tuple[OutfitPlan, ...],
     reranked: tuple[OutfitPlan, ...],
 ) -> None:
-    if len(reranked) != 4 or len({plan.id for plan in reranked}) != 4:
-        raise OutfitPlanInvalidError("重排必须原样返回 4 套候选")
+    expected_count = len(drafts)
+    if len(reranked) != expected_count or len({plan.id for plan in reranked}) != expected_count:
+        raise OutfitPlanInvalidError(f"重排必须原样返回 {expected_count} 套候选")
     draft_by_id = {plan.id: plan for plan in drafts}
     if set(draft_by_id) != {plan.id for plan in reranked}:
         raise OutfitPlanInvalidError("重排不能新增、删除或替换穿搭候选")

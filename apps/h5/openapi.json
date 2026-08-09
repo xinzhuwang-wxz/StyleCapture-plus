@@ -1249,6 +1249,13 @@
             "title": "Must Include Item Ids",
             "type": "array"
           },
+          "outfit_count": {
+            "default": 4,
+            "maximum": 4.0,
+            "minimum": 3.0,
+            "title": "Outfit Count",
+            "type": "integer"
+          },
           "scene": {
             "maxLength": 200,
             "minLength": 1,
