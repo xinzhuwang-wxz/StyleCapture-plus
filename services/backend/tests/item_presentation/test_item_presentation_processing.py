@@ -233,7 +233,7 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
         "stylecapture-item-pixel-2026-08-09-clean-subject"
     )
     assert stored.provider_trace.parameters["schema_version"] == (
-        "ornate-asymmetric-pixel-card-square-v3"
+        "ornate-asymmetric-pixel-card-square-v4"
     )
     assert stored.provider_trace.parameters["output_canvas"] == "1024x1024"
     assert stored.provider_trace.parameters["background_palette"] in {
@@ -268,7 +268,8 @@ def test_pixel_card_recolors_connected_gray_background_with_stable_variety() -> 
     recolored_ratio = first_quality["background_recolored_ratio"]
     assert isinstance(recolored_ratio, float)
     assert recolored_ratio > 0.5
-    assert first_quality["decorations"] == "stylecapture-ornate-asymmetric-frame-v3"
+    assert first_quality["decorations"] == "stylecapture-ornate-asymmetric-frame-v4"
+    assert first_quality["decoration_count"] == 6
     with Image.open(BytesIO(first.body)) as first_card:
         assert first_card.size == (1024, 1024)
         corner_frame = cast(tuple[int, int, int], first_card.getpixel((76, 20)))
