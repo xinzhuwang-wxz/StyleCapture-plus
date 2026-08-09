@@ -574,7 +574,8 @@ async function createRender(
   lookId: string,
   kind: RenderKind,
   idempotencyKey: string,
-  subjectObjectKey?: string
+  subjectObjectKey?: string,
+  sourceArtifactId?: string
 ): Promise<RenderArtifact> {
   await ensureSession();
   const response = await client.POST("/v1/looks/{look_id}/renders", {
@@ -582,7 +583,11 @@ async function createRender(
       path: { look_id: lookId },
       header: { "Idempotency-Key": idempotencyKey }
     },
-    body: { kind, subject_object_key: subjectObjectKey }
+    body: {
+      kind,
+      subject_object_key: subjectObjectKey,
+      source_artifact_id: sourceArtifactId
+    }
   });
   if (!response.data) {
     throwApiError(response.error, "成片任务没有启动");

@@ -220,15 +220,18 @@ async function drawAndConfirm(intent: "item" | "whole_outfit" = "item") {
       await Promise.resolve();
     });
   }
+  const saveButton = await screen.findByRole(
+    "button",
+    {
+      name:
+        intent === "whole_outfit"
+          ? "保存整套到数字衣橱"
+          : "保存圈选到数字衣橱"
+    },
+    { timeout: 3_000 }
+  );
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", {
-        name:
-          intent === "whole_outfit"
-            ? "保存整套到数字衣橱"
-            : "保存圈选到数字衣橱"
-      })
-    );
+    fireEvent.click(saveButton);
     await Promise.resolve();
   });
 }

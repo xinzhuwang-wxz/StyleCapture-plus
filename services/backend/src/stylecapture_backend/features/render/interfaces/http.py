@@ -116,6 +116,7 @@ class RenderArtifactListResponse(BaseModel):
 class CreateRenderArtifactBody(BaseModel):
     kind: RenderArtifactKind
     subject_object_key: str | None = None
+    source_artifact_id: UUID | None = None
 
 
 def build_render_router(
@@ -199,14 +200,31 @@ def build_render_router(
             if subject.owner_id != user_id:
                 raise LookNotFoundError("Try-on photo not found")
             subject_source_hash = subject.sha256
+        requested_source: RenderArtifactView | None = None
+        if body.source_artifact_id is not None:
+            if body.kind is not RenderArtifactKind.PIXEL_COVER:
+                raise ValueError("only pixel-cover renders accept an explicit source artifact")
+            requested_source = await services.renders.get(
+                user_id=user_id,
+                artifact_id=body.source_artifact_id,
+            )
+            if requested_source.look_id != look_id:
+                raise ValueError("pixel-cover source must belong to the same Look")
+            if requested_source.kind is not RenderArtifactKind.TRY_ON:
+                raise ValueError("pixel-cover source must be a try-on render")
+            if (
+                requested_source.status is not RenderArtifactStatus.SUCCEEDED
+                or requested_source.object_key is None
+            ):
+                raise ValueError("pixel-cover source try-on must be completed")
         base_signature = build_render_input_signature(
             detail,
             capture,
             RenderArtifactKind.COLLAGE,
             look_display_hash=look_display_hash(detail, user_id),
         )
-        source_artifact: RenderArtifactView | None = None
-        if body.kind is not RenderArtifactKind.COLLAGE:
+        source_artifact: RenderArtifactView | None = requested_source
+        if body.kind is not RenderArtifactKind.COLLAGE and source_artifact is None:
             source_artifact = await services.renders.create_or_get(
                 user_id=user_id,
                 look_id=look_id,

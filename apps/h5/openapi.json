@@ -109,6 +109,18 @@
           "kind": {
             "$ref": "#/components/schemas/RenderArtifactKind"
           },
+          "source_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Artifact Id"
+          },
           "subject_object_key": {
             "anyOf": [
               {

@@ -775,6 +775,8 @@ export interface components {
         /** CreateRenderArtifactBody */
         CreateRenderArtifactBody: {
             kind: components["schemas"]["RenderArtifactKind"];
+            /** Source Artifact Id */
+            source_artifact_id?: string | null;
             /** Subject Object Key */
             subject_object_key?: string | null;
         };
