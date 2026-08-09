@@ -257,7 +257,16 @@ describe("StyleCapture garment ingest", () => {
     expect(
       await screen.findByRole("heading", { name: "我的衣橱" })
     ).toBeVisible();
-    expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
+    const navigation = screen.getByRole("navigation", { name: "主要功能" });
+    expect(navigation).toBeVisible();
+    const navigationButtons = within(navigation).getAllByRole("button");
+    expect(navigationButtons).toHaveLength(5);
+    expect(navigationButtons[0]).toHaveAccessibleName("衣橱");
+    expect(navigationButtons[1]).toHaveAccessibleName("AI");
+    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服或试试像素形象");
+    expect(navigationButtons[3]).toHaveAccessibleName("像素世界");
+    expect(navigationButtons[4]).toHaveAccessibleName("我的");
+    expect(within(navigation).queryByRole("button", { name: "分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刷灵感 Feed" })).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
@@ -496,6 +505,78 @@ describe("StyleCapture garment ingest", () => {
     );
   });
 
+  it("refreshes the look after queuing generated flat-lay item images", async () => {
+    const lookId = "11111111-1111-4111-8111-111111111111";
+    window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
+    const detail = {
+      look: {
+        id: lookId,
+        capture_id: null,
+        status: "ready" as const,
+        source: "user_created" as const,
+        display_image_url: `/v1/looks/${lookId}/image`,
+        source_image_url: `/v1/looks/${lookId}/source`,
+        display_ready: true,
+        source_available: true,
+        fixed_presentation: false,
+        created_at: "2026-07-25T00:00:00Z",
+        updated_at: "2026-07-25T00:01:00Z"
+      },
+      components: [
+        {
+          component_key: "top",
+          status: "ready" as const,
+          item_id: wardrobeItem.id,
+          item_image_url: wardrobeItem.display_image_url,
+          item_image_status: null,
+          role: "tops",
+          layer: "base",
+          display_order: 0,
+          confidence: 0.95
+        }
+      ],
+      analysis: null,
+      preferences: [],
+      source_video_ref: null,
+      source_timestamp_ms: null
+    };
+    api.getLook
+      .mockResolvedValueOnce(detail)
+      .mockResolvedValue({
+        ...detail,
+        components: detail.components.map((component) => ({
+          ...component,
+          item_image_status: "queued" as const
+        }))
+      });
+    api.listRenders.mockResolvedValue([
+      {
+        ...collageRender,
+        status: "succeeded",
+        output_image_url: `/v1/looks/${lookId}/renders/${collageRender.id}/image`
+      }
+    ]);
+    api.ensureItemFlatLayPresentation.mockResolvedValue({
+      ...failedFlatLay,
+      status: "queued",
+      failure_code: null,
+      failure_message: null,
+      retryable: false
+    });
+
+    renderApp();
+
+    expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
+    await waitFor(() =>
+      expect(api.ensureItemFlatLayPresentation).toHaveBeenCalledWith(wardrobeItem.id)
+    );
+    await waitFor(() => expect(api.getLook).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("正在生成白底单品图")).toBeVisible();
+    expect(
+      screen.getByRole("status", { name: "上装白底单品图生成中" })
+    ).toBeVisible();
+  });
+
   it("keeps a curated example on its fixed presentation without requesting another collage", async () => {
     const lookId = "11111111-1111-4111-8111-111111111111";
     window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
@@ -637,7 +718,7 @@ describe("StyleCapture garment ingest", () => {
     expect(scrollContainer).not.toBeNull();
     scrollContainer!.scrollTop = 640;
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "AI" }));
 
     await waitFor(() => expect(scrollContainer!.scrollTop).toBe(0));
   });

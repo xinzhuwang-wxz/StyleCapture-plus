@@ -431,10 +431,57 @@ describe("Look wardrobe states", () => {
     expect(
       screen.getByRole("img", { name: "真实单品拼贴生成中" })
     ).toBeInTheDocument();
-    expect(screen.getByText("单品图生成中，请稍后")).toBeInTheDocument();
+    expect(screen.getByText("正在生成整套拼贴")).toBeInTheDocument();
     expect(
       screen.queryByRole("img", { name: "收藏的真实整套穿搭" })
     ).not.toBeInTheDocument();
+  });
+
+  it("shows real item-image progress on the hero and each pending component", () => {
+    const detail = readyDetail();
+    detail.components = [
+      {
+        ...detail.components[0],
+        item_image_status: "running"
+      },
+      {
+        component_key: "bottom",
+        status: "ready",
+        item_id: "66666666-6666-4666-8666-666666666666",
+        item_image_url: "/v1/item-presentations/66666666-6666-4666-8666-666666666666/image",
+        item_image_status: "succeeded",
+        role: "bottoms",
+        layer: "base",
+        display_order: 1,
+        confidence: 0.91
+      }
+    ];
+
+    render(
+      <LookDetail
+        detail={detail}
+        loading={false}
+        renders={[]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("正在生成单品图 1/2")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "单品图生成进度" })).toHaveAttribute(
+      "value",
+      "1"
+    );
+    expect(
+      screen.getByRole("status", { name: "上装白底单品图生成中" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("正在生成白底单品图")).toBeInTheDocument();
   });
 
   it("builds the hero flatlay from component images when no collage render is available", () => {

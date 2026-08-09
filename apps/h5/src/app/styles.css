@@ -943,7 +943,7 @@ p {
   border: 3px solid rgba(255, 255, 255, 0.38);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: item-flat-lay-spin 0.8s linear infinite;
+  animation: item-flat-lay-spin 1.6s linear infinite;
 }
 
 @keyframes item-flat-lay-spin {
@@ -1060,6 +1060,13 @@ p {
   top: 34%;
 }
 
+.look-detail__flatlay-items img.is-generating {
+  opacity: 0.52;
+  filter: blur(3px) saturate(0.78)
+    drop-shadow(0 0.35rem 0.45rem rgba(43, 35, 48, 0.09));
+  transform: scale(1.025);
+}
+
 .look-detail__collage-status {
   position: absolute;
   right: 0.45rem;
@@ -1067,8 +1074,8 @@ p {
   left: 0.45rem;
   display: flex;
   align-items: center;
-  gap: 0.28rem;
-  padding: 0.38rem 0.48rem;
+  gap: 0.48rem;
+  padding: 0.48rem 0.58rem;
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 0.65rem;
   background: rgba(255, 255, 255, 0.82);
@@ -1082,15 +1089,55 @@ p {
   transform: scale(1.035);
 }
 
-.look-detail__collage-status span {
-  font-size: 0.85rem;
+.look-detail__collage-status .item-flat-lay-spinner {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-width: 2px;
+  border-color: rgba(124, 77, 255, 0.18);
+  border-top-color: var(--purple-600);
 }
 
 .look-detail__collage-status strong {
+  font-size: 0.6rem;
+  line-height: 1.25;
+}
+
+.look-detail__collage-status-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 0.18rem;
+}
+
+.look-detail__collage-status-copy small {
+  color: var(--muted);
+  font-size: 0.5rem;
+  line-height: 1.2;
+}
+
+.look-detail__collage-status-copy progress {
+  width: 100%;
+  height: 0.22rem;
   overflow: hidden;
-  font-size: 0.56rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border: 0;
+  border-radius: 99rem;
+  background: rgba(124, 77, 255, 0.12);
+  color: var(--purple-600);
+}
+
+.look-detail__collage-status-copy progress::-webkit-progress-bar {
+  background: rgba(124, 77, 255, 0.12);
+}
+
+.look-detail__collage-status-copy progress::-webkit-progress-value {
+  border-radius: 99rem;
+  background: linear-gradient(90deg, var(--purple-500), var(--purple-700));
+}
+
+.look-detail__collage-status-copy progress::-moz-progress-bar {
+  border-radius: 99rem;
+  background: linear-gradient(90deg, var(--purple-500), var(--purple-700));
 }
 
 .look-detail__tryon-empty {
@@ -1493,6 +1540,49 @@ p {
 
 .look-component-strip__link:active { transform: scale(0.97); }
 
+.look-component-strip__media {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.85rem;
+}
+
+.look-component-strip__media.is-generating img,
+.look-component-strip__media.is-generating .item-image-placeholder {
+  opacity: 0.56;
+  filter: blur(3px) saturate(0.76);
+  transform: scale(1.035);
+}
+
+.look-component-strip__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.3rem;
+  color: var(--purple-800);
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(1px);
+}
+
+.look-component-strip__loading .item-flat-lay-spinner {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-width: 2px;
+  border-color: rgba(124, 77, 255, 0.2);
+  border-top-color: var(--purple-600);
+}
+
+.look-component-strip__loading em {
+  padding: 0.18rem 0.38rem;
+  border-radius: 99rem;
+  background: rgba(255, 255, 255, 0.86);
+  font-size: 0.52rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
 /* 衣橱里没有的单品照设计稿压暗，一眼能看出这件要另外买。 */
 .look-component-strip__link--shop img,
 .look-component-strip__link--shop .item-image-placeholder {
@@ -1503,8 +1593,9 @@ p {
   color: var(--pixel-pink-dark);
 }
 
-.look-component-strip img,
-.look-component-strip .item-image-placeholder {
+.look-component-strip__media > img,
+.look-component-strip__media > .item-image-placeholder {
+  display: block;
   width: 100%;
   aspect-ratio: 0.82;
   border: 1px solid rgba(124, 91, 184, 0.16);

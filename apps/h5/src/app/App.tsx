@@ -41,7 +41,6 @@ type Selection = {
 type Destination =
   | "feed"
   | "wardrobe"
-  | "analysis"
   | "ai"
   | "world"
   | "profile";
@@ -83,11 +82,6 @@ const AIRecommendScreen = lazy(() =>
     default: module.AIRecommendScreen
   }))
 );
-const AnalysisScreen = lazy(() =>
-  import("../features/analysis/AnalysisScreen").then((module) => ({
-    default: module.AnalysisScreen
-  }))
-);
 const ProfileScreen = lazy(() =>
   import("../features/profile/ProfileScreen").then((module) => ({
     default: module.ProfileScreen
@@ -99,7 +93,7 @@ const WardrobeScreen = lazy(() =>
   }))
 );
 
-type NavIconName = "wardrobe" | "analysis" | "ai" | "world" | "profile";
+type NavIconName = "wardrobe" | "ai" | "world" | "profile";
 
 function NavIcon({ name }: { name: NavIconName }) {
   if (name === "wardrobe") {
@@ -115,24 +109,6 @@ function NavIcon({ name }: { name: NavIconName }) {
         viewBox="0 0 24 24"
       >
         <path d="m9.5 4-2 3L4 8.4 5.7 13l3.1-1.3V20h6.4v-8.3l3.1 1.3L20 8.4 16.5 7l-2-3h-5Z" />
-      </svg>
-    );
-  }
-
-  if (name === "analysis") {
-    return (
-      <svg
-        aria-hidden="true"
-        className="nav-icon"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-        viewBox="0 0 24 24"
-      >
-        <path d="M4 19V5m0 14h16M8 15l3-4 3 2 4-6" />
-        <path d="m16 7 2-1 1 2" />
       </svg>
     );
   }
@@ -883,10 +859,17 @@ export function App() {
     for (const itemId of itemIds) {
       if (flatLayAttemptedItemIds.current.has(itemId)) continue;
       flatLayAttemptedItemIds.current.add(itemId);
-      void wardrobeApi.ensureItemFlatLayPresentation(itemId).catch(() => {
-        // The detail page keeps the real item display asset when this optional
-        // presentation cannot be queued, and its own request permits recovery.
-      });
+      void wardrobeApi
+        .ensureItemFlatLayPresentation(itemId)
+        .then(() =>
+          queryClient.invalidateQueries({
+            queryKey: ["wardrobe-look", detail.look.id]
+          })
+        )
+        .catch(() => {
+          // The detail page keeps the real item display asset when this optional
+          // presentation cannot be queued, and its own request permits recovery.
+        });
     }
   }, [lookQuery.data, rendersQuery.data]);
 
@@ -1106,11 +1089,7 @@ export function App() {
                     destination === "profile" ? " wardrobe-header__title--profile" : ""
                   }`}
                 >
-                  {destination === "analysis"
-                    ? "穿搭分析"
-                    : destination === "ai"
-                      ? "AI 推荐"
-                      : "我的"}
+                  {destination === "ai" ? "AI 推荐" : "我的"}
                 </h1>
                 <p className="subtitle wardrobe-header__summary">
                   拥有的和喜欢的，<br />
@@ -1183,19 +1162,6 @@ export function App() {
               onDismissPending={dismissPending}
               onNotice={setNotice}
               onSaveCombo={saveCombo}
-            />
-          </Suspense>
-        ) : null}
-
-        {destination === "analysis" ? (
-          <Suspense fallback={<DeferredScreenFallback />}>
-            <AnalysisScreen
-              items={items}
-              looks={looks}
-              pixelCovers={pixelCovers}
-              onGoAI={() => setDestination("ai")}
-              onGoWardrobe={() => setDestination("wardrobe")}
-              onOpenLook={(lookId) => setSelectedLookId(lookId)}
             />
           </Suspense>
         ) : null}
@@ -1416,13 +1382,13 @@ export function App() {
           ) : null}
         </button>
         <button
-          aria-current={destination === "analysis" ? "page" : undefined}
-          className={destination === "analysis" ? "is-active" : ""}
+          aria-current={destination === "ai" ? "page" : undefined}
+          className={destination === "ai" ? "is-active" : ""}
           type="button"
-          onClick={() => setDestination("analysis")}
+          onClick={() => setDestination("ai")}
         >
-          <NavIcon name="analysis" />
-          <small>分析</small>
+          <NavIcon name="ai" />
+          <small>AI</small>
         </button>
         <button
           ref={addMenuTrigger}
@@ -1432,15 +1398,6 @@ export function App() {
           onClick={() => setAddMenuOpen(true)}
         >
           <span className="nav-icon" aria-hidden="true">＋</span>
-        </button>
-        <button
-          aria-current={destination === "ai" ? "page" : undefined}
-          className={destination === "ai" ? "is-active" : ""}
-          type="button"
-          onClick={() => setDestination("ai")}
-        >
-          <NavIcon name="ai" />
-          <small>AI</small>
         </button>
         <button
           type="button"
