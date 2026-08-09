@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from hashlib import sha256
 from io import BytesIO
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -261,12 +262,14 @@ def test_pixel_card_recolors_connected_gray_background_with_stable_variety() -> 
     second, second_quality = normalize_pixel_card_output(generated, seed="item-c")
 
     assert first_quality["background_palette"] != second_quality["background_palette"]
-    assert first_quality["background_recolored_ratio"] > 0.5
+    recolored_ratio = first_quality["background_recolored_ratio"]
+    assert isinstance(recolored_ratio, float)
+    assert recolored_ratio > 0.5
     with Image.open(BytesIO(first.body)) as first_card:
         assert first_card.size == (1024, 1024)
-        corner = first_card.getpixel((12, 12))
+        corner = cast(tuple[int, int, int], first_card.getpixel((12, 12)))
         assert max(corner) - min(corner) >= 8
-        subject = first_card.getpixel((512, 512))
+        subject = cast(tuple[int, int, int], first_card.getpixel((512, 512)))
         assert subject[0] > 150 and subject[1] < 90
     with Image.open(BytesIO(second.body)) as second_card:
         assert second_card.getpixel((12, 12)) != corner
