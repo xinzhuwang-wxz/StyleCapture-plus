@@ -65,11 +65,18 @@ class MemoryWardrobe:
         return await self.save(item)
 
     async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool:
-        for identity, item in tuple(self.items.items()):
-            if item.id == item_id and item.user_id == user_id:
-                del self.items[identity]
-                return True
-        return False
+        identity = next(
+            (
+                key
+                for key, item in self.items.items()
+                if item.id == item_id and item.user_id == user_id
+            ),
+            None,
+        )
+        if identity is None:
+            return False
+        del self.items[identity]
+        return True
 
 
 class MemoryLooks:

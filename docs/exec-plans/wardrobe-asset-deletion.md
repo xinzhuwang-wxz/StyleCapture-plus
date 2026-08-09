@@ -22,8 +22,8 @@ The implementation reuses the existing wardrobe and Look applications, repositor
 
 ## Decisions
 
-1. “Delete Look only” removes the Look and its Look-owned rows while keeping all Items.
-2. “Delete Look and Items” deletes only Items that are no longer referenced by another Look; shared Items are reported and preserved.
+1. "Delete Look only" removes the Look and its Look-owned rows while keeping all Items.
+2. "Delete Look and Items" deletes only Items that are no longer referenced by another Look; shared Items are reported and preserved.
 3. Direct Item deletion removes Look-component references, marks affected Looks partial, and invalidates their generated renders.
 4. Processing Items/Looks return HTTP 409. This prevents a queued worker from resurrecting a physically deleted row.
 5. Object-store blobs follow the deployment's retention cleanup; the synchronous operation removes database-visible assets atomically.
@@ -32,7 +32,8 @@ The implementation reuses the existing wardrobe and Look applications, repositor
 
 - Backend focused suite: 29 passed.
 - H5 TypeScript typecheck: passed.
-- H5 focused suite: 64 passed, including all deletion scenarios.
+- H5 focused suite in the implementation worktree: 64 passed.
+- Clean PR branch item-deletion unit suite: 7 passed.
 - Mobile Playwright smoke test against `http://localhost:5173`: 1 passed; it exercised scope selection, final confirmation, back, and cancel without submitting a deletion.
 
 ## Follow-up

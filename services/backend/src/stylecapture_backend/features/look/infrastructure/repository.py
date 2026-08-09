@@ -383,13 +383,17 @@ class SqlAlchemyLookRepository:
                     if still_referenced is not None:
                         preserved_item_ids.append(item_id)
                         continue
-                    deleted = await session.execute(
-                        delete(ItemRecord).where(
-                            ItemRecord.id == item_id,
-                            ItemRecord.user_id == user_id,
+                    deleted_item_id = (
+                        await session.execute(
+                            delete(ItemRecord)
+                            .where(
+                                ItemRecord.id == item_id,
+                                ItemRecord.user_id == user_id,
+                            )
+                            .returning(ItemRecord.id)
                         )
-                    )
-                    if cast(int, getattr(deleted, "rowcount", 0)) > 0:
+                    ).scalar_one_or_none()
+                    if deleted_item_id is not None:
                         deleted_item_ids.append(item_id)
 
             await session.commit()

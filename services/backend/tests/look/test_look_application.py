@@ -23,6 +23,7 @@ from stylecapture_backend.features.look.application import (
 from stylecapture_backend.features.look.domain import (
     Look,
     LookComponent,
+    LookDeletionResult,
     LookDetail,
     LookSource,
     PreferenceSignal,
@@ -117,6 +118,31 @@ class MemoryLookRepository:
         del components
         stored = await self.ensure_placeholder(look, signal)
         return stored
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None:
+        del delete_items
+        identity = next(
+            (
+                key
+                for key, look in self.looks.items()
+                if look.id == look_id and look.user_id == user_id
+            ),
+            None,
+        )
+        if identity is None:
+            return None
+        del self.looks[identity]
+        return LookDeletionResult(
+            look_id=look_id,
+            deleted_item_ids=(),
+            preserved_shared_item_ids=(),
+        )
 
 
 def whole_outfit_capture(*, user_id: UUID) -> Capture:
