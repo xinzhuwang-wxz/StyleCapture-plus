@@ -1366,7 +1366,6 @@ export function App() {
               looks={looks}
               pixelArtifacts={pixelArtifacts}
               pixelCovers={pixelCovers}
-              activePixelCoverIds={activePixelCoverIds}
               onSetPixelCover={setPixelCover}
             />
           </Suspense>

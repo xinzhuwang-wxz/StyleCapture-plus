@@ -5,7 +5,7 @@ from stylecapture_backend.features.render.pixel_card_style import build_pixel_ca
 
 PIXEL_COVER_CAPABILITY_ID = "look.pixel_cover"
 PIXEL_COVER_OUTPUT_SIZE = "1728x2304"
-PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v9-candidate"
+PIXEL_COVER_PROMPT_VERSION = "look-pixel-cover-zh-v10-candidate"
 PIXEL_COVER_SCHEMA_VERSION = "generated-image-v1"
 
 TRY_ON_CAPABILITY_ID = "look.virtual_try_on"
@@ -16,6 +16,7 @@ TRY_ON_SCHEMA_VERSION = "generated-image-v1"
 
 PIXEL_COVER_PROMPT = build_pixel_card_prompt(
     "前一至两张图是同一套 Look 的内容图，用于人物或服装轮廓、配色、材质和搭配关系；"
+    "其中单品拼贴只用于还原人物穿搭，不得成为背景装饰；"
     "最后两张图只提供画风、精致五官、轮廓像素、内部明暗层次、卡片留白和地毯结构。"
     "不继承示例卡片的背景配色或装饰主题。"
 )

@@ -20,7 +20,6 @@ interface ProfileScreenProps {
   looks?: Look[];
   pixelArtifacts?: RenderArtifact[];
   pixelCovers?: Record<string, RenderArtifact | undefined>;
-  activePixelCoverIds?: Record<string, string | null>;
   onSetPixelCover?: (lookId: string, artifactId: string) => void;
 }
 
@@ -51,7 +50,7 @@ export function ProfileScreen({
     ) {
       return [];
     }
-    return [{ ...owner, artifact }];
+    return [{ look: owner.look, lookIndex: owner.index, artifact }];
   });
   const profilePortraitUrl = "/assets/stylecapture-profile-portrait.png";
   const statusCopy = pixelPeople.length
@@ -152,7 +151,7 @@ export function ProfileScreen({
 
       <section className="profile__pixel-gallery" aria-label="我的像素小人陈列馆">
         {pixelPeople.length ? (
-          pixelPeople.map(({ look, artifact, index }) => {
+          pixelPeople.map(({ look, lookIndex, artifact }, galleryIndex) => {
             const isCover = pixelCovers[look.id]?.id === artifact.id;
             return (
               <article key={artifact.id} className="profile__pixel-person" data-cover={isCover}>
@@ -161,13 +160,14 @@ export function ProfileScreen({
                     src={`${artifact.output_image_url}?v=${encodeURIComponent(
                       artifact.updated_at
                     )}`}
-                    alt={`第 ${index + 1} 个像素小人`}
+                    alt={`第 ${galleryIndex + 1} 个像素小人`}
                     data-pixel="true"
                   />
                   {isCover ? <span>封面</span> : null}
                 </div>
                 <strong>
-                  {look.source === "feed_saved" ? "Feed 穿搭" : "我的穿搭"} {index + 1}
+                  {look.source === "feed_saved" ? "Feed 穿搭" : "我的穿搭"}{" "}
+                  {lookIndex + 1}
                 </strong>
                 <small>来自这套穿搭的像素卡片</small>
                 <button
