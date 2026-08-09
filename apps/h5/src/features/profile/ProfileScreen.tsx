@@ -20,6 +20,8 @@ import "./profile.css";
 
 interface ProfileScreenProps {
   itemCount: number;
+  photoAlbum?: PhotoAlbum;
+  onPhotoAlbumChange?: (album: PhotoAlbum) => void;
   onNotice?: (message: string) => void;
 }
 
@@ -45,7 +47,12 @@ function trialPreviewUrl(trial: PixelTrial | null): string {
   return pixelAvatarDataUrl("user-profile", { size: 180, hat: false });
 }
 
-export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
+export function ProfileScreen({
+  itemCount,
+  photoAlbum,
+  onPhotoAlbumChange,
+  onNotice
+}: ProfileScreenProps) {
   const queryClient = useQueryClient();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +62,9 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
   // 身材资料只在本机，读一次就够；保存后由 sheet 回传最新值。
   const [bodyProfile, setBodyProfile] = useState<BodyProfile>(readBodyProfile);
   const [editingBody, setEditingBody] = useState(false);
-  const [album, setAlbum] = useState<PhotoAlbum>(readPhotoAlbum);
+  const [localAlbum, setLocalAlbum] = useState<PhotoAlbum>(readPhotoAlbum);
+  const album = photoAlbum ?? localAlbum;
+  const changeAlbum = onPhotoAlbumChange ?? setLocalAlbum;
   const [managingPhotos, setManagingPhotos] = useState(false);
 
   const trialQuery = useQuery({
@@ -147,7 +156,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
     return (
       <PhotoManagerSheet
         album={album}
-        onChange={setAlbum}
+        onChange={changeAlbum}
         onClose={() => setManagingPhotos(false)}
         onNotice={onNotice}
       />
@@ -332,7 +341,7 @@ export function ProfileScreen({ itemCount, onNotice }: ProfileScreenProps) {
         <ul>
           <li>这里是体验入口：只生成像素图，不写入数字衣橱。</li>
           <li>想把真实衣服入库，请用底部“添加”或 Feed 圈选入口。</li>
-          <li>已保存套装里的“真人试穿”仍在穿搭详情中上传全身照。</li>
+          <li>这里保存的默认形象照，会在穿搭详情的“真人试穿”中优先选中。</li>
         </ul>
       </section>
     </div>

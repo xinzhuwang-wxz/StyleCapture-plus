@@ -379,18 +379,22 @@ describe("Look wardrobe states", () => {
     expect(screen.queryByRole("tab", { name: "真实拼贴" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
-    expect(document.querySelector('input[capture="user"]')).not.toBeNull();
     expect(
       document.querySelector('.render-studio__preview img[alt="真实单品拼贴"]')
     ).toBeNull();
     expect(
       screen.getByText(
-        "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
+        "选择已有形象照，或拍摄、上传一张新的正面全身照，AI 会把这套已保存穿搭换到你身上。"
       )
     ).toBeInTheDocument();
+    const openPicker = screen.getByRole("button", { name: "拍照或上传全身照" });
+    expect(openPicker).toBeEnabled();
+    fireEvent.click(openPicker);
     expect(
-      screen.getByRole("button", { name: "拍照或上传全身照" })
-    ).toBeEnabled();
+      screen.getByRole("dialog", { name: "选择试穿形象" })
+    ).toBeInTheDocument();
+    expect(document.querySelector('input[capture="user"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "关闭形象照选择" }));
 
     fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
     expect(
@@ -548,6 +552,7 @@ describe("Look wardrobe states", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
+    fireEvent.click(screen.getByRole("button", { name: "拍照或上传全身照" }));
     const input = document.querySelector('input[capture="user"]');
     expect(input).not.toBeNull();
     fireEvent.change(input!, {

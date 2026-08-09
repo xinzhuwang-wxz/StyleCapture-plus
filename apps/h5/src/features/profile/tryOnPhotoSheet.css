@@ -1,0 +1,220 @@
+.tryon-photo-picker-layer {
+  position: absolute;
+  z-index: 95;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(35, 25, 51, 0.34);
+  backdrop-filter: blur(5px);
+}
+
+.tryon-photo-picker {
+  width: 100%;
+  max-height: 82%;
+  overflow-y: auto;
+  padding: 0.65rem 1rem max(1.25rem, env(safe-area-inset-bottom));
+  background: #fff;
+  border: 1px solid rgba(126, 87, 255, 0.18);
+  border-radius: 1.6rem 1.6rem 0 0;
+  box-shadow: 0 -1.4rem 3.5rem rgba(48, 31, 72, 0.2);
+}
+
+.tryon-photo-picker__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.tryon-photo-picker__header h2,
+.tryon-photo-picker__header p {
+  margin: 0;
+}
+
+.tryon-photo-picker__header h2 {
+  font-size: 1.12rem;
+  color: var(--pixel-text);
+}
+
+.tryon-photo-picker__header p {
+  margin-top: 0.25rem;
+  font-size: 0.76rem;
+  color: var(--pixel-text-muted);
+}
+
+.tryon-photo-picker__header > button {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  color: var(--pixel-text-muted);
+  background: #fff;
+  border: 1px solid var(--pixel-border);
+  border-radius: 50%;
+  font-size: 1.2rem;
+}
+
+.tryon-photo-picker__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  margin-bottom: 0.9rem;
+  background: #f5f1f8;
+  border-radius: 0.9rem;
+}
+
+.tryon-photo-picker__tabs button {
+  min-height: 2.5rem;
+  color: var(--pixel-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.72rem;
+  font-weight: 650;
+}
+
+.tryon-photo-picker__tabs button[aria-selected="true"] {
+  color: var(--pixel-primary);
+  background: #fff;
+  box-shadow: 0 5px 15px rgba(68, 43, 94, 0.08);
+}
+
+.tryon-photo-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.tryon-photo-picker__photo {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  background: #f7f4f9;
+  border: 2px solid var(--pixel-border);
+  border-radius: 0.85rem;
+}
+
+.tryon-photo-picker__photo[data-selected="true"] {
+  border-color: var(--pixel-primary);
+  box-shadow: 0 0 0 3px rgba(126, 87, 255, 0.12);
+}
+
+.tryon-photo-picker__photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.tryon-photo-picker__photo span {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  left: 5px;
+  padding: 3px 5px;
+  color: #fff;
+  background: rgba(91, 57, 151, 0.82);
+  border-radius: 999px;
+  font-size: 0.58rem;
+}
+
+.tryon-photo-picker__photo i {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  color: #fff;
+  background: var(--pixel-primary);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-style: normal;
+}
+
+.tryon-photo-picker__default {
+  width: 100%;
+  padding: 0.55rem;
+  margin-bottom: 0.55rem;
+  color: var(--pixel-primary);
+  background: transparent;
+  border: 0;
+  font-size: 0.76rem;
+}
+
+.tryon-photo-picker__default:disabled {
+  color: var(--pixel-text-muted);
+}
+
+.tryon-photo-picker__error {
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.75rem;
+  color: #a03c58;
+  background: #fff1f5;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.tryon-photo-picker__new {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.tryon-photo-picker__new > button {
+  display: flex;
+  min-height: 7rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  text-align: left;
+  color: var(--pixel-text);
+  background: linear-gradient(145deg, #fbf9fd, #f4eff9);
+  border: 1px solid var(--pixel-border);
+  border-radius: 1rem;
+}
+
+.tryon-photo-picker__new > button span {
+  margin-bottom: 0.45rem;
+  color: var(--pixel-primary);
+  font-size: 1.35rem;
+}
+
+.tryon-photo-picker__new > button small,
+.tryon-photo-picker__new > p {
+  color: var(--pixel-text-muted);
+  font-size: 0.68rem;
+}
+
+.tryon-photo-picker__new > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: center;
+}
+
+.tryon-photo-picker__empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--pixel-text-muted);
+  background: #faf8fc;
+  border-radius: 1rem;
+}
+
+.tryon-photo-picker__empty p {
+  margin: 0.35rem auto 1rem;
+  font-size: 0.75rem;
+}
+
+.tryon-photo-picker__empty button {
+  padding: 0.65rem 1.1rem;
+  color: #fff;
+  background: var(--pixel-primary);
+  border: 0;
+  border-radius: 999px;
+}

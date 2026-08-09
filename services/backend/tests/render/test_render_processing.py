@@ -916,6 +916,7 @@ async def test_personal_try_on_uses_uploaded_subject_and_real_image_provider_fal
     assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
     assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v3"
     assert stored.provider_trace.parameters["image_count"] == 2
+    assert stored.provider_trace.parameters["size"] == "1728x2304"
     assert dedicated_try_on.categories == []
 
 

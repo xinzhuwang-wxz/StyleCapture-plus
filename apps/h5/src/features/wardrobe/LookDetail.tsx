@@ -3,17 +3,14 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 import {
-  validateImage,
   type LookDetail as LookDetailData,
   type PurchaseDemand,
   type RenderArtifact,
   type RenderKind
 } from "../../api/client";
 import { ShareCardSheet } from "../outfit/ShareCardSheet";
-import {
-  createBrowserImagePreview,
-  releaseBrowserImagePreview
-} from "../../media/browserImagePreview";
+import { TryOnPhotoSheet } from "../profile/TryOnPhotoSheet";
+import { emptyAlbum, type PhotoAlbum } from "../profile/photoStorage";
 import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
 import type { LookItemAction } from "./LookItemActionSheet";
 import { DeleteAssetDialog, type LookDeleteScope } from "./DeleteAssetDialog";
@@ -28,6 +25,8 @@ type LookDetailProps = {
   updatingPurchaseDemandId?: string | null;
   generatingKind?: RenderKind | null;
   tryOnUploading?: boolean;
+  photoAlbum?: PhotoAlbum;
+  onPhotoAlbumChange?: (album: PhotoAlbum) => void;
   deletingTryOnPhoto?: boolean;
   deletingSource?: boolean;
   deletingLook?: boolean;
@@ -81,9 +80,18 @@ function DetailContent({
   onDeleteTryOnPhoto,
   onDeleteSource,
   onDeleteLook,
-  onAdvancePurchaseDemand
-}: Omit<LookDetailProps, "detail" | "loading"> & {
+  onAdvancePurchaseDemand,
+  tryOnPhotoPickerOpen,
+  onOpenTryOnPicker,
+  onCloseTryOnPicker
+}: Omit<
+  LookDetailProps,
+  "detail" | "loading" | "photoAlbum" | "onPhotoAlbumChange"
+> & {
   detail: LookDetailData;
+  tryOnPhotoPickerOpen: boolean;
+  onOpenTryOnPicker: () => void;
+  onCloseTryOnPicker: () => void;
 }) {
   const [reason, setReason] = useState("");
   const [activeRenderKind, setActiveRenderKind] =
@@ -91,15 +99,9 @@ function DetailContent({
   const [sharing, setSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const [pendingTryOnFile, setPendingTryOnFile] = useState<File | null>(null);
-  const [pendingTryOnPreview, setPendingTryOnPreview] = useState<string | null>(
-    null
-  );
-  const [tryOnValidationError, setTryOnValidationError] = useState<string | null>(null);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
   const [deletingLookOpen, setDeletingLookOpen] = useState(false);
   const [heroTryOnRevealed, setHeroTryOnRevealed] = useState(false);
-  const tryOnInputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   const values = detail.analysis?.values ?? {};
@@ -162,8 +164,6 @@ function DetailContent({
           : "try_on"
     );
     setShareMessage(null);
-    setPendingTryOnFile(null);
-    setTryOnValidationError(null);
     setConfirmingSourceDelete(false);
     setDeletingLookOpen(false);
     setHeroTryOnRevealed(false);
@@ -179,7 +179,8 @@ function DetailContent({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (deletingLookOpen) setDeletingLookOpen(false);
+      if (tryOnPhotoPickerOpen) onCloseTryOnPicker();
+      else if (deletingLookOpen) setDeletingLookOpen(false);
       else onCloseRef.current();
     };
     window.addEventListener("keydown", closeOnEscape);
@@ -189,17 +190,12 @@ function DetailContent({
         previouslyFocused.focus();
       }
     };
-  }, [deletingLookOpen, detail.look.id]);
-
-  useEffect(() => {
-    if (!pendingTryOnFile) {
-      setPendingTryOnPreview(null);
-      return;
-    }
-    const preview = createBrowserImagePreview(pendingTryOnFile);
-    setPendingTryOnPreview(preview);
-    return () => releaseBrowserImagePreview(preview);
-  }, [pendingTryOnFile]);
+  }, [
+    deletingLookOpen,
+    detail.look.id,
+    onCloseTryOnPicker,
+    tryOnPhotoPickerOpen
+  ]);
 
   useEffect(() => {
     if (isRenderStudioKind(generatingKind)) setActiveRenderKind(generatingKind);
@@ -420,7 +416,7 @@ function DetailContent({
               setHeroTryOnRevealed((current) => !current);
             } else {
               setActiveRenderKind("try_on");
-              tryOnInputRef.current?.click();
+              onOpenTryOnPicker();
             }
           }}
         >
@@ -729,80 +725,16 @@ function DetailContent({
                   : activeRender?.subject_attached &&
                       activeRender.status === "degraded"
                     ? "本次真人试穿暂时不可用，当前展示真实单品拼贴；可换张全身照重试。"
-                  : "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
+                  : "选择已有形象照，或拍摄、上传一张新的正面全身照，AI 会把这套已保存穿搭换到你身上。"
                 : "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"}
             </p>
             {activeRenderKind === "try_on" && onTryOn ? (
               <>
-                <input
-                  ref={tryOnInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  capture="user"
-                  hidden
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      const validationError = validateImage(file);
-                      if (validationError) {
-                        setPendingTryOnFile(null);
-                        setTryOnValidationError(validationError);
-                      } else {
-                        setTryOnValidationError(null);
-                        setPendingTryOnFile(file);
-                      }
-                    }
-                    event.currentTarget.value = "";
-                  }}
-                />
-                {tryOnValidationError ? (
-                  <div className="profile__error" role="alert">
-                    {tryOnValidationError}
-                  </div>
-                ) : null}
-                {pendingTryOnFile ? (
-                  <div className="render-studio__photo-confirm">
-                    {pendingTryOnPreview ? (
-                      <img
-                        src={pendingTryOnPreview}
-                        alt="待确认的试穿全身照"
-                      />
-                    ) : (
-                      <div className="pending-heic-preview" role="status">
-                        <strong>iPhone 全身照已选中</strong>
-                        <span>确认后会自动转换并用于私人试穿</span>
-                      </div>
-                    )}
-                    <p>
-                      确认使用这张全身照生成本套试穿。原照仅用于本次私人生成，
-                      结果完成后可随时删除原照。
-                    </p>
-                    <div>
-                      <button
-                        className="secondary-action"
-                        type="button"
-                        onClick={() => setPendingTryOnFile(null)}
-                      >
-                        重选
-                      </button>
-                      <button
-                        className="primary-action"
-                        type="button"
-                        onClick={() => {
-                          onTryOn(detail.look.id, pendingTryOnFile);
-                          setPendingTryOnFile(null);
-                        }}
-                      >
-                        确认生成
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
                 <button
                   className="primary-action"
                   type="button"
                   disabled={tryOnUploading || generatingKind !== null}
-                  onClick={() => tryOnInputRef.current?.click()}
+                  onClick={onOpenTryOnPicker}
                 >
                   {tryOnUploading || generatingKind === "try_on"
                     ? "照片上传并生成中…"
@@ -945,6 +877,17 @@ function DetailContent({
 }
 
 export function LookDetail(props: LookDetailProps) {
+  const [tryOnPhotoPickerOpen, setTryOnPhotoPickerOpen] = useState(false);
+
+  useEffect(() => {
+    setTryOnPhotoPickerOpen(false);
+  }, [props.detail?.look.id]);
+
+  const closeDetail = () => {
+    setTryOnPhotoPickerOpen(false);
+    props.onClose();
+  };
+
   return (
     <AnimatePresence>
       {props.loading ? (
@@ -970,7 +913,7 @@ export function LookDetail(props: LookDetailProps) {
             retrying={props.retrying}
             saving={props.saving}
             onOpenItem={props.onOpenItem}
-            onClose={props.onClose}
+            onClose={closeDetail}
             onReturnToSource={props.onReturnToSource}
             onRetry={props.onRetry}
             onSaveReason={props.onSaveReason}
@@ -980,7 +923,24 @@ export function LookDetail(props: LookDetailProps) {
             onDeleteSource={props.onDeleteSource}
             onDeleteLook={props.onDeleteLook}
             onAdvancePurchaseDemand={props.onAdvancePurchaseDemand}
+            tryOnPhotoPickerOpen={tryOnPhotoPickerOpen}
+            onOpenTryOnPicker={() => setTryOnPhotoPickerOpen(true)}
+            onCloseTryOnPicker={() => setTryOnPhotoPickerOpen(false)}
           />
+          <AnimatePresence>
+            {tryOnPhotoPickerOpen && props.onTryOn ? (
+              <TryOnPhotoSheet
+                album={props.photoAlbum ?? emptyAlbum()}
+                busy={props.tryOnUploading}
+                onAlbumChange={props.onPhotoAlbumChange ?? (() => undefined)}
+                onChoose={(file) => {
+                  props.onTryOn?.(props.detail!.look.id, file);
+                  setTryOnPhotoPickerOpen(false);
+                }}
+                onClose={() => setTryOnPhotoPickerOpen(false)}
+              />
+            ) : null}
+          </AnimatePresence>
         </div>
       ) : null}
     </AnimatePresence>
