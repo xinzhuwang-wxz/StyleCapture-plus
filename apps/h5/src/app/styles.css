@@ -2808,13 +2808,13 @@ p {
   display: grid;
   gap: 0.12rem;
   padding: 0.65rem 0.75rem;
-  border-left: 3px solid #2f8f68;
+  border-left: 3px solid #aaa4af;
   border-radius: 4px;
-  background: #f0faf5;
+  background: #f2f1f4;
 }
 
 .ai-result-proof strong {
-  color: #176546;
+  color: #25212b;
   font-size: 0.68rem;
 }
 
@@ -2879,6 +2879,18 @@ p {
 .ai-anchor-confirm {
   width: 100%;
   justify-content: center;
+}
+
+.ai-anchor-confirm.pixel-button--primary {
+  border: 1px solid var(--pixel-primary);
+  background: #fff;
+  color: var(--pixel-primary-dark);
+  box-shadow: none;
+}
+
+.ai-anchor-confirm.pixel-button--primary:active {
+  transform: none;
+  box-shadow: none;
 }
 
 .ai-confirm-block {

@@ -9,7 +9,7 @@ import {
   type SavedOutfitLook,
   wardrobeApi
 } from "../../api/client";
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { PixelButton } from "../../components/PixelUI";
 import { garmentLabel, sourceKindLabel } from "../wardrobe/localization";
 import { ChatHistorySheet } from "./ChatHistorySheet";
 import {
@@ -546,12 +546,6 @@ export function AIRecommendScreen({
         minHeight: "calc(100dvh - 9.5rem)"
       }}
     >
-      <PixelSectionHeader
-        kicker="AI 穿搭闺蜜"
-        title="从真实衣橱开始搭"
-        action={<span style={{ fontSize: "1.4rem" }} aria-hidden="true">◇</span>}
-      />
-
       <div className="ai-mode-switch" role="group" aria-label="推荐方式">
         <button
           type="button"
