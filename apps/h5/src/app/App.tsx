@@ -1208,7 +1208,7 @@ export function App() {
         className="product-view product-view--wardrobe pixel-app"
         hidden={destination === "feed" || destination === "world"}
       >
-        {destination !== "feed" ? (
+        {destination !== "feed" && !(destination === "ai" && aiHistoryOpen) ? (
           <header
             className={`wardrobe-header${
               destination === "wardrobe"

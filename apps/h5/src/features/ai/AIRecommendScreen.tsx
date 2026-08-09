@@ -9,7 +9,7 @@ import {
   type SavedOutfitLook,
   wardrobeApi
 } from "../../api/client";
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { PixelButton } from "../../components/PixelUI";
 import { garmentLabel, sourceKindLabel } from "../wardrobe/localization";
 import { ChatHistorySheet } from "./ChatHistorySheet";
 import {
@@ -517,10 +517,6 @@ export function AIRecommendScreen({
     return (
       <ChatHistorySheet
         records={history}
-        onOpenLook={(lookId) => {
-          onHistoryOpenChange?.(false);
-          onOpenLook(lookId);
-        }}
         onReopen={(record) => {
           // 回到那次对话：把说过的话铺回线程，并接着用同一条记录，
           // 免得同一次聊天在列表里裂成两条。
@@ -550,12 +546,6 @@ export function AIRecommendScreen({
         minHeight: "calc(100dvh - 9.5rem)"
       }}
     >
-      <PixelSectionHeader
-        kicker="AI 穿搭闺蜜"
-        title="从真实衣橱开始搭"
-        action={<span style={{ fontSize: "1.4rem" }} aria-hidden="true">◇</span>}
-      />
-
       <div className="ai-mode-switch" role="group" aria-label="推荐方式">
         <button
           type="button"

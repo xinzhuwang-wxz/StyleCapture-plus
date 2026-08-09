@@ -1,11 +1,9 @@
-import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
+import { PixelButton } from "../../components/PixelUI";
 import { displayDate, type ChatRecord } from "./chatHistory";
 
 type ChatHistorySheetProps = {
   records: readonly ChatRecord[];
-  /** 打开那次最终存进衣橱的穿搭。 */
-  onOpenLook: (lookId: string) => void;
-  /** 没存下搭配的那几次，回到当时说过的话。 */
+  /** 回到当时说过的话。 */
   onReopen: (record: ChatRecord) => void;
   onClose: () => void;
 };
@@ -18,25 +16,22 @@ type ChatHistorySheetProps = {
  */
 export function ChatHistorySheet({
   records,
-  onOpenLook,
   onReopen,
   onClose
 }: ChatHistorySheetProps) {
   return (
-    <section className="profile-page" aria-label="对话记录">
-      <div className="subpage__header">
+    <section className="profile-page chat-history-page" aria-label="对话记录">
+      <header className="chat-history-page__header">
         <PixelButton variant="ghost" onClick={onClose}>
           ‹ 返回
         </PixelButton>
-        <h2>对话记录</h2>
-      </div>
+        <h1>对话记录</h1>
+      </header>
 
-      <PixelSectionHeader
-        kicker={
-          records.length ? `和闺蜜聊过的 ${records.length} 次` : "还没有记录"
-        }
-        title="聊过什么，最后穿了什么"
-      />
+      <p className="chat-history-page__count">
+        {records.length ? `和 AI 聊过的 ${records.length} 次` : "还没有记录"}
+      </p>
+      <h2 className="chat-history-page__title">聊过什么，最后穿了什么</h2>
 
       {records.length === 0 ? (
         <p className="profile__summary">
@@ -46,38 +41,26 @@ export function ChatHistorySheet({
         <ul className="chat-history">
           {records.map((record) => (
             <li key={record.id}>
-              {/*
-                看历史的目的就是「那天穿了什么」，所以整行可点：存过搭配就
-                直接开那套，没存就回到当时说过的话。只有一个小按钮可点等于
-                大部分行点不动。
-              */}
               <button
                 type="button"
                 className="chat-history__row"
-                aria-label={
-                  record.outfitLookId
-                    ? `打开 ${displayDate(record.date)} 选定的搭配：${record.outfitTitle}`
-                    : `回看 ${displayDate(record.date)} 的对话：${record.theme}`
-                }
-                onClick={() =>
-                  record.outfitLookId
-                    ? onOpenLook(record.outfitLookId)
-                    : onReopen(record)
-                }
+                aria-label={`回看 ${displayDate(record.date)} 的对话：${record.theme}`}
+                onClick={() => onReopen(record)}
               >
-                <span className="chat-history__head">
-                  <span className="chat-history__date">
-                    {displayDate(record.date)}
-                  </span>
+                <time className="chat-history__date" dateTime={record.date}>
+                  {displayDate(record.date)}
+                </time>
+                <span className="chat-history__body">
                   <strong>{record.theme}</strong>
-                </span>
-                {record.last ? (
-                  <span className="chat-history__last">{record.last}</span>
-                ) : null}
-                <span className="chat-history__outfit">
-                  {record.outfitTitle
-                    ? `最终选定：${record.outfitTitle} ›`
-                    : "这次没存下搭配 · 回看聊了什么 ›"}
+                  {record.last ? (
+                    <span className="chat-history__last">{record.last}</span>
+                  ) : null}
+                  {record.outfitTitle ? (
+                    <span className="chat-history__outfit">
+                      最后穿了：{record.outfitTitle}
+                    </span>
+                  ) : null}
+                  <span className="chat-history__link">回看聊了什么 ›</span>
                 </span>
               </button>
             </li>

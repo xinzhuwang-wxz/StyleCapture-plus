@@ -97,17 +97,13 @@ function DetailContent({
   const [pixelTaskCollapsed, setPixelTaskCollapsed] = useState(false);
   const [pixelCoverConfirmed, setPixelCoverConfirmed] = useState(false);
   const [awaitingTryOnResult, setAwaitingTryOnResult] = useState(false);
+  const [tryOnPreviewOpen, setTryOnPreviewOpen] = useState(false);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
   const [deletingLookOpen, setDeletingLookOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const tryOnResultRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   const values = detail.analysis?.values ?? {};
-  const analysisSourceLabel =
-    detail.analysis?.capability_alias === "curated_seed" ||
-    detail.analysis?.model_version === "human_reviewed"
-      ? "人工整理 · 示例搭配解析"
-      : "AI 理解";
   const sortedRenders = [...renders].sort((left, right) =>
     right.updated_at.localeCompare(left.updated_at)
   );
@@ -156,6 +152,7 @@ function DetailContent({
     setPixelTaskCollapsed(false);
     setPixelCoverConfirmed(false);
     setAwaitingTryOnResult(false);
+    setTryOnPreviewOpen(false);
     setConfirmingSourceDelete(false);
     setDeletingLookOpen(false);
   }, [detail.look.id]);
@@ -170,7 +167,8 @@ function DetailContent({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (tryOnPhotoPickerOpen) onCloseTryOnPicker();
+      if (tryOnPreviewOpen) setTryOnPreviewOpen(false);
+      else if (tryOnPhotoPickerOpen) onCloseTryOnPicker();
       else if (deletingLookOpen) setDeletingLookOpen(false);
       else onCloseRef.current();
     };
@@ -185,11 +183,14 @@ function DetailContent({
     deletingLookOpen,
     detail.look.id,
     onCloseTryOnPicker,
+    tryOnPreviewOpen,
     tryOnPhotoPickerOpen
   ]);
 
   const latestTryOn = latestByKind.get("try_on");
   const latestPixel = latestByKind.get("pixel_cover");
+  const tryOnTaskFailed =
+    latestTryOn?.status === "failed" || latestTryOn?.status === "degraded";
   const pixelCover = sortedRenders.find(
     (render) =>
       render.kind === "pixel_cover" &&
@@ -299,7 +300,10 @@ function DetailContent({
             onClick={() => setDeletingLookOpen(true)}
           >
             <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+              <path d="M5 7.5h14" />
+              <path d="M9.25 7.5 10 4.75h4l.75 2.75" />
+              <path d="m7.5 7.5.75 11.75h7.5L16.5 7.5" />
+              <path d="M10.25 10.75v5.25M13.75 10.75v5.25" />
             </svg>
           </button>
         ) : (
@@ -645,27 +649,39 @@ function DetailContent({
               <span>
                 {completedTryOn
                   ? "生成完成"
-                  : latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                  : tryOnTaskFailed
                     ? "本次未完成"
                     : "后台生成中"}
               </span>
             </div>
             {completedTryOn?.output_image_url ? (
               <div className="tryon-result__card">
-                <img
-                  src={`${completedTryOn.output_image_url}?v=${encodeURIComponent(
-                    completedTryOn.updated_at
-                  )}`}
-                  alt="真人试穿穿搭卡片"
-                />
-                <div className="tryon-result__copy">
-                  <strong>这套穿搭的真人效果</strong>
-                  <small>仅自己可见，可保存或继续生成像素卡片。</small>
-                </div>
-                <div className="tryon-result__actions">
-                  {onGenerate ? (
+                <button
+                  className="tryon-result__media"
+                  type="button"
+                  aria-label="查看真人试穿大图"
+                  onClick={() => setTryOnPreviewOpen(true)}
+                >
+                  <img
+                    src={`${completedTryOn.output_image_url}?v=${encodeURIComponent(
+                      completedTryOn.updated_at
+                    )}`}
+                    alt="真人试穿穿搭卡片"
+                  />
+                </button>
+                <div className="tryon-result__panel">
+                  <strong className="tryon-result__title">AI试穿效果</strong>
+                  <div className="tryon-result__actions">
                     <button
-                      className="primary-action"
+                      className="tryon-result__action tryon-result__action--view"
+                      type="button"
+                      onClick={() => setTryOnPreviewOpen(true)}
+                    >
+                      查看大图
+                    </button>
+                    {onGenerate ? (
+                      <button
+                      className="tryon-result__action tryon-result__action--pixel"
                       type="button"
                       disabled={generatingKind !== null || pixelTaskBusy}
                       onClick={() => {
@@ -681,18 +697,18 @@ function DetailContent({
                     >
                       {pixelTaskBusy
                         ? "像素卡片生成中…"
-                        : pixelCover
-                          ? "重新生成像素卡片"
-                          : "生成像素卡片"}
+                        : "生成像素卡片"}
+                      </button>
+                    ) : null}
+                    <button
+                      className="tryon-result__action tryon-result__action--save"
+                      type="button"
+                      onClick={() => void downloadTryOnImage()}
+                    >
+                      保存到本地
                     </button>
-                  ) : null}
-                  <button
-                    className="secondary-action"
-                    type="button"
-                    onClick={() => void downloadTryOnImage()}
-                  >
-                    保存到本地照片
-                  </button>
+                  </div>
+                  <small className="tryon-result__note">仅自己可见</small>
                 </div>
                 {latestTryOn?.subject_attached && onDeleteTryOnPhoto ? (
                   <button
@@ -706,19 +722,38 @@ function DetailContent({
                 ) : null}
               </div>
             ) : (
-              <div className="tryon-result__pending" role="status">
-                <span className="item-flat-lay-spinner" aria-hidden="true" />
-                <div>
+              <div
+                className="tryon-result__pending"
+                data-failed={tryOnTaskFailed ? "true" : undefined}
+                role="status"
+              >
+                <span className="tryon-result__pending-visual" aria-hidden="true">
+                  {tryOnTaskFailed ? (
+                    <span className="tryon-result__failure-mark">!</span>
+                  ) : (
+                    <>
+                      <span className="tryon-result__progress-arc" />
+                      <span className="tryon-result__progress-sparkle">✦</span>
+                    </>
+                  )}
+                </span>
+                <div className="tryon-result__pending-copy">
                   <strong>
-                    {latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                    {tryOnTaskFailed
                       ? "真人试穿暂时不可用"
                       : "正在生成真人试穿"}
                   </strong>
                   <small>
-                    {latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                    {tryOnTaskFailed
                       ? "请回到上方“查看效果”重新选择形象照。"
                       : "任务会在后台完成，退出详情也不会丢失。"}
                   </small>
+                  {!tryOnTaskFailed ? (
+                    <span className="tryon-result__status-pill">
+                      <span className="task-progress-spinner" aria-hidden="true" />
+                      后台生成中
+                    </span>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -729,15 +764,19 @@ function DetailContent({
         ) : null}
 
         {detail.analysis ? (
-          <section className="look-detail__section" aria-labelledby="look-analysis-title">
+          <section
+            className="look-detail__section look-analysis-section"
+            aria-labelledby="look-analysis-title"
+          >
             <div className="section-heading">
               <h3 id="look-analysis-title">搭配关系</h3>
-              <span>{analysisSourceLabel}</span>
             </div>
             <div className="look-analysis">
               {Object.entries(values).map(([key, value]) => (
                 <p key={key}>
-                  <span>{LOOK_ANALYSIS_LABELS[key] ?? key}</span>
+                  <span className="look-analysis__label">
+                    {LOOK_ANALYSIS_LABELS[key] ?? key}
+                  </span>
                   <strong>{value}</strong>
                 </p>
               ))}
@@ -781,7 +820,7 @@ function DetailContent({
           />
         </label>
         <button
-          className="primary-action"
+          className="primary-action look-reason__submit"
           type="button"
           disabled={saving || !reason.trim()}
           onClick={() => onSaveReason(detail.look.id, reason.trim())}
@@ -789,6 +828,44 @@ function DetailContent({
           {saving ? "保存中…" : "补充喜欢原因"}
         </button>
       </div>
+      <AnimatePresence>
+        {tryOnPreviewOpen && completedTryOn?.output_image_url ? (
+          <motion.div
+            className="tryon-preview-layer"
+            role="presentation"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setTryOnPreviewOpen(false);
+            }}
+          >
+            <motion.section
+              className="tryon-preview-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-label="真人试穿大图"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+            >
+              <button
+                type="button"
+                aria-label="关闭真人试穿大图"
+                onClick={() => setTryOnPreviewOpen(false)}
+              >
+                ×
+              </button>
+              <img
+                src={`${completedTryOn.output_image_url}?v=${encodeURIComponent(
+                  completedTryOn.updated_at
+                )}`}
+                alt="真人试穿大图"
+              />
+            </motion.section>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {pixelTaskCollapsed && (pixelTaskBusy || pixelTaskReady || pixelTaskFailed) ? (
         <button
           className="render-task-orb"
@@ -868,18 +945,30 @@ function DetailContent({
                   />
                 </div>
               ) : (
-                <div className="render-task-sheet__pending" role="status">
-                  <span className="item-flat-lay-spinner" aria-hidden="true" />
+                <div
+                  className="render-task-sheet__pending"
+                  data-failed={pixelTaskFailed ? "true" : undefined}
+                  role="status"
+                >
+                  {!pixelTaskFailed ? (
+                    <span
+                      className="task-progress-spinner task-progress-spinner--large"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   <strong>
                     {pixelTaskFailed ? "这次没有生成成功" : "正在后台生成，请稍后"}
                   </strong>
+                  {!pixelTaskFailed ? (
+                    <small>你可以先继续浏览，完成后会提醒你</small>
+                  ) : null}
                 </div>
               )}
 
               {pixelTaskReady && pixelCover ? (
                 <div className="render-task-sheet__actions">
                   <button
-                    className="primary-action"
+                    className="primary-action render-task-sheet__action render-task-sheet__action--cover"
                     type="button"
                     disabled={pixelCoverConfirmed || activePixelCoverId === pixelCover.id}
                     onClick={() => {
@@ -892,7 +981,7 @@ function DetailContent({
                       : "设为像素封面"}
                   </button>
                   <button
-                    className="secondary-action"
+                    className="secondary-action render-task-sheet__action render-task-sheet__action--save"
                     type="button"
                     onClick={() => void downloadPixelCover()}
                   >
@@ -927,14 +1016,21 @@ function DetailContent({
                 </button>
               ) : (
                 <button
-                  className="secondary-action"
+                  className="secondary-action render-task-sheet__collapse"
                   type="button"
                   onClick={() => {
                     setPixelTaskOpen(false);
                     setPixelTaskCollapsed(true);
                   }}
                 >
-                  收起到浮球
+                  <span className="render-task-sheet__collapse-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="8.25" />
+                      <path d="M7.5 14.25c1.35-1.05 2.85-1.55 4.5-1.55s3.15.5 4.5 1.55" />
+                      <path d="M9 8.75h6" />
+                    </svg>
+                  </span>
+                  收起到浮球继续浏览
                 </button>
               )}
             </motion.section>

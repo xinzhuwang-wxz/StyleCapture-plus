@@ -291,6 +291,12 @@ describe("Look wardrobe states", () => {
     );
 
     expect(screen.getByRole("img", { name: "真人试穿穿搭卡片" })).toBeInTheDocument();
+    expect(screen.getByText("AI试穿效果")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存到本地" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看大图" }));
+    expect(screen.getByRole("dialog", { name: "真人试穿大图" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "真人试穿大图" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭真人试穿大图" }));
     fireEvent.click(screen.getByRole("button", { name: "生成像素卡片" }));
     expect(onGenerate).toHaveBeenCalledWith(
       pendingLook.id,
@@ -349,6 +355,83 @@ describe("Look wardrobe states", () => {
 
     expect(screen.getByRole("button", { name: "像素卡片生成中…" })).toBeDisabled();
     expect(screen.queryByRole("img", { name: "已生成的像素穿搭卡片" })).not.toBeInTheDocument();
+  });
+
+  it("shows a calm background-progress state for pixel card generation", async () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact({
+            id: "99999999-9999-4999-8999-999999999999",
+            kind: "try_on",
+            presentation_label: "真人试穿",
+            output_image_url:
+              "/v1/render-artifacts/99999999-9999-4999-8999-999999999999/image",
+            updated_at: "2026-07-25T00:00:30Z"
+          }),
+          renderArtifact({
+            id: "88888888-8888-4888-8888-888888888888",
+            kind: "pixel_cover",
+            status: "running",
+            presentation_label: "像素穿搭封面",
+            output_image_url: null,
+            updated_at: "2026-07-25T00:02:00Z"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind="pixel_cover"
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onGenerate={vi.fn()}
+      />
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "正在生成像素卡片" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("正在后台生成，请稍后")).toBeInTheDocument();
+    expect(screen.getByText("你可以先继续浏览，完成后会提醒你")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "收起到浮球继续浏览" }));
+    expect(
+      screen.getByRole("button", { name: "查看像素卡片生成进度" })
+    ).toBeInTheDocument();
+  });
+
+  it("presents the running try-on task as a structured background job", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact({
+            id: "99999999-9999-4999-8999-999999999999",
+            kind: "try_on",
+            status: "running",
+            presentation_label: "真人试穿",
+            output_image_url: null,
+            updated_at: "2026-07-25T00:00:30Z"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind="try_on"
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("正在生成真人试穿")).toBeInTheDocument();
+    expect(screen.getByText("任务会在后台完成，退出详情也不会丢失。")).toBeInTheDocument();
+    expect(screen.getAllByText("后台生成中")).toHaveLength(2);
   });
 
   it("keeps the frontend item layout when a backend collage render succeeds", () => {
@@ -617,7 +700,7 @@ describe("Look wardrobe states", () => {
     expect(screen.queryByText("color")).not.toBeInTheDocument();
   });
 
-  it("labels curated and human-reviewed relationship analysis as manual", () => {
+  it("keeps implementation provenance out of the relationship analysis UI", () => {
     const detail = readyDetail();
     detail.analysis = {
       ...detail.analysis!,
@@ -641,7 +724,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("人工整理 · 示例搭配解析")).toBeInTheDocument();
+    expect(screen.queryByText("人工整理 · 示例搭配解析")).not.toBeInTheDocument();
     expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
   });
 
@@ -718,7 +801,7 @@ describe("Look wardrobe states", () => {
     expect(onGenerate).not.toHaveBeenCalled();
   });
 
-  it("keeps the AI label for real model relationship analysis", () => {
+  it("keeps model provenance out of real relationship analysis", () => {
     render(
       <LookDetail
         detail={readyDetail()}
@@ -735,7 +818,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("AI 理解")).toBeInTheDocument();
+    expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
     expect(
       screen.queryByText("人工整理 · 示例搭配解析")
     ).not.toBeInTheDocument();
