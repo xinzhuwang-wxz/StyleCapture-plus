@@ -509,7 +509,7 @@ describe("StyleCapture garment ingest", () => {
     );
   });
 
-  it("refreshes the look after queuing generated flat-lay item images", async () => {
+  it("does not queue item-image work from an unrelated render refresh", async () => {
     const lookId = "11111111-1111-4111-8111-111111111111";
     window.sessionStorage.setItem("stylecapture:selected-look:v1", lookId);
     const detail = {
@@ -544,41 +544,30 @@ describe("StyleCapture garment ingest", () => {
       source_video_ref: null,
       source_timestamp_ms: null
     };
-    api.getLook
-      .mockResolvedValueOnce(detail)
-      .mockResolvedValue({
-        ...detail,
-        components: detail.components.map((component) => ({
-          ...component,
-          item_image_status: "queued" as const
-        }))
-      });
+    api.getLook.mockResolvedValue(detail);
     api.listRenders.mockResolvedValue([
       {
         ...collageRender,
         status: "succeeded",
         output_image_url: `/v1/looks/${lookId}/renders/${collageRender.id}/image`
+      },
+      {
+        ...collageRender,
+        id: "99999999-9999-4999-8999-999999999999",
+        kind: "try_on",
+        status: "running",
+        presentation_label: "真人试穿",
+        output_image_url: null,
+        updated_at: "2026-07-25T00:02:00Z"
       }
     ]);
-    api.ensureItemFlatLayPresentation.mockResolvedValue({
-      ...failedFlatLay,
-      status: "queued",
-      failure_code: null,
-      failure_message: null,
-      retryable: false
-    });
 
     renderApp();
 
     expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
-    await waitFor(() =>
-      expect(api.ensureItemFlatLayPresentation).toHaveBeenCalledWith(wardrobeItem.id)
-    );
-    await waitFor(() => expect(api.getLook).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("正在生成白底单品图")).toBeVisible();
-    expect(
-      screen.getByRole("status", { name: "上装白底单品图生成中" })
-    ).toBeVisible();
+    await waitFor(() => expect(api.listRenders).toHaveBeenCalledWith(lookId));
+    expect(api.ensureItemFlatLayPresentation).not.toHaveBeenCalled();
+    expect(screen.queryByText("正在生成白底单品图")).not.toBeInTheDocument();
   });
 
   it("keeps a curated example on its fixed presentation without requesting another collage", async () => {
@@ -672,8 +661,18 @@ describe("StyleCapture garment ingest", () => {
       created_at: "2026-07-25T00:00:00Z",
       updated_at: "2026-07-25T00:01:00Z"
     };
+    window.sessionStorage.setItem("stylecapture:selected-look:v1", look.id);
     api.listLooks.mockResolvedValue([look]);
     api.listRenders.mockResolvedValue([]);
+    api.getLook.mockResolvedValue({
+      look,
+      components: [],
+      analysis: null,
+      preferences: [],
+      source_video_ref: null,
+      source_timestamp_ms: null
+    });
+    api.createRender.mockImplementation(() => new Promise<RenderArtifact>(() => undefined));
 
     renderApp();
 
@@ -684,6 +683,8 @@ describe("StyleCapture garment ingest", () => {
         "auto-pixel:11111111-1111-4111-8111-111111111111:2026-07-25T00:01:00Z"
       )
     );
+    expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
   it("retries one failed automatic collage with a new idempotency key", async () => {

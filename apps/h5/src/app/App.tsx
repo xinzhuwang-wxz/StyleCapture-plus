@@ -853,6 +853,41 @@ export function App() {
       });
     }
   });
+  const backgroundRenderMutation = useMutation({
+    mutationFn: ({
+      lookId,
+      kind,
+      idempotencyKey
+    }: {
+      lookId: string;
+      kind: RenderKind;
+      idempotencyKey: string;
+    }) => wardrobeApi.createRender(lookId, kind, idempotencyKey),
+    onSuccess: (render) => {
+      queryClient.setQueryData<RenderArtifact[]>(
+        ["look-renders", render.look_id],
+        (current = []) => [
+          render,
+          ...current.filter((candidate) => candidate.id !== render.id)
+        ]
+      );
+      if (render.kind === "pixel_cover") {
+        setActivePixelCoverIds((current) => {
+          const next = { ...current, [render.look_id]: null };
+          window.localStorage.setItem(
+            LOOK_PIXEL_COVERS_STORAGE_KEY,
+            JSON.stringify(next)
+          );
+          return next;
+        });
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["look-renders", variables.lookId]
+      });
+    }
+  });
   const tryOnMutation = useMutation({
     mutationFn: async ({ lookId, file }: { lookId: string; file: File }) => {
       const subjectObjectKey = await wardrobeApi.uploadPrivateImage(file);
@@ -925,7 +960,6 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
   const autoRenderKey = useRef<string | null>(null);
-  const flatLayAttemptedItemIds = useRef(new Set<string>());
 
   useEffect(() => {
     const detail = lookQuery.data;
@@ -963,53 +997,17 @@ export function App() {
       : `auto-${kind}:${detail.look.id}:${detail.look.updated_at}`;
     if (autoRenderKey.current === key) return;
     autoRenderKey.current = key;
-    renderMutation.mutate({
+    backgroundRenderMutation.mutate({
       lookId: detail.look.id,
       kind,
       idempotencyKey: key
     });
   }, [lookQuery.data, rendersQuery.data, rendersQuery.isSuccess]);
 
-  useEffect(() => {
-    const detail = lookQuery.data;
-    const collageReady = (rendersQuery.data ?? []).some(
-      (render) =>
-        render.kind === "collage" &&
-        render.current !== false &&
-        (render.status === "succeeded" || render.status === "degraded") &&
-        render.output_image_url
-    );
-    if (!detail || !collageReady) return;
-    const itemIds = [...new Set(
-      detail.components
-        .filter(
-          (component) =>
-            component.item_id !== null && component.item_image_status === null
-        )
-        .map((component) => component.item_id)
-        .filter((itemId): itemId is string => itemId !== null)
-    )];
-    for (const itemId of itemIds) {
-      if (flatLayAttemptedItemIds.current.has(itemId)) continue;
-      flatLayAttemptedItemIds.current.add(itemId);
-      void wardrobeApi
-        .ensureItemFlatLayPresentation(itemId)
-        .then(() =>
-          queryClient.invalidateQueries({
-            queryKey: ["wardrobe-look", detail.look.id]
-          })
-        )
-        .catch(() => {
-          // The detail page keeps the real item display asset when this optional
-          // presentation cannot be queued, and its own request permits recovery.
-        });
-    }
-  }, [lookQuery.data, rendersQuery.data]);
-
   const ensuredPixelLookIds = useRef(new Set<string>());
 
   useEffect(() => {
-    if (renderMutation.isPending) return;
+    if (backgroundRenderMutation.isPending) return;
     const candidate = looks.find((look, index) => {
       if (look.status !== "ready" && look.status !== "partial") return false;
       if (look.fixed_presentation) return false;
@@ -1026,12 +1024,12 @@ export function App() {
     });
     if (!candidate) return;
     ensuredPixelLookIds.current.add(candidate.id);
-    renderMutation.mutate({
+    backgroundRenderMutation.mutate({
       lookId: candidate.id,
       kind: "pixel_cover",
       idempotencyKey: `auto-pixel:${candidate.id}:${candidate.updated_at}`
     });
-  }, [lookRenderQueries, looks, renderMutation.isPending]);
+  }, [lookRenderQueries, looks, backgroundRenderMutation.isPending]);
 
   function chooseFile(file: File | undefined, sourceKind: SourceKind) {
     if (!file) return;
