@@ -1,6 +1,6 @@
 ---
 name: doubao-virtual-try-on
-description: Generate photorealistic virtual try-on images from one real-person photo and one or more outfit-item collages by calling the Volcengine Ark Doubao Seed 2.0 Lite understanding model and Doubao Seedream 5.0 image API. Use for 真人换装, 穿搭上身, outfit visualization, look-board-to-photo, virtual fitting, or multiple outfits for the same person. Use identity-anchor batch mode whenever one person receives two or more outfits so the face, head scale, body proportions, pose, camera, and framing remain consistent. Never use local image-generation tools for this workflow.
+description: Generate photorealistic virtual try-on images from one real-person photo and one or more outfit-item collages by calling the Volcengine Ark Doubao Seed 2.0 Lite understanding model and Doubao Seedream 5.0 image API. Use for 真人换装, 穿搭上身, outfit visualization, look-board-to-photo, virtual fitting, or multiple outfits for the same person. Use source-framing-lock batch mode whenever one person receives two or more outfits so the face, body proportions, pose, camera, and crop remain consistent. Never use local image-generation tools for this workflow.
 ---
 
 # Doubao Virtual Try-On
@@ -13,7 +13,10 @@ Require Python 3.10 or newer with network access to `ark.cn-beijing.volces.com`.
 
 Collect these semantic inputs:
 
-1. A clear photo of the person. The background, pose, crop, and current clothing may be arbitrary.
+1. A photo whose primary person is continuously visible from neck and shoulders through both
+   knees and most of both calves. Face sharpness and existing face occlusion are acceptable; the
+   workflow must preserve the visible facial features and the occlusion instead of inventing a
+   different face. Reject photos cropped above the knees or around the upper thighs.
 2. One or more collage or flat-lay images containing the desired garments and optional shoes, bag, belt, jewelry, or other accessories.
 
 Accept an optional third image only as a composition or realism reference. Never treat it as an identity or clothing source.
@@ -53,7 +56,7 @@ The default two-attempt limit only performs the second generation when the first
 
 ## Run multiple outfits for one person
 
-Use one call so every look shares one canonical full-body identity anchor:
+Use one call so every look shares the same accepted source-photo framing anchor:
 
 ```bash
 python3 <skill-directory>/scripts/batch_virtual_try_on.py \
@@ -67,19 +70,18 @@ python3 <skill-directory>/scripts/batch_virtual_try_on.py \
 The batch script must:
 
 1. Analyze exact facial geometry instead of general resemblance.
-2. Generate and audit one neutral full-body identity anchor.
-3. Reuse the original face reference plus the same anchor for every outfit.
-4. Lock head pixel size, head-to-body ratio, skeleton, pose, lens, camera distance, crop and background.
+2. Copy the accepted source photo as the framing anchor; never generate missing anatomy.
+3. Reuse the original identity reference plus the same source anchor for every outfit.
+4. Lock head pixel size, visible body proportions, pose, lens, camera distance, crop and background.
 5. Audit each look against the source face, anchor and outfit board.
 6. Cross-audit all final looks side by side.
 
 Treat `cross_look_pass: false` as a failed batch even when individual outfits pass. Read `cross-look-audit.json`, identify outlier looks, and retry them with the listed corrections before presenting the set as consistent.
 
-If the source image does not show the full body, state clearly that the anchor establishes one
-consistent inferred body; it cannot recover the person's unknown real height or limb proportions.
-Request an additional clear full-body reference when matching the person's real body proportions
-matters. A single cropped portrait can lock cross-look consistency, but it cannot prove true-body
-fidelity.
+Do not infer missing anatomy. When the source does not continuously show the body from neck and
+shoulders through the calves, stop before generation, explain which region is cropped, and request
+a replacement photo. A face that is soft, partially hidden, covered by glasses, or covered by a
+sticker is not by itself a rejection reason.
 
 ## Non-negotiable behavior
 
@@ -88,6 +90,21 @@ fidelity.
 - Use `doubao-seedream-5-0-260128` for image generation.
 - Never call `image_gen`, another AIGC provider, or a local image model as a fallback.
 - Keep the person image as the only identity source and the outfit board as the only replacement-clothing source.
+- If an otherwise eligible source reaches the calves or ankles but does not show both feet, skip
+  shoes from the outfit board. Never extend the canvas, invent feet, shorten the legs, enlarge the
+  head, or reframe the body merely to display footwear.
+- Preserve each replacement garment's real silhouette, volume, shoulder line, folds and wearing
+  ease. A loose, oversized, boxy, flared or draped item must not become fitted because the source
+  garment was tight.
+- Preserve target colors from outfit-board pixels, including undertone, relative lightness and
+  heather/marl variation. Do not reduce a nuanced warm gray or oatmeal garment to generic white or
+  cool gray.
+- Preserve visible shoulder, torso and hip landmarks. When source clothing conceals chest, waist
+  or hip width, use conservative neutral continuity from visible landmarks; never infer an
+  idealized body or use the loose source garment's outside edge as the person's body contour.
+- Keep the generation prompt compact and priority ordered. Let the understanding call return
+  structured identity, contour-visibility, color and silhouette facts; never let it author a
+  second free-form generation prompt that duplicates the script's deterministic rules.
 - Never infer a fresh body independently for each outfit in a same-person set. Reuse the batch identity anchor.
 - Do not retain the source photo's clothes or accessories unless the same item appears on the outfit board.
 - Generate a single vertical photorealistic image, not a collage, catalog sheet, illustration, or before/after layout.

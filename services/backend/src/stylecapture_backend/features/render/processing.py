@@ -333,7 +333,15 @@ class RenderProcessor:
                 )
                 await self._store_success(artifact, _generated_payload(generated))
                 return
-            except (RenderProviderError, ValueError):
+            except RenderProviderError as error:
+                reason = (
+                    str(error)
+                    if error.code == "try_on_source_photo_ineligible"
+                    else "真人试穿未通过身份、比例或服装保真审计，已保留真实单品拼贴。"  # noqa: RUF001
+                )
+                await self._degrade(artifact, fallback, reason)
+                return
+            except ValueError:
                 await self._degrade(
                     artifact,
                     fallback,

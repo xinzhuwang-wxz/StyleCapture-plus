@@ -256,14 +256,21 @@ class SuccessfulAuditedTryOnGenerator:
             provider_trace=RenderProviderTrace(
                 provider="doubao_virtual_try_on_skill",
                 model="audited_identity_locked_workflow",
-                parameters={"skill_version": "1.3.0", "hard_pass": True},
+                parameters={"skill_version": "1.4.1", "hard_pass": True},
             ),
         )
 
 
 class FailingAuditedTryOnGenerator:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        code: str = "try_on_identity_audit_failed",
+        message: str = "candidate did not preserve identity",
+    ) -> None:
         self.calls = 0
+        self.code = code
+        self.message = message
 
     async def try_on(
         self,
@@ -273,8 +280,8 @@ class FailingAuditedTryOnGenerator:
     ) -> GeneratedImage:
         self.calls += 1
         raise RenderProviderError(
-            "try_on_identity_audit_failed",
-            "candidate did not preserve identity",
+            self.code,
+            self.message,
             retryable=False,
         )
 
@@ -1076,7 +1083,7 @@ async def test_personal_try_on_prefers_audited_doubao_skill_workflow() -> None:
     assert stored.provider_trace.parameters["capability_alias"] == ("doubao_virtual_try_on_skill")
     assert stored.provider_trace.parameters["strategy"] == ("analyze_generate_audit_retry")
     assert stored.provider_trace.parameters["prompt_version"] == (
-        "doubao-virtual-try-on-skill-v1.3.0"
+        "doubao-virtual-try-on-skill-v1.4.1"
     )
 
 
@@ -1126,6 +1133,54 @@ async def test_failed_audited_try_on_degrades_without_legacy_provider_fallback()
     assert audited.calls == 1
     assert legacy_image_generator.images == ()
     assert dedicated_try_on.categories == []
+
+
+@pytest.mark.asyncio
+async def test_source_photo_rejection_reason_is_persisted_for_h5() -> None:
+    user_id, detail, item, objects = fixture()
+    subject = payload("originals/upload/cropped.png", (160, 130, 110))
+    objects.images[subject.object_key] = subject
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage-source-rejection",
+    )
+    repository = MemoryRenderRepository([collage])
+    renders = RenderApplication(artifacts=repository)
+    reason = "照片只到大腿，请重新上传至少露出膝盖和小腿的照片。"  # noqa: RUF001
+    audited = FailingAuditedTryOnGenerator(
+        code="try_on_source_photo_ineligible",
+        message=reason,
+    )
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=renders,
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=None,
+        try_on_generator=None,
+        audited_try_on_generator=audited,
+        fixed_model_object_key=None,
+    )
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    artifact = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="personal-source-rejection",
+        source_artifact_id=collage.id,
+        subject_object_key=subject.object_key,
+    )
+    repository.artifacts[artifact.id] = artifact
+
+    await processor.process(user_id=user_id, artifact_id=artifact.id)
+
+    stored = repository.artifacts[artifact.id]
+    assert stored.status is RenderArtifactStatus.DEGRADED
+    assert stored.failure_message == reason
 
 
 @pytest.mark.asyncio

@@ -22,9 +22,18 @@ from stylecapture_backend.features.render.infrastructure.providers import (
 
 
 class FakeSkillProcess:
-    def __init__(self, output_dir: Path, *, returncode: int = 0) -> None:
+    def __init__(
+        self,
+        output_dir: Path,
+        *,
+        returncode: int = 0,
+        quality_status: str | None = None,
+        user_message: str | None = None,
+    ) -> None:
         self.returncode = returncode
         self._output_dir = output_dir
+        self._quality_status = quality_status
+        self._user_message = user_message
 
     async def communicate(self) -> tuple[bytes, bytes]:
         self._output_dir.mkdir(parents=True)
@@ -33,8 +42,10 @@ class FakeSkillProcess:
             json.dumps(
                 {
                     "hard_pass": self.returncode == 0,
-                    "quality_status": "pass" if self.returncode == 0 else "hard_fail",
+                    "quality_status": self._quality_status
+                    or ("pass" if self.returncode == 0 else "hard_fail"),
                     "selected_attempt": 2,
+                    "user_message": self._user_message,
                 }
             ),
             encoding="utf-8",
@@ -109,6 +120,44 @@ async def test_doubao_skill_generator_rejects_a_result_that_failed_audit(
         )
 
     assert captured.value.code == "try_on_identity_audit_failed"
+    assert captured.value.retryable is False
+
+
+@pytest.mark.asyncio
+async def test_doubao_skill_generator_surfaces_source_photo_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill_path = tmp_path / "virtual_try_on.py"
+    skill_path.write_text("# test entry", encoding="utf-8")
+    rejection = "照片只到大腿，无法可靠保持真实头身比例，请重新上传露出膝盖和小腿的照片。"  # noqa: RUF001
+
+    async def create_process(*args: object, **kwargs: object) -> FakeSkillProcess:
+        output_dir = Path(str(args[args.index("--output-dir") + 1]))
+        return FakeSkillProcess(
+            output_dir,
+            returncode=2,
+            quality_status="input_rejected",
+            user_message=rejection,
+        )
+
+    monkeypatch.setattr(providers.asyncio, "create_subprocess_exec", create_process)
+    generator = DoubaoVirtualTryOnSkillGenerator(
+        skill_path=skill_path,
+        api_key="ark-secret",
+        understanding_model="understanding-model",
+        image_model="image-model",
+        timeout_seconds=10,
+    )
+
+    with pytest.raises(RenderProviderError) as captured:
+        await generator.try_on(
+            model_image=image_payload(color=(1, 2, 3)),
+            outfit_board=image_payload(color=(4, 5, 6)),
+        )
+
+    assert captured.value.code == "try_on_source_photo_ineligible"
+    assert str(captured.value) == rejection
     assert captured.value.retryable is False
 
 

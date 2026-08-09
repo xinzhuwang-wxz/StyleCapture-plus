@@ -109,6 +109,12 @@ class DoubaoVirtualTryOnSkillGenerator:
                 raise RenderProviderUnavailable("Doubao try-on Skill could not start")
             manifest = _read_skill_manifest(output_dir / "manifest.json")
             if process.returncode != 0 or manifest.get("hard_pass") is not True:
+                if manifest.get("quality_status") == "input_rejected":
+                    raise RenderProviderError(
+                        "try_on_source_photo_ineligible",
+                        _skill_user_message(manifest),
+                        retryable=False,
+                    )
                 raise RenderProviderError(
                     "try_on_identity_audit_failed",
                     "Doubao try-on Skill did not pass its quality audit",
@@ -136,7 +142,7 @@ class DoubaoVirtualTryOnSkillGenerator:
                     provider="doubao_virtual_try_on_skill",
                     model="audited_identity_locked_workflow",
                     parameters={
-                        "skill_version": "1.3.0",
+                        "skill_version": "1.4.1",
                         "selected_attempt": manifest.get("selected_attempt"),
                         "hard_pass": True,
                         "quality_status": manifest.get("quality_status"),
@@ -165,6 +171,13 @@ def _read_skill_manifest(path: Path) -> dict[str, object]:
     except (OSError, json.JSONDecodeError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _skill_user_message(manifest: dict[str, object]) -> str:
+    message = manifest.get("user_message")
+    if isinstance(message, str) and message.strip():
+        return message.strip()[:240]
+    return "照片中的身体取景不完整，请重新上传一张至少连续露出颈肩、躯干、髋部、膝盖和小腿的照片。"  # noqa: RUF001
 
 
 class LiteLLMImageGenerator:

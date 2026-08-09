@@ -745,7 +745,8 @@ function DetailContent({
                   </strong>
                   <small>
                     {tryOnTaskFailed
-                      ? "请回到上方“查看效果”重新选择形象照。"
+                      ? latestTryOn?.failure_message ??
+                        "请回到上方“查看效果”重新选择形象照。"
                       : "任务会在后台完成，退出详情也不会丢失。"}
                   </small>
                   {!tryOnTaskFailed ? (

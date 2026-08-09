@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: RUF001
-"""Generate multiple outfits for one person with a shared identity/body anchor."""
+"""Generate multiple outfits while preserving one accepted source-photo framing anchor."""
 
 from __future__ import annotations
 
@@ -21,14 +21,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate a consistent multi-look try-on set through Volcengine Ark. "
-            "All looks share one canonical full-body identity anchor."
+            "All looks preserve the accepted source photo's identity, body, and framing."
         )
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {core.VERSION}")
     parser.add_argument("person_image", type=Path)
     parser.add_argument("outfit_boards", nargs="+", type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--anchor-attempts", type=int, choices=(1, 2, 3), default=2)
     parser.add_argument("--look-attempts", type=int, choices=(1, 2, 3), default=2)
     parser.add_argument("--workers", type=int, choices=(1, 2), default=2)
     parser.add_argument("--size", default="2K")
@@ -81,6 +80,19 @@ def analyze_identity(
         prompt="""Analyze the one source-person image for strict identity preservation.
 Return only valid JSON:
 {
+  "source_photo_eligibility": {
+    "eligible": true,
+    "body_coverage": {
+      "neck_and_shoulders": true,
+      "torso": true,
+      "hips": true,
+      "knees": true,
+      "calves": true,
+      "feet": false
+    },
+    "rejection_code": null,
+    "user_message": ""
+  },
   "face_identity": {
     "face_shape": "...",
     "eyes_and_brows": "...",
@@ -89,15 +101,29 @@ Return only valid JSON:
     "hairline_and_hair": "...",
     "skin_and_distinctive_details": "..."
   },
+  "body_geometry_visibility": {
+    "shoulders": "visible|partly_visible|concealed",
+    "chest": "visible|partly_visible|concealed",
+    "waist": "visible|partly_visible|concealed",
+    "hips": "visible|partly_visible|concealed"
+  },
+  "body_geometry_policy": "one short evidence-based instruction",
   "source_pose_and_camera": "...",
   "source_clothes_and_accessories_to_remove": [],
   "identity_lock_instruction": "detailed Chinese instruction"
 }
 
+First judge body coverage using only visible evidence. Mark eligible only when the person is
+continuously visible from neck and shoulders through both knees and most of both calves. Do not
+infer cropped anatomy. Face sharpness or existing face occlusion is not a rejection reason.
+Judge shoulder, chest, waist and hip contour visibility separately. The outside edge of loose
+source clothing is not a visible body contour. For concealed widths, prescribe conservative
+neutral continuity from visible skeletal landmarks; never infer an idealized female shape or
+enlarge, slim or reshape chest, waist or hips.
 Describe observable geometry instead of attractiveness or style. The identity-lock instruction
 must prohibit beautification, face reshaping, eye enlargement, jaw narrowing, nose alteration,
-skin whitening, age changes, hairstyle changes, and expression changes. Preserve the exact
-person, not merely a similar East Asian woman.""",
+skin whitening, age changes, hairstyle changes, and expression changes. Preserve the exact visible
+facial features and existing occlusion. Preserve the exact person, not merely a similar person.""",
         labeled_images=[("IMAGE 1 — sole source-person identity reference", person_url)],
     )
 
@@ -240,6 +266,23 @@ def create_anchor(
     return selected, manifest
 
 
+def create_source_anchor(*, output_dir: Path, person_path: Path) -> tuple[Path, dict[str, Any]]:
+    """Reuse the accepted source framing without inventing a replacement body."""
+    anchor_dir = output_dir / "identity-anchor"
+    anchor_dir.mkdir(parents=True, exist_ok=True)
+    selected = anchor_dir / f"result{person_path.suffix.lower()}"
+    shutil.copyfile(person_path, selected)
+    manifest = {
+        "attempts": [],
+        "selected_attempt": None,
+        "pass": True,
+        "strategy": "source_framing_lock",
+        "result": selected.name,
+    }
+    save_json(anchor_dir / "manifest.json", manifest)
+    return selected, manifest
+
+
 def analyze_outfit(
     *,
     api_key: str,
@@ -257,7 +300,9 @@ def analyze_outfit(
       "name": "...",
       "category": "garment/shoes/bag/jewelry/hair accessory/other",
       "color": "...",
+      "color_signature": "hue, undertone, lightness and surface variation",
       "material": "...",
+      "silhouette_and_ease": "...",
       "construction_and_details": "...",
       "correct_wearing_location": "..."
     }
@@ -267,9 +312,13 @@ def analyze_outfit(
   "outfit_instruction": "detailed Chinese clothing-only instruction"
 }
 
-Treat a pair of shoes or socks as one wearable pair, not duplicated objects. Distinguish hair
+Describe the visible silhouette and wearing ease of every garment (for example fitted, regular,
+relaxed, oversized, boxy, flared, structured or draped). Treat a pair of shoes or socks as one
+wearable pair, not duplicated objects. Distinguish hair
 accessories, earrings, necklaces, bracelets and scrunchies by construction and intended wearing
-location. Describe visible logos or text conservatively; never invent extra accessories.""",
+location. Describe color from visible pixels: include warm/neutral/cool undertone, relative
+lightness, and heather/marl/mottled variation where present. Describe visible logos or text
+conservatively; never invent extra accessories.""",
         labeled_images=[("IMAGE 1 — sole outfit-board reference", outfit_url)],
     )
 
@@ -306,6 +355,56 @@ def look_prompt(outfit: dict[str, Any], corrections: list[Any]) -> str:
 {correction_text}"""
 
 
+def look_prompt_v14(
+    outfit: dict[str, Any], application_plan: dict[str, Any], corrections: list[Any]
+) -> str:
+    correction_text = "\n- ".join(map(str, corrections)) if corrections else "none"
+    color_constraints = json.dumps(
+        application_plan.get("color_constraints", []), ensure_ascii=False
+    )
+    silhouettes = json.dumps(
+        application_plan.get("silhouette_constraints", []), ensure_ascii=False
+    )
+    body_visibility = json.dumps(
+        application_plan.get("body_geometry_visibility", {}), ensure_ascii=False
+    )
+    body_policy = str(application_plan.get("body_geometry_policy", "")).strip() or (
+        "Preserve visible skeletal landmarks and use conservative neutral volume for concealed "
+        "widths; do not enlarge, slim, or reshape the chest, waist, or hips."
+    )
+    if application_plan.get("apply_shoes") is False:
+        shoe_policy = (
+            "Omit IMAGE 3 footwear; do not extend, compress or reframe the body to include it."
+        )
+    else:
+        shoe_policy = "Apply footwear only to source feet already visible inside the frame."
+    return f"""Create one photorealistic virtual try-on. Follow priorities in order.
+
+P1 PERSON AND FRAME — IMAGE 1 is the only identity source; IMAGE 2 is the exact source framing.
+Keep the same visible facial geometry/occlusion, pose, skeleton, limb and torso lengths,
+head/body scale, camera, crop and canvas. Do not beautify or reconstruct the person.
+
+P2 BODY VOLUME — clothing changes; the person's body does not.
+Observed contour visibility: {body_visibility}
+{body_policy}
+Never use loose source-clothing edges as body contours or impose a stereotypical body shape.
+
+P3 TARGET OUTFIT — IMAGE 3 pixels are the only clothing truth.
+Items: {json.dumps(outfit.get("items", []), ensure_ascii=False)}
+Layering: {json.dumps(outfit.get("layering_order", []), ensure_ascii=False)}
+Exact color signatures: {color_constraints}
+Exact silhouettes/ease: {silhouettes}
+Preserve hue, undertone, relative lightness, marl/heather variation, material, cut, volume and
+construction. Do not neutralize, whiten, cool, warm, tighten or loosen a target garment.
+{shoe_policy}
+
+P4 OUTPUT — replace source clothes with each non-skipped item once. Return one natural camera
+photo with the source environment, no collage, labels, floating items or added objects.
+
+Retry corrections: {correction_text}
+"""
+
+
 def audit_look(
     *,
     api_key: str,
@@ -314,6 +413,7 @@ def audit_look(
     anchor_url: str,
     outfit_url: str,
     result_url: str,
+    application_plan: dict[str, Any],
 ) -> dict[str, Any]:
     return core.chat(
         api_key=api_key,
@@ -324,7 +424,18 @@ def audit_look(
   "face_identity": {"score": 0, "differences": []},
   "body_and_head_scale_lock": {"score": 0, "differences": []},
   "camera_and_composition_lock": {"score": 0, "differences": []},
-  "outfit_fidelity": {"score": 0, "matched": [], "missing_or_wrong": []},
+  "outfit_fidelity": {
+    "score": 0,
+    "silhouette_and_ease_preserved": false,
+    "source_garment_fit_leaked": true,
+    "matched": [],
+    "missing_or_wrong": []
+  },
+  "application_policy": {
+    "shoe_policy_followed": false,
+    "no_body_reframing_for_footwear": false,
+    "notes": []
+  },
   "photorealism": {"score": 0, "artifacts": []},
   "overall_score": 0,
   "pass": false,
@@ -333,14 +444,23 @@ def audit_look(
 
 IMAGE 1 is exact face ground truth. IMAGE 2 is exact body, head scale, pose and camera ground
 truth. IMAGE 3 is exact outfit ground truth. IMAGE 4 is the generated result.
-Do not confuse similar appearance with identity. Compare exact facial geometry. Compare IMAGE 4
-against IMAGE 2 for head pixel size relative to frame, head-to-body ratio, shoulder width,
+Do not confuse similar appearance with identity. Compare exact visible facial geometry and do not
+lower the identity score merely because the source face is soft or low-resolution. Preserve any
+source glasses, sticker, crop or other occlusion instead of repainting or revealing hidden facial
+features. Compare IMAGE 4 against IMAGE 2 for head pixel size relative to frame, head-to-body ratio, shoulder width,
 torso/leg lengths, stance, crop, horizon and camera distance. Check every outfit-board item and
-remove all source accessories. Pass only if face_identity >= 88, body_and_head_scale_lock >= 92,
-camera_and_composition_lock >= 92, outfit_fidelity >= 80, photorealism >= 85 and overall >= 88.""",
+remove all source accessories. Do not penalize shoes omitted by the resolved plan. Fail if footwear
+was forced into a crop without feet, the body was reframed for footwear, or a loose target garment
+became fitted to the source garment outline. Pass only if face_identity >= 95,
+body_and_head_scale_lock >= 92, camera_and_composition_lock >= 92, outfit_fidelity >= 80,
+silhouette_and_ease_preserved=true, source_garment_fit_leaked=false, both application-policy
+booleans are true, photorealism >= 85 and overall >= 92.
+
+Resolved application policy:
+""" + json.dumps(application_plan, ensure_ascii=False),
         labeled_images=[
             ("IMAGE 1 — exact source face identity", person_url),
-            ("IMAGE 2 — exact canonical body/camera anchor", anchor_url),
+            ("IMAGE 2 — exact accepted source framing", anchor_url),
             ("IMAGE 3 — exact outfit board", outfit_url),
             ("IMAGE 4 — generated try-on candidate", result_url),
         ],
@@ -351,12 +471,16 @@ def look_passes(audit: dict[str, Any]) -> bool:
     try:
         return (
             audit.get("pass") is True
-            and float(audit["face_identity"]["score"]) >= 88
+            and float(audit["face_identity"]["score"]) >= 95
             and float(audit["body_and_head_scale_lock"]["score"]) >= 92
             and float(audit["camera_and_composition_lock"]["score"]) >= 92
             and float(audit["outfit_fidelity"]["score"]) >= 80
+            and audit["outfit_fidelity"].get("silhouette_and_ease_preserved") is True
+            and audit["outfit_fidelity"].get("source_garment_fit_leaked") is False
+            and audit["application_policy"].get("shoe_policy_followed") is True
+            and audit["application_policy"].get("no_body_reframing_for_footwear") is True
             and float(audit["photorealism"]["score"]) >= 85
-            and float(audit["overall_score"]) >= 88
+            and float(audit["overall_score"]) >= 92
         )
     except (KeyError, TypeError, ValueError):
         return False
@@ -371,12 +495,22 @@ def create_look(
     output_dir: Path,
     person_url: str,
     anchor_url: str,
+    identity: dict[str, Any],
 ) -> dict[str, Any]:
     look_dir = output_dir / f"look-{index:02d}"
     look_dir.mkdir(parents=True, exist_ok=True)
     outfit_url = core.image_data_url(outfit_path)
     outfit = analyze_outfit(api_key=api_key, args=args, outfit_url=outfit_url)
     save_json(look_dir / "outfit-analysis.json", outfit)
+    application_plan = core.resolved_application_plan(
+        {
+            "source_photo_eligibility": identity.get("source_photo_eligibility"),
+            "body_geometry_visibility": identity.get("body_geometry_visibility"),
+            "body_geometry_policy": identity.get("body_geometry_policy"),
+            "outfit_items": outfit.get("items"),
+        }
+    )
+    save_json(look_dir / "application-plan.json", application_plan)
     attempts: list[dict[str, Any]] = []
     corrections: list[Any] = []
     for number in range(1, args.look_attempts + 1):
@@ -387,7 +521,7 @@ def create_look(
         response = generate_from_references(
             api_key=api_key,
             args=args,
-            prompt=look_prompt(outfit, corrections),
+            prompt=look_prompt_v14(outfit, application_plan, corrections),
             image_urls=[person_url, anchor_url, outfit_url],
         )
         candidate = look_dir / f"attempt-{number}.jpg"
@@ -403,6 +537,7 @@ def create_look(
             anchor_url=anchor_url,
             outfit_url=outfit_url,
             result_url=core.image_data_url(candidate),
+            application_plan=application_plan,
         )
         save_json(look_dir / f"audit-attempt-{number}.json", audit)
         score = float(audit.get("overall_score", 0))
@@ -424,6 +559,7 @@ def create_look(
     manifest = {
         "index": index,
         "outfit_board": str(outfit_path),
+        "application_plan": application_plan,
         "attempts": attempts,
         "selected_attempt": best["attempt"],
         "pass": best["pass"],
@@ -443,7 +579,7 @@ def cross_audit(
 ) -> dict[str, Any]:
     labeled = [
         ("IMAGE 1 — exact source face identity", person_url),
-        ("IMAGE 2 — canonical body/camera anchor", anchor_url),
+        ("IMAGE 2 — accepted source body/camera framing", anchor_url),
     ]
     for look in sorted(looks, key=lambda item: item["index"]):
         labeled.append(
@@ -532,13 +668,30 @@ def main() -> int:
     print("Analyzing strict identity geometry...", flush=True)
     identity = analyze_identity(api_key=api_key, args=args, person_url=person_url)
     save_json(output_dir / "identity-analysis.json", identity)
+    rejection = core.source_photo_rejection(identity)
+    if rejection is not None:
+        code, message = rejection
+        manifest = {
+            "models": {
+                "understanding": args.understanding_model,
+                "generation": args.image_model,
+            },
+            "person_image": str(person_path),
+            "outfit_boards": [str(path) for path in outfit_paths],
+            "hard_pass": False,
+            "quality_status": "input_rejected",
+            "failure_code": code,
+            "user_message": message,
+            "anchor": None,
+            "looks": [],
+        }
+        save_json(output_dir / "manifest.json", manifest)
+        print(json.dumps(manifest, ensure_ascii=False, indent=2))
+        return 2
 
-    anchor_path, anchor_manifest = create_anchor(
-        api_key=api_key,
-        args=args,
+    anchor_path, anchor_manifest = create_source_anchor(
         output_dir=output_dir,
-        person_url=person_url,
-        identity=identity,
+        person_path=person_path,
     )
     anchor_url = core.image_data_url(anchor_path)
 
@@ -554,6 +707,7 @@ def main() -> int:
                 output_dir=output_dir,
                 person_url=person_url,
                 anchor_url=anchor_url,
+                identity=identity,
             )
             for index, outfit_path in enumerate(outfit_paths, 1)
         ]
