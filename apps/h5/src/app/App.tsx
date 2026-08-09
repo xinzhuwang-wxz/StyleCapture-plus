@@ -56,6 +56,25 @@ type FeedRestoreTarget = {
 
 const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
 const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
+const LOOK_PIXEL_COVERS_STORAGE_KEY = "stylecapture:look-pixel-covers:v1";
+
+function readPixelCoverSelections(): Record<string, string | null> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(LOOK_PIXEL_COVERS_STORAGE_KEY);
+    if (!raw) return {};
+    const value = JSON.parse(raw) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, string | null] =>
+          typeof entry[1] === "string" || entry[1] === null
+      )
+    );
+  } catch {
+    return {};
+  }
+}
 const CommunityScreen = lazy(() =>
   import("../features/community/CommunityScreen").then((module) => ({
     default: module.CommunityScreen
@@ -240,6 +259,9 @@ function DeferredScreenFallback() {
 
 export function App() {
   const queryClient = useQueryClient();
+  const [activePixelCoverIds, setActivePixelCoverIds] = useState<
+    Record<string, string | null>
+  >(readPixelCoverSelections);
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const addMenuTrigger = useRef<HTMLButtonElement>(null);
@@ -379,18 +401,48 @@ export function App() {
           : false
     }))
   });
+  const pixelArtifacts = useMemo(
+    () =>
+      looks.flatMap((_look, index) =>
+        (lookRenderQueries[index]?.data ?? []).filter(
+          (render) =>
+            render.kind === "pixel_cover" &&
+            render.status === "succeeded" &&
+            Boolean(render.output_image_url)
+        )
+      ),
+    [lookRenderQueries, looks]
+  );
   const pixelCovers = useMemo(
     () =>
       Object.fromEntries(
         looks.flatMap((look, index) => {
-          const cover = lookRenderQueries[index]?.data?.find(
-            (render) => render.kind === "pixel_cover"
+          const candidates = (lookRenderQueries[index]?.data ?? []).filter(
+            (render) =>
+              render.kind === "pixel_cover" &&
+              render.status === "succeeded" &&
+              Boolean(render.output_image_url)
           );
+          const selectedId = activePixelCoverIds[look.id];
+          if (selectedId === null) return [];
+          const cover =
+            selectedId === undefined
+              ? candidates[0]
+              : candidates.find((artifact) => artifact.id === selectedId);
           return cover ? [[look.id, cover] as const] : [];
         })
       ),
-    [lookRenderQueries, looks]
+    [activePixelCoverIds, lookRenderQueries, looks]
   );
+
+  function setPixelCover(lookId: string, artifactId: string) {
+    setActivePixelCoverIds((current) => {
+      const next = { ...current, [lookId]: artifactId };
+      window.localStorage.setItem(LOOK_PIXEL_COVERS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    setNotice("已设为这套穿搭的像素封面");
+  }
   const lookRenders = useMemo(
     () =>
       Object.fromEntries(
@@ -758,12 +810,23 @@ export function App() {
     mutationFn: ({
       lookId,
       kind,
-      idempotencyKey
+      idempotencyKey,
+      sourceArtifactId
     }: {
       lookId: string;
       kind: RenderKind;
       idempotencyKey: string;
-    }) => wardrobeApi.createRender(lookId, kind, idempotencyKey),
+      sourceArtifactId?: string;
+    }) =>
+      sourceArtifactId
+        ? wardrobeApi.createRender(
+            lookId,
+            kind,
+            idempotencyKey,
+            undefined,
+            sourceArtifactId
+          )
+        : wardrobeApi.createRender(lookId, kind, idempotencyKey),
     onSuccess: (render) => {
       queryClient.setQueryData<RenderArtifact[]>(
         ["look-renders", render.look_id],
@@ -772,6 +835,16 @@ export function App() {
           ...current.filter((candidate) => candidate.id !== render.id)
         ]
       );
+      if (render.kind === "pixel_cover") {
+        setActivePixelCoverIds((current) => {
+          const next = { ...current, [render.look_id]: null };
+          window.localStorage.setItem(
+            LOOK_PIXEL_COVERS_STORAGE_KEY,
+            JSON.stringify(next)
+          );
+          return next;
+        });
+      }
     },
     onError: (error) => setNotice(errorMessage(error)),
     onSettled: (_data, _error, variables) => {
@@ -909,6 +982,10 @@ export function App() {
     if (!detail || !collageReady) return;
     const itemIds = [...new Set(
       detail.components
+        .filter(
+          (component) =>
+            component.item_id !== null && component.item_image_status === null
+        )
         .map((component) => component.item_id)
         .filter((itemId): itemId is string => itemId !== null)
     )];
@@ -1286,6 +1363,11 @@ export function App() {
               photoAlbum={photoAlbum}
               onPhotoAlbumChange={setPhotoAlbum}
               onNotice={setNotice}
+              looks={looks}
+              pixelArtifacts={pixelArtifacts}
+              pixelCovers={pixelCovers}
+              activePixelCoverIds={activePixelCoverIds}
+              onSetPixelCover={setPixelCover}
             />
           </Suspense>
         ) : null}
@@ -1412,12 +1494,17 @@ export function App() {
               onSaveReason={(lookId, reason) =>
                 lookReasonMutation.mutate({ lookId, reason })
               }
-              onGenerate={(lookId, kind) =>
+              onGenerate={(lookId, kind, sourceArtifactId) =>
                 renderMutation.mutate({
                   lookId,
                   kind,
-                  idempotencyKey: `manual-${kind}:${crypto.randomUUID()}`
+                  idempotencyKey: `manual-${kind}:${crypto.randomUUID()}`,
+                  sourceArtifactId
                 })
+              }
+              onSetPixelCover={setPixelCover}
+              activePixelCoverId={
+                selectedLookId ? pixelCovers[selectedLookId]?.id ?? null : null
               }
               onTryOn={(lookId, file) =>
                 tryOnMutation.mutate({ lookId, file })

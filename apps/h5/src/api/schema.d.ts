@@ -777,6 +777,8 @@ export interface components {
             kind: components["schemas"]["RenderArtifactKind"];
             /** Subject Object Key */
             subject_object_key?: string | null;
+            /** Source Artifact Id */
+            source_artifact_id?: string | null;
         };
         /** ErrorBody */
         ErrorBody: {

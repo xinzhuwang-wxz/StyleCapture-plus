@@ -230,25 +230,26 @@ class RenderProcessor:
         if self._pixel_generator is None:
             await self._degrade(artifact, fallback, "像素生成服务未配置。展示真实单品拼贴")
             return
-        collage_source = normalize_provider_image(
+        primary_source = normalize_provider_image(
             self._objects.read_image(
                 fallback.output.object_key  # type: ignore[union-attr]
             )
         )
-        source_images: tuple[ImagePayload, ...] = (collage_source,)
-        detail = await self._looks.get_detail_for_user(
-            artifact.look_id,
-            artifact.user_id,
-        )
-        if detail is not None and detail.look.display_object_key is not None:
-            try:
-                look_source = normalize_provider_image(
-                    self._objects.read_image(detail.look.display_object_key)
-                )
-            except (FileNotFoundError, KeyError):
-                pass
-            else:
-                source_images = (look_source, collage_source)
+        source_images: tuple[ImagePayload, ...] = (primary_source,)
+        if fallback.kind is RenderArtifactKind.COLLAGE:
+            detail = await self._looks.get_detail_for_user(
+                artifact.look_id,
+                artifact.user_id,
+            )
+            if detail is not None and detail.look.display_object_key is not None:
+                try:
+                    look_source = normalize_provider_image(
+                        self._objects.read_image(detail.look.display_object_key)
+                    )
+                except (FileNotFoundError, KeyError):
+                    pass
+                else:
+                    source_images = (look_source, primary_source)
         await self._renders.mark_running(
             user_id=artifact.user_id,
             artifact_id=artifact.id,
@@ -268,6 +269,7 @@ class RenderProcessor:
                 prompt_version=PIXEL_COVER_PROMPT_VERSION,
                 schema_version=PIXEL_COVER_SCHEMA_VERSION,
                 extra_parameters={
+                    "input_source_kind": fallback.kind.value,
                     "style_reference_version": PIXEL_CARD_STYLE_REFERENCE_VERSION,
                     "style_reference_hashes": pixel_card_style_reference_hashes(),
                 },
@@ -518,7 +520,10 @@ class RenderProcessor:
         )
         if fallback is None or fallback.look_id != artifact.look_id:
             return None
-        if fallback.kind is not RenderArtifactKind.COLLAGE:
+        allowed_source_kinds = {RenderArtifactKind.COLLAGE}
+        if artifact.kind is RenderArtifactKind.PIXEL_COVER:
+            allowed_source_kinds.add(RenderArtifactKind.TRY_ON)
+        if fallback.kind not in allowed_source_kinds:
             return None
         if fallback.status is not RenderArtifactStatus.SUCCEEDED:
             return None

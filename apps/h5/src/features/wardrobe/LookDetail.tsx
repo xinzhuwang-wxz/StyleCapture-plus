@@ -8,7 +8,6 @@ import {
   type RenderArtifact,
   type RenderKind
 } from "../../api/client";
-import { ShareCardSheet } from "../outfit/ShareCardSheet";
 import { TryOnPhotoSheet } from "../profile/TryOnPhotoSheet";
 import { emptyAlbum, type PhotoAlbum } from "../profile/photoStorage";
 import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
@@ -36,7 +35,13 @@ type LookDetailProps = {
   onReturnToSource: (videoRef: string, timestampMs: number) => void;
   onRetry: (lookId: string) => void;
   onSaveReason: (lookId: string, reason: string) => void;
-  onGenerate?: (lookId: string, kind: RenderKind) => void;
+  onGenerate?: (
+    lookId: string,
+    kind: RenderKind,
+    sourceArtifactId?: string
+  ) => void;
+  onSetPixelCover?: (lookId: string, artifactId: string) => void;
+  activePixelCoverId?: string | null;
   onTryOn?: (lookId: string, file: File) => void;
   onDeleteTryOnPhoto?: (artifactId: string) => void;
   onDeleteSource?: (lookId: string) => void;
@@ -49,17 +54,9 @@ type LookDetailProps = {
   onOpenItem?: (action: LookItemAction) => void;
 };
 
-const RENDER_STUDIO_KINDS = ["try_on", "pixel_cover"] as const;
-type RenderStudioKind = (typeof RENDER_STUDIO_KINDS)[number];
-
-function isRenderStudioKind(kind: RenderKind | null): kind is RenderStudioKind {
-  return kind === "try_on" || kind === "pixel_cover";
-}
-
 function DetailContent({
   detail,
   renders = [],
-  rendersLoading = false,
   purchaseDemands = [],
   purchaseDemandsLoading = false,
   updatingPurchaseDemandId = null,
@@ -76,7 +73,8 @@ function DetailContent({
   onRetry,
   onSaveReason,
   onGenerate,
-  onTryOn,
+  onSetPixelCover,
+  activePixelCoverId = null,
   onDeleteTryOnPhoto,
   onDeleteSource,
   onDeleteLook,
@@ -94,15 +92,15 @@ function DetailContent({
   onCloseTryOnPicker: () => void;
 }) {
   const [reason, setReason] = useState("");
-  const [activeRenderKind, setActiveRenderKind] =
-    useState<RenderStudioKind>("try_on");
-  const [sharing, setSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
-  const [shareOpen, setShareOpen] = useState(false);
+  const [pixelTaskOpen, setPixelTaskOpen] = useState(false);
+  const [pixelTaskCollapsed, setPixelTaskCollapsed] = useState(false);
+  const [pixelCoverConfirmed, setPixelCoverConfirmed] = useState(false);
+  const [awaitingTryOnResult, setAwaitingTryOnResult] = useState(false);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
   const [deletingLookOpen, setDeletingLookOpen] = useState(false);
-  const [heroTryOnRevealed, setHeroTryOnRevealed] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const tryOnResultRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   const values = detail.analysis?.values ?? {};
   const analysisSourceLabel =
@@ -114,16 +112,8 @@ function DetailContent({
     right.updated_at.localeCompare(left.updated_at)
   );
   const latestByKind = new Map<RenderKind, RenderArtifact>();
-  const completedByKind = new Map<RenderKind, RenderArtifact>();
   sortedRenders.forEach((render) => {
     if (!latestByKind.has(render.kind)) latestByKind.set(render.kind, render);
-    if (
-      !completedByKind.has(render.kind) &&
-      (render.status === "succeeded" || render.status === "degraded") &&
-      render.output_image_url
-    ) {
-      completedByKind.set(render.kind, render);
-    }
   });
   const usesFixedCuratedPresentation = detail.look.fixed_presentation === true;
   const flatlayComponents = detail.components
@@ -148,7 +138,12 @@ function DetailContent({
     detail.look.display_image_url ?? detail.look.source_image_url;
   const pendingHeroImageUrl =
     detail.look.source_image_url ?? detail.look.display_image_url;
-  const completedTryOn = completedByKind.get("try_on");
+  const completedTryOn = sortedRenders.find(
+    (render) =>
+      render.kind === "try_on" &&
+      render.status === "succeeded" &&
+      Boolean(render.output_image_url)
+  );
   const tryOnPreviewUrl =
     completedTryOn?.output_image_url ??
     detail.look.display_image_url ??
@@ -156,17 +151,13 @@ function DetailContent({
 
   useEffect(() => {
     setReason("");
-    setActiveRenderKind(
-      latestByKind.has("try_on")
-        ? "try_on"
-        : latestByKind.has("pixel_cover")
-          ? "pixel_cover"
-          : "try_on"
-    );
     setShareMessage(null);
+    setPixelTaskOpen(false);
+    setPixelTaskCollapsed(false);
+    setPixelCoverConfirmed(false);
+    setAwaitingTryOnResult(false);
     setConfirmingSourceDelete(false);
     setDeletingLookOpen(false);
-    setHeroTryOnRevealed(false);
   }, [detail.look.id]);
 
   useEffect(() => {
@@ -197,28 +188,45 @@ function DetailContent({
     tryOnPhotoPickerOpen
   ]);
 
-  useEffect(() => {
-    if (isRenderStudioKind(generatingKind)) setActiveRenderKind(generatingKind);
-  }, [generatingKind]);
+  const latestTryOn = latestByKind.get("try_on");
+  const latestPixel = latestByKind.get("pixel_cover");
+  const pixelCover = sortedRenders.find(
+    (render) =>
+      render.kind === "pixel_cover" &&
+      render.status === "succeeded" &&
+      Boolean(render.output_image_url)
+  );
+  const pixelTaskBusy =
+    generatingKind === "pixel_cover" ||
+    latestPixel?.status === "queued" ||
+    latestPixel?.status === "running";
+  const pixelTaskFailed =
+    latestPixel?.status === "failed" || latestPixel?.status === "degraded";
+  const pixelTaskReady = Boolean(pixelCover) && !pixelTaskBusy;
 
-  const activeRender = latestByKind.get(activeRenderKind);
-  const completedActiveRender = completedByKind.get(activeRenderKind);
-  const explicitFallback = activeRender?.fallback_artifact_id
-    ? renders.find(
-        (render) => render.id === activeRender.fallback_artifact_id
-      )
-    : undefined;
-  const visibleRender =
-    activeRender?.output_image_url
-      ? activeRender
-      : completedActiveRender ??
-        (explicitFallback?.output_image_url ? explicitFallback : undefined);
-  const pixelCover = completedByKind.get("pixel_cover");
+  useEffect(() => {
+    if (tryOnUploading || generatingKind === "try_on") {
+      setAwaitingTryOnResult(true);
+    }
+  }, [generatingKind, tryOnUploading]);
+
+  useEffect(() => {
+    if (!awaitingTryOnResult || !completedTryOn) return;
+    setAwaitingTryOnResult(false);
+    window.setTimeout(() => {
+      tryOnResultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }, [awaitingTryOnResult, completedTryOn]);
+
+  useEffect(() => {
+    if (generatingKind !== "pixel_cover") return;
+    setPixelTaskOpen(true);
+    setPixelTaskCollapsed(false);
+  }, [generatingKind]);
 
   /** 只下载，不走系统面板——「保存到相册」要的就是这条。 */
   async function downloadPixelCover() {
     if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
-    setSharing(true);
     setShareMessage(null);
     try {
       const response = await fetch(pixelCover.output_image_url, {
@@ -236,49 +244,28 @@ function DetailContent({
       setShareMessage("像素封面已保存");
     } catch (error) {
       setShareMessage(error instanceof Error ? error.message : "保存没有完成");
-    } finally {
-      setSharing(false);
     }
   }
 
-  async function sharePixelCover() {
-    if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
-    setSharing(true);
+  async function downloadTryOnImage() {
+    if (!completedTryOn?.output_image_url) return;
     setShareMessage(null);
     try {
-      const response = await fetch(pixelCover.output_image_url, {
+      const response = await fetch(completedTryOn.output_image_url, {
         cache: "no-store",
         credentials: "same-origin"
       });
-      if (!response.ok) throw new Error("像素封面暂时无法读取");
+      if (!response.ok) throw new Error("真人试穿照片暂时无法读取");
       const blob = await response.blob();
-      const file = new File([blob], `stylecapture-${detail.look.id}.png`, {
-        type: blob.type || "image/png"
-      });
-      if (
-        navigator.share &&
-        (!navigator.canShare || navigator.canShare({ files: [file] }))
-      ) {
-        await navigator.share({
-          files: [file],
-          title: "我的 StyleCapture 穿搭",
-          text: "把今天喜欢的穿搭收进数字衣橱"
-        });
-        setShareMessage("已打开系统分享");
-      } else {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = file.name;
-        link.click();
-        URL.revokeObjectURL(url);
-        setShareMessage("像素封面已下载");
-      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `stylecapture-try-on-${detail.look.id}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setShareMessage("真人试穿照片已保存");
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setShareMessage(error instanceof Error ? error.message : "分享没有完成");
-    } finally {
-      setSharing(false);
+      setShareMessage(error instanceof Error ? error.message : "保存没有完成");
     }
   }
 
@@ -393,7 +380,7 @@ function DetailContent({
       </div>
 
       <div className="look-detail__tryon-card">
-        <div className={`look-detail__tryon-thumb${heroTryOnRevealed ? " is-revealed" : ""}`}>
+        <div className="look-detail__tryon-thumb">
           {tryOnPreviewUrl ? (
             <img src={tryOnPreviewUrl} alt="真人试穿预览" />
           ) : (
@@ -406,26 +393,24 @@ function DetailContent({
           <small>
             {completedTryOn?.output_image_url
               ? "点击查看清晰试穿效果"
-              : "点击后生成并展示模特试穿效果"}
+              : "选择形象照并生成试穿效果"}
           </small>
         </div>
         <button
           type="button"
           onClick={() => {
             if (completedTryOn?.output_image_url) {
-              setHeroTryOnRevealed((current) => !current);
+              tryOnResultRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+              });
             } else {
-              setActiveRenderKind("try_on");
               onOpenTryOnPicker();
             }
           }}
         >
           <span aria-hidden="true">✦</span>
-          {completedTryOn?.output_image_url
-            ? heroTryOnRevealed
-              ? "收起效果"
-              : "查看效果"
-            : "生成试穿"}
+          查看效果
         </button>
       </div>
 
@@ -648,156 +633,96 @@ function DetailContent({
           </section>
         ) : null}
 
-        {detail.components.some((component) => component.item_id !== null) ? (
-          <section className="look-detail__section render-studio" aria-labelledby="look-renders-title">
+        {detail.components.some((component) => component.item_id !== null) &&
+        (completedTryOn || latestTryOn) ? (
+          <section
+            ref={tryOnResultRef}
+            className="look-detail__section tryon-result"
+            aria-labelledby="look-tryon-result-title"
+          >
             <div className="section-heading">
-              <h3 id="look-renders-title">穿搭成片</h3>
-              <span>真实资产生成</span>
+              <h3 id="look-tryon-result-title">真人试穿</h3>
+              <span>
+                {completedTryOn
+                  ? "生成完成"
+                  : latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                    ? "本次未完成"
+                    : "后台生成中"}
+              </span>
             </div>
-            <div className="render-studio__tabs" role="tablist" aria-label="穿搭成片类型">
-              {(
-                RENDER_STUDIO_KINDS.map((kind) => [
-                  kind,
-                  kind === "try_on" ? "真人试穿" : "像素封面"
-                ] as const)
-              ).map(([kind, label]) => (
-                <button
-                  key={kind}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeRenderKind === kind}
-                  className={activeRenderKind === kind ? "is-selected" : ""}
-                  onClick={() => setActiveRenderKind(kind)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="render-studio__preview" data-render-kind={activeRenderKind}>
-              {visibleRender?.output_image_url ? (
+            {completedTryOn?.output_image_url ? (
+              <div className="tryon-result__card">
                 <img
-                  src={`${visibleRender.output_image_url}?v=${encodeURIComponent(
-                    visibleRender.updated_at
+                  src={`${completedTryOn.output_image_url}?v=${encodeURIComponent(
+                    completedTryOn.updated_at
                   )}`}
-                  alt={visibleRender.presentation_label}
-                  data-pixel={
-                    visibleRender.kind === "pixel_cover" &&
-                    visibleRender.status === "succeeded"
-                      ? "true"
-                      : "false"
-                  }
+                  alt="真人试穿穿搭卡片"
                 />
-              ) : (
-                <div className="render-studio__empty">
-                  <span aria-hidden="true">✦</span>
-                  <strong>
-                    {rendersLoading || activeRender?.status === "queued" || activeRender?.status === "running"
-                      ? activeRenderKind === "try_on"
-                        ? "正在生成真人试穿"
-                        : "正在生成像素封面"
-                      : activeRenderKind === "try_on"
-                        ? "上传全身照后生成真人试穿"
-                        : "生成一张像素穿搭封面"}
-                  </strong>
-                  <small>任务会在后台完成，退出详情也不会丢失。</small>
+                <div className="tryon-result__copy">
+                  <strong>这套穿搭的真人效果</strong>
+                  <small>仅自己可见，可保存或继续生成像素卡片。</small>
                 </div>
-              )}
-              {activeRender && activeRender.status !== "succeeded" ? (
-                <div className={`render-studio__status render-studio__status--${activeRender.status}`}>
-                  <strong>{activeRender.presentation_label}</strong>
-                  <span>
-                    {activeRender.status === "queued" || activeRender.status === "running"
-                      ? "后台生成中…"
-                      : activeRender.kind === "try_on"
-                        ? "真人试穿暂时不可用，已保留真实单品拼贴；可换张全身照重试。"
-                        : activeRender.kind === "pixel_cover"
-                          ? "像素封面暂时不可用，真实单品和穿搭关系不受影响。"
-                          : "真实单品拼贴暂时不可用，请稍后重试。"}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-            <p className="render-studio__truth">
-              {activeRenderKind === "try_on"
-                ? activeRender?.personalized &&
-                  activeRender.status === "succeeded"
-                  ? "这张效果图基于你刚刚上传的全身照和本套真实单品生成，仅自己可见。"
-                  : activeRender?.subject_attached &&
-                      activeRender.status === "degraded"
-                    ? "本次真人试穿暂时不可用，当前展示真实单品拼贴；可换张全身照重试。"
-                  : "选择已有形象照，或拍摄、上传一张新的正面全身照，AI 会把这套已保存穿搭换到你身上。"
-                : "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"}
-            </p>
-            {activeRenderKind === "try_on" && onTryOn ? (
-              <>
-                <button
-                  className="primary-action"
-                  type="button"
-                  disabled={tryOnUploading || generatingKind !== null}
-                  onClick={onOpenTryOnPicker}
-                >
-                  {tryOnUploading || generatingKind === "try_on"
-                    ? "照片上传并生成中…"
-                    : activeRender?.subject_attached
-                      ? "换一张全身照"
-                      : "拍照或上传全身照"}
-                </button>
-                {activeRender?.subject_attached && onDeleteTryOnPhoto ? (
+                <div className="tryon-result__actions">
+                  {onGenerate ? (
+                    <button
+                      className="primary-action"
+                      type="button"
+                      disabled={generatingKind !== null || pixelTaskBusy}
+                      onClick={() => {
+                        setPixelTaskOpen(true);
+                        setPixelTaskCollapsed(false);
+                        onGenerate(
+                          detail.look.id,
+                          "pixel_cover",
+                          completedTryOn.id
+                        );
+                      }}
+                    >
+                      {pixelTaskBusy
+                        ? "像素卡片生成中…"
+                        : pixelCover
+                          ? "重新生成像素卡片"
+                          : "生成像素卡片"}
+                    </button>
+                  ) : null}
                   <button
                     className="secondary-action"
                     type="button"
-                    disabled={deletingTryOnPhoto}
-                    onClick={() => onDeleteTryOnPhoto(activeRender.id)}
+                    onClick={() => void downloadTryOnImage()}
                   >
-                    {deletingTryOnPhoto
-                      ? "正在删除原照…"
-                      : "删除本次全身原照"}
+                    保存到本地照片
+                  </button>
+                </div>
+                {latestTryOn?.subject_attached && onDeleteTryOnPhoto ? (
+                  <button
+                    className="tryon-result__privacy-action"
+                    type="button"
+                    disabled={deletingTryOnPhoto}
+                    onClick={() => onDeleteTryOnPhoto(latestTryOn.id)}
+                  >
+                    {deletingTryOnPhoto ? "正在删除本次原照…" : "删除本次全身原照"}
                   </button>
                 ) : null}
-              </>
-            ) : null}
-            {activeRenderKind === "pixel_cover" &&
-            onGenerate &&
-            (!activeRender ||
-              activeRender.status === "failed" ||
-              activeRender.status === "degraded") ? (
-              <button
-                className="primary-action"
-                type="button"
-                disabled={generatingKind !== null}
-                onClick={() => onGenerate(detail.look.id, "pixel_cover")}
-              >
-                {generatingKind === "pixel_cover"
-                  ? "任务启动中…"
-                  : activeRender?.status === "degraded" ||
-                      activeRender?.status === "failed"
-                    ? "重新生成像素封面"
-                    : "生成像素封面"}
-              </button>
-            ) : null}
-            {activeRenderKind === "pixel_cover" &&
-            pixelCover?.share_eligible &&
-            pixelCover.output_image_url ? (
-              <button
-                className="secondary-action"
-                type="button"
-                disabled={sharing}
-                onClick={() => setShareOpen(true)}
-              >
-                {sharing ? "正在准备分享…" : "分享像素封面"}
-              </button>
-            ) : null}
-            {shareMessage ? <p className="render-studio__message" role="status">{shareMessage}</p> : null}
-            {shareOpen && pixelCover?.output_image_url ? (
-              <ShareCardSheet
-                imageUrl={pixelCover.output_image_url}
-                title="我的穿搭"
-                sharing={sharing}
-                message={shareMessage}
-                onShare={sharePixelCover}
-                onSave={downloadPixelCover}
-                onClose={() => setShareOpen(false)}
-              />
+              </div>
+            ) : (
+              <div className="tryon-result__pending" role="status">
+                <span className="item-flat-lay-spinner" aria-hidden="true" />
+                <div>
+                  <strong>
+                    {latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                      ? "真人试穿暂时不可用"
+                      : "正在生成真人试穿"}
+                  </strong>
+                  <small>
+                    {latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                      ? "请回到上方“查看效果”重新选择形象照。"
+                      : "任务会在后台完成，退出详情也不会丢失。"}
+                  </small>
+                </div>
+              </div>
+            )}
+            {shareMessage ? (
+              <p className="render-studio__message" role="status">{shareMessage}</p>
             ) : null}
           </section>
         ) : null}
@@ -863,6 +788,157 @@ function DetailContent({
           {saving ? "保存中…" : "补充喜欢原因"}
         </button>
       </div>
+      {pixelTaskCollapsed && (pixelTaskBusy || pixelTaskReady || pixelTaskFailed) ? (
+        <button
+          className="render-task-orb"
+          type="button"
+          data-ready={pixelTaskReady ? "true" : undefined}
+          aria-label={pixelTaskReady ? "像素卡片已生成，查看结果" : "查看像素卡片生成进度"}
+          onClick={() => {
+            setPixelTaskOpen(true);
+            setPixelTaskCollapsed(false);
+          }}
+        >
+          <span aria-hidden="true">✦</span>
+        </button>
+      ) : null}
+      <AnimatePresence>
+        {pixelTaskOpen ? (
+          <motion.div
+            className="render-task-layer"
+            role="presentation"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setPixelTaskOpen(false);
+              setPixelTaskCollapsed(true);
+            }}
+          >
+            <motion.section
+              className="render-task-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pixel-task-title"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 320 }}
+            >
+              <div className="sheet-handle" aria-hidden="true" />
+              <header className="render-task-sheet__header">
+                <div>
+                  <h2 id="pixel-task-title">
+                    {pixelTaskReady
+                      ? "像素卡片已生成"
+                      : pixelTaskFailed
+                        ? "像素卡片暂未生成"
+                        : "正在生成像素卡片"}
+                  </h2>
+                  <p>
+                    {pixelTaskReady
+                      ? "这张卡片来自本次穿搭，可设为衣橱中的穿搭封面。"
+                      : pixelTaskFailed
+                        ? "真人试穿照片仍然保留，可以重新发起生成。"
+                        : "任务会在后台继续，收起后不影响浏览。"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label={pixelTaskBusy ? "收起像素生成任务" : "关闭像素卡片结果"}
+                  onClick={() => {
+                    setPixelTaskOpen(false);
+                    setPixelTaskCollapsed(pixelTaskBusy);
+                  }}
+                >
+                  ×
+                </button>
+              </header>
+
+              {pixelTaskReady && pixelCover?.output_image_url ? (
+                <div className="render-task-sheet__preview">
+                  <img
+                    src={`${pixelCover.output_image_url}?v=${encodeURIComponent(
+                      pixelCover.updated_at
+                    )}`}
+                    alt="已生成的像素穿搭卡片"
+                    data-pixel="true"
+                  />
+                </div>
+              ) : (
+                <div className="render-task-sheet__pending" role="status">
+                  <span className="item-flat-lay-spinner" aria-hidden="true" />
+                  <strong>
+                    {pixelTaskFailed ? "这次没有生成成功" : "正在后台生成，请稍后"}
+                  </strong>
+                </div>
+              )}
+
+              {pixelTaskReady && pixelCover ? (
+                <div className="render-task-sheet__actions">
+                  <button
+                    className="primary-action"
+                    type="button"
+                    disabled={pixelCoverConfirmed || activePixelCoverId === pixelCover.id}
+                    onClick={() => {
+                      onSetPixelCover?.(detail.look.id, pixelCover.id);
+                      setPixelCoverConfirmed(true);
+                    }}
+                  >
+                    {pixelCoverConfirmed || activePixelCoverId === pixelCover.id
+                      ? "已设为像素封面"
+                      : "设为像素封面"}
+                  </button>
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    onClick={() => void downloadPixelCover()}
+                  >
+                    保存到相册
+                  </button>
+                  <button
+                    className="render-task-sheet__dismiss"
+                    type="button"
+                    onClick={() => {
+                      setPixelTaskOpen(false);
+                      setPixelTaskCollapsed(false);
+                    }}
+                  >
+                    暂不保存
+                  </button>
+                </div>
+              ) : pixelTaskFailed && onGenerate ? (
+                <button
+                  className="primary-action"
+                  type="button"
+                  disabled={generatingKind !== null}
+                  onClick={() =>
+                    onGenerate(
+                      detail.look.id,
+                      "pixel_cover",
+                      completedTryOn?.id
+                    )
+                  }
+                >
+                  重新生成像素卡片
+                </button>
+              ) : (
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={() => {
+                    setPixelTaskOpen(false);
+                    setPixelTaskCollapsed(true);
+                  }}
+                >
+                  收起到浮球
+                </button>
+              )}
+            </motion.section>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       <DeleteAssetDialog
         kind="look"
         open={deletingLookOpen}
@@ -918,6 +994,8 @@ export function LookDetail(props: LookDetailProps) {
             onRetry={props.onRetry}
             onSaveReason={props.onSaveReason}
             onGenerate={props.onGenerate}
+            onSetPixelCover={props.onSetPixelCover}
+            activePixelCoverId={props.activePixelCoverId}
             onTryOn={props.onTryOn}
             onDeleteTryOnPhoto={props.onDeleteTryOnPhoto}
             onDeleteSource={props.onDeleteSource}
