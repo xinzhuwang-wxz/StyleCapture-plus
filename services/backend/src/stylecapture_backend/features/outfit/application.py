@@ -737,9 +737,7 @@ def _build_plans(
             )
             if len(plans) == request.plan_count:
                 return tuple(plans)
-    raise OutfitPlanInvalidError(
-        f"当前衣橱不足以生成 {request.plan_count} 套结构有差异的合法穿搭"
-    )
+    raise OutfitPlanInvalidError(f"当前衣橱不足以生成 {request.plan_count} 套结构有差异的合法穿搭")
 
 
 def _build_template_slots(
@@ -900,11 +898,7 @@ def _style_fact_value(value: object) -> object | None:
         stripped = value.strip()
         return stripped or None
     if isinstance(value, list | tuple):
-        values = tuple(
-            stripped
-            for raw in value
-            if (stripped := str(raw).strip())
-        )
+        values = tuple(stripped for raw in value if (stripped := str(raw).strip()))
         return values or None
     return value
 
@@ -934,9 +928,7 @@ def _validate_plan_hard_rules(
     if len(plans) != request.plan_count:
         raise OutfitPlanInvalidError(f"每次必须生成 {request.plan_count} 套合法穿搭")
     if len({plan.structure_signature for plan in plans}) != request.plan_count:
-        raise OutfitPlanInvalidError(
-            f"{request.plan_count} 套穿搭必须在结构或真实单品上有明确差异"
-        )
+        raise OutfitPlanInvalidError(f"{request.plan_count} 套穿搭必须在结构或真实单品上有明确差异")
     by_id = {item.id: item for item in items}
     required = set(request.required_item_ids)
     excluded = set(request.exclude_item_ids)

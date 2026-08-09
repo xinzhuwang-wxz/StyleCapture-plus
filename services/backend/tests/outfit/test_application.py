@@ -529,10 +529,7 @@ async def test_plan_slots_include_wardrobe_style_facts_from_item_attributes() ->
     )
 
     top_slot = next(
-        slot
-        for plan in result.plans
-        for slot in plan.slots
-        if slot.item_name == "浅绿圆领针织开衫"
+        slot for plan in result.plans for slot in plan.slots if slot.item_name == "浅绿圆领针织开衫"
     )
     assert top_slot.style_facts == {
         "category": "tops",
