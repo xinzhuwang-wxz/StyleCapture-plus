@@ -126,12 +126,25 @@ function DetailContent({
   );
   const latestCollage = latestByKind.get("collage");
   const usesFixedCuratedPresentation = detail.look.fixed_presentation === true;
+  const trackedComponentPresentations = detail.components.filter(
+    (component) => component.item_image_status
+  );
+  const readyComponentPresentationCount = trackedComponentPresentations.filter(
+    (component) => component.item_image_status === "succeeded"
+  ).length;
+  const componentImagesGenerating = trackedComponentPresentations.some(
+    (component) =>
+      component.item_image_status === "queued" ||
+      component.item_image_status === "running"
+  );
+  const collageRenderGenerating =
+    latestCollage?.status === "queued" || latestCollage?.status === "running";
   const showCollagePlaceholder =
     !usesFixedCuratedPresentation &&
     !usableCollage &&
-    (detail.look.status === "processing" ||
-      latestCollage?.status === "queued" ||
-      latestCollage?.status === "running");
+    (componentImagesGenerating ||
+      detail.look.status === "processing" ||
+      collageRenderGenerating);
   const collageNeedsRetry =
     !usesFixedCuratedPresentation &&
     latestCollage !== undefined &&
@@ -316,13 +329,7 @@ function DetailContent({
           role={showCollagePlaceholder ? "img" : undefined}
           aria-label={showCollagePlaceholder ? "真实单品拼贴生成中" : undefined}
         >
-          {showCollagePlaceholder && pendingHeroImageUrl ? (
-            <img
-              className="look-detail__pending-source"
-              src={pendingHeroImageUrl}
-              alt="正在处理的原始穿搭"
-            />
-          ) : usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
+          {usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
             <img
               src={`${usableCollage.output_image_url}?v=${encodeURIComponent(usableCollage.updated_at)}`}
               alt={usableCollage.presentation_label}
@@ -335,11 +342,23 @@ function DetailContent({
                 .map((component) => (
                   <img
                     key={component.component_key}
+                    className={
+                      component.item_image_status === "queued" ||
+                      component.item_image_status === "running"
+                        ? "is-generating"
+                        : undefined
+                    }
                     src={component.item_image_url!}
                     alt={garmentImageAlt(component.role ?? component.layer)}
                   />
                 ))}
             </div>
+          ) : showCollagePlaceholder && pendingHeroImageUrl ? (
+            <img
+              className="look-detail__pending-source"
+              src={pendingHeroImageUrl}
+              alt="正在处理的原始穿搭"
+            />
           ) : heroImageUrl ? (
             <img src={heroImageUrl} alt="收藏的真实整套穿搭" />
           ) : (
@@ -354,11 +373,27 @@ function DetailContent({
           )}
 
           {showCollagePlaceholder ? (
-            <div className="look-detail__collage-status" role="status">
-              <span aria-hidden="true">✦</span>
-              <strong>
-                单品图生成中，请稍后
-              </strong>
+            <div
+              className="look-detail__collage-status"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="item-flat-lay-spinner" aria-hidden="true" />
+              <div className="look-detail__collage-status-copy">
+                <strong>
+                  {componentImagesGenerating
+                    ? `正在生成单品图 ${readyComponentPresentationCount}/${trackedComponentPresentations.length}`
+                    : "正在生成整套拼贴"}
+                </strong>
+                <small>完成后会自动替换当前截图</small>
+                {componentImagesGenerating ? (
+                  <progress
+                    aria-label="单品图生成进度"
+                    value={readyComponentPresentationCount}
+                    max={trackedComponentPresentations.length}
+                  />
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>
@@ -487,6 +522,10 @@ function DetailContent({
                   component.role ?? component.layer,
                   "待识别单品"
                 );
+                const itemImageGenerating =
+                  component.item_image_status === "queued" ||
+                  component.item_image_status === "running";
+                const itemImageFailed = component.item_image_status === "failed";
                 // 衣橱里没有这件时，用后端为这个位置算好的采购需求去搜同款。
                 // 只在真有搜索词时才给这条出口——拿角色名（「上装」）去搜是
                 // 搜不到东西的，给一个点了没用的按钮比不给更糟。
@@ -502,19 +541,37 @@ function DetailContent({
                 const ownership = "inspiration" as const;
                 const body = (
                   <>
-                    {component.item_image_url ? (
-                      <img
-                        src={component.item_image_url}
-                        alt={garmentImageAlt(component.role ?? component.layer)}
-                      />
-                    ) : (
-                      <div className="item-image-placeholder">
-                        <span>衣</span>
-                      </div>
-                    )}
+                    <div
+                      className={`look-component-strip__media${itemImageGenerating ? " is-generating" : ""}`}
+                    >
+                      {component.item_image_url ? (
+                        <img
+                          src={component.item_image_url}
+                          alt={garmentImageAlt(component.role ?? component.layer)}
+                        />
+                      ) : (
+                        <div className="item-image-placeholder">
+                          <span>衣</span>
+                        </div>
+                      )}
+                      {itemImageGenerating ? (
+                        <span
+                          className="look-component-strip__loading"
+                          role="status"
+                          aria-label={`${label}白底单品图生成中`}
+                        >
+                          <span className="item-flat-lay-spinner" aria-hidden="true" />
+                          <em>生成中</em>
+                        </span>
+                      ) : null}
+                    </div>
                     <strong>{label}</strong>
                     <small>
-                      {component.item_id
+                      {itemImageGenerating
+                        ? "正在生成白底单品图"
+                        : itemImageFailed
+                          ? "暂用截图 · 稍后可重试"
+                          : component.item_id
                         ? "查看单品操作"
                         : canShop
                           ? "衣橱里没有 · 去抖音看同款 ›"
