@@ -230,26 +230,33 @@ class RenderProcessor:
         if self._pixel_generator is None:
             await self._degrade(artifact, fallback, "像素生成服务未配置。展示真实单品拼贴")
             return
-        primary_source = normalize_provider_image(
-            self._objects.read_image(
-                fallback.output.object_key  # type: ignore[union-attr]
-            )
-        )
-        source_images: tuple[ImagePayload, ...] = (primary_source,)
+        content_object_key = fallback.output.object_key  # type: ignore[union-attr]
+        input_source_kind = fallback.kind.value
         if fallback.kind is RenderArtifactKind.COLLAGE:
             detail = await self._looks.get_detail_for_user(
                 artifact.look_id,
                 artifact.user_id,
             )
             if detail is not None and detail.look.display_object_key is not None:
-                try:
-                    look_source = normalize_provider_image(
-                        self._objects.read_image(detail.look.display_object_key)
-                    )
-                except (FileNotFoundError, KeyError):
-                    pass
-                else:
-                    source_images = (look_source, primary_source)
+                # A Look's original image is the strongest source of truth for a pixel
+                # character. Do not also send its collage: isolated Item layouts are
+                # easily copied as floating background ornaments.
+                content_object_key = detail.look.display_object_key
+                input_source_kind = "look_display"
+        try:
+            content_source = normalize_provider_image(
+                self._objects.read_image(content_object_key)
+            )
+        except (FileNotFoundError, KeyError):
+            if input_source_kind != "look_display":
+                raise
+            # A stale Look display pointer must not discard an otherwise ready collage.
+            content_source = normalize_provider_image(
+                self._objects.read_image(
+                    fallback.output.object_key  # type: ignore[union-attr]
+                )
+            )
+            input_source_kind = fallback.kind.value
         await self._renders.mark_running(
             user_id=artifact.user_id,
             artifact_id=artifact.id,
@@ -257,7 +264,7 @@ class RenderProcessor:
         try:
             generated = await self._pixel_generator.generate(
                 prompt=PIXEL_COVER_PROMPT,
-                images=(*source_images, *load_pixel_card_style_references()),
+                images=(content_source, *load_pixel_card_style_references()),
                 size=PIXEL_COVER_OUTPUT_SIZE,
                 seed=PIXEL_CARD_SEED,
                 guidance_scale=PIXEL_CARD_GUIDANCE_SCALE,
@@ -269,7 +276,8 @@ class RenderProcessor:
                 prompt_version=PIXEL_COVER_PROMPT_VERSION,
                 schema_version=PIXEL_COVER_SCHEMA_VERSION,
                 extra_parameters={
-                    "input_source_kind": fallback.kind.value,
+                    "input_source_kind": input_source_kind,
+                    "content_image_count": 1,
                     "style_reference_version": PIXEL_CARD_STYLE_REFERENCE_VERSION,
                     "style_reference_hashes": pixel_card_style_reference_hashes(),
                 },

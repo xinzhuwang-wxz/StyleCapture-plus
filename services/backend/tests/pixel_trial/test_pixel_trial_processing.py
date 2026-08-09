@@ -133,7 +133,7 @@ async def test_pixel_trial_records_capability_prompt_and_schema_versions() -> No
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "photo.pixel_trial"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v9-candidate"
+    assert stored.provider_trace.parameters["prompt_version"] == "photo-pixel-trial-zh-v8-candidate"
     assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert (
         stored.provider_trace.parameters["style_reference_version"]
@@ -176,10 +176,7 @@ def test_pixel_trial_prompt_preserves_the_subject_without_fixed_decoration() -> 
     assert "3:4" in PIXEL_TRIAL_PROMPT
     assert "由穿搭主辅色、配饰和气质延伸" in PIXEL_TRIAL_PROMPT
     assert "避免大面积纯白或中性灰" in PIXEL_TRIAL_PROMPT
-    assert "仅当内容图有明确场景标志物时" in PIXEL_TRIAL_PROMPT
-    assert "否则只用星芒、圆点、菱形等简单符号" in PIXEL_TRIAL_PROMPT
-    assert "服装、鞋、包和首饰只属于人物" in PIXEL_TRIAL_PROMPT
-    assert "禁止复制为漂浮图标" in PIXEL_TRIAL_PROMPT
+    assert "图标从原场景语义抽象" in PIXEL_TRIAL_PROMPT
     assert "不画完整场景" in PIXEL_TRIAL_PROMPT
     assert "不继承示例卡片的背景配色或装饰主题" in PIXEL_TRIAL_PROMPT
     assert "头顶、手臂和鞋底" in PIXEL_TRIAL_PROMPT
