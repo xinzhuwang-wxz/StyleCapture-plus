@@ -350,7 +350,7 @@ describe("Look wardrobe states", () => {
     expect(screen.getByText("后台生成中…")).toBeInTheDocument();
   });
 
-  it("uses a successful collage render as the Look detail hero and removes the collage tab", () => {
+  it("keeps the frontend item layout when a backend collage render succeeds", () => {
     const onGenerate = vi.fn();
     render(
       <LookDetail
@@ -370,12 +370,10 @@ describe("Look wardrobe states", () => {
       />
     );
 
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "真实单品拼贴" })
-    ).toHaveAttribute(
-      "src",
-      expect.stringContaining("55555555-5555-4555-8555-555555555555")
-    );
+      screen.queryByRole("img", { name: "真实单品拼贴" })
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "真实拼贴" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
@@ -405,7 +403,7 @@ describe("Look wardrobe states", () => {
     expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
   });
 
-  it("shows an explicit hero placeholder while the collage render is queued", () => {
+  it("keeps the frontend item composition visible while a backend collage is queued", () => {
     render(
       <LookDetail
         detail={readyDetail()}
@@ -428,13 +426,33 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(
-      screen.getByRole("img", { name: "真实单品拼贴生成中" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("正在生成整套拼贴")).toBeInTheDocument();
+    const flatlay = screen.getByLabelText("套装单品平面拼贴");
+    expect(flatlay).toHaveAttribute("data-count", "1");
+    expect(screen.queryByText("正在生成整套拼贴")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("img", { name: "收藏的真实整套穿搭" })
     ).not.toBeInTheDocument();
+  });
+
+  it("prefers frontend item layout over a completed backend collage image", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[renderArtifact()]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
+    expect(screen.queryByAltText("真实单品拼贴")).not.toBeInTheDocument();
   });
 
   it("shows real item-image progress on the hero and each pending component", () => {
@@ -680,7 +698,7 @@ describe("Look wardrobe states", () => {
     );
   });
 
-  it("offers a manual retry when a generated look collage fails", () => {
+  it("does not expose backend collage recovery controls in the Look detail", () => {
     const onGenerate = vi.fn();
     render(
       <LookDetail
@@ -707,9 +725,12 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("真实单品拼贴暂未生成")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新生成真实拼贴" }));
-    expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "collage");
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
+    expect(screen.queryByText("真实单品拼贴暂未生成")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "重新生成真实拼贴" })
+    ).not.toBeInTheDocument();
+    expect(onGenerate).not.toHaveBeenCalled();
   });
 
   it("keeps the AI label for real model relationship analysis", () => {
