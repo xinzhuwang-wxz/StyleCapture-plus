@@ -1,4 +1,0 @@
-interface:
-  display_name: "Real Outfit Item Flat-Lays"
-  short_description: "Generate white 3:4 item heroes from a captured outfit."
-  default_prompt: "Use $real-photo-flat-lay-collage to generate each captured outfit item as an independent white 3:4 detail image."

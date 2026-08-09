@@ -39,7 +39,7 @@
 - `uv run --package stylecapture-backend ruff check ...` → passed on changed backend and Item-presentation tests.
 - H5 `tsc -b --noEmit` → passed.
 - Focused H5 Item-detail tests → passed, including the direct `按单品` entry, `/source`, blur/loading state, generation marker, and Item-over-Look layer ordering.
-- `node --test skills/real-photo-flat-lay-collage/tests/render.test.js` → 2 passed.
+- `node --test skills/generate-outfit-item-assets/tests/render.test.js` → 2 passed.
 - Skill Creator `quick_validate.py` → valid.
 
 ## Surprises & discoveries

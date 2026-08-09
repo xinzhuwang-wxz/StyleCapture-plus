@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Item, Job, Ownership } from "../../api/client";
 import { pixelGarmentIcon } from "../../utils/pixelAvatar";
 import { garmentLabel } from "./localization";
+import { pixelCardFallbackBackground } from "./pixelCardPalette";
 
 export type PendingItem = {
   captureId: string;
@@ -63,6 +64,7 @@ function PixelItemImage({
       decoding="async"
       data-image-kind="wardrobe-pixel-fallback"
       data-pixel="true"
+      style={{ background: pixelCardFallbackBackground(item.id) }}
     />
   );
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Generate the two presentation assets for each Item in one workflow.
 "use strict";
 
 const { randomUUID } = require("node:crypto");
@@ -34,12 +35,12 @@ async function productApiError(response, fallback) {
   throw new Error(code ? `${code}: ${message || fallback}` : message || fallback);
 }
 
-function assertItemPresentation(presentation) {
+function assertItemPresentation(presentation, expectedKind) {
   if (!presentation || typeof presentation !== "object" || typeof presentation.id !== "string") {
     throw new Error("Product API returned an invalid item presentation");
   }
-  if (presentation.kind !== "flat_lay_item") {
-    throw new Error("Product API returned a non-flat-lay item presentation");
+  if (presentation.kind !== expectedKind) {
+    throw new Error(`Product API returned ${presentation.kind || "an unknown kind"}, expected ${expectedKind}`);
   }
   return presentation;
 }
@@ -52,7 +53,28 @@ async function ensureSession(baseUrl, options, signal) {
   return sessionCookie(response);
 }
 
-async function renderItemFlatLays(lookId, options = {}) {
+async function requestItemPresentation(itemId, kind, context) {
+  const slug = kind === "pixel_item" ? "pixel" : "flat-lay";
+  const response = await fetch(`${context.baseUrl}/v1/items/${encodeURIComponent(itemId)}/presentations/${slug}`, {
+    method: "POST",
+    headers: { "idempotency-key": randomUUID(), cookie: context.cookie },
+    signal: context.signal,
+  });
+  if (!response.ok) await productApiError(response, `${kind} creation failed`);
+  const presentation = assertItemPresentation(await response.json(), kind);
+  if (!context.wait) return presentation;
+  while (!new Set(["succeeded", "failed"]).has(presentation.status)) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const latest = await fetch(`${context.baseUrl}/v1/item-presentations/${encodeURIComponent(presentation.id)}`, {
+      headers: { cookie: context.cookie }, signal: context.signal,
+    });
+    if (!latest.ok) await productApiError(latest, `${kind} status lookup failed`);
+    Object.assign(presentation, assertItemPresentation(await latest.json(), kind));
+  }
+  return presentation;
+}
+
+async function renderItemAssets(lookId, options = {}) {
   const normalizedLookId = normalizeLookId(lookId);
   const baseUrl = normalizeBaseUrl(options.baseUrl || process.env.STYLECAPTURE_API_URL || DEFAULT_API_URL);
   const timeoutMs = Math.max(1, Math.min(Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS, 180_000));
@@ -64,26 +86,19 @@ async function renderItemFlatLays(lookId, options = {}) {
   if (!detailResponse.ok) await productApiError(detailResponse, "无法读取穿搭中的真实单品");
   const detail = await detailResponse.json();
   const itemIds = [...new Set((detail?.components || []).map((component) => component?.item_id).filter((id) => typeof id === "string"))];
-  const presentations = await Promise.all(itemIds.map(async (itemId) => {
-    const response = await fetch(`${baseUrl}/v1/items/${encodeURIComponent(itemId)}/presentations/flat-lay`, {
-      method: "POST",
-      headers: { "idempotency-key": randomUUID(), cookie },
-      signal,
-    });
-    if (!response.ok) await productApiError(response, "真实单品白底图创建失败");
-    const presentation = assertItemPresentation(await response.json());
-    if (!options.wait) return presentation;
-    while (!new Set(["succeeded", "failed"]).has(presentation.status)) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const latest = await fetch(`${baseUrl}/v1/item-presentations/${encodeURIComponent(presentation.id)}`, {
-        headers: { cookie }, signal,
-      });
-      if (!latest.ok) await productApiError(latest, "真实单品白底图状态查询失败");
-      Object.assign(presentation, assertItemPresentation(await latest.json()));
-    }
-    return presentation;
+  const context = { baseUrl, cookie, signal, wait: options.wait };
+  return Promise.all(itemIds.map(async (itemId) => {
+    const [pixel, flatLay] = await Promise.all([
+      requestItemPresentation(itemId, "pixel_item", context),
+      requestItemPresentation(itemId, "flat_lay_item", context),
+    ]);
+    return { item_id: itemId, pixel, flat_lay: flatLay };
   }));
-  return presentations;
+}
+
+async function renderItemFlatLays(lookId, options = {}) {
+  const assets = await renderItemAssets(lookId, options);
+  return assets.map((entry) => entry.flat_lay);
 }
 
 function parseArgs(argv) {
@@ -104,7 +119,7 @@ function parseArgs(argv) {
 async function main(argv) {
   const args = parseArgs(argv);
   if (!args["look-id"]) throw new Error("--look-id is required");
-  const output = await renderItemFlatLays(args["look-id"], {
+  const output = await renderItemAssets(args["look-id"], {
     baseUrl: args["api-base-url"],
     sessionCookie: args["session-cookie"],
     timeoutMs: args["timeout-ms"],
@@ -120,4 +135,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { normalizeLookId, renderItemFlatLays };
+module.exports = { normalizeLookId, renderItemAssets, renderItemFlatLays };
