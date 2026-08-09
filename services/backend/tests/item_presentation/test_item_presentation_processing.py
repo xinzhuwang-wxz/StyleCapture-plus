@@ -112,7 +112,8 @@ class SuccessfulGenerator:
         size: str = "1024x1024",
     ) -> GeneratedImage:
         assert "只出现一个目标单品" in prompt
-        assert "背景必须明显呈现这组柔和色相" in prompt
+        assert "不要生成圆形或椭圆形光晕" in prompt
+        assert "落地阴影、投影、边框" in prompt
         assert len(images) == 1
         self.images = tuple(images)
         rendered = Image.new("RGB", (2048, 2048), (238, 238, 238))
@@ -229,9 +230,11 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
     assert stored.provider_trace.parameters["capability_id"] == "item.pixel_presentation"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
     assert stored.provider_trace.parameters["prompt_version"] == (
-        "stylecapture-item-pixel-2026-08-09-colorways"
+        "stylecapture-item-pixel-2026-08-09-clean-subject"
     )
-    assert stored.provider_trace.parameters["schema_version"] == ("colorway-pixel-card-square-v2")
+    assert stored.provider_trace.parameters["schema_version"] == (
+        "ornate-asymmetric-pixel-card-square-v3"
+    )
     assert stored.provider_trace.parameters["output_canvas"] == "1024x1024"
     assert stored.provider_trace.parameters["background_palette"] in {
         "蜜桃",
@@ -265,14 +268,21 @@ def test_pixel_card_recolors_connected_gray_background_with_stable_variety() -> 
     recolored_ratio = first_quality["background_recolored_ratio"]
     assert isinstance(recolored_ratio, float)
     assert recolored_ratio > 0.5
+    assert first_quality["decorations"] == "stylecapture-ornate-asymmetric-frame-v3"
     with Image.open(BytesIO(first.body)) as first_card:
         assert first_card.size == (1024, 1024)
-        corner = cast(tuple[int, int, int], first_card.getpixel((12, 12)))
-        assert max(corner) - min(corner) >= 8
+        corner_frame = cast(tuple[int, int, int], first_card.getpixel((76, 20)))
+        assert max(corner_frame) - min(corner_frame) >= 8
         subject = cast(tuple[int, int, int], first_card.getpixel((512, 512)))
         assert subject[0] > 150 and subject[1] < 90
+        center_backdrop = cast(tuple[int, int, int], first_card.getpixel((512, 160)))
+        assert min(center_backdrop) > 220
+        left_sparkle = cast(tuple[int, int, int], first_card.getpixel((188, 136)))
+        mirrored_position = cast(tuple[int, int, int], first_card.getpixel((836, 136)))
+        assert left_sparkle != mirrored_position
+        first_outer = cast(tuple[int, int, int], first_card.getpixel((12, 12)))
     with Image.open(BytesIO(second.body)) as second_card:
-        assert second_card.getpixel((12, 12)) != corner
+        assert second_card.getpixel((12, 12)) != first_outer
 
 
 def test_pixel_card_rejects_non_square_provider_output() -> None:
