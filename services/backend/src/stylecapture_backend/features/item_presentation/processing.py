@@ -8,7 +8,7 @@ from statistics import median
 from typing import Protocol, cast
 from uuid import UUID
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, UnidentifiedImageError
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.item_presentation.application import (
     FLAT_LAY_ITEM_CAPABILITY_ID,
@@ -67,18 +67,18 @@ class ItemPixelImageGenerator(Protocol):
 class PixelCardPalette:
     name: str
     outer: str
-    glow: str
+    center: str
+    frame: str
     accent: str
-    secondary: str
 
 
 PIXEL_CARD_PALETTES = (
-    PixelCardPalette("蜜桃", "#FFF1E9", "#FFD6C4", "#EE9875", "#F2B4CA"),
-    PixelCardPalette("丁香紫", "#F6F0FF", "#E2D2FF", "#A98AE8", "#F0A8C2"),
-    PixelCardPalette("晴空蓝", "#EDF7FF", "#CFE8FF", "#70A9E3", "#F0A8C2"),
-    PixelCardPalette("薄荷绿", "#ECFAF3", "#CFEEDC", "#68B58D", "#A98AE8"),
-    PixelCardPalette("奶油黄", "#FFF8E3", "#F7E3A2", "#D4A23D", "#F0A8C2"),
-    PixelCardPalette("莓果粉", "#FFF0F5", "#FFD4E3", "#E786AA", "#A98AE8"),
+    PixelCardPalette("蜜桃", "#FFF8F4", "#FDE8E4", "#F5C9D7", "#EE9875"),
+    PixelCardPalette("丁香紫", "#FCF9FF", "#F0E8FA", "#E0CEF3", "#A98AE8"),
+    PixelCardPalette("晴空蓝", "#F8FCFF", "#E8F3FB", "#C9DFEF", "#70A9E3"),
+    PixelCardPalette("薄荷绿", "#F7FCF9", "#E7F4EC", "#C9E4D5", "#68B58D"),
+    PixelCardPalette("奶油黄", "#FFFCF2", "#F9F0D7", "#EEDCA6", "#D4A23D"),
+    PixelCardPalette("莓果粉", "#FFF8FB", "#FBE7EE", "#F3C7D7", "#E786AA"),
 )
 
 
@@ -95,10 +95,9 @@ def pixel_item_prompt(item: WardrobeItem) -> str:
     category = _field_text(fields, "category", "服装")
     subcategory = _field_text(fields, "subcategory", "")
     colors = _field_text(fields, "colors", "")
-    palette = pixel_card_palette(item.id)
     return f"""
 只识别并提取参考图中的目标单品“{name}”(类别 {category}/{subcategory}, 主色 {colors}),
-把它转换为 StyleCapture 统一的复古像素收藏卡。严格输出 1:1 正方形图片。
+把它转换为 StyleCapture 统一的复古像素单品画。严格输出 1:1 正方形图片。
 
 主体规则: 只出现一个目标单品; 鞋只保留一双配对鞋; 目标明确为一组配饰时才保留整组。
 单品正面居中、完整可见、不裁切、不拉伸, 占画面约 60% 至 72%, 四周留出装饰安全区。
@@ -108,9 +107,8 @@ def pixel_item_prompt(item: WardrobeItem) -> str:
 内部用有限色阶表达材质和褶皱; 像素块大小一致, 禁止局部写实、局部像素的混合风格,
 禁止模糊、抗锯齿、油画、3D 渲染、照片质感、矢量插画或平滑渐变。
 
-卡片背景: 本卡使用{palette.name}协调色板, 边缘主色 {palette.outer}, 中央柔和光晕 {palette.glow}。
-背景必须明显呈现这组柔和色相, 不要默认退化成整张无彩灰白商品底。不同单品由系统分配不同色板。
-不要生成边框、爱心、星星或文字, 这些装饰由后端统一叠加。禁止人物、人体、皮肤、头发、
+背景必须纯净、均匀、接近纯白, 与主体边缘清楚分离。不要生成圆形或椭圆形光晕、黑灰色光圈、
+落地阴影、投影、边框、爱心、星星或文字; 卡面背景与装饰由后端统一绘制。禁止人物、人体、皮肤、头发、
 模特、衣架、场景、其他衣物、品牌、水印、标签、价格、文字、拼贴、分镜、多个候选和额外道具。
 """.strip()
 
@@ -396,20 +394,14 @@ def normalize_pixel_card_output(
 
     palette = pixel_card_palette(seed)
     pixelated = image.resize((256, 256), Image.Resampling.BOX)
-    pixelated, background_ratio = _apply_pixel_card_background(pixelated, palette)
+    pixelated, background_ratio = _compose_pixel_card(pixelated, palette)
     if background_ratio < 0.15:
         raise RenderProviderError(
             "pixel_card_background_invalid",
             "Generated pixel item does not expose enough connected background for a colorway",
             retryable=True,
         )
-    pixelated = pixelated.quantize(
-        colors=96,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.NONE,
-    ).convert("RGB")
     pixelated = pixelated.resize((1024, 1024), Image.Resampling.NEAREST)
-    _draw_pixel_card_decorations(pixelated, palette=palette)
 
     output = BytesIO()
     pixelated.save(output, format="PNG", optimize=True)
@@ -422,18 +414,17 @@ def normalize_pixel_card_output(
             sha256=sha256(body).hexdigest(),
         ),
         {
-            "quality_gate": "colorway-pixel-card-square-v2",
+            "quality_gate": "ornate-pixel-card-square-v3",
             "light_border_ratio": round(light_border_ratio, 4),
             "background_palette": palette.name,
             "background_recolored_ratio": round(background_ratio, 4),
             "pixel_grid": "256x256",
-            "palette_colors": 96,
-            "decorations": "stylecapture-colorway-frame-v2",
+            "decorations": "stylecapture-ornate-asymmetric-frame-v3",
         },
     )
 
 
-def _apply_pixel_card_background(
+def _compose_pixel_card(
     image: Image.Image,
     palette: PixelCardPalette,
 ) -> tuple[Image.Image, float]:
@@ -474,67 +465,92 @@ def _apply_pixel_card_background(
             ImageDraw.floodfill(connected, point, 128, thresh=0)
     mask = connected.point(lambda value: 255 if value == 128 else 0)
 
-    backdrop = Image.new("RGB", image.size, palette.outer)
-    glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow)
-    margin = int(image.width * 0.16)
-    glow_draw.ellipse(
-        (margin, margin, image.width - margin, image.height - margin),
-        fill=(*_hex_rgb(palette.glow), 255),
-    )
-    glow = glow.filter(ImageFilter.GaussianBlur(radius=image.width * 0.08))
-    backdrop.paste(glow.convert("RGB"), mask=glow.getchannel("A"))
-    recolored = Image.composite(backdrop, image, mask)
+    subject_mask = ImageChops.invert(mask)
+    backdrop = _pixel_card_template(image.size, palette)
+    recolored = Image.composite(image, backdrop, subject_mask)
     recolored_ratio = mask.histogram()[255] / (image.width * image.height)
     return recolored, recolored_ratio
 
 
-def _hex_rgb(value: str) -> tuple[int, int, int]:
-    normalized = value.removeprefix("#")
-    return (
-        int(normalized[0:2], 16),
-        int(normalized[2:4], 16),
-        int(normalized[4:6], 16),
+def _pixel_card_template(
+    size: tuple[int, int],
+    palette: PixelCardPalette,
+) -> Image.Image:
+    card = Image.new("RGB", size, palette.outer)
+    draw = ImageDraw.Draw(card)
+    width, height = size
+    draw.ellipse(
+        (
+            int(width * 0.145),
+            int(height * 0.13),
+            int(width * 0.855),
+            int(height * 0.84),
+        ),
+        fill=palette.center,
     )
+    _draw_ornate_pixel_frame(draw, size=size, color=palette.frame)
+    _draw_asymmetric_pixel_decorations(draw, palette=palette)
+    return card
 
 
 def _rgb_pixel(image: Image.Image, point: tuple[int, int]) -> tuple[int, int, int]:
     return cast(tuple[int, int, int], image.getpixel(point))
 
 
-def _draw_pixel_card_decorations(
-    image: Image.Image,
+def _draw_ornate_pixel_frame(
+    draw: ImageDraw.ImageDraw,
+    *,
+    size: tuple[int, int],
+    color: str,
+) -> None:
+    width, height = size
+    base_paths = (
+        ((65, 5), (19, 5), (19, 7), (14, 7), (14, 10), (10, 10), (10, 15), (7, 15), (7, 62)),
+        ((65, 10), (23, 10), (23, 12), (18, 12), (18, 15), (14, 15), (14, 20), (11, 20), (11, 55)),
+    )
+    for flip_x, flip_y in ((False, False), (True, False), (False, True), (True, True)):
+        for path in base_paths:
+            transformed = [
+                (
+                    width - 1 - x if flip_x else x,
+                    height - 1 - y if flip_y else y,
+                )
+                for x, y in path
+            ]
+            draw.line(transformed, fill=color, width=1)
+        node_x = width - 1 - 10 if flip_x else 8
+        node_y = height - 1 - 10 if flip_y else 8
+        draw.rectangle((node_x, node_y, node_x + 3, node_y + 3), fill=color)
+
+
+def _draw_asymmetric_pixel_decorations(
+    draw: ImageDraw.ImageDraw,
     *,
     palette: PixelCardPalette,
 ) -> None:
-    draw = ImageDraw.Draw(image)
-    _draw_corner_frame(draw, color=palette.secondary)
+    pink = "#F2A7BF"
+    lilac = "#C8A7F2"
+    yellow = "#F3C66F"
+    coral = "#F3B3A7"
     for x, y, color, unit in (
-        (148, 180, palette.accent, 8),
-        (862, 166, "#C8A7F2", 8),
-        (130, 500, "#F6CE7A", 10),
-        (880, 520, palette.accent, 8),
-        (212, 820, "#C8A7F2", 6),
-        (780, 824, "#F6CE7A", 6),
+        (47, 34, pink, 2),
+        (214, 29, lilac, 1),
+        (185, 36, yellow, 2),
+        (31, 120, yellow, 2),
+        (219, 70, yellow, 2),
+        (46, 151, lilac, 1),
+        (75, 220, lilac, 1),
+        (180, 216, pink, 2),
     ):
         _draw_pixel_sparkle(draw, x=x, y=y, unit=unit, color=color)
-    _draw_pixel_heart(draw, x=126, y=710, unit=8, color=palette.accent)
-    _draw_pixel_heart(draw, x=858, y=690, unit=8, color=palette.accent)
-
-
-def _draw_corner_frame(draw: ImageDraw.ImageDraw, *, color: str) -> None:
-    segments = (
-        ((40, 40), (250, 40)),
-        ((774, 40), (984, 40)),
-        ((40, 984), (250, 984)),
-        ((774, 984), (984, 984)),
-        ((40, 40), (40, 250)),
-        ((40, 774), (40, 984)),
-        ((984, 40), (984, 250)),
-        ((984, 774), (984, 984)),
-    )
-    for start, end in segments:
-        draw.line((start, end), fill=color, width=4)
+    _draw_pixel_heart(draw, x=215, y=117, unit=1, color=pink)
+    _draw_pixel_dot(draw, x=29, y=56, unit=1, color="#F5C1D0")
+    _draw_pixel_dot(draw, x=28, y=77, unit=1, color=coral)
+    _draw_pixel_dot(draw, x=43, y=194, unit=2, color="#F5D58E")
+    _draw_pixel_dot(draw, x=208, y=183, unit=2, color=palette.accent)
+    _draw_pixel_dot(draw, x=216, y=207, unit=1, color="#F3B9C5")
+    _draw_pixel_plus(draw, x=28, y=166, unit=1, color="#F5C9C1")
+    _draw_pixel_plus(draw, x=224, y=156, unit=1, color="#F6CDD8")
 
 
 def _draw_pixel_sparkle(
@@ -552,6 +568,41 @@ def _draw_pixel_heart(draw: ImageDraw.ImageDraw, *, x: int, y: int, unit: int, c
                 left = x + (column - 3) * unit
                 top = y + row * unit
                 draw.rectangle((left, top, left + unit - 1, top + unit - 1), fill=color)
+
+
+def _draw_pixel_dot(
+    draw: ImageDraw.ImageDraw,
+    *,
+    x: int,
+    y: int,
+    unit: int,
+    color: str,
+) -> None:
+    draw.polygon(
+        (
+            (x - unit, y - unit * 3),
+            (x + unit, y - unit * 3),
+            (x + unit * 3, y - unit),
+            (x + unit * 3, y + unit),
+            (x + unit, y + unit * 3),
+            (x - unit, y + unit * 3),
+            (x - unit * 3, y + unit),
+            (x - unit * 3, y - unit),
+        ),
+        fill=color,
+    )
+
+
+def _draw_pixel_plus(
+    draw: ImageDraw.ImageDraw,
+    *,
+    x: int,
+    y: int,
+    unit: int,
+    color: str,
+) -> None:
+    draw.rectangle((x - unit, y - unit * 2, x + unit, y + unit * 2), fill=color)
+    draw.rectangle((x - unit * 2, y - unit, x + unit * 2, y + unit), fill=color)
 
 
 def normalize_flat_lay_image(
