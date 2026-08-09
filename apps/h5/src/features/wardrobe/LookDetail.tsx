@@ -117,15 +117,10 @@ function DetailContent({
       completedByKind.set(render.kind, render);
     }
   });
-  const usableCollage = sortedRenders.find(
-    (render) =>
-      render.kind === "collage" &&
-      render.current !== false &&
-      (render.status === "succeeded" || render.status === "degraded") &&
-      render.output_image_url
-  );
-  const latestCollage = latestByKind.get("collage");
   const usesFixedCuratedPresentation = detail.look.fixed_presentation === true;
+  const flatlayComponents = detail.components
+    .filter((component) => component.item_image_url)
+    .slice(0, 6);
   const trackedComponentPresentations = detail.components.filter(
     (component) => component.item_image_status
   );
@@ -137,27 +132,12 @@ function DetailContent({
       component.item_image_status === "queued" ||
       component.item_image_status === "running"
   );
-  const collageRenderGenerating =
-    latestCollage?.status === "queued" || latestCollage?.status === "running";
   const showCollagePlaceholder =
     !usesFixedCuratedPresentation &&
-    !usableCollage &&
     (componentImagesGenerating ||
-      detail.look.status === "processing" ||
-      collageRenderGenerating);
-  const collageNeedsRetry =
-    !usesFixedCuratedPresentation &&
-    latestCollage !== undefined &&
-    (latestCollage.status === "failed" ||
-      ((latestCollage.status === "succeeded" ||
-        latestCollage.status === "degraded") &&
-        !latestCollage.output_image_url));
+      (flatlayComponents.length === 0 && detail.look.status === "processing"));
   const heroImageUrl =
-    usesFixedCuratedPresentation
-      ? detail.look.display_image_url ?? detail.look.source_image_url
-      : usableCollage?.output_image_url ??
-        detail.look.display_image_url ??
-        detail.look.source_image_url;
+    detail.look.display_image_url ?? detail.look.source_image_url;
   const pendingHeroImageUrl =
     detail.look.source_image_url ?? detail.look.display_image_url;
   const completedTryOn = completedByKind.get("try_on");
@@ -327,31 +307,27 @@ function DetailContent({
         <div
           className="look-detail__hero-panel look-detail__hero-flatlay"
           role={showCollagePlaceholder ? "img" : undefined}
-          aria-label={showCollagePlaceholder ? "真实单品拼贴生成中" : undefined}
+          aria-label={showCollagePlaceholder ? "单品图生成中" : undefined}
         >
-          {usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
-            <img
-              src={`${usableCollage.output_image_url}?v=${encodeURIComponent(usableCollage.updated_at)}`}
-              alt={usableCollage.presentation_label}
-            />
-          ) : detail.components.some((component) => component.item_image_url) ? (
-            <div className="look-detail__flatlay-items" aria-label="套装单品平面拼贴">
-              {detail.components
-                .filter((component) => component.item_image_url)
-                .slice(0, 4)
-                .map((component) => (
-                  <img
-                    key={component.component_key}
-                    className={
-                      component.item_image_status === "queued" ||
-                      component.item_image_status === "running"
-                        ? "is-generating"
-                        : undefined
-                    }
-                    src={component.item_image_url!}
-                    alt={garmentImageAlt(component.role ?? component.layer)}
-                  />
-                ))}
+          {flatlayComponents.length > 0 ? (
+            <div
+              className="look-detail__flatlay-items"
+              data-count={flatlayComponents.length}
+              aria-label="套装单品平面拼贴"
+            >
+              {flatlayComponents.map((component) => (
+                <img
+                  key={component.component_key}
+                  className={
+                    component.item_image_status === "queued" ||
+                    component.item_image_status === "running"
+                      ? "is-generating"
+                      : undefined
+                  }
+                  src={component.item_image_url!}
+                  alt={garmentImageAlt(component.role ?? component.layer)}
+                />
+              ))}
             </div>
           ) : showCollagePlaceholder && pendingHeroImageUrl ? (
             <img
@@ -383,7 +359,7 @@ function DetailContent({
                 <strong>
                   {componentImagesGenerating
                     ? `正在生成单品图 ${readyComponentPresentationCount}/${trackedComponentPresentations.length}`
-                    : "正在生成整套拼贴"}
+                    : "正在识别并整理单品"}
                 </strong>
                 <small>完成后会自动替换当前截图</small>
                 {componentImagesGenerating ? (
@@ -493,21 +469,6 @@ function DetailContent({
               删除整套原图
             </button>
           )
-        ) : null}
-
-        {collageNeedsRetry && onGenerate ? (
-          <div className="look-recovery" role="status">
-            <strong>真实单品拼贴暂未生成</strong>
-            <span>原始穿搭和已拆单品都已保留，可以重新生成。</span>
-            <button
-              className="secondary-action"
-              type="button"
-              disabled={generatingKind !== null}
-              onClick={() => onGenerate(detail.look.id, "collage")}
-            >
-              {generatingKind === "collage" ? "正在重新生成…" : "重新生成真实拼贴"}
-            </button>
-          </div>
         ) : null}
 
         {detail.components.length > 0 ? (
