@@ -172,7 +172,7 @@ class RenderProcessor:
                 artifact_id=artifact.id,
                 provider_trace=RenderProviderTrace(
                     provider="deterministic",
-                    model="pillow-collage-v3-flat-lay-hero",
+                    model="pillow-collage-v6-centered-square-cutout",
                     parameters={
                         "component_count": len(item_images),
                         "look_version": detail.look.updated_at.isoformat(),
@@ -410,7 +410,7 @@ class RenderProcessor:
             key=lambda component: component.display_order,
         )
         assets: list[tuple[str | None, ImagePayload]] = []
-        for component in ready[:6]:
+        for component in ready[:8]:
             item = await self._wardrobe.get_for_user(
                 component.item_id,  # type: ignore[arg-type]
                 artifact.user_id,

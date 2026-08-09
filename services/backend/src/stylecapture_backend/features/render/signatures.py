@@ -13,7 +13,7 @@ from stylecapture_backend.features.render.prompt_contracts import (
 )
 
 RENDER_PIPELINE_VERSIONS = {
-    RenderArtifactKind.COLLAGE: "collage-v3-flat-lay-hero",
+    RenderArtifactKind.COLLAGE: "collage-v6-centered-square-cutout",
     RenderArtifactKind.TRY_ON: TRY_ON_PROMPT_VERSION,
     RenderArtifactKind.PIXEL_COVER: PIXEL_COVER_PROMPT_VERSION,
 }

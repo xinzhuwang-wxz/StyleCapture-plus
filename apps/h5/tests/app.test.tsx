@@ -654,6 +654,34 @@ describe("StyleCapture garment ingest", () => {
     expect(api.createRender).not.toHaveBeenCalled();
   });
 
+  it("automatically requests a pixel cover for a newly uploaded outfit", async () => {
+    const look = {
+      id: "11111111-1111-4111-8111-111111111111",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      status: "ready" as const,
+      source: "user_created" as const,
+      display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image",
+      source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
+      display_ready: true,
+      source_available: true,
+      fixed_presentation: false,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:01:00Z"
+    };
+    api.listLooks.mockResolvedValue([look]);
+    api.listRenders.mockResolvedValue([]);
+
+    renderApp();
+
+    await waitFor(() =>
+      expect(api.createRender).toHaveBeenCalledWith(
+        look.id,
+        "pixel_cover",
+        "auto-pixel:11111111-1111-4111-8111-111111111111:2026-07-25T00:01:00Z"
+      )
+    );
+  });
+
   it("retries one failed automatic collage with a new idempotency key", async () => {
     const lookId = "11111111-1111-4111-8111-111111111111";
     const failedCollage = {
