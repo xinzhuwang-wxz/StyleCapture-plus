@@ -900,10 +900,17 @@ export function App() {
     for (const itemId of itemIds) {
       if (flatLayAttemptedItemIds.current.has(itemId)) continue;
       flatLayAttemptedItemIds.current.add(itemId);
-      void wardrobeApi.ensureItemFlatLayPresentation(itemId).catch(() => {
-        // The detail page keeps the real item display asset when this optional
-        // presentation cannot be queued, and its own request permits recovery.
-      });
+      void wardrobeApi
+        .ensureItemFlatLayPresentation(itemId)
+        .then(() =>
+          queryClient.invalidateQueries({
+            queryKey: ["wardrobe-look", detail.look.id]
+          })
+        )
+        .catch(() => {
+          // The detail page keeps the real item display asset when this optional
+          // presentation cannot be queued, and its own request permits recovery.
+        });
     }
   }, [lookQuery.data, rendersQuery.data]);
 
