@@ -414,12 +414,13 @@ def normalize_pixel_card_output(
             sha256=sha256(body).hexdigest(),
         ),
         {
-            "quality_gate": "ornate-pixel-card-square-v3",
+            "quality_gate": "ornate-pixel-card-square-v4",
             "light_border_ratio": round(light_border_ratio, 4),
             "background_palette": palette.name,
             "background_recolored_ratio": round(background_ratio, 4),
             "pixel_grid": "256x256",
-            "decorations": "stylecapture-ornate-asymmetric-frame-v3",
+            "decorations": "stylecapture-ornate-asymmetric-frame-v4",
+            "decoration_count": 6,
         },
     )
 
@@ -531,26 +532,15 @@ def _draw_asymmetric_pixel_decorations(
     pink = "#F2A7BF"
     lilac = "#C8A7F2"
     yellow = "#F3C66F"
-    coral = "#F3B3A7"
     for x, y, color, unit in (
         (47, 34, pink, 2),
         (214, 29, lilac, 1),
-        (185, 36, yellow, 2),
         (31, 120, yellow, 2),
-        (219, 70, yellow, 2),
-        (46, 151, lilac, 1),
-        (75, 220, lilac, 1),
         (180, 216, pink, 2),
     ):
         _draw_pixel_sparkle(draw, x=x, y=y, unit=unit, color=color)
     _draw_pixel_heart(draw, x=215, y=117, unit=1, color=pink)
-    _draw_pixel_dot(draw, x=29, y=56, unit=1, color="#F5C1D0")
-    _draw_pixel_dot(draw, x=28, y=77, unit=1, color=coral)
-    _draw_pixel_dot(draw, x=43, y=194, unit=2, color="#F5D58E")
-    _draw_pixel_dot(draw, x=208, y=183, unit=2, color=palette.accent)
-    _draw_pixel_dot(draw, x=216, y=207, unit=1, color="#F3B9C5")
-    _draw_pixel_plus(draw, x=28, y=166, unit=1, color="#F5C9C1")
-    _draw_pixel_plus(draw, x=224, y=156, unit=1, color="#F6CDD8")
+    _draw_pixel_dot(draw, x=43, y=194, unit=2, color=palette.accent)
 
 
 def _draw_pixel_sparkle(
