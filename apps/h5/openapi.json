@@ -757,6 +757,16 @@
             ],
             "title": "Item Id"
           },
+          "item_image_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemPresentationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "item_image_url": {
             "anyOf": [
               {
@@ -1737,6 +1747,11 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "current": {
+            "default": true,
+            "title": "Current",
+            "type": "boolean"
           },
           "failure_code": {
             "anyOf": [

@@ -13,10 +13,12 @@ const STATUS_LABELS: Record<Look["status"], string> = {
 export function LookCard({
   look,
   pixelCover = null,
+  collageCover = null,
   onOpen
 }: {
   look: Look;
   pixelCover?: RenderArtifact | null;
+  collageCover?: RenderArtifact | null;
   onOpen: () => void;
 }) {
   const coverReady =
@@ -26,6 +28,11 @@ export function LookCard({
   const coverAlt = coverFailed
     ? "像素穿搭封面生成失败，当前显示临时像素形象"
     : "像素穿搭封面生成中";
+  const collageReady =
+    collageCover?.status === "succeeded" && Boolean(collageCover.output_image_url);
+  const fallbackCoverUrl = collageReady
+    ? collageCover.output_image_url
+    : look.display_image_url ?? look.source_image_url;
   return (
     <motion.article
       className="item-card look-card pixel-card wardrobe-card"
@@ -43,6 +50,15 @@ export function LookCard({
               loading="lazy"
               decoding="async"
               data-image-kind="look-pixel-cover"
+            />
+          ) : fallbackCoverUrl ? (
+            <img
+              className="look-card__fallback-cover"
+              src={fallbackCoverUrl}
+              alt="单品拼贴封面占位"
+              loading="lazy"
+              decoding="async"
+              data-image-kind={collageReady ? "look-collage-placeholder" : "look-source-placeholder"}
             />
           ) : (
             <img

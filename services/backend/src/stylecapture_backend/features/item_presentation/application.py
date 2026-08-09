@@ -119,6 +119,22 @@ class ItemPresentationApplication:
             raise ItemPresentationNotFound("Item presentation asset not found")
         return _view(asset)
 
+    async def get_current_flat_lay_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+    ) -> ItemPresentationView | None:
+        """Return the current generated Item hero without creating new work."""
+        item = await self._wardrobe.get_item(user_id, item_id)
+        existing = await self._assets.find_current(
+            user_id=user_id,
+            item_id=item_id,
+            kind=ItemPresentationKind.FLAT_LAY_ITEM,
+            input_signature=flat_lay_item_signature(item),
+        )
+        return _view(existing) if existing is not None else None
+
     async def retry_pixel_item(
         self,
         *,

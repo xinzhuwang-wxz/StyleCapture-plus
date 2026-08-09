@@ -110,6 +110,8 @@ function DetailContent({
   }, [item.id, item.updated_at]);
 
   const flatLayReady = flatLay?.status === "succeeded" && Boolean(flatLay.output_image_url);
+  const hasStandardizedDisplay =
+    item.display_image_kind === "derived_garment" && Boolean(imageUrl);
   const flatLayGenerating =
     flatLayError === null &&
     (flatLay === null || flatLay.status === "queued" || flatLay.status === "running");
@@ -211,7 +213,9 @@ function DetailContent({
             ? "真实单品白底图 · 3:4"
             : flatLayGenerating
               ? "正在生成单品图…"
-              : flatLayError ?? "当前展示识别图；白底单品图暂不可用"}
+              : hasStandardizedDisplay
+                ? "单品图已生成"
+                : flatLayError ?? "当前展示识别图；白底单品图暂不可用"}
         </p>
         {flatLayReady && (sourceImageUrl ?? imageUrl) ? (
           <details className="flat-lay-source">

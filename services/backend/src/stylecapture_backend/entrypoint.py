@@ -170,6 +170,15 @@ def build_app() -> FastAPI:
         jobs=repository,
         dispatcher=dispatcher,
     )
+    item_presentations = ItemPresentationApplication(
+        assets=item_presentation_repository,
+        wardrobe=WardrobeApplication(
+            wardrobe=wardrobe_repository,
+            sources=objects,
+            jobs=repository,
+            retries=retries,
+        ),
+    )
     return create_app(
         BackendServices(
             capture=CaptureApplication(
@@ -193,6 +202,7 @@ def build_app() -> FastAPI:
                 jobs=repository,
                 objects=objects,
                 retries=retries,
+                item_presentations=item_presentations,
             ),
             renders=RenderHttpServices(
                 renders=renders,
@@ -207,15 +217,7 @@ def build_app() -> FastAPI:
                 dispatcher=pixel_trial_dispatcher,
             ),
             item_presentations=ItemPresentationHttpServices(
-                presentations=ItemPresentationApplication(
-                    assets=item_presentation_repository,
-                    wardrobe=WardrobeApplication(
-                        wardrobe=wardrobe_repository,
-                        sources=objects,
-                        jobs=repository,
-                        retries=retries,
-                    ),
-                ),
+                presentations=item_presentations,
                 objects=objects,
                 dispatcher=item_presentation_dispatcher,
             ),

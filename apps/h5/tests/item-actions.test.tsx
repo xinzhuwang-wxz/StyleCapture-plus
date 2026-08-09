@@ -70,7 +70,7 @@ describe("Item detail actions", () => {
       />
     );
 
-    expect(await screen.findByText("测试中暂不生成")).toBeVisible();
+    expect(await screen.findByText("单品图已生成")).toBeVisible();
 
     expect(screen.getByText("相册录入")).toBeInTheDocument();
     expect(screen.queryByText("单品描述")).not.toBeInTheDocument();
@@ -102,7 +102,7 @@ describe("Item detail actions", () => {
       />
     );
 
-    expect(await screen.findByText("测试中暂不生成")).toBeVisible();
+    expect(await screen.findByText("单品图已生成")).toBeVisible();
 
     expect(
       screen.getByRole("link", { name: "去抖音商城搜索蓝黄印花吊带连衣裙" })

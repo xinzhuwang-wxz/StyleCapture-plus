@@ -37,6 +37,21 @@ function PixelItemImage({
       />
     );
   }
+  const fallbackUrl = item.source_available
+    ? item.source_image_url
+    : item.display_image_url;
+  if (fallbackUrl) {
+    return (
+      <img
+        className="item-card__fallback-cover"
+        src={fallbackUrl}
+        alt={`${category}的原图模糊占位`}
+        loading="lazy"
+        decoding="async"
+        data-image-kind="wardrobe-item-source-placeholder"
+      />
+    );
+  }
   return (
     <img
       src={pixelGarmentIcon(category, {
@@ -194,12 +209,13 @@ export function PendingItemCard({
     <motion.article
       className="item-card item-card--pending pixel-card wardrobe-card"
       layout
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
     >
       <div className="item-card__image wardrobe-card__cover wardrobe-card__cover--item">
         {pending.previewUrl ? (
           <img
+            className="item-card__fallback-cover"
             src={pending.previewUrl}
             alt="正在入库的衣服"
             loading="lazy"

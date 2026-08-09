@@ -49,6 +49,7 @@ class RenderArtifactResponse(BaseModel):
     look_id: UUID
     kind: RenderArtifactKind
     status: RenderArtifactStatus
+    current: bool = True
     presentation_label: str
     subject_attached: bool
     personalized: bool
@@ -63,12 +64,18 @@ class RenderArtifactResponse(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_view(cls, view: RenderArtifactView) -> RenderArtifactResponse:
+    def from_view(
+        cls,
+        view: RenderArtifactView,
+        *,
+        current: bool = True,
+    ) -> RenderArtifactResponse:
         return cls(
             id=view.id,
             look_id=view.look_id,
             kind=view.kind,
             status=view.status,
+            current=current,
             presentation_label=_presentation_label(view),
             subject_attached=(
                 view.kind is RenderArtifactKind.TRY_ON and view.subject_object_key is not None
@@ -140,10 +147,22 @@ def build_render_router(
         look_id: UUID,
         user_id: UUID = principal,
     ) -> RenderArtifactListResponse:
-        await owned_detail(user_id, look_id)
+        detail, capture = await owned_detail(user_id, look_id)
+        current_collage_signature = build_render_input_signature(
+            detail,
+            capture,
+            RenderArtifactKind.COLLAGE,
+            look_display_hash=look_display_hash(detail, user_id),
+        )
         return RenderArtifactListResponse(
             renders=[
-                RenderArtifactResponse.from_view(view)
+                RenderArtifactResponse.from_view(
+                    view,
+                    current=(
+                        view.kind is not RenderArtifactKind.COLLAGE
+                        or view.input_hash == current_collage_signature.hash
+                    ),
+                )
                 for view in await services.renders.list_for_look(user_id=user_id, look_id=look_id)
             ]
         )
