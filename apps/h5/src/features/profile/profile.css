@@ -127,6 +127,113 @@
   border-radius: 14px;
 }
 
+/* ─── 像素小人陈列馆 ─── */
+.profile__pixel-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--px-3);
+  margin-bottom: var(--px-4);
+}
+
+.profile__pixel-person {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 2px solid var(--pixel-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--pixel-shadow);
+}
+
+.profile__pixel-person[data-cover="true"] {
+  border-color: var(--pixel-primary);
+}
+
+.profile__pixel-person-image {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbf7ff, #fff);
+}
+
+.profile__pixel-person-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.profile__pixel-person-image img[data-pixel="true"] {
+  image-rendering: pixelated;
+}
+
+.profile__pixel-person-image span {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  padding: 0.22rem 0.48rem;
+  border-radius: 999px;
+  background: var(--pixel-primary);
+  color: #fff;
+  font-size: 0.56rem;
+}
+
+.profile__pixel-person > strong {
+  overflow: hidden;
+  color: var(--pixel-text);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile__pixel-person > small {
+  min-height: 1.8rem;
+  color: var(--pixel-text-dim);
+  font-size: 0.58rem;
+  line-height: 1.5;
+}
+
+.profile__pixel-person > button {
+  min-height: 2.2rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--pixel-secondary);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pixel-primary-dark);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.profile__pixel-person > button:disabled {
+  border-color: transparent;
+  background: #f3edfd;
+  color: var(--pixel-primary-dark);
+  opacity: 1;
+}
+
+.profile__pixel-gallery-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  min-height: 8rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 2px dashed var(--pixel-border);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--pixel-text-dim);
+  text-align: center;
+}
+
+.profile__pixel-gallery-empty p {
+  max-width: 16rem;
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+
 /* ─── 提示卡 ─── */
 .profile__tips {
   padding: 15px;

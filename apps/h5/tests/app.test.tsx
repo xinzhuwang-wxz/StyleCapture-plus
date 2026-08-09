@@ -180,6 +180,7 @@ function renderApp() {
 describe("StyleCapture garment ingest", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.clear();
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -1189,35 +1190,47 @@ describe("StyleCapture garment ingest", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps profile pixel-trial uploads visible when status polling fails", async () => {
+  it("shows generated look pixels in My pixel people and lets users choose a cover", async () => {
     const user = userEvent.setup();
-    api.getPixelTrial.mockRejectedValueOnce(new Error("status unavailable"));
+    const look: Look = {
+      id: "11111111-1111-4111-8111-111111111111",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      status: "ready",
+      source: "user_created",
+      display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image",
+      source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
+      display_ready: true,
+      source_available: true,
+      fixed_presentation: false,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:00:30Z"
+    };
+    const pixel: RenderArtifact = {
+      ...collageRender,
+      id: "77777777-7777-4777-8777-777777777777",
+      look_id: look.id,
+      kind: "pixel_cover",
+      status: "succeeded",
+      presentation_label: "像素穿搭封面",
+      output_image_url:
+        "/v1/render-artifacts/77777777-7777-4777-8777-777777777777/image",
+      share_eligible: true
+    };
+    window.localStorage.setItem(
+      "stylecapture:look-pixel-covers:v1",
+      JSON.stringify({ [look.id]: null })
+    );
+    api.listLooks.mockResolvedValue([look]);
+    api.listRenders.mockResolvedValue([pixel]);
     renderApp();
 
     await user.click(await screen.findByRole("button", { name: "我的" }));
-    const file = new File(["full-body"], "me.jpg", { type: "image/jpeg" });
-    await user.upload(screen.getByLabelText("选择全身照生成像素形象"), file);
-
-    const unavailableMessage = await screen.findByText(
-      "像素形象状态暂时无法更新，已上传的照片不会丢失。"
+    expect(await screen.findByRole("img", { name: "第 1 个像素小人" })).toHaveAttribute(
+      "src",
+      expect.stringContaining(pixel.id)
     );
-    expect(unavailableMessage).toBeInTheDocument();
-    expect(screen.getByText("状态待恢复")).toBeInTheDocument();
-    expect(screen.queryByText("未上传")).not.toBeInTheDocument();
-
-    api.getPixelTrial.mockResolvedValueOnce({
-      id: "77777777-7777-4777-8777-777777777777",
-      status: "succeeded",
-      output_image_url: "/v1/pixel-trials/77777777-7777-4777-8777-777777777777/image",
-      failure_code: null,
-      failure_message: null,
-      retryable: false,
-      subject_attached: true,
-      created_at: "2026-07-25T00:00:00Z",
-      updated_at: "2026-07-25T00:00:30Z"
-    });
-    await user.click(screen.getByRole("button", { name: "重试状态" }));
-
-    expect(await screen.findByText("生成完成")).toBeInTheDocument();
+    expect(screen.queryByText("像素实验室")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "设为穿搭封面" }));
+    expect(await screen.findByText("已设为这套穿搭的像素封面")).toBeInTheDocument();
   });
 });

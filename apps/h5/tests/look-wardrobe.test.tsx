@@ -260,6 +260,14 @@ describe("Look wardrobe states", () => {
         renders={[
           renderArtifact(),
           renderArtifact({
+            id: "99999999-9999-4999-8999-999999999999",
+            kind: "try_on",
+            presentation_label: "真人试穿",
+            output_image_url:
+              "/v1/render-artifacts/99999999-9999-4999-8999-999999999999/image",
+            updated_at: "2026-07-25T00:00:30Z"
+          }),
+          renderArtifact({
             id: "66666666-6666-4666-8666-666666666666",
             kind: "pixel_cover",
             status: "degraded",
@@ -282,27 +290,16 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
-
-    const fallbackImage = screen.getByRole("img", {
-      name: "像素生成失败。展示真实拼贴"
-    });
-    expect(fallbackImage).toHaveAttribute(
-      "src",
-      expect.stringContaining("55555555-5555-4555-8555-555555555555")
+    expect(screen.getByRole("img", { name: "真人试穿穿搭卡片" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "生成像素卡片" }));
+    expect(onGenerate).toHaveBeenCalledWith(
+      pendingLook.id,
+      "pixel_cover",
+      "99999999-9999-4999-8999-999999999999"
     );
-    expect(
-      screen.getAllByText("像素生成失败。展示真实拼贴")
-    ).not.toHaveLength(0);
-    expect(
-      screen.getByText("像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。")
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "重新生成像素封面" }));
-    expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
-    expect(
-      screen.queryByRole("button", { name: "分享像素封面" })
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "像素卡片暂未生成" })).toBeInTheDocument();
+    expect(screen.getByText("这次没有生成成功")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新生成像素卡片" })).toBeInTheDocument();
   });
 
   it("keeps the last successful pixel visible while a refresh is running", () => {
@@ -312,6 +309,14 @@ describe("Look wardrobe states", () => {
         loading={false}
         renders={[
           renderArtifact(),
+          renderArtifact({
+            id: "99999999-9999-4999-8999-999999999999",
+            kind: "try_on",
+            presentation_label: "真人试穿",
+            output_image_url:
+              "/v1/render-artifacts/99999999-9999-4999-8999-999999999999/image",
+            updated_at: "2026-07-25T00:00:30Z"
+          }),
           renderArtifact({
             id: "77777777-7777-4777-8777-777777777777",
             kind: "pixel_cover",
@@ -338,18 +343,12 @@ describe("Look wardrobe states", () => {
         onReturnToSource={vi.fn()}
         onRetry={vi.fn()}
         onSaveReason={vi.fn()}
+        onGenerate={vi.fn()}
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
-
-    expect(
-      screen.getByRole("img", { name: "像素穿搭封面" })
-    ).toHaveAttribute(
-      "src",
-      expect.stringContaining("77777777-7777-4777-8777-777777777777")
-    );
-    expect(screen.getByText("后台生成中…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "像素卡片生成中…" })).toBeDisabled();
+    expect(screen.queryByRole("img", { name: "已生成的像素穿搭卡片" })).not.toBeInTheDocument();
   });
 
   it("keeps the frontend item layout when a backend collage render succeeds", () => {
@@ -378,35 +377,15 @@ describe("Look wardrobe states", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "真实拼贴" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
-    expect(
-      document.querySelector('.render-studio__preview img[alt="真实单品拼贴"]')
-    ).toBeNull();
-    expect(
-      screen.getByText(
-        "选择已有形象照，或拍摄、上传一张新的正面全身照，AI 会把这套已保存穿搭换到你身上。"
-      )
-    ).toBeInTheDocument();
-    const openPicker = screen.getByRole("button", { name: "拍照或上传全身照" });
-    expect(openPicker).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "拍照或上传全身照" })).not.toBeInTheDocument();
+    const openPicker = screen.getByRole("button", { name: "查看效果" });
     fireEvent.click(openPicker);
     expect(
       screen.getByRole("dialog", { name: "选择试穿形象" })
     ).toBeInTheDocument();
     expect(document.querySelector('input[capture="user"]')).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "关闭形象照选择" }));
-
-    fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
-    expect(
-      document.querySelector('.render-studio__preview img[alt="真实单品拼贴"]')
-    ).toBeNull();
-    expect(
-      screen.getByText(
-        "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"
-      )
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "生成像素封面" }));
-    expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
+    expect(onGenerate).not.toHaveBeenCalled();
   });
 
   it("keeps the frontend item composition visible while a backend collage is queued", () => {
@@ -551,8 +530,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
-    fireEvent.click(screen.getByRole("button", { name: "拍照或上传全身照" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看效果" }));
     const input = document.querySelector('input[capture="user"]');
     expect(input).not.toBeNull();
     fireEvent.change(input!, {

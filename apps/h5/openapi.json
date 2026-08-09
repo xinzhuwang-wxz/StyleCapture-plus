@@ -119,6 +119,18 @@
               }
             ],
             "title": "Subject Object Key"
+          },
+          "source_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Artifact Id"
           }
         },
         "required": [

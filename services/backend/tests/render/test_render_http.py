@@ -160,7 +160,8 @@ async def test_render_http_uses_look_artifact_contract_without_provider_leak(
         root=tmp_path / "uploads",
         signing_secret="test-render-http-signing-secret",
     )
-    renders = RenderApplication(artifacts=MemoryRenderRepository())
+    repository = MemoryRenderRepository()
+    renders = RenderApplication(artifacts=repository)
     app = FastAPI()
     app.include_router(
         build_render_router(
@@ -259,7 +260,8 @@ async def test_user_can_delete_private_try_on_photo_without_deleting_result(
         body=subject_body,
         content_type="image/png",
     )
-    renders = RenderApplication(artifacts=MemoryRenderRepository())
+    repository = MemoryRenderRepository()
+    renders = RenderApplication(artifacts=repository)
     app = FastAPI()
     app.include_router(
         build_render_router(
@@ -306,10 +308,17 @@ async def test_user_can_delete_private_try_on_photo_without_deleting_result(
                 content_type=result.content_type,
             ),
         )
+        pixel = await client.post(
+            f"/v1/looks/{look.id}/renders",
+            json={"kind": "pixel_cover", "source_artifact_id": str(artifact_id)},
+            headers={"Idempotency-Key": "pixel-from-personal-try-on"},
+        )
         deleted = await client.delete(f"/v1/render-artifacts/{requested.json()['id']}/subject")
         listed = await client.get(f"/v1/looks/{look.id}/renders")
 
     assert requested.status_code == 202
+    assert pixel.status_code == 202
+    assert repository.artifacts[UUID(pixel.json()["id"])].source_artifact_id == artifact_id
     assert requested.json()["subject_attached"] is True
     assert requested.json()["personalized"] is False
     assert requested.json()["presentation_label"] == "我的真人试穿"

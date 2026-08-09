@@ -31,6 +31,7 @@ from stylecapture_backend.features.render.domain import (
     RenderArtifactKind,
     RenderArtifactStatus,
     RenderInputSignature,
+    RenderOutput,
     RenderPrivacy,
     RenderProviderTrace,
 )
@@ -616,6 +617,55 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert pixel_generator.images[-1].object_key.endswith("anchor-casual-dark-pixel.png")
     assert pixel_generator.seed is not None
     assert pixel_generator.guidance_scale is None
+
+
+@pytest.mark.asyncio
+async def test_pixel_cover_uses_completed_try_on_as_its_only_content_source() -> None:
+    user_id, detail, item, objects = fixture()
+    try_on_image = payload("derived/renders/personal-try-on.png", (32, 96, 160))
+    objects.images[try_on_image.object_key] = try_on_image
+    try_on = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="completed-personal-try-on",
+    ).mark_running().mark_succeeded(
+        RenderOutput(
+            object_key=try_on_image.object_key,
+            content_hash=try_on_image.sha256,
+            content_type=try_on_image.content_type,
+        )
+    )
+    pixel = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        request_key="pixel-from-personal-try-on",
+        source_artifact_id=try_on.id,
+    )
+    repository = MemoryRenderRepository([try_on, pixel])
+    pixel_generator = SuccessfulPixelGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=pixel_generator,
+        try_on_generator=None,
+        fixed_model_object_key=None,
+        pixel_sprite_extractor=RecordingSpriteExtractor(),
+    )
+
+    await processor.process(user_id=user_id, artifact_id=pixel.id)
+
+    stored = repository.artifacts[pixel.id]
+    assert stored.status is RenderArtifactStatus.SUCCEEDED
+    assert pixel_generator.images[0].object_key == try_on_image.object_key
+    assert len(pixel_generator.images) == 3
+    assert stored.provider_trace is not None
+    assert stored.provider_trace.parameters["input_source_kind"] == "try_on"
 
 
 @pytest.mark.asyncio
