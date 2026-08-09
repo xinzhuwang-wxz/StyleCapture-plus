@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import Any
 from uuid import UUID
 
 import pytest
@@ -50,7 +51,7 @@ def plan(plan_id: str, *, score: int) -> OutfitPlan:
 
 @pytest.mark.asyncio
 async def test_litellm_reranker_receives_wardrobe_style_facts() -> None:
-    calls: list[dict[str, object]] = []
+    calls: list[dict[str, Any]] = []
 
     async def completion(**kwargs: object) -> object:
         calls.append(kwargs)
@@ -149,7 +150,7 @@ async def test_litellm_reranker_receives_wardrobe_style_facts() -> None:
 
 @pytest.mark.asyncio
 async def test_litellm_reranker_only_reorders_closed_candidates() -> None:
-    calls: list[dict[str, object]] = []
+    calls: list[dict[str, Any]] = []
 
     async def completion(**kwargs: object) -> object:
         calls.append(kwargs)
