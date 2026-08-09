@@ -189,6 +189,8 @@ function DetailContent({
 
   const latestTryOn = latestByKind.get("try_on");
   const latestPixel = latestByKind.get("pixel_cover");
+  const tryOnTaskFailed =
+    latestTryOn?.status === "failed" || latestTryOn?.status === "degraded";
   const pixelCover = sortedRenders.find(
     (render) =>
       render.kind === "pixel_cover" &&
@@ -647,7 +649,7 @@ function DetailContent({
               <span>
                 {completedTryOn
                   ? "生成完成"
-                  : latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                  : tryOnTaskFailed
                     ? "本次未完成"
                     : "后台生成中"}
               </span>
@@ -719,19 +721,38 @@ function DetailContent({
                 ) : null}
               </div>
             ) : (
-              <div className="tryon-result__pending" role="status">
-                <span className="item-flat-lay-spinner" aria-hidden="true" />
-                <div>
+              <div
+                className="tryon-result__pending"
+                data-failed={tryOnTaskFailed ? "true" : undefined}
+                role="status"
+              >
+                <span className="tryon-result__pending-visual" aria-hidden="true">
+                  {tryOnTaskFailed ? (
+                    <span className="tryon-result__failure-mark">!</span>
+                  ) : (
+                    <>
+                      <span className="tryon-result__progress-arc" />
+                      <span className="tryon-result__progress-sparkle">✦</span>
+                    </>
+                  )}
+                </span>
+                <div className="tryon-result__pending-copy">
                   <strong>
-                    {latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                    {tryOnTaskFailed
                       ? "真人试穿暂时不可用"
                       : "正在生成真人试穿"}
                   </strong>
                   <small>
-                    {latestTryOn?.status === "failed" || latestTryOn?.status === "degraded"
+                    {tryOnTaskFailed
                       ? "请回到上方“查看效果”重新选择形象照。"
                       : "任务会在后台完成，退出详情也不会丢失。"}
                   </small>
+                  {!tryOnTaskFailed ? (
+                    <span className="tryon-result__status-pill">
+                      <span className="task-progress-spinner" aria-hidden="true" />
+                      后台生成中
+                    </span>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -923,11 +944,23 @@ function DetailContent({
                   />
                 </div>
               ) : (
-                <div className="render-task-sheet__pending" role="status">
-                  <span className="item-flat-lay-spinner" aria-hidden="true" />
+                <div
+                  className="render-task-sheet__pending"
+                  data-failed={pixelTaskFailed ? "true" : undefined}
+                  role="status"
+                >
+                  {!pixelTaskFailed ? (
+                    <span
+                      className="task-progress-spinner task-progress-spinner--large"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   <strong>
                     {pixelTaskFailed ? "这次没有生成成功" : "正在后台生成，请稍后"}
                   </strong>
+                  {!pixelTaskFailed ? (
+                    <small>你可以先继续浏览，完成后会提醒你</small>
+                  ) : null}
                 </div>
               )}
 
@@ -981,14 +1014,21 @@ function DetailContent({
                 </button>
               ) : (
                 <button
-                  className="secondary-action"
+                  className="secondary-action render-task-sheet__collapse"
                   type="button"
                   onClick={() => {
                     setPixelTaskOpen(false);
                     setPixelTaskCollapsed(true);
                   }}
                 >
-                  收起到浮球
+                  <span className="render-task-sheet__collapse-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="8.25" />
+                      <path d="M7.5 14.25c1.35-1.05 2.85-1.55 4.5-1.55s3.15.5 4.5 1.55" />
+                      <path d="M9 8.75h6" />
+                    </svg>
+                  </span>
+                  收起到浮球继续浏览
                 </button>
               )}
             </motion.section>
