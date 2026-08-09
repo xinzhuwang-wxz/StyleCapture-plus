@@ -69,8 +69,9 @@ Automatic pixel generation elsewhere keeps the legacy original-Look/collage path
 - Completed item flat-lays are no longer sent through the frontend ensure call when
   a try-on render is active. The ensure endpoint remains idempotent for genuinely
   missing assets, but successful assets now trigger no redundant request at all.
-- Final focused H5 verification passed: 58 tests across `app.test.tsx` and
-  `look-wardrobe.test.tsx`; H5 typecheck and the production Vite build passed.
+- Final post-rebase verification passed: 59 H5 tests across `app.test.tsx` and
+  `look-wardrobe.test.tsx`, 16 backend render-processing tests, Ruff, H5 typecheck,
+  and the production Vite build.
 
 ## Surprises & discoveries
 
