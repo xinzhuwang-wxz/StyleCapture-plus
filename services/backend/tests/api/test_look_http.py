@@ -41,7 +41,9 @@ from stylecapture_backend.features.look.application import LookApplication
 from stylecapture_backend.features.look.domain import (
     Look,
     LookComponent,
+    LookDeletionResult,
     LookDetail,
+    LookStatus,
     PreferenceSignal,
 )
 from stylecapture_backend.features.look.interfaces.http import (
@@ -97,16 +99,18 @@ class MemoryLooks:
     def __init__(self, look: Look) -> None:
         self.look = look
         self.signals: list[PreferenceSignal] = []
+        self.deleted = False
+        self.delete_items_requested: bool | None = None
 
     async def list_for_user(self, user_id: UUID) -> list[Look]:
-        return [self.look] if self.look.user_id == user_id else []
+        return [self.look] if self.look.user_id == user_id and not self.deleted else []
 
     async def get_detail_for_user(
         self,
         look_id: UUID,
         user_id: UUID,
     ) -> LookDetail | None:
-        if self.look.id != look_id or self.look.user_id != user_id:
+        if self.deleted or self.look.id != look_id or self.look.user_id != user_id:
             return None
         return LookDetail(
             look=self.look,
@@ -127,6 +131,19 @@ class MemoryLooks:
             return existing
         self.signals.append(signal)
         return signal
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None:
+        if self.deleted or self.look.id != look_id or self.look.user_id != user_id:
+            return None
+        self.deleted = True
+        self.delete_items_requested = delete_items
+        return LookDeletionResult(look_id=look_id)
 
 
 class MemoryLookMedia:
@@ -271,7 +288,11 @@ def build_client(
         source_selection_key="seed_example" if fixed_presentation else "whole-look",
     )
     if display_ready:
-        look = replace(look, display_object_key="derived/looks/look.png")
+        look = replace(
+            look,
+            status=LookStatus.READY,
+            display_object_key="derived/looks/look.png",
+        )
     repository = MemoryLooks(look)
     media = MemoryLookMedia(
         capture,
@@ -356,6 +377,36 @@ async def test_curated_demo_look_declares_its_fixed_presentation() -> None:
 
     assert listed.json()["looks"][0]["fixed_presentation"] is True
     assert detailed.json()["look"]["fixed_presentation"] is True
+
+
+@pytest.mark.asyncio
+async def test_owner_deletes_look_with_explicit_item_deletion_choice() -> None:
+    client, look = build_client()
+
+    async with client:
+        deleted = await client.delete(f"/v1/looks/{look.id}?delete_items=true")
+        missing = await client.get(f"/v1/looks/{look.id}")
+
+    assert deleted.status_code == 200
+    assert deleted.json() == {
+        "look_id": str(look.id),
+        "deleted_item_ids": [],
+        "preserved_shared_item_ids": [],
+    }
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_processing_look_cannot_be_deleted_and_resurrected_by_a_worker() -> None:
+    client, look = build_client(display_ready=False)
+
+    async with client:
+        deleted = await client.delete(f"/v1/looks/{look.id}")
+        still_present = await client.get(f"/v1/looks/{look.id}")
+
+    assert deleted.status_code == 409
+    assert deleted.json()["error"]["code"] == "look_deletion_in_progress"
+    assert still_present.status_code == 200
 
 
 @pytest.mark.asyncio

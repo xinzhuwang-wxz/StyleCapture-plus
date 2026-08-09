@@ -241,6 +241,32 @@ async def test_repository_preserves_idempotency_user_scope_and_shared_item_relat
             )
             await session.commit()
 
+    deleted_first = await repository.delete_for_user(
+        first.id,
+        user_id,
+        delete_items=True,
+    )
+    assert deleted_first is not None
+    assert deleted_first.deleted_item_ids == ()
+    assert deleted_first.preserved_shared_item_ids == (shared_item_id,)
+    assert await repository.get_detail_for_user(first.id, user_id) is None
+
+    deleted_second = await repository.delete_for_user(
+        second.id,
+        user_id,
+        delete_items=True,
+    )
+    assert deleted_second is not None
+    assert deleted_second.deleted_item_ids == (shared_item_id,)
+    assert deleted_second.preserved_shared_item_ids == ()
+    async with sessions() as session:
+        assert (
+            await session.execute(
+                text("SELECT id FROM items WHERE id = :item_id"),
+                {"item_id": shared_item_id},
+            )
+        ).scalar_one_or_none() is None
+
 
 @pytest.mark.asyncio
 async def test_placeholder_save_key_reuse_cannot_represent_a_different_look() -> None:

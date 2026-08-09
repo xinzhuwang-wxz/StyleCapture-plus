@@ -111,6 +111,32 @@ describe("Item detail actions", () => {
       "https://www.douyin.com/search/%E8%93%9D%E9%BB%84%E5%8D%B0%E8%8A%B1%E5%90%8A%E5%B8%A6%E8%BF%9E%E8%A1%A3%E8%A3%99"
     );
   });
+
+  it("requires final confirmation before deleting the entire item", async () => {
+    const onDeleteItem = vi.fn();
+    render(
+      <ItemDetail
+        item={item}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDeleteSource={vi.fn()}
+        onDeleteItem={onDeleteItem}
+        onBuildOutfit={vi.fn()}
+        onReturnToFeed={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("单品图已生成")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "删除单品" }));
+    expect(
+      screen.getByRole("alertdialog", { name: "确认删除这件单品？" })
+    ).toBeInTheDocument();
+    expect(onDeleteItem).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+    expect(onDeleteItem).toHaveBeenCalledWith(item.id);
+  });
 });
 
 describe("Look item action sheet", () => {

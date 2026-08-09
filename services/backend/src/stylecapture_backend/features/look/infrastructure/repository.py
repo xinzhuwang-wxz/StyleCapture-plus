@@ -5,7 +5,7 @@ from dataclasses import replace
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.exc import OperationalError
@@ -20,6 +20,7 @@ from stylecapture_backend.features.look.domain import (
     LookAnalysisMetadata,
     LookComponent,
     LookComponentStatus,
+    LookDeletionResult,
     LookDetail,
     LookSource,
     LookStatus,
@@ -326,6 +327,77 @@ class SqlAlchemyLookRepository:
             ).scalar_one()
             await session.commit()
             return _component_from_record(stored)
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None:
+        """Delete an owned look and, optionally, its unshared wardrobe items.
+
+        The operation is one database transaction. Look-owned rows cascade from
+        ``looks``. Candidate items are removed only after the look is gone and
+        only when no other look component still references them.
+        """
+
+        async with self._sessions() as session:
+            owned_look = (
+                await session.execute(
+                    select(LookRecord)
+                    .where(LookRecord.id == look_id, LookRecord.user_id == user_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if owned_look is None:
+                return None
+
+            candidate_item_ids = tuple(
+                dict.fromkeys(
+                    await session.scalars(
+                        select(LookComponentRecord.item_id).where(
+                            LookComponentRecord.look_id == look_id,
+                            LookComponentRecord.item_id.is_not(None),
+                        )
+                    )
+                )
+            )
+
+            await session.delete(owned_look)
+            await session.flush()
+
+            deleted_item_ids: list[UUID] = []
+            preserved_item_ids: list[UUID] = []
+            if delete_items:
+                for item_id in candidate_item_ids:
+                    if item_id is None:
+                        continue
+                    still_referenced = (
+                        await session.execute(
+                            select(LookComponentRecord.id)
+                            .where(LookComponentRecord.item_id == item_id)
+                            .limit(1)
+                        )
+                    ).scalar_one_or_none()
+                    if still_referenced is not None:
+                        preserved_item_ids.append(item_id)
+                        continue
+                    deleted = await session.execute(
+                        delete(ItemRecord).where(
+                            ItemRecord.id == item_id,
+                            ItemRecord.user_id == user_id,
+                        )
+                    )
+                    if deleted.rowcount:
+                        deleted_item_ids.append(item_id)
+
+            await session.commit()
+            return LookDeletionResult(
+                look_id=look_id,
+                deleted_item_ids=tuple(deleted_item_ids),
+                preserved_shared_item_ids=tuple(preserved_item_ids),
+            )
 
 
 def _look_values(look: Look) -> dict[str, object]:

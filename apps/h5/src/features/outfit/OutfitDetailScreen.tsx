@@ -41,12 +41,24 @@ export function OutfitDetailScreen({
     }
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: ({ deleteItems }: { deleteItems: boolean }) =>
+      wardrobeApi.deleteLook(outfitId, deleteItems),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      queryClient.removeQueries({ queryKey: ["wardrobe-look", outfitId] });
+      onBack();
+    }
+  });
+
   return (
     <LookDetail
       detail={lookQuery.data ?? null}
       loading={lookQuery.isLoading}
       retrying={retryMutation.isPending}
       saving={reasonMutation.isPending}
+      deletingLook={deleteMutation.isPending}
       onClose={onBack}
       onReturnToSource={(videoRef, timestampMs) => {
         if (onReturnToSource) {
@@ -57,6 +69,9 @@ export function OutfitDetailScreen({
       }}
       onRetry={(lookId) => retryMutation.mutate(lookId)}
       onSaveReason={(lookId, reason) => reasonMutation.mutate({ lookId, reason })}
+      onDeleteLook={(_lookId, scope) =>
+        deleteMutation.mutate({ deleteItems: scope === "look_and_items" })
+      }
     />
   );
 }

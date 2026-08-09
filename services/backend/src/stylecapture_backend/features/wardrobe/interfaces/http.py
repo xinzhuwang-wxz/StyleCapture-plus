@@ -318,6 +318,18 @@ def build_wardrobe_router(
         )
 
     @router.delete(
+        "/{item_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def delete_item(
+        item_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        await application.delete_item(user_id, item_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.delete(
         "/{item_id}/source",
         status_code=status.HTTP_204_NO_CONTENT,
         responses=STABLE_ERROR_RESPONSES,
