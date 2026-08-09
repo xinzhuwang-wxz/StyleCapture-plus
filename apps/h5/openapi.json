@@ -109,17 +109,6 @@
           "kind": {
             "$ref": "#/components/schemas/RenderArtifactKind"
           },
-          "subject_object_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject Object Key"
-          },
           "source_artifact_id": {
             "anyOf": [
               {
@@ -131,6 +120,17 @@
               }
             ],
             "title": "Source Artifact Id"
+          },
+          "subject_object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Object Key"
           }
         },
         "required": [
