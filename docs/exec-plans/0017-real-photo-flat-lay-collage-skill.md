@@ -18,7 +18,8 @@ The output is a presentation derivative, not a new source of truth: it cannot ad
 
 - Canvas: 768×1024 pixels, portrait 3:4. H5 must reserve a 3:4 `contain` viewport for every render kind: `collage`, `try_on`, and `pixel_cover`.
 - Background: opaque pure white `#FFFFFF`.
-- Layout: the existing one-to-six independent Item grid, padded and with consistent gaps.
+- Layout: one-to-eight independent Item images in a centered square composition, with the
+  two largest visual pieces as anchors and smaller pieces in a compact rail.
 - Source: only ready Item `display_object_key` assets (falling back to an available source asset as the existing processor permits).
 - Privacy: private `RenderArtifact` image route; it is not the shareable pixel cover.
 
@@ -36,13 +37,14 @@ The output is a presentation derivative, not a new source of truth: it cannot ad
 | Capability | Candidates inspected | Decision | Reason | Source commit / license |
 | --- | --- | --- | --- | --- |
 | Artifact lifecycle | Existing `render` feature and `/v1/looks/{look_id}/renders` | Direct reuse | Already owns Look-based idempotency, queueing, private image streaming and failure semantics | `87dd81c`; project code |
-| Flat-lay composition | Existing `PillowLookCollageRenderer` | Adapt | Existing renderer already composes one-to-six real Item images deterministically; only format and background change | `87dd81c`; Pillow HPND |
+| Flat-lay composition | Existing `PillowLookCollageRenderer` | Adapt | Existing renderer already composes real Item images deterministically; retain that boundary while adding edge-connected background removal and one-to-eight balanced placement | `4594fba`; Pillow HPND |
 | Skill facade | `skills/scene-outfit-matching` | Adapt | Existing Skill proves the required Product-API-only boundary and Node test pattern | `87dd81c`; project code |
 | Image generation | LiteLLM image capability | Rejected | A predictable collage of real Item assets must not invent or alter garments | Existing project architecture |
 
 ## Verification
 
-- Run `npm test` in `skills/generate-outfit-item-assets`.
+- Run the `generate-look-collage` script's argument validation and a Product API smoke with
+  an owned Look/session when a local stack is available.
 - Run `uv run pytest services/backend/tests/render/test_collage.py -q`.
 - Run the existing render API tests and one real H5 Look journey: captured photo → ready Look → queued → succeeded collage → authenticated image.
 - Inspect the resulting PNG dimensions, pure-white corner pixels, private artifact route, and missing-source failure behavior.
