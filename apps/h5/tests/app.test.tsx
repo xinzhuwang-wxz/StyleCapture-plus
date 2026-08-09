@@ -1242,6 +1242,8 @@ describe("StyleCapture garment ingest", () => {
       "src",
       expect.stringContaining(pixel.id)
     );
+    expect(screen.queryByText("我的穿搭 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来自这套穿搭的像素卡片")).not.toBeInTheDocument();
     expect(screen.queryByText("像素实验室")).not.toBeInTheDocument();
     const tryOnPixelCard = screen
       .getByRole("img", { name: "第 1 个像素小人" })

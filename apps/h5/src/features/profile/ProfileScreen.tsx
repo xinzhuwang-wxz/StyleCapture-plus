@@ -40,7 +40,7 @@ export function ProfileScreen({
   const album = photoAlbum ?? localAlbum;
   const changeAlbum = onPhotoAlbumChange ?? setLocalAlbum;
   const [managingPhotos, setManagingPhotos] = useState(false);
-  const looksById = new Map(looks.map((look, index) => [look.id, { look, index }]));
+  const looksById = new Map(looks.map((look) => [look.id, look]));
   const pixelPeople = pixelArtifacts.flatMap((artifact) => {
     const owner = looksById.get(artifact.look_id);
     if (
@@ -50,7 +50,7 @@ export function ProfileScreen({
     ) {
       return [];
     }
-    return [{ look: owner.look, lookIndex: owner.index, artifact }];
+    return [{ look: owner, artifact }];
   });
   const profilePortraitUrl = "/assets/stylecapture-profile-portrait.png";
   const statusCopy = pixelPeople.length
@@ -151,7 +151,7 @@ export function ProfileScreen({
 
       <section className="profile__pixel-gallery" aria-label="我的像素小人陈列馆">
         {pixelPeople.length ? (
-          pixelPeople.map(({ look, lookIndex, artifact }, galleryIndex) => {
+          pixelPeople.map(({ look, artifact }, galleryIndex) => {
             const isCover = pixelCovers[look.id]?.id === artifact.id;
             return (
               <article key={artifact.id} className="profile__pixel-person" data-cover={isCover}>
@@ -163,13 +163,7 @@ export function ProfileScreen({
                     alt={`第 ${galleryIndex + 1} 个像素小人`}
                     data-pixel="true"
                   />
-                  {isCover ? <span>封面</span> : null}
                 </div>
-                <strong>
-                  {look.source === "feed_saved" ? "Feed 穿搭" : "我的穿搭"}{" "}
-                  {lookIndex + 1}
-                </strong>
-                <small>来自这套穿搭的像素卡片</small>
                 <button
                   type="button"
                   disabled={isCover}
