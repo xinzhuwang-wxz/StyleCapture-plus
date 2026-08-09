@@ -624,16 +624,20 @@ async def test_pixel_cover_uses_completed_try_on_as_its_only_content_source() ->
     user_id, detail, item, objects = fixture()
     try_on_image = payload("derived/renders/personal-try-on.png", (32, 96, 160))
     objects.images[try_on_image.object_key] = try_on_image
-    try_on = queued(
-        user_id=user_id,
-        look_id=detail.look.id,
-        kind=RenderArtifactKind.TRY_ON,
-        request_key="completed-personal-try-on",
-    ).mark_running().mark_succeeded(
-        RenderOutput(
-            object_key=try_on_image.object_key,
-            content_hash=try_on_image.sha256,
-            content_type=try_on_image.content_type,
+    try_on = (
+        queued(
+            user_id=user_id,
+            look_id=detail.look.id,
+            kind=RenderArtifactKind.TRY_ON,
+            request_key="completed-personal-try-on",
+        )
+        .mark_running()
+        .mark_succeeded(
+            RenderOutput(
+                object_key=try_on_image.object_key,
+                content_hash=try_on_image.sha256,
+                content_type=try_on_image.content_type,
+            )
         )
     )
     pixel = queued(
