@@ -111,3 +111,29 @@ export function setActivePhoto(album: PhotoAlbum, id: string): PhotoAlbum {
 export function activePhoto(album: PhotoAlbum): ReferencePhoto | null {
   return album.photos.find((photo) => photo.id === album.activeId) ?? null;
 }
+
+/**
+ * Turn a locally stored reference photo back into an uploadable file.
+ * The album deliberately stores data URLs only, so choosing an existing
+ * portrait never performs a network request before the user starts try-on.
+ */
+export function referencePhotoFile(photo: ReferencePhoto): File {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(photo.dataUrl);
+  if (!match) throw new Error("这张形象照暂时无法读取，请重新上传");
+
+  let binary: string;
+  try {
+    binary = window.atob(match[2]);
+  } catch {
+    throw new Error("这张形象照暂时无法读取，请重新上传");
+  }
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  const contentType = match[1].toLowerCase();
+  const extension = contentType === "image/png" ? "png" : "jpg";
+  return new File([bytes], `stylecapture-reference-${photo.id}.${extension}`, {
+    type: contentType
+  });
+}

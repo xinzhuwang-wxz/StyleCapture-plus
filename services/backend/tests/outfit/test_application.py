@@ -11,6 +11,7 @@ from stylecapture_backend.features.capture.domain import CaptureSourceKind, Owne
 from stylecapture_backend.features.look.domain import (
     Look,
     LookComponent,
+    LookDeletionResult,
     LookDetail,
     PreferenceSignal,
 )
@@ -202,6 +203,25 @@ class LookRepositoryStub:
             preference_signals=tuple(
                 signal for signal in self.preferences if signal.look_id == look_id
             ),
+        )
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None:
+        del delete_items
+        look = self.looks.get(look_id)
+        if look is None or look.user_id != user_id:
+            return None
+        del self.looks[look_id]
+        self.components.pop(look_id, None)
+        return LookDeletionResult(
+            look_id=look_id,
+            deleted_item_ids=(),
+            preserved_shared_item_ids=(),
         )
 
 

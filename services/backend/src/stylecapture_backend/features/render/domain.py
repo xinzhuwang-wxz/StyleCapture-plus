@@ -113,6 +113,7 @@ class RenderArtifact:
     created_at: datetime
     updated_at: datetime
     subject_object_key: str | None = None
+    sprite_output: RenderOutput | None = None
 
     def __post_init__(self) -> None:
         request_key = self.request_key.strip()
@@ -148,6 +149,13 @@ class RenderArtifact:
             ):
                 raise ValueError("try-on subject must be a private original image")
             object.__setattr__(self, "subject_object_key", subject_key)
+        if self.sprite_output is not None:
+            if self.kind is not RenderArtifactKind.PIXEL_COVER:
+                raise ValueError("only pixel cover artifacts may reference a transparent sprite")
+            if self.status is not RenderArtifactStatus.SUCCEEDED:
+                raise ValueError("only successful pixel covers may reference a transparent sprite")
+            if self.sprite_output.content_type != "image/png":
+                raise ValueError("pixel cover sprites must be PNG images")
 
     @classmethod
     def queued(
@@ -193,6 +201,13 @@ class RenderArtifact:
             and self.output is not None
         )
 
+    @property
+    def sprite_extraction_failed(self) -> bool:
+        return bool(
+            self.provider_trace is not None
+            and self.provider_trace.parameters.get("sprite_extraction") == "failed"
+        )
+
     def mark_running(
         self,
         *,
@@ -208,14 +223,56 @@ class RenderArtifact:
             updated_at=datetime.now(UTC),
         )
 
-    def mark_succeeded(self, output: RenderOutput) -> RenderArtifact:
+    def mark_succeeded(
+        self,
+        output: RenderOutput,
+        *,
+        sprite_output: RenderOutput | None = None,
+        sprite_extraction_failed: bool = False,
+    ) -> RenderArtifact:
+        trace = self.provider_trace
+        if sprite_extraction_failed and trace is not None:
+            trace = trace.with_parameters(sprite_extraction="failed")
         return replace(
             self,
             status=RenderArtifactStatus.SUCCEEDED,
             output=output,
+            sprite_output=sprite_output,
+            provider_trace=trace,
             fallback_artifact_id=None,
             failure_code=None,
             failure_message=None,
+            updated_at=datetime.now(UTC),
+        )
+
+    def attach_sprite(self, sprite_output: RenderOutput) -> RenderArtifact:
+        if self.kind is not RenderArtifactKind.PIXEL_COVER:
+            raise ValueError("only pixel cover artifacts may attach a transparent sprite")
+        if self.status is not RenderArtifactStatus.SUCCEEDED or self.output is None:
+            raise ValueError("a transparent sprite requires a successful pixel cover")
+        trace = self.provider_trace
+        if trace is not None:
+            trace = trace.with_parameters(sprite_extraction="succeeded")
+        return replace(
+            self,
+            sprite_output=sprite_output,
+            provider_trace=trace,
+            updated_at=datetime.now(UTC),
+        )
+
+    def mark_sprite_extraction_failed(self) -> RenderArtifact:
+        if self.kind is not RenderArtifactKind.PIXEL_COVER:
+            raise ValueError("only pixel cover artifacts extract a transparent sprite")
+        if self.status is not RenderArtifactStatus.SUCCEEDED:
+            raise ValueError("sprite extraction failure requires a successful pixel cover")
+        trace = self.provider_trace or RenderProviderTrace(
+            provider="deterministic",
+            model="pillow-pixel-sprite-cutout-v1",
+            parameters={},
+        )
+        return replace(
+            self,
+            provider_trace=trace.with_parameters(sprite_extraction="failed"),
             updated_at=datetime.now(UTC),
         )
 
@@ -247,6 +304,7 @@ class RenderArtifact:
             self,
             status=RenderArtifactStatus.DEGRADED,
             output=fallback.output,
+            sprite_output=None,
             fallback_artifact_id=fallback.id,
             failure_code=None,
             failure_message=reason.strip(),

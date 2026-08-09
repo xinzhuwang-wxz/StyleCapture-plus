@@ -6,6 +6,7 @@ from uuid import UUID
 from stylecapture_backend.features.look.domain import (
     Look,
     LookComponent,
+    LookDeletionResult,
     LookDetail,
     PreferenceSignal,
 )
@@ -59,3 +60,11 @@ class LookRepository(Protocol):
     async def save(self, look: Look) -> Look: ...
 
     async def save_component(self, component: LookComponent) -> LookComponent: ...
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None: ...

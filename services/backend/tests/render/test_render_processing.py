@@ -37,7 +37,10 @@ from stylecapture_backend.features.render.domain import (
 from stylecapture_backend.features.render.infrastructure.collage import (
     PillowLookCollageRenderer,
 )
-from stylecapture_backend.features.render.infrastructure.providers import GeneratedImage
+from stylecapture_backend.features.render.infrastructure.providers import (
+    GeneratedImage,
+    RenderProviderError,
+)
 from stylecapture_backend.features.render.processing import RenderProcessor, RetryableRenderError
 from stylecapture_backend.features.wardrobe.domain import ItemStatus, WardrobeItem
 
@@ -196,6 +199,15 @@ class SuccessfulPixelGenerator:
         )
 
 
+class RecordingSpriteExtractor:
+    def __init__(self) -> None:
+        self.source: ImagePayload | None = None
+
+    def extract(self, image: ImagePayload) -> ImagePayload:
+        self.source = image
+        return payload("derived/render-sprites/pixel.png", (10, 20, 30))
+
+
 class SuccessfulTryOnGenerator:
     def __init__(self) -> None:
         self.categories: list[str] = []
@@ -219,6 +231,50 @@ class SuccessfulTryOnGenerator:
                 model="test-try-on-model",
                 parameters={"category": category, "mode": mode},
             ),
+        )
+
+
+class SuccessfulAuditedTryOnGenerator:
+    def __init__(self) -> None:
+        self.model_image: ImagePayload | None = None
+        self.outfit_board: ImagePayload | None = None
+
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage:
+        self.model_image = model_image
+        self.outfit_board = outfit_board
+        body = png((80, 120, 200))
+        return GeneratedImage(
+            body=body,
+            content_type="image/jpeg",
+            sha256=sha256(body).hexdigest(),
+            provider_trace=RenderProviderTrace(
+                provider="doubao_virtual_try_on_skill",
+                model="audited_identity_locked_workflow",
+                parameters={"skill_version": "1.3.0", "hard_pass": True},
+            ),
+        )
+
+
+class FailingAuditedTryOnGenerator:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage:
+        self.calls += 1
+        raise RenderProviderError(
+            "try_on_identity_audit_failed",
+            "candidate did not preserve identity",
+            retryable=False,
         )
 
 
@@ -505,6 +561,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     repository = MemoryRenderRepository([collage, pixel])
     renders = RenderApplication(artifacts=repository)
     pixel_generator = SuccessfulPixelGenerator()
+    sprite_extractor = RecordingSpriteExtractor()
     processor = RenderProcessor(
         artifacts=repository,
         renders=renders,
@@ -515,6 +572,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
         pixel_generator=pixel_generator,
         try_on_generator=None,
         fixed_model_object_key=None,
+        pixel_sprite_extractor=sprite_extractor,
     )
 
     await processor.process(user_id=user_id, artifact_id=collage.id)
@@ -526,6 +584,10 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_collage.output is not None
     assert stored_pixel.status is RenderArtifactStatus.SUCCEEDED
     assert stored_pixel.output is not None
+    assert stored_pixel.sprite_output is not None
+    assert stored_pixel.sprite_output.object_key.startswith("derived/render-sprites/")
+    assert stored_pixel.sprite_output.content_type == "image/png"
+    assert sprite_extractor.source is not None
     assert stored_pixel.share_eligible is True
     assert stored_pixel.provider_trace is not None
     assert stored_pixel.provider_trace.provider == "test-private"
@@ -554,6 +616,57 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert pixel_generator.images[-1].object_key.endswith("anchor-casual-dark-pixel.png")
     assert pixel_generator.seed is not None
     assert pixel_generator.guidance_scale is None
+
+
+@pytest.mark.asyncio
+async def test_processor_backfills_a_sprite_for_an_existing_pixel_card() -> None:
+    user_id, detail, item, objects = fixture()
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="backfill-collage",
+    )
+    pixel = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        request_key="backfill-pixel",
+        source_artifact_id=collage.id,
+    )
+    repository = MemoryRenderRepository([collage, pixel])
+    base_arguments = {
+        "artifacts": repository,
+        "renders": RenderApplication(artifacts=repository),
+        "looks": MemoryLookRepository(detail),
+        "wardrobe": MemoryWardrobeRepository(item),
+        "objects": objects,
+        "collages": PillowLookCollageRenderer(canvas_size=320),
+        "try_on_generator": None,
+        "fixed_model_object_key": None,
+    }
+    first_processor = RenderProcessor(
+        **base_arguments,  # type: ignore[arg-type]
+        pixel_generator=SuccessfulPixelGenerator(),
+    )
+
+    await first_processor.process(user_id=user_id, artifact_id=collage.id)
+    await first_processor.process(user_id=user_id, artifact_id=pixel.id)
+    assert repository.artifacts[pixel.id].sprite_output is None
+
+    extractor = RecordingSpriteExtractor()
+    backfill_processor = RenderProcessor(
+        **base_arguments,  # type: ignore[arg-type]
+        pixel_generator=None,
+        pixel_sprite_extractor=extractor,
+    )
+    await backfill_processor.process(user_id=user_id, artifact_id=pixel.id)
+
+    stored = repository.artifacts[pixel.id]
+    assert stored.status is RenderArtifactStatus.SUCCEEDED
+    assert stored.sprite_output is not None
+    assert stored.sprite_output.object_key.startswith("derived/render-sprites/")
+    assert extractor.source is not None
 
 
 @pytest.mark.asyncio
@@ -850,6 +963,110 @@ async def test_personal_try_on_uses_uploaded_subject_and_real_image_provider_fal
     assert stored.provider_trace.parameters["capability_id"] == "look.virtual_try_on"
     assert stored.provider_trace.parameters["prompt_version"] == "look-virtual-try-on-zh-v3"
     assert stored.provider_trace.parameters["image_count"] == 2
+    assert stored.provider_trace.parameters["size"] == "1728x2304"
+    assert dedicated_try_on.categories == []
+
+
+@pytest.mark.asyncio
+async def test_personal_try_on_prefers_audited_doubao_skill_workflow() -> None:
+    user_id, detail, item, objects = fixture()
+    subject = payload("originals/upload/my-full-body.png", (160, 130, 110))
+    objects.images[subject.object_key] = subject
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage",
+    )
+    repository = MemoryRenderRepository([collage])
+    renders = RenderApplication(artifacts=repository)
+    audited = SuccessfulAuditedTryOnGenerator()
+    legacy_image_generator = SuccessfulPixelGenerator()
+    dedicated_try_on = SuccessfulTryOnGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=renders,
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=legacy_image_generator,
+        try_on_generator=dedicated_try_on,
+        audited_try_on_generator=audited,
+        fixed_model_object_key=None,
+    )
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    artifact = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="personal-audited-skill",
+        source_artifact_id=collage.id,
+        subject_object_key=subject.object_key,
+    )
+    repository.artifacts[artifact.id] = artifact
+
+    await processor.process(user_id=user_id, artifact_id=artifact.id)
+
+    stored = repository.artifacts[artifact.id]
+    assert stored.status is RenderArtifactStatus.SUCCEEDED
+    assert audited.model_image is not None
+    assert audited.model_image.sha256 == subject.sha256
+    assert audited.outfit_board is not None
+    assert dedicated_try_on.categories == []
+    assert stored.provider_trace is not None
+    assert stored.provider_trace.parameters["capability_alias"] == ("doubao_virtual_try_on_skill")
+    assert stored.provider_trace.parameters["strategy"] == ("analyze_generate_audit_retry")
+    assert stored.provider_trace.parameters["prompt_version"] == (
+        "doubao-virtual-try-on-skill-v1.3.0"
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_audited_try_on_degrades_without_legacy_provider_fallback() -> None:
+    user_id, detail, item, objects = fixture()
+    subject = payload("originals/upload/my-full-body.png", (160, 130, 110))
+    objects.images[subject.object_key] = subject
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage",
+    )
+    repository = MemoryRenderRepository([collage])
+    renders = RenderApplication(artifacts=repository)
+    audited = FailingAuditedTryOnGenerator()
+    legacy_image_generator = SuccessfulPixelGenerator()
+    dedicated_try_on = SuccessfulTryOnGenerator()
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=renders,
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=legacy_image_generator,
+        try_on_generator=dedicated_try_on,
+        audited_try_on_generator=audited,
+        fixed_model_object_key=None,
+    )
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    artifact = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="personal-failed-audited-skill",
+        source_artifact_id=collage.id,
+        subject_object_key=subject.object_key,
+    )
+    repository.artifacts[artifact.id] = artifact
+
+    await processor.process(user_id=user_id, artifact_id=artifact.id)
+
+    stored = repository.artifacts[artifact.id]
+    assert stored.status is RenderArtifactStatus.DEGRADED
+    assert audited.calls == 1
+    assert legacy_image_generator.images == ()
     assert dedicated_try_on.categories == []
 
 

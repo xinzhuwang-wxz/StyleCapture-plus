@@ -34,7 +34,10 @@ from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationIdempotencyConflict,
     ItemPresentationNotFound,
 )
-from stylecapture_backend.features.look.application import LookNotFoundError
+from stylecapture_backend.features.look.application import (
+    LookDeletionInProgressError,
+    LookNotFoundError,
+)
 from stylecapture_backend.features.look.interfaces.http import (
     LookHttpServices,
     LookImageNotFoundError,
@@ -73,6 +76,7 @@ from stylecapture_backend.features.render.ports import (
 from stylecapture_backend.features.wardrobe.application import (
     SourceDeletedNotRetryableError,
     WardrobeApplication,
+    WardrobeDeletionInProgressError,
     WardrobeNotFoundError,
     WardrobeValidationError,
 )
@@ -353,6 +357,18 @@ def create_app(
             message="The wardrobe item does not exist",
         )
 
+    @app.exception_handler(WardrobeDeletionInProgressError)
+    async def wardrobe_deletion_in_progress_handler(
+        request: Request,
+        error: WardrobeDeletionInProgressError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="item_deletion_in_progress",
+            message=str(error),
+        )
+
     @app.exception_handler(ItemSourceNotFoundError)
     async def item_source_not_found_handler(
         request: Request,
@@ -375,6 +391,18 @@ def create_app(
             status_code=status.HTTP_404_NOT_FOUND,
             code="look_not_found",
             message="The saved Look does not exist",
+        )
+
+    @app.exception_handler(LookDeletionInProgressError)
+    async def look_deletion_in_progress_handler(
+        request: Request,
+        error: LookDeletionInProgressError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=status.HTTP_409_CONFLICT,
+            code="look_deletion_in_progress",
+            message=str(error),
         )
 
     @app.exception_handler(LookImageNotFoundError)

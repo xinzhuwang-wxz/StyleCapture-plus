@@ -92,6 +92,8 @@ function renderArtifact(
     personalized: false,
     output_image_url:
       "/v1/render-artifacts/55555555-5555-4555-8555-555555555555/image",
+    sprite_image_url: null,
+    sprite_status: "not_applicable",
     fallback_artifact_id: null,
     failure_code: null,
     failure_message: null,
@@ -111,8 +113,8 @@ describe("Look wardrobe states", () => {
     expect(
       screen.getByRole("img", { name: "单品拼贴封面占位" })
     ).toHaveAttribute("data-image-kind", "look-source-placeholder");
-    expect(screen.getByText("解析中")).toBeInTheDocument();
-    expect(screen.getByText("穿搭已保存 · 正在整理")).toBeInTheDocument();
+    expect(screen.queryByText("解析中")).not.toBeInTheDocument();
+    expect(screen.getByText("灵感收藏 · 正在整理")).toBeInTheDocument();
   });
 
   it("uses a blurred real collage while no pixel cover is selected", () => {
@@ -151,8 +153,8 @@ describe("Look wardrobe states", () => {
       "src",
       expect.stringContaining("55555555-5555-4555-8555-555555555555")
     );
-    expect(screen.getByText("已解析")).toBeInTheDocument();
-    expect(screen.getByText("穿搭灵感 · 已收藏")).toBeInTheDocument();
+    expect(screen.queryByText("已解析")).not.toBeInTheDocument();
+    expect(screen.getByText("灵感收藏 · 已整理")).toBeInTheDocument();
   });
 
   it("keeps a partial Look retryable without losing its source evidence", () => {
@@ -350,7 +352,7 @@ describe("Look wardrobe states", () => {
     expect(screen.getByText("后台生成中…")).toBeInTheDocument();
   });
 
-  it("uses a successful collage render as the Look detail hero and removes the collage tab", () => {
+  it("keeps the frontend item layout when a backend collage render succeeds", () => {
     const onGenerate = vi.fn();
     render(
       <LookDetail
@@ -370,27 +372,29 @@ describe("Look wardrobe states", () => {
       />
     );
 
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "真实单品拼贴" })
-    ).toHaveAttribute(
-      "src",
-      expect.stringContaining("55555555-5555-4555-8555-555555555555")
-    );
+      screen.queryByRole("img", { name: "真实单品拼贴" })
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "真实拼贴" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
-    expect(document.querySelector('input[capture="user"]')).not.toBeNull();
     expect(
       document.querySelector('.render-studio__preview img[alt="真实单品拼贴"]')
     ).toBeNull();
     expect(
       screen.getByText(
-        "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
+        "选择已有形象照，或拍摄、上传一张新的正面全身照，AI 会把这套已保存穿搭换到你身上。"
       )
     ).toBeInTheDocument();
+    const openPicker = screen.getByRole("button", { name: "拍照或上传全身照" });
+    expect(openPicker).toBeEnabled();
+    fireEvent.click(openPicker);
     expect(
-      screen.getByRole("button", { name: "拍照或上传全身照" })
-    ).toBeEnabled();
+      screen.getByRole("dialog", { name: "选择试穿形象" })
+    ).toBeInTheDocument();
+    expect(document.querySelector('input[capture="user"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "关闭形象照选择" }));
 
     fireEvent.click(screen.getByRole("tab", { name: "像素封面" }));
     expect(
@@ -405,7 +409,7 @@ describe("Look wardrobe states", () => {
     expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "pixel_cover");
   });
 
-  it("shows an explicit hero placeholder while the collage render is queued", () => {
+  it("keeps the frontend item composition visible while a backend collage is queued", () => {
     render(
       <LookDetail
         detail={readyDetail()}
@@ -428,13 +432,33 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(
-      screen.getByRole("img", { name: "真实单品拼贴生成中" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("正在生成整套拼贴")).toBeInTheDocument();
+    const flatlay = screen.getByLabelText("套装单品平面拼贴");
+    expect(flatlay).toHaveAttribute("data-count", "1");
+    expect(screen.queryByText("正在生成整套拼贴")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("img", { name: "收藏的真实整套穿搭" })
     ).not.toBeInTheDocument();
+  });
+
+  it("prefers frontend item layout over a completed backend collage image", () => {
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[renderArtifact()]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
+    expect(screen.queryByAltText("真实单品拼贴")).not.toBeInTheDocument();
   });
 
   it("shows real item-image progress on the hero and each pending component", () => {
@@ -528,6 +552,7 @@ describe("Look wardrobe states", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "真人试穿" }));
+    fireEvent.click(screen.getByRole("button", { name: "拍照或上传全身照" }));
     const input = document.querySelector('input[capture="user"]');
     expect(input).not.toBeNull();
     fireEvent.change(input!, {
@@ -680,7 +705,7 @@ describe("Look wardrobe states", () => {
     );
   });
 
-  it("offers a manual retry when a generated look collage fails", () => {
+  it("does not expose backend collage recovery controls in the Look detail", () => {
     const onGenerate = vi.fn();
     render(
       <LookDetail
@@ -707,9 +732,12 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("真实单品拼贴暂未生成")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新生成真实拼贴" }));
-    expect(onGenerate).toHaveBeenCalledWith(pendingLook.id, "collage");
+    expect(screen.getByLabelText("套装单品平面拼贴")).toBeInTheDocument();
+    expect(screen.queryByText("真实单品拼贴暂未生成")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "重新生成真实拼贴" })
+    ).not.toBeInTheDocument();
+    expect(onGenerate).not.toHaveBeenCalled();
   });
 
   it("keeps the AI label for real model relationship analysis", () => {

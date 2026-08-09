@@ -9,7 +9,13 @@ from stylecapture_backend.features.capture.domain import (
     CaptureSourceKind,
     FeedCaptureIntent,
 )
-from stylecapture_backend.features.look.domain import Look, LookDetail, PreferenceSignal
+from stylecapture_backend.features.look.domain import (
+    Look,
+    LookDeletionResult,
+    LookDetail,
+    LookStatus,
+    PreferenceSignal,
+)
 from stylecapture_backend.features.look.ports import LookRepository
 
 
@@ -19,6 +25,10 @@ class InvalidLookCapture(ValueError):
 
 class LookNotFoundError(LookupError):
     """The requested Look is not visible to the current user."""
+
+
+class LookDeletionInProgressError(RuntimeError):
+    """A running worker still owns the look and could recreate deleted rows."""
 
 
 class LookApplication:
@@ -83,6 +93,27 @@ class LookApplication:
         if detail is None:
             raise LookNotFoundError("Look not found")
         return detail
+
+    async def delete_look(
+        self,
+        *,
+        user_id: UUID,
+        look_id: UUID,
+        delete_items: bool,
+    ) -> LookDeletionResult:
+        detail = await self.get_look(user_id=user_id, look_id=look_id)
+        if detail.look.status is LookStatus.PROCESSING:
+            raise LookDeletionInProgressError(
+                "The look is still processing; retry deletion after processing finishes"
+            )
+        result = await self._looks.delete_for_user(
+            look_id,
+            user_id,
+            delete_items=delete_items,
+        )
+        if result is None:
+            raise LookNotFoundError("Look not found")
+        return result
 
     async def record_liking_reason(
         self,

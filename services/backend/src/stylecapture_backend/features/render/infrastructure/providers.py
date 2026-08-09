@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import ipaddress
+import json
+import os
 import socket
+import sys
+import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
@@ -19,6 +25,146 @@ from stylecapture_backend.features.render.ports import (
 )
 
 SUPPORTED_OUTPUT_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
+
+
+class DoubaoVirtualTryOnSkillGenerator:
+    def __init__(
+        self,
+        *,
+        skill_path: Path,
+        api_key: str,
+        understanding_model: str,
+        image_model: str,
+        timeout_seconds: float = 1800,
+        max_attempts: int = 2,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("try-on Skill timeout must be positive")
+        if max_attempts not in {1, 2, 3}:
+            raise ValueError("try-on Skill attempts must be between 1 and 3")
+        if not understanding_model.strip() or not image_model.strip():
+            raise ValueError("try-on Skill model configuration must not be empty")
+        self._skill_path = skill_path
+        self._api_key = api_key.strip()
+        self._understanding_model = understanding_model.strip()
+        self._image_model = image_model.strip()
+        self._timeout = timeout_seconds
+        self._max_attempts = max_attempts
+
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage:
+        if not self._api_key:
+            raise RenderProviderUnavailable("Doubao try-on Skill API key is not configured")
+        if not self._skill_path.is_file():
+            raise RenderProviderUnavailable("Doubao try-on Skill entry point is unavailable")
+
+        with tempfile.TemporaryDirectory(prefix="stylecapture-try-on-") as temporary:
+            workspace = Path(temporary)
+            person_path = workspace / _skill_input_name("person", model_image.content_type)
+            outfit_path = workspace / _skill_input_name("outfit", outfit_board.content_type)
+            output_dir = workspace / "output"
+            person_path.write_bytes(model_image.body)
+            outfit_path.write_bytes(outfit_board.body)
+            environment = os.environ.copy()
+            environment["ARK_API_KEY"] = self._api_key
+            process: asyncio.subprocess.Process | None = None
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-B",
+                    str(self._skill_path),
+                    str(person_path),
+                    str(outfit_path),
+                    "--output-dir",
+                    str(output_dir),
+                    "--max-attempts",
+                    str(self._max_attempts),
+                    "--size",
+                    "2K",
+                    "--understanding-model",
+                    self._understanding_model,
+                    "--image-model",
+                    self._image_model,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=environment,
+                )
+                await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=self._timeout,
+                )
+            except TimeoutError as error:
+                if process is not None:
+                    process.kill()
+                    await process.wait()
+                raise RenderProviderUnavailable("Doubao try-on Skill timed out") from error
+            except OSError as error:
+                raise RenderProviderUnavailable("Doubao try-on Skill could not start") from error
+
+            if process is None:
+                raise RenderProviderUnavailable("Doubao try-on Skill could not start")
+            manifest = _read_skill_manifest(output_dir / "manifest.json")
+            if process.returncode != 0 or manifest.get("hard_pass") is not True:
+                raise RenderProviderError(
+                    "try_on_identity_audit_failed",
+                    "Doubao try-on Skill did not pass its quality audit",
+                    retryable=False,
+                )
+            result_path = output_dir / "result.jpg"
+            if not result_path.is_file():
+                raise RenderProviderError(
+                    "render_provider_schema_invalid",
+                    "Doubao try-on Skill returned no result image",
+                    retryable=False,
+                )
+            body = result_path.read_bytes()
+            if not body:
+                raise RenderProviderError(
+                    "render_provider_schema_invalid",
+                    "Doubao try-on Skill returned an empty result image",
+                    retryable=False,
+                )
+            return GeneratedImage(
+                body=body,
+                content_type="image/jpeg",
+                sha256=sha256(body).hexdigest(),
+                provider_trace=RenderProviderTrace(
+                    provider="doubao_virtual_try_on_skill",
+                    model="audited_identity_locked_workflow",
+                    parameters={
+                        "skill_version": "1.3.0",
+                        "selected_attempt": manifest.get("selected_attempt"),
+                        "hard_pass": True,
+                        "quality_status": manifest.get("quality_status"),
+                        "max_attempts": self._max_attempts,
+                    },
+                ),
+            )
+
+
+def _skill_input_name(stem: str, content_type: str) -> str:
+    suffix = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }.get(content_type)
+    if suffix is None:
+        raise ValueError("try-on Skill input image type is unsupported")
+    return f"{stem}{suffix}"
+
+
+def _read_skill_manifest(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 class LiteLLMImageGenerator:

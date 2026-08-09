@@ -94,6 +94,14 @@ def output(suffix: str = "a") -> RenderOutput:
     )
 
 
+def sprite_output(suffix: str = "e") -> RenderOutput:
+    return RenderOutput(
+        object_key=f"derived/render-sprites/{suffix}.png",
+        content_hash=suffix * 64,
+        content_type="image/png",
+    )
+
+
 @pytest.mark.asyncio
 async def test_repository_persists_private_provider_trace_and_public_cache_hit() -> None:
     await run_migrations(TEST_DATABASE_URL)
@@ -274,7 +282,7 @@ async def test_repository_preserves_degraded_fallback_and_share_privacy() -> Non
             source_artifact_id=collage.id,
         )
     )
-    pixel = await repository.save(pixel.mark_succeeded(output("f")))
+    pixel = await repository.save(pixel.mark_succeeded(output("f"), sprite_output=sprite_output()))
     listed = await repository.list_for_look(user_id=user_id, look_id=look.id)
 
     assert degraded.status == "degraded"
@@ -290,5 +298,6 @@ async def test_repository_preserves_degraded_fallback_and_share_privacy() -> Non
         is None
     )
     assert pixel.share_eligible is True
+    assert pixel.sprite_output == sprite_output()
     assert [artifact.id for artifact in listed] == [collage.id, degraded.id, pixel.id]
     assert await repository.get_for_user(user_id=uuid4(), artifact_id=pixel.id) is None

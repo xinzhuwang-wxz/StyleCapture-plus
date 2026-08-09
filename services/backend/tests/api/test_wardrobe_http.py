@@ -54,6 +54,12 @@ class MemoryWardrobe:
     async def save_user_state(self, item: WardrobeItem) -> WardrobeItem:
         return await self.save(item)
 
+    async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool:
+        if self.item.id != item_id or self.item.user_id != user_id:
+            return False
+        self.item = replace(self.item, user_id=uuid4())
+        return True
+
 
 class MemorySources:
     def __init__(self, item: WardrobeItem) -> None:
@@ -81,7 +87,10 @@ class MemorySources:
         self.deleted = True
 
 
-def build_client() -> tuple[AsyncClient, UUID, WardrobeItem]:
+def build_client(
+    *,
+    status: ItemStatus = ItemStatus.READY,
+) -> tuple[AsyncClient, UUID, WardrobeItem]:
     user_id = uuid4()
     capture = Capture.create(
         user_id=user_id,
@@ -93,7 +102,7 @@ def build_client() -> tuple[AsyncClient, UUID, WardrobeItem]:
         ownership=OwnershipState.OWNED,
     )
     item = replace(
-        WardrobeItem.processing(capture).with_status(ItemStatus.READY),
+        WardrobeItem.processing(capture).with_status(status),
         display_object_key="derived/items/http-display.png",
         model_metadata={
             "capability_alias": "vision_understanding",
@@ -221,6 +230,33 @@ async def test_item_routes_do_not_reveal_another_users_asset() -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "item_not_found"
+
+
+@pytest.mark.asyncio
+async def test_owner_deletes_item_and_it_disappears_from_the_wardrobe() -> None:
+    client, _, item = build_client()
+
+    async with client:
+        deleted = await client.delete(f"/v1/items/{item.id}")
+        missing = await client.get(f"/v1/items/{item.id}")
+        listed = await client.get("/v1/items")
+
+    assert deleted.status_code == 204
+    assert missing.status_code == 404
+    assert listed.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_processing_item_cannot_be_deleted_and_resurrected_by_a_worker() -> None:
+    client, _, item = build_client(status=ItemStatus.PROCESSING)
+
+    async with client:
+        deleted = await client.delete(f"/v1/items/{item.id}")
+        still_present = await client.get(f"/v1/items/{item.id}")
+
+    assert deleted.status_code == 409
+    assert deleted.json()["error"]["code"] == "item_deletion_in_progress"
+    assert still_present.status_code == 200
 
 
 @pytest.mark.asyncio

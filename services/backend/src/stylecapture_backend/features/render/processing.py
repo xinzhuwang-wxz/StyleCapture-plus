@@ -28,6 +28,8 @@ from stylecapture_backend.features.render.ports import (
     CollageRenderer,
     CollageRenderError,
     GeneratedImage,
+    PixelSpriteExtractionError,
+    PixelSpriteExtractor,
     RenderArtifactRepository,
     RenderProviderError,
 )
@@ -38,6 +40,8 @@ from stylecapture_backend.features.render.prompt_contracts import (
     PIXEL_COVER_PROMPT_VERSION,
     PIXEL_COVER_SCHEMA_VERSION,
     TRY_ON_CAPABILITY_ID,
+    TRY_ON_OUTPUT_SIZE,
+    TRY_ON_PIPELINE_VERSION,
     TRY_ON_PROMPT,
     TRY_ON_PROMPT_VERSION,
     TRY_ON_SCHEMA_VERSION,
@@ -87,6 +91,15 @@ class TryOnGenerator(Protocol):
     ) -> GeneratedImage: ...
 
 
+class AuditedTryOnGenerator(Protocol):
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage: ...
+
+
 class WardrobeReader(Protocol):
     async def get_for_user(
         self,
@@ -126,6 +139,8 @@ class RenderProcessor:
         try_on_generator: TryOnGenerator | None,
         fixed_model_object_key: str | None,
         item_presentations: ItemFlatLayReader | None = None,
+        pixel_sprite_extractor: PixelSpriteExtractor | None = None,
+        audited_try_on_generator: AuditedTryOnGenerator | None = None,
     ) -> None:
         self._artifacts = artifacts
         self._renders = renders
@@ -135,10 +150,12 @@ class RenderProcessor:
         self._collages = collages
         self._pixel_generator = pixel_generator
         self._try_on_generator = try_on_generator
+        self._audited_try_on_generator = audited_try_on_generator
         self._fixed_model_object_key = (
             fixed_model_object_key.strip() if fixed_model_object_key else None
         )
         self._item_presentations = item_presentations
+        self._pixel_sprite_extractor = pixel_sprite_extractor
 
     async def process(self, *, user_id: UUID, artifact_id: UUID) -> None:
         artifact = await self._artifacts.get_for_user(
@@ -151,6 +168,14 @@ class RenderProcessor:
             RenderArtifactStatus.SUCCEEDED,
             RenderArtifactStatus.DEGRADED,
         }:
+            if (
+                artifact.status is RenderArtifactStatus.SUCCEEDED
+                and artifact.kind is RenderArtifactKind.PIXEL_COVER
+                and artifact.output is not None
+                and artifact.sprite_output is None
+                and not artifact.sprite_extraction_failed
+            ):
+                await self._backfill_pixel_sprite(artifact)
             return
         if artifact.kind is RenderArtifactKind.COLLAGE:
             await self._process_collage(artifact)
@@ -172,7 +197,7 @@ class RenderProcessor:
                 artifact_id=artifact.id,
                 provider_trace=RenderProviderTrace(
                     provider="deterministic",
-                    model="pillow-collage-v3-flat-lay-hero",
+                    model="pillow-collage-v6-centered-square-cutout",
                     parameters={
                         "component_count": len(item_images),
                         "look_version": detail.look.updated_at.isoformat(),
@@ -281,6 +306,39 @@ class RenderProcessor:
             await self._degrade(artifact, fallback, "没有可试穿的服装单品。展示真实单品拼贴")
             return
 
+        if self._audited_try_on_generator is not None:
+            try:
+                outfit_board = normalize_provider_image(self._collages.render(all_references))
+                generated = await self._audited_try_on_generator.try_on(
+                    model_image=model_image,
+                    outfit_board=outfit_board,
+                )
+                trace = generated.provider_trace.with_parameters(
+                    capability_id=TRY_ON_CAPABILITY_ID,
+                    capability_alias="doubao_virtual_try_on_skill",
+                    prompt_version=TRY_ON_PIPELINE_VERSION,
+                    schema_version=TRY_ON_SCHEMA_VERSION,
+                    garment_count=len(all_references),
+                    personalization=(
+                        "user_photo" if artifact.subject_object_key is not None else "fixed_model"
+                    ),
+                    strategy="analyze_generate_audit_retry",
+                )
+                await self._renders.mark_running(
+                    user_id=artifact.user_id,
+                    artifact_id=artifact.id,
+                    provider_trace=trace,
+                )
+                await self._store_success(artifact, _generated_payload(generated))
+                return
+            except (RenderProviderError, ValueError):
+                await self._degrade(
+                    artifact,
+                    fallback,
+                    "真人试穿未通过身份或服装保真审计。已保留真实单品拼贴",
+                )
+                return
+
         personalization = "user_photo" if artifact.subject_object_key is not None else "fixed_model"
         requires_complete_image_edit = (
             artifact.subject_object_key is not None
@@ -291,7 +349,7 @@ class RenderProcessor:
                 generated = await self._pixel_generator.generate(
                     prompt=TRY_ON_PROMPT,
                     images=(model_image, *all_references),
-                    size="1024x1365",
+                    size=TRY_ON_OUTPUT_SIZE,
                 )
                 trace = generated.provider_trace.with_parameters(
                     capability_id=TRY_ON_CAPABILITY_ID,
@@ -410,7 +468,7 @@ class RenderProcessor:
             key=lambda component: component.display_order,
         )
         assets: list[tuple[str | None, ImagePayload]] = []
-        for component in ready[:6]:
+        for component in ready[:8]:
             item = await self._wardrobe.get_for_user(
                 component.item_id,  # type: ignore[arg-type]
                 artifact.user_id,
@@ -487,17 +545,76 @@ class RenderProcessor:
                 **(extra_parameters or {}),
             ),
         )
-        await self._store_success(artifact, _generated_payload(generated))
+        generated_payload = _generated_payload(generated)
+        sprite: ImagePayload | None = None
+        sprite_extraction_failed = False
+        if (
+            artifact.kind is RenderArtifactKind.PIXEL_COVER
+            and self._pixel_sprite_extractor is not None
+        ):
+            try:
+                sprite = self._pixel_sprite_extractor.extract(generated_payload)
+            except PixelSpriteExtractionError:
+                # The card remains useful in the wardrobe. Older and unusual cards
+                # continue through the browser-side compatibility cutout until a
+                # replacement sprite can be generated.
+                sprite = None
+                sprite_extraction_failed = True
+        await self._store_success(
+            artifact,
+            generated_payload,
+            sprite=sprite,
+            sprite_extraction_failed=sprite_extraction_failed,
+        )
+
+    async def _backfill_pixel_sprite(self, artifact: RenderArtifact) -> None:
+        if self._pixel_sprite_extractor is None or artifact.output is None:
+            return
+        try:
+            card = self._objects.read_image(artifact.output.object_key)
+            sprite = self._pixel_sprite_extractor.extract(card)
+        except (FileNotFoundError, KeyError, OSError, PixelSpriteExtractionError):
+            await self._renders.mark_sprite_extraction_failed(
+                user_id=artifact.user_id,
+                artifact_id=artifact.id,
+            )
+            return
+        stored_sprite = self._objects.write_derived_image(
+            sprite,
+            owner_id=artifact.user_id,
+            prefix="derived/render-sprites",
+        )
+        await self._renders.attach_sprite(
+            user_id=artifact.user_id,
+            artifact_id=artifact.id,
+            sprite_output=RenderOutput(
+                object_key=stored_sprite.object_key,
+                content_hash=stored_sprite.sha256,
+                content_type=stored_sprite.content_type,
+            ),
+        )
 
     async def _store_success(
         self,
         artifact: RenderArtifact,
         image: ImagePayload,
+        *,
+        sprite: ImagePayload | None = None,
+        sprite_extraction_failed: bool = False,
     ) -> None:
         stored = self._objects.write_derived_image(
             image,
             owner_id=artifact.user_id,
             prefix="derived/renders",
+        )
+        stored_sprite = (
+            self._objects.write_derived_image(
+                sprite,
+                owner_id=artifact.user_id,
+                prefix="derived/render-sprites",
+            )
+            if sprite is not None
+            else None
         )
         await self._renders.mark_succeeded(
             user_id=artifact.user_id,
@@ -507,6 +624,16 @@ class RenderProcessor:
                 content_hash=stored.sha256,
                 content_type=stored.content_type,
             ),
+            sprite_output=(
+                RenderOutput(
+                    object_key=stored_sprite.object_key,
+                    content_hash=stored_sprite.sha256,
+                    content_type=stored_sprite.content_type,
+                )
+                if stored_sprite is not None
+                else None
+            ),
+            sprite_extraction_failed=sprite_extraction_failed,
         )
 
     async def _degrade(

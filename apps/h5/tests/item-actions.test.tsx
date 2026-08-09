@@ -56,7 +56,7 @@ const item: Item = {
 };
 
 describe("Item detail actions", () => {
-  it("autosaves ownership and keeps the shopping shortcut beside outfit building", async () => {
+  it("confirms ownership changes before saving and keeps the shopping shortcut beside outfit building", async () => {
     const onSave = vi.fn();
     render(
       <ItemDetail
@@ -72,11 +72,15 @@ describe("Item detail actions", () => {
 
     expect(await screen.findByText("单品图已生成")).toBeVisible();
 
-    expect(screen.getByText("相册录入")).toBeInTheDocument();
+    expect(screen.queryByText("相册录入")).not.toBeInTheDocument();
+    expect(screen.queryByText("已完成理解")).not.toBeInTheDocument();
     expect(screen.queryByText("单品描述")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "保存修改" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "待拥有" }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog", { name: "切换为待拥有？" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认切换" }));
     expect(onSave).toHaveBeenCalledWith("item-owned", {
       ownership: "inspiration"
     });
@@ -110,6 +114,32 @@ describe("Item detail actions", () => {
       "href",
       "https://www.douyin.com/search/%E8%93%9D%E9%BB%84%E5%8D%B0%E8%8A%B1%E5%90%8A%E5%B8%A6%E8%BF%9E%E8%A1%A3%E8%A3%99"
     );
+  });
+
+  it("requires final confirmation before deleting the entire item", async () => {
+    const onDeleteItem = vi.fn();
+    render(
+      <ItemDetail
+        item={item}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDeleteSource={vi.fn()}
+        onDeleteItem={onDeleteItem}
+        onBuildOutfit={vi.fn()}
+        onReturnToFeed={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("单品图已生成")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "删除单品" }));
+    expect(
+      screen.getByRole("alertdialog", { name: "确认删除这件单品？" })
+    ).toBeInTheDocument();
+    expect(onDeleteItem).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+    expect(onDeleteItem).toHaveBeenCalledWith(item.id);
   });
 });
 

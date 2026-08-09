@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-07-25
+- Superseded in part: ADR-0007 replaces the default executor for product
+  `look.virtual_try_on`; the other provider-topology decisions remain accepted.
 
 ## Context
 

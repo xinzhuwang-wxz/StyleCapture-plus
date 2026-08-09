@@ -128,17 +128,7 @@ function PlanCard({
           </p>
           <h3 style={{ margin: "0.25rem 0 0", fontSize: "1rem" }}>{plan.title}</h3>
         </div>
-        <span
-          style={{
-            flex: "0 0 auto",
-            padding: "0.25rem 0.55rem",
-            borderRadius: "999px",
-            background: "var(--pixel-primary)",
-            color: "white",
-            fontSize: "0.68rem",
-            fontWeight: 800
-          }}
-        >
+        <span className="ai-plan__match">
           {plan.style_match_score}% 契合
         </span>
       </div>
@@ -256,6 +246,7 @@ function PlanCard({
       ) : null}
       <PixelButton
         variant={saved ? "ghost" : "primary"}
+        className={saved ? "" : "ai-plan__save"}
         disabled={saving}
         onClick={saved ? onOpen : onSave}
       >
@@ -587,24 +578,9 @@ export function AIRecommendScreen({
         </button>
       </div>
 
-      <section
-        style={{
-          padding: "var(--px-3)",
-          borderRadius: "var(--pixel-border-radius)",
-          background:
-            "linear-gradient(135deg, color-mix(in srgb, var(--pixel-primary) 14%, white), var(--pixel-surface))",
-          border: "2px solid var(--pixel-border-light)",
-          margin: "var(--px-2) 0 var(--px-3)"
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            color: "var(--pixel-text)",
-            fontSize: "0.78rem",
-            lineHeight: 1.75
-          }}
-        >
+      <section className="ai-intro-card">
+        <span className="ai-intro-card__sparkles" aria-hidden="true">✦</span>
+        <p>
           {recommendMode === "scene"
             ? "告诉我你要去哪里、想给人什么感觉。AI 会先读取真实衣橱，再筛选和重排候选。"
             : "选定一件搭配核心。每套结果都会使用它，并清楚标出已有、收藏和待补齐的部分。"}
@@ -870,21 +846,7 @@ export function AIRecommendScreen({
         ) : null}
       </div>
 
-      <div
-        style={{
-          position: "sticky",
-          bottom: "-1.4rem",
-          zIndex: 2,
-          display: "flex",
-          gap: "var(--px-2)",
-          padding: "var(--px-3)",
-          borderRadius: "var(--pixel-border-radius)",
-          border: "2px solid var(--pixel-border)",
-          background: "color-mix(in srgb, var(--pixel-surface) 94%, transparent)",
-          backdropFilter: "blur(14px)",
-          boxShadow: "var(--pixel-shadow)"
-        }}
-      >
+      <div className="ai-composer">
         <input
           type="text"
           value={input}
@@ -894,21 +856,10 @@ export function AIRecommendScreen({
           }}
           placeholder={recommendMode === "item" ? "可选：补充场景或想要的感觉" : "例如：下周一面试，想显得可靠又有个性"}
           aria-label="穿搭需求"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: "var(--px-2) var(--px-3)",
-            fontFamily: "var(--font-body)",
-            fontSize: "0.78rem",
-            background: "var(--pixel-bg-light)",
-            border: "2px solid var(--pixel-border-light)",
-            borderRadius: "999px",
-            color: "var(--pixel-text)",
-            outline: "none"
-          }}
         />
         <PixelButton
           variant="primary"
+          className="ai-composer__send"
           onClick={() => submit(input)}
           disabled={
             planning.isPending ||
@@ -918,7 +869,7 @@ export function AIRecommendScreen({
           }
           ariaLabel="生成穿搭推荐"
         >
-          ➤
+          <span aria-hidden="true">➤</span>
         </PixelButton>
       </div>
     </div>

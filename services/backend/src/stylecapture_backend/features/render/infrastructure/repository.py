@@ -127,6 +127,13 @@ class SqlAlchemyRenderArtifactRepository:
                     current_record.object_key = cast(str | None, values["object_key"])
                     current_record.content_hash = cast(str | None, values["content_hash"])
                     current_record.content_type = cast(str | None, values["content_type"])
+                    current_record.sprite_object_key = cast(str | None, values["sprite_object_key"])
+                    current_record.sprite_content_hash = cast(
+                        str | None, values["sprite_content_hash"]
+                    )
+                    current_record.sprite_content_type = cast(
+                        str | None, values["sprite_content_type"]
+                    )
                     current_record.share_eligible = cast(bool, values["share_eligible"])
                     current_record.source_artifact_id = artifact.source_artifact_id
                     current_record.fallback_artifact_id = artifact.fallback_artifact_id
@@ -151,6 +158,9 @@ class SqlAlchemyRenderArtifactRepository:
                                 "object_key": values["object_key"],
                                 "content_hash": values["content_hash"],
                                 "content_type": values["content_type"],
+                                "sprite_object_key": values["sprite_object_key"],
+                                "sprite_content_hash": values["sprite_content_hash"],
+                                "sprite_content_type": values["sprite_content_type"],
                                 "share_eligible": values["share_eligible"],
                                 "source_artifact_id": artifact.source_artifact_id,
                                 "fallback_artifact_id": artifact.fallback_artifact_id,
@@ -250,6 +260,7 @@ async def _lock_owned_look(
 
 def _artifact_values(artifact: RenderArtifact) -> dict[str, object]:
     output = artifact.output
+    sprite = artifact.sprite_output
     return {
         "id": artifact.id,
         "user_id": artifact.user_id,
@@ -263,6 +274,9 @@ def _artifact_values(artifact: RenderArtifact) -> dict[str, object]:
         "object_key": output.object_key if output is not None else None,
         "content_hash": output.content_hash if output is not None else None,
         "content_type": output.content_type if output is not None else None,
+        "sprite_object_key": sprite.object_key if sprite is not None else None,
+        "sprite_content_hash": sprite.content_hash if sprite is not None else None,
+        "sprite_content_type": sprite.content_type if sprite is not None else None,
         "share_eligible": artifact.share_eligible,
         "source_artifact_id": artifact.source_artifact_id,
         "fallback_artifact_id": artifact.fallback_artifact_id,
@@ -283,6 +297,15 @@ def _artifact_from_record(record: RenderArtifactRecord) -> RenderArtifact:
             content_type=cast(str, record.content_type),
         )
         if record.object_key is not None
+        else None
+    )
+    sprite_output = (
+        RenderOutput(
+            object_key=cast(str, record.sprite_object_key),
+            content_hash=cast(str, record.sprite_content_hash),
+            content_type=cast(str, record.sprite_content_type),
+        )
+        if record.sprite_object_key is not None
         else None
     )
     return RenderArtifact(
@@ -306,6 +329,7 @@ def _artifact_from_record(record: RenderArtifactRecord) -> RenderArtifact:
         created_at=record.created_at,
         updated_at=record.updated_at,
         subject_object_key=record.subject_object_key,
+        sprite_output=sprite_output,
     )
 
 

@@ -15,13 +15,21 @@ import { PendingItemCard, type PendingItem } from "./ItemCard";
 import { LookCard } from "./LookCard";
 import "./wardrobe.css";
 
-type Filter = "all" | "owned" | "inspiration";
+type ItemFilter = "all" | "owned" | "inspiration";
+type LookFilter = "all" | Look["source"];
 export type WardrobeView = "looks" | "items";
 
-const FILTER_OPTIONS: readonly [Filter, string][] = [
+const ITEM_FILTER_OPTIONS: readonly [ItemFilter, string][] = [
   ["all", "全部"],
   ["owned", "已拥有"],
   ["inspiration", "未拥有"]
+];
+
+const LOOK_FILTER_OPTIONS: readonly [LookFilter, string][] = [
+  ["all", "全部"],
+  ["user_created", "本地上传"],
+  ["feed_saved", "灵感收藏"],
+  ["ai_generated", "AI 推荐"]
 ];
 
 export function WardrobeScreen({
@@ -30,6 +38,7 @@ export function WardrobeScreen({
   looks,
   pixelCovers,
   collageCovers,
+  lookRenders = {},
   items,
   pending,
   itemsLoading,
@@ -52,6 +61,7 @@ export function WardrobeScreen({
   looks: Look[];
   pixelCovers: Record<string, RenderArtifact>;
   collageCovers: Record<string, RenderArtifact>;
+  lookRenders?: Record<string, readonly RenderArtifact[]>;
   items: Item[];
   pending: PendingItem[];
   itemsLoading: boolean;
@@ -93,8 +103,13 @@ export function WardrobeScreen({
       return next;
     });
   }
-  const [filter, setFilter] = useState<Filter>("all");
-  const filterLabel = FILTER_OPTIONS.find(([value]) => value === filter)?.[1] ?? "全部";
+  const [itemFilter, setItemFilter] = useState<ItemFilter>("all");
+  const [lookFilter, setLookFilter] = useState<LookFilter>("all");
+  const activeFilter = view === "looks" ? lookFilter : itemFilter;
+  const activeFilterOptions =
+    view === "looks" ? LOOK_FILTER_OPTIONS : ITEM_FILTER_OPTIONS;
+  const filterLabel =
+    activeFilterOptions.find(([value]) => value === activeFilter)?.[1] ?? "全部";
   useEffect(() => {
     if (view === "looks" && looks.length === 0 && items.length + pending.length > 0) {
       onViewChange("items");
@@ -120,9 +135,19 @@ export function WardrobeScreen({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [filterOpen]);
-  const visible = useMemo(
-    () => (filter === "all" ? items : items.filter((item) => item.ownership === filter)),
-    [filter, items]
+  const visibleItems = useMemo(
+    () =>
+      itemFilter === "all"
+        ? items
+        : items.filter((item) => item.ownership === itemFilter),
+    [itemFilter, items]
+  );
+  const visibleLooks = useMemo(
+    () =>
+      lookFilter === "all"
+        ? looks
+        : looks.filter((look) => look.source === lookFilter),
+    [lookFilter, looks]
   );
   const loading = view === "looks" ? looksLoading : itemsLoading;
   const hasError = view === "looks" ? looksError : itemsError;
@@ -130,8 +155,11 @@ export function WardrobeScreen({
     !loading &&
     !hasError &&
     (view === "looks"
-      ? looks.length === 0
-      : visible.length === 0 && pending.length === 0);
+      ? visibleLooks.length === 0
+      : visibleItems.length === 0 && pending.length === 0);
+  const filterHasNoResults =
+    activeFilter !== "all" &&
+    (view === "looks" ? looks.length > 0 : items.length > 0);
 
   async function composeCombo(intent: "cover" | "try_on") {
     if (!onSaveCombo) {
@@ -186,18 +214,20 @@ export function WardrobeScreen({
             className={view === "items" ? "is-selected" : ""}
             aria-selected={view === "items"}
             role="tab"
-            onClick={() => onViewChange("items")}
+            onClick={() => {
+              onViewChange("items");
+              setFilterOpen(false);
+            }}
           >
             按单品
           </button>
         </div>
 
-        {view === "items" ? (
-          <div className="wardrobe-filter" ref={filterMenuRef}>
+        <div className="wardrobe-filter" ref={filterMenuRef}>
             <button
               type="button"
-              className={`wardrobe-filter__trigger${filter !== "all" ? " is-active" : ""}`}
-              aria-label={`筛选单品：${filterLabel}`}
+              className={`wardrobe-filter__trigger${activeFilter !== "all" ? " is-active" : ""}`}
+              aria-label={`${view === "looks" ? "筛选穿搭" : "筛选单品"}：${filterLabel}`}
               aria-haspopup="menu"
               aria-expanded={filterOpen}
               onClick={() => setFilterOpen((current) => !current)}
@@ -208,27 +238,34 @@ export function WardrobeScreen({
             </button>
 
             {filterOpen ? (
-              <div className="wardrobe-filter__menu" role="menu" aria-label="筛选衣橱">
-                {FILTER_OPTIONS.map(([value, label]) => (
+              <div
+                className="wardrobe-filter__menu"
+                role="menu"
+                aria-label={view === "looks" ? "筛选穿搭来源" : "筛选单品归属"}
+              >
+                {activeFilterOptions.map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
                     role="menuitemradio"
-                    aria-checked={filter === value}
-                    className={filter === value ? "is-selected" : ""}
+                    aria-checked={activeFilter === value}
+                    className={activeFilter === value ? "is-selected" : ""}
                     onClick={() => {
-                      setFilter(value);
+                      if (view === "looks") {
+                        setLookFilter(value as LookFilter);
+                      } else {
+                        setItemFilter(value as ItemFilter);
+                      }
                       setFilterOpen(false);
                     }}
                   >
                     <span>{label}</span>
-                    <span aria-hidden="true">{filter === value ? "✓" : ""}</span>
+                    <span aria-hidden="true">{activeFilter === value ? "✓" : ""}</span>
                   </button>
                 ))}
               </div>
             ) : null}
           </div>
-        ) : null}
       </div>
 
       {loading ? (
@@ -264,9 +301,19 @@ export function WardrobeScreen({
           <div className="empty-avatar">
             <img src="/assets/char-default.png" alt="" />
           </div>
-          <h3>{view === "looks" ? "收藏一套喜欢的穿搭" : "衣橱正在等第一件单品"}</h3>
+          <h3>
+            {filterHasNoResults
+              ? view === "looks"
+                ? "没有这个来源的穿搭"
+                : "没有符合条件的单品"
+              : view === "looks"
+                ? "收藏一套喜欢的穿搭"
+                : "衣橱正在等第一件单品"}
+          </h3>
           <p>
-            {view === "looks"
+            {filterHasNoResults
+              ? "可以换一个筛选条件看看。"
+              : view === "looks"
               ? "在 Feed 圈住整套并右滑，它会先完整保存，再在后台拆成单品。"
               : "从相册选一张，或直接拍下衣柜里的衣服。"}
           </p>
@@ -274,12 +321,13 @@ export function WardrobeScreen({
       ) : !hasError ? (
         <div className="wardrobe-grid">
           {view === "looks"
-            ? looks.map((look) => (
+            ? visibleLooks.map((look) => (
                 <LookCard
                   key={look.id}
                   look={look}
                   pixelCover={pixelCovers[look.id] ?? null}
                   collageCover={collageCovers[look.id] ?? null}
+                  renders={lookRenders[look.id] ?? []}
                   onOpen={() => onOpenLook(look)}
                 />
               ))
@@ -292,7 +340,7 @@ export function WardrobeScreen({
                     onDismiss={() => onDismissPending(entry)}
                   />
                 ))}
-                {visible.map((item) => (
+                {visibleItems.map((item) => (
                   <ComboDraggableItem
                     key={item.id}
                     item={item}

@@ -3,22 +3,23 @@ import { motion } from "motion/react";
 import type { Look, RenderArtifact } from "../../api/client";
 import { pixelAvatarDataUrl } from "../../utils/pixelAvatar";
 
-const STATUS_LABELS: Record<Look["status"], string> = {
-  processing: "解析中",
-  partial: "待补全",
-  ready: "已解析",
-  error: "解析失败"
+const SOURCE_LABELS: Record<Look["source"], string> = {
+  feed_saved: "灵感收藏",
+  user_created: "本地上传",
+  ai_generated: "AI 推荐"
 };
 
 export function LookCard({
   look,
   pixelCover = null,
   collageCover = null,
+  renders = [],
   onOpen
 }: {
   look: Look;
   pixelCover?: RenderArtifact | null;
   collageCover?: RenderArtifact | null;
+  renders?: readonly RenderArtifact[];
   onOpen: () => void;
 }) {
   const coverReady =
@@ -33,6 +34,10 @@ export function LookCard({
   const fallbackCoverUrl = collageReady
     ? collageCover.output_image_url
     : look.display_image_url ?? look.source_image_url;
+  const hasInFlightRender = renders.some(
+    (render) => render.status === "queued" || render.status === "running"
+  );
+  const organizing = look.status !== "ready" || hasInFlightRender;
   return (
     <motion.article
       className="item-card look-card pixel-card wardrobe-card"
@@ -70,23 +75,14 @@ export function LookCard({
               data-pixel="true"
             />
           )}
-          <span className={`status-badge status-badge--${look.status}`}>
-            {STATUS_LABELS[look.status]}
-          </span>
-          {look.status === "processing" ? (
+          {organizing ? (
             <div className="processing-sheen" aria-hidden="true" />
           ) : null}
         </div>
         <div className="item-card__body wardrobe-card__meta">
           <strong>{look.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}</strong>
           <span>
-            {coverFailed
-              ? "封面待更新 · 穿搭已保存"
-              : look.status === "ready"
-                ? look.source === "feed_saved"
-                  ? "穿搭灵感 · 已收藏"
-                  : "已保存穿搭 · 日常"
-                : "穿搭已保存 · 正在整理"}
+            {SOURCE_LABELS[look.source]} · {organizing ? "正在整理" : "已整理"}
           </span>
         </div>
       </button>

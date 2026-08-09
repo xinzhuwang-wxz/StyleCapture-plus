@@ -3,19 +3,17 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 import {
-  validateImage,
   type LookDetail as LookDetailData,
   type PurchaseDemand,
   type RenderArtifact,
   type RenderKind
 } from "../../api/client";
 import { ShareCardSheet } from "../outfit/ShareCardSheet";
-import {
-  createBrowserImagePreview,
-  releaseBrowserImagePreview
-} from "../../media/browserImagePreview";
+import { TryOnPhotoSheet } from "../profile/TryOnPhotoSheet";
+import { emptyAlbum, type PhotoAlbum } from "../profile/photoStorage";
 import { garmentImageAlt, garmentLabel, LOOK_ANALYSIS_LABELS } from "./localization";
 import type { LookItemAction } from "./LookItemActionSheet";
+import { DeleteAssetDialog, type LookDeleteScope } from "./DeleteAssetDialog";
 
 type LookDetailProps = {
   detail: LookDetailData | null;
@@ -27,8 +25,11 @@ type LookDetailProps = {
   updatingPurchaseDemandId?: string | null;
   generatingKind?: RenderKind | null;
   tryOnUploading?: boolean;
+  photoAlbum?: PhotoAlbum;
+  onPhotoAlbumChange?: (album: PhotoAlbum) => void;
   deletingTryOnPhoto?: boolean;
   deletingSource?: boolean;
+  deletingLook?: boolean;
   retrying: boolean;
   saving: boolean;
   onClose: () => void;
@@ -39,6 +40,7 @@ type LookDetailProps = {
   onTryOn?: (lookId: string, file: File) => void;
   onDeleteTryOnPhoto?: (artifactId: string) => void;
   onDeleteSource?: (lookId: string) => void;
+  onDeleteLook?: (lookId: string, scope: LookDeleteScope) => void;
   onAdvancePurchaseDemand?: (
     demandId: string,
     status: PurchaseDemand["status"]
@@ -65,6 +67,7 @@ function DetailContent({
   tryOnUploading = false,
   deletingTryOnPhoto = false,
   deletingSource = false,
+  deletingLook = false,
   retrying,
   saving,
   onOpenItem,
@@ -76,9 +79,19 @@ function DetailContent({
   onTryOn,
   onDeleteTryOnPhoto,
   onDeleteSource,
-  onAdvancePurchaseDemand
-}: Omit<LookDetailProps, "detail" | "loading"> & {
+  onDeleteLook,
+  onAdvancePurchaseDemand,
+  tryOnPhotoPickerOpen,
+  onOpenTryOnPicker,
+  onCloseTryOnPicker
+}: Omit<
+  LookDetailProps,
+  "detail" | "loading" | "photoAlbum" | "onPhotoAlbumChange"
+> & {
   detail: LookDetailData;
+  tryOnPhotoPickerOpen: boolean;
+  onOpenTryOnPicker: () => void;
+  onCloseTryOnPicker: () => void;
 }) {
   const [reason, setReason] = useState("");
   const [activeRenderKind, setActiveRenderKind] =
@@ -86,14 +99,9 @@ function DetailContent({
   const [sharing, setSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const [pendingTryOnFile, setPendingTryOnFile] = useState<File | null>(null);
-  const [pendingTryOnPreview, setPendingTryOnPreview] = useState<string | null>(
-    null
-  );
-  const [tryOnValidationError, setTryOnValidationError] = useState<string | null>(null);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
+  const [deletingLookOpen, setDeletingLookOpen] = useState(false);
   const [heroTryOnRevealed, setHeroTryOnRevealed] = useState(false);
-  const tryOnInputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   const values = detail.analysis?.values ?? {};
@@ -117,15 +125,10 @@ function DetailContent({
       completedByKind.set(render.kind, render);
     }
   });
-  const usableCollage = sortedRenders.find(
-    (render) =>
-      render.kind === "collage" &&
-      render.current !== false &&
-      (render.status === "succeeded" || render.status === "degraded") &&
-      render.output_image_url
-  );
-  const latestCollage = latestByKind.get("collage");
   const usesFixedCuratedPresentation = detail.look.fixed_presentation === true;
+  const flatlayComponents = detail.components
+    .filter((component) => component.item_image_url)
+    .slice(0, 6);
   const trackedComponentPresentations = detail.components.filter(
     (component) => component.item_image_status
   );
@@ -137,27 +140,12 @@ function DetailContent({
       component.item_image_status === "queued" ||
       component.item_image_status === "running"
   );
-  const collageRenderGenerating =
-    latestCollage?.status === "queued" || latestCollage?.status === "running";
   const showCollagePlaceholder =
     !usesFixedCuratedPresentation &&
-    !usableCollage &&
     (componentImagesGenerating ||
-      detail.look.status === "processing" ||
-      collageRenderGenerating);
-  const collageNeedsRetry =
-    !usesFixedCuratedPresentation &&
-    latestCollage !== undefined &&
-    (latestCollage.status === "failed" ||
-      ((latestCollage.status === "succeeded" ||
-        latestCollage.status === "degraded") &&
-        !latestCollage.output_image_url));
+      (flatlayComponents.length === 0 && detail.look.status === "processing"));
   const heroImageUrl =
-    usesFixedCuratedPresentation
-      ? detail.look.display_image_url ?? detail.look.source_image_url
-      : usableCollage?.output_image_url ??
-        detail.look.display_image_url ??
-        detail.look.source_image_url;
+    detail.look.display_image_url ?? detail.look.source_image_url;
   const pendingHeroImageUrl =
     detail.look.source_image_url ?? detail.look.display_image_url;
   const completedTryOn = completedByKind.get("try_on");
@@ -176,9 +164,8 @@ function DetailContent({
           : "try_on"
     );
     setShareMessage(null);
-    setPendingTryOnFile(null);
-    setTryOnValidationError(null);
     setConfirmingSourceDelete(false);
+    setDeletingLookOpen(false);
     setHeroTryOnRevealed(false);
   }, [detail.look.id]);
 
@@ -192,7 +179,9 @@ function DetailContent({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      onCloseRef.current();
+      if (tryOnPhotoPickerOpen) onCloseTryOnPicker();
+      else if (deletingLookOpen) setDeletingLookOpen(false);
+      else onCloseRef.current();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
@@ -201,17 +190,12 @@ function DetailContent({
         previouslyFocused.focus();
       }
     };
-  }, [detail.look.id]);
-
-  useEffect(() => {
-    if (!pendingTryOnFile) {
-      setPendingTryOnPreview(null);
-      return;
-    }
-    const preview = createBrowserImagePreview(pendingTryOnFile);
-    setPendingTryOnPreview(preview);
-    return () => releaseBrowserImagePreview(preview);
-  }, [pendingTryOnFile]);
+  }, [
+    deletingLookOpen,
+    detail.look.id,
+    onCloseTryOnPicker,
+    tryOnPhotoPickerOpen
+  ]);
 
   useEffect(() => {
     if (isRenderStudioKind(generatingKind)) setActiveRenderKind(generatingKind);
@@ -320,38 +304,47 @@ function DetailContent({
           ‹
         </button>
         <strong id="look-detail-title">穿搭详情</strong>
-        <span className="detail-topbar__spacer" />
+        {onDeleteLook ? (
+          <button
+            className="icon-button detail-delete-button"
+            type="button"
+            aria-label="删除穿搭"
+            onClick={() => setDeletingLookOpen(true)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+            </svg>
+          </button>
+        ) : (
+          <span className="detail-topbar__spacer" />
+        )}
       </div>
 
       <div className="detail-image look-detail__hero">
         <div
           className="look-detail__hero-panel look-detail__hero-flatlay"
           role={showCollagePlaceholder ? "img" : undefined}
-          aria-label={showCollagePlaceholder ? "真实单品拼贴生成中" : undefined}
+          aria-label={showCollagePlaceholder ? "单品图生成中" : undefined}
         >
-          {usableCollage?.output_image_url && !usesFixedCuratedPresentation ? (
-            <img
-              src={`${usableCollage.output_image_url}?v=${encodeURIComponent(usableCollage.updated_at)}`}
-              alt={usableCollage.presentation_label}
-            />
-          ) : detail.components.some((component) => component.item_image_url) ? (
-            <div className="look-detail__flatlay-items" aria-label="套装单品平面拼贴">
-              {detail.components
-                .filter((component) => component.item_image_url)
-                .slice(0, 4)
-                .map((component) => (
-                  <img
-                    key={component.component_key}
-                    className={
-                      component.item_image_status === "queued" ||
-                      component.item_image_status === "running"
-                        ? "is-generating"
-                        : undefined
-                    }
-                    src={component.item_image_url!}
-                    alt={garmentImageAlt(component.role ?? component.layer)}
-                  />
-                ))}
+          {flatlayComponents.length > 0 ? (
+            <div
+              className="look-detail__flatlay-items"
+              data-count={flatlayComponents.length}
+              aria-label="套装单品平面拼贴"
+            >
+              {flatlayComponents.map((component) => (
+                <img
+                  key={component.component_key}
+                  className={
+                    component.item_image_status === "queued" ||
+                    component.item_image_status === "running"
+                      ? "is-generating"
+                      : undefined
+                  }
+                  src={component.item_image_url!}
+                  alt={garmentImageAlt(component.role ?? component.layer)}
+                />
+              ))}
             </div>
           ) : showCollagePlaceholder && pendingHeroImageUrl ? (
             <img
@@ -383,7 +376,7 @@ function DetailContent({
                 <strong>
                   {componentImagesGenerating
                     ? `正在生成单品图 ${readyComponentPresentationCount}/${trackedComponentPresentations.length}`
-                    : "正在生成整套拼贴"}
+                    : "正在识别并整理单品"}
                 </strong>
                 <small>完成后会自动替换当前截图</small>
                 {componentImagesGenerating ? (
@@ -423,7 +416,7 @@ function DetailContent({
               setHeroTryOnRevealed((current) => !current);
             } else {
               setActiveRenderKind("try_on");
-              tryOnInputRef.current?.click();
+              onOpenTryOnPicker();
             }
           }}
         >
@@ -493,21 +486,6 @@ function DetailContent({
               删除整套原图
             </button>
           )
-        ) : null}
-
-        {collageNeedsRetry && onGenerate ? (
-          <div className="look-recovery" role="status">
-            <strong>真实单品拼贴暂未生成</strong>
-            <span>原始穿搭和已拆单品都已保留，可以重新生成。</span>
-            <button
-              className="secondary-action"
-              type="button"
-              disabled={generatingKind !== null}
-              onClick={() => onGenerate(detail.look.id, "collage")}
-            >
-              {generatingKind === "collage" ? "正在重新生成…" : "重新生成真实拼贴"}
-            </button>
-          </div>
         ) : null}
 
         {detail.components.length > 0 ? (
@@ -747,80 +725,16 @@ function DetailContent({
                   : activeRender?.subject_attached &&
                       activeRender.status === "degraded"
                     ? "本次真人试穿暂时不可用，当前展示真实单品拼贴；可换张全身照重试。"
-                  : "上传或拍摄一张正面全身照，AI 会把这套已保存穿搭换到你身上。"
+                  : "选择已有形象照，或拍摄、上传一张新的正面全身照，AI 会把这套已保存穿搭换到你身上。"
                 : "像素图只作为衣橱封面和分享锚点，真实单品仍以原图为准。"}
             </p>
             {activeRenderKind === "try_on" && onTryOn ? (
               <>
-                <input
-                  ref={tryOnInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  capture="user"
-                  hidden
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      const validationError = validateImage(file);
-                      if (validationError) {
-                        setPendingTryOnFile(null);
-                        setTryOnValidationError(validationError);
-                      } else {
-                        setTryOnValidationError(null);
-                        setPendingTryOnFile(file);
-                      }
-                    }
-                    event.currentTarget.value = "";
-                  }}
-                />
-                {tryOnValidationError ? (
-                  <div className="profile__error" role="alert">
-                    {tryOnValidationError}
-                  </div>
-                ) : null}
-                {pendingTryOnFile ? (
-                  <div className="render-studio__photo-confirm">
-                    {pendingTryOnPreview ? (
-                      <img
-                        src={pendingTryOnPreview}
-                        alt="待确认的试穿全身照"
-                      />
-                    ) : (
-                      <div className="pending-heic-preview" role="status">
-                        <strong>iPhone 全身照已选中</strong>
-                        <span>确认后会自动转换并用于私人试穿</span>
-                      </div>
-                    )}
-                    <p>
-                      确认使用这张全身照生成本套试穿。原照仅用于本次私人生成，
-                      结果完成后可随时删除原照。
-                    </p>
-                    <div>
-                      <button
-                        className="secondary-action"
-                        type="button"
-                        onClick={() => setPendingTryOnFile(null)}
-                      >
-                        重选
-                      </button>
-                      <button
-                        className="primary-action"
-                        type="button"
-                        onClick={() => {
-                          onTryOn(detail.look.id, pendingTryOnFile);
-                          setPendingTryOnFile(null);
-                        }}
-                      >
-                        确认生成
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
                 <button
                   className="primary-action"
                   type="button"
                   disabled={tryOnUploading || generatingKind !== null}
-                  onClick={() => tryOnInputRef.current?.click()}
+                  onClick={onOpenTryOnPicker}
                 >
                   {tryOnUploading || generatingKind === "try_on"
                     ? "照片上传并生成中…"
@@ -949,11 +863,31 @@ function DetailContent({
           {saving ? "保存中…" : "补充喜欢原因"}
         </button>
       </div>
+      <DeleteAssetDialog
+        kind="look"
+        open={deletingLookOpen}
+        busy={deletingLook}
+        onClose={() => setDeletingLookOpen(false)}
+        onConfirm={(scope) => {
+          if (scope) onDeleteLook?.(detail.look.id, scope);
+        }}
+      />
     </motion.section>
   );
 }
 
 export function LookDetail(props: LookDetailProps) {
+  const [tryOnPhotoPickerOpen, setTryOnPhotoPickerOpen] = useState(false);
+
+  useEffect(() => {
+    setTryOnPhotoPickerOpen(false);
+  }, [props.detail?.look.id]);
+
+  const closeDetail = () => {
+    setTryOnPhotoPickerOpen(false);
+    props.onClose();
+  };
+
   return (
     <AnimatePresence>
       {props.loading ? (
@@ -975,10 +909,11 @@ export function LookDetail(props: LookDetailProps) {
             tryOnUploading={props.tryOnUploading}
             deletingTryOnPhoto={props.deletingTryOnPhoto}
             deletingSource={props.deletingSource}
+            deletingLook={props.deletingLook}
             retrying={props.retrying}
             saving={props.saving}
             onOpenItem={props.onOpenItem}
-            onClose={props.onClose}
+            onClose={closeDetail}
             onReturnToSource={props.onReturnToSource}
             onRetry={props.onRetry}
             onSaveReason={props.onSaveReason}
@@ -986,8 +921,26 @@ export function LookDetail(props: LookDetailProps) {
             onTryOn={props.onTryOn}
             onDeleteTryOnPhoto={props.onDeleteTryOnPhoto}
             onDeleteSource={props.onDeleteSource}
+            onDeleteLook={props.onDeleteLook}
             onAdvancePurchaseDemand={props.onAdvancePurchaseDemand}
+            tryOnPhotoPickerOpen={tryOnPhotoPickerOpen}
+            onOpenTryOnPicker={() => setTryOnPhotoPickerOpen(true)}
+            onCloseTryOnPicker={() => setTryOnPhotoPickerOpen(false)}
           />
+          <AnimatePresence>
+            {tryOnPhotoPickerOpen && props.onTryOn ? (
+              <TryOnPhotoSheet
+                album={props.photoAlbum ?? emptyAlbum()}
+                busy={props.tryOnUploading}
+                onAlbumChange={props.onPhotoAlbumChange ?? (() => undefined)}
+                onChoose={(file) => {
+                  props.onTryOn?.(props.detail!.look.id, file);
+                  setTryOnPhotoPickerOpen(false);
+                }}
+                onClose={() => setTryOnPhotoPickerOpen(false)}
+              />
+            ) : null}
+          </AnimatePresence>
         </div>
       ) : null}
     </AnimatePresence>

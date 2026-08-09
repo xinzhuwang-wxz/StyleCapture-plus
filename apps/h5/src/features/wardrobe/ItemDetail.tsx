@@ -4,15 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { wardrobeApi, type Item, type ItemPresentation, type Ownership } from "../../api/client";
 import {
   GARMENT_CATEGORY_OPTIONS,
-  garmentLabel,
-  sourceKindLabel
+  garmentLabel
 } from "./localization";
 import { buildDouyinSearchUrl } from "./purchaseSearch";
 import { useDisplayImage } from "./useDisplayImage";
+import { DeleteAssetDialog } from "./DeleteAssetDialog";
+import { ItemChangeConfirmationDialog } from "./ItemChangeConfirmationDialog";
 
 type ItemDetailProps = {
   item: Item | null;
   saving: boolean;
+  deleting?: boolean;
   onClose: () => void;
   onSave: (
     itemId: string,
@@ -22,16 +24,23 @@ type ItemDetailProps = {
     }
   ) => void;
   onDeleteSource: (itemId: string) => void;
+  onDeleteItem?: (itemId: string) => void;
   onBuildOutfit: (itemId: string) => void;
   onReturnToFeed: (videoRef: string, timestampMs: number) => void;
 };
 
+type PendingItemChange =
+  | { kind: "category"; value: string }
+  | { kind: "ownership"; value: Ownership };
+
 function DetailContent({
   item,
   saving,
+  deleting = false,
   onClose,
   onSave,
   onDeleteSource,
+  onDeleteItem,
   onBuildOutfit,
   onReturnToFeed
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
@@ -46,6 +55,8 @@ function DetailContent({
   const [category, setCategory] = useState(String(item.attributes.category?.value ?? ""));
   const description = String(item.attributes.description?.value ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletingItemOpen, setDeletingItemOpen] = useState(false);
+  const [pendingChange, setPendingChange] = useState<PendingItemChange | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
   const [flatLay, setFlatLay] = useState<ItemPresentation | null>(null);
   const [flatLayError, setFlatLayError] = useState<string | null>(null);
@@ -60,17 +71,6 @@ function DetailContent({
   const purchaseSearchUrl =
     item.purchase_search_url || buildDouyinSearchUrl(purchaseSearchQuery);
 
-  const displayImageNote =
-    item.display_image_kind === "derived_garment"
-      ? "当前展示已标准化的单品实物图；像素图只用于衣橱封面。"
-      : item.display_image_issue === "multiple_garments"
-        ? "照片里识别到多件衣服。为避免抠错，当前保留原图；录入单品请重新上传只包含一件衣服的正面照片，保存全身搭配请选择“整套穿搭”。"
-        : item.display_image_issue === "no_reliable_garment"
-          ? "这张照片里暂未可靠定位到单件衣物。为避免抠错，当前保留原图；建议重新上传清晰的单件衣物正面照。"
-          : item.display_image_issue === "normalization_unavailable"
-            ? "单品抠图暂时未完成，当前展示原图；标签与搭配仍可使用。"
-            : "当前展示上传原图；像素图只用于衣橱封面。";
-
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
@@ -79,6 +79,8 @@ function DetailContent({
     setOwnership(item.ownership);
     setCategory(String(item.attributes.category?.value ?? ""));
     setConfirmingDelete(false);
+    setDeletingItemOpen(false);
+    setPendingChange(null);
     setImageFailed(false);
   }, [item]);
 
@@ -133,7 +135,9 @@ function DetailContent({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onCloseRef.current();
+        if (deletingItemOpen) setDeletingItemOpen(false);
+        else if (pendingChange) setPendingChange(null);
+        else onCloseRef.current();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -143,7 +147,35 @@ function DetailContent({
         previouslyFocused.focus();
       }
     };
-  }, [item.id]);
+  }, [deletingItemOpen, item.id, pendingChange]);
+
+  const pendingChangeCopy =
+    pendingChange?.kind === "category"
+      ? {
+          title: `切换为${garmentLabel(pendingChange.value)}？`,
+          description: `确认后，这件单品会归入${garmentLabel(pendingChange.value)}分类。`
+        }
+      : pendingChange?.value === "inspiration"
+        ? {
+            title: "切换为待拥有？",
+            description: "确认后，这件单品会作为喜欢但尚未拥有的灵感单品保存。"
+          }
+        : {
+            title: "切换为已拥有？",
+            description: "确认后，这件单品会加入你的已拥有衣橱，用于搭配推荐。"
+          };
+
+  function confirmPendingChange() {
+    if (!pendingChange) return;
+    if (pendingChange.kind === "category") {
+      setCategory(pendingChange.value);
+      onSave(item.id, { corrections: { category: pendingChange.value } });
+    } else {
+      setOwnership(pendingChange.value);
+      onSave(item.id, { ownership: pendingChange.value });
+    }
+    setPendingChange(null);
+  }
 
   return (
     <motion.section
@@ -167,7 +199,20 @@ function DetailContent({
           ‹
         </button>
         <strong id="item-detail-title">单品详情</strong>
-        <span className="detail-topbar__spacer" />
+        {onDeleteItem ? (
+          <button
+            className="icon-button detail-delete-button"
+            type="button"
+            aria-label="删除单品"
+            onClick={() => setDeletingItemOpen(true)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+            </svg>
+          </button>
+        ) : (
+          <span className="detail-topbar__spacer" />
+        )}
       </div>
 
       <div
@@ -226,10 +271,6 @@ function DetailContent({
             />
           </details>
         ) : null}
-        <div className="detail-meta">
-          <span>{sourceKindLabel(item.source_kind)}</span>
-          <span>{item.status === "ready" ? "已完成理解" : "仍可编辑"}</span>
-        </div>
         {item.source_kind === "feed" ? (
           item.source_video_ref && item.source_timestamp_ms !== null ? (
             <button
@@ -246,17 +287,6 @@ function DetailContent({
           )
         ) : null}
 
-        <p
-          className={`display-image-note${
-            item.display_image_kind === "derived_garment"
-              ? ""
-              : " display-image-note--attention"
-          }`}
-          role="status"
-        >
-          {displayImageNote}
-        </p>
-
         <label className="form-field">
           <span>分类</span>
           <select
@@ -265,9 +295,8 @@ function DetailContent({
             disabled={saving}
             onChange={(event) => {
               const nextCategory = event.target.value;
-              setCategory(nextCategory);
-              if (nextCategory.trim()) {
-                onSave(item.id, { corrections: { category: nextCategory.trim() } });
+              if (nextCategory.trim() && nextCategory !== category) {
+                setPendingChange({ kind: "category", value: nextCategory.trim() });
               }
             }}
           >
@@ -291,8 +320,9 @@ function DetailContent({
             className={ownership === "owned" ? "is-selected" : ""}
             disabled={saving}
             onClick={() => {
-              setOwnership("owned");
-              onSave(item.id, { ownership: "owned" });
+              if (ownership !== "owned") {
+                setPendingChange({ kind: "ownership", value: "owned" });
+              }
             }}
           >
             已拥有
@@ -302,8 +332,9 @@ function DetailContent({
             className={ownership === "inspiration" ? "is-selected" : ""}
             disabled={saving}
             onClick={() => {
-              setOwnership("inspiration");
-              onSave(item.id, { ownership: "inspiration" });
+              if (ownership !== "inspiration") {
+                setPendingChange({ kind: "ownership", value: "inspiration" });
+              }
             }}
           >
             待拥有
@@ -360,6 +391,21 @@ function DetailContent({
           </button>
         )}
       </div>
+      <DeleteAssetDialog
+        kind="item"
+        open={deletingItemOpen}
+        busy={deleting}
+        onClose={() => setDeletingItemOpen(false)}
+        onConfirm={() => onDeleteItem?.(item.id)}
+      />
+      <ItemChangeConfirmationDialog
+        open={pendingChange !== null}
+        busy={saving}
+        title={pendingChangeCopy.title}
+        description={pendingChangeCopy.description}
+        onClose={() => setPendingChange(null)}
+        onConfirm={confirmPendingChange}
+      />
     </motion.section>
   );
 }

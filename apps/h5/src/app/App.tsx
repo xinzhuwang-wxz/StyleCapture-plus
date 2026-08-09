@@ -26,6 +26,10 @@ import type { PendingItem } from "../features/wardrobe/ItemCard";
 import type { LookItemAction } from "../features/wardrobe/LookItemActionSheet";
 import type { WardrobeView } from "../features/wardrobe/WardrobeScreen";
 import {
+  readPhotoAlbum,
+  type PhotoAlbum
+} from "../features/profile/photoStorage";
+import {
   createBrowserImagePreview,
   releaseBrowserImagePreview
 } from "../media/browserImagePreview";
@@ -260,6 +264,7 @@ export function App() {
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [photoAlbum, setPhotoAlbum] = useState<PhotoAlbum>(readPhotoAlbum);
 
   useEffect(() => {
     if (!notice) return;
@@ -365,7 +370,10 @@ export function App() {
         state: { data?: RenderArtifact[] };
       }) =>
         query.state.data?.some(
-          (render) => render.status === "queued" || render.status === "running"
+          (render) =>
+            render.status === "queued" ||
+            render.status === "running" ||
+            (render.kind === "pixel_cover" && render.sprite_status === "pending")
         )
           ? 1_500
           : false
@@ -380,6 +388,13 @@ export function App() {
           );
           return cover ? [[look.id, cover] as const] : [];
         })
+      ),
+    [lookRenderQueries, looks]
+  );
+  const lookRenders = useMemo(
+    () =>
+      Object.fromEntries(
+        looks.map((look, index) => [look.id, lookRenderQueries[index]?.data ?? []])
       ),
     [lookRenderQueries, looks]
   );
@@ -404,15 +419,18 @@ export function App() {
       looks.flatMap((look, index) => {
         const cover = pixelCovers[look.id];
         if (cover?.status !== "succeeded" || !cover.output_image_url) return [];
+        const transparentSprite = cover.sprite_image_url ?? null;
         return [
           {
             lookId: look.id,
-            assetUrl: cover.output_image_url,
+            assetUrl: transparentSprite ?? cover.output_image_url,
             label:
               look.source === "feed_saved"
                 ? `Feed 穿搭 ${index + 1}`
                 : `我的穿搭 ${index + 1}`,
-            kind: "public-render-artifact" as const,
+            kind: transparentSprite
+              ? ("transparent-render-sprite" as const)
+              : ("public-render-artifact" as const),
             tags: [
               look.source === "feed_saved" ? "Feed 灵感" : "我的搭配",
               "像素封面"
@@ -672,6 +690,47 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
 
+  const deleteItemMutation = useMutation({
+    mutationFn: (itemId: string) => wardrobeApi.deleteItem(itemId),
+    onSuccess: (_, itemId) => {
+      queryClient.setQueryData<Item[]>(["wardrobe-items"], (current) =>
+        current?.filter((item) => item.id !== itemId)
+      );
+      setSelectedItem(null);
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      setNotice("单品已从数字衣橱删除");
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
+  const deleteLookMutation = useMutation({
+    mutationFn: ({
+      lookId,
+      deleteItems
+    }: {
+      lookId: string;
+      deleteItems: boolean;
+    }) => wardrobeApi.deleteLook(lookId, deleteItems),
+    onSuccess: (result) => {
+      queryClient.setQueryData<Look[]>(["wardrobe-looks"], (current) =>
+        current?.filter((look) => look.id !== result.look_id)
+      );
+      setLookItemAction(null);
+      setSelectedLookId(null);
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-looks"] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
+      setNotice(
+        result.preserved_shared_item_ids.length > 0
+          ? `穿搭已删除；${result.preserved_shared_item_ids.length} 件仍被其他搭配使用的单品已保留`
+          : result.deleted_item_ids.length > 0
+            ? `穿搭和 ${result.deleted_item_ids.length} 件单品已删除`
+            : "穿搭已删除，单品仍保留在数字衣橱"
+      );
+    },
+    onError: (error) => setNotice(errorMessage(error))
+  });
+
   const lookReasonMutation = useMutation({
     mutationFn: ({ lookId, reason }: { lookId: string; reason: string }) =>
       wardrobeApi.addLikingReason(lookId, reason, crypto.randomUUID()),
@@ -793,7 +852,6 @@ export function App() {
     onError: (error) => setNotice(errorMessage(error))
   });
   const autoRenderKey = useRef<string | null>(null);
-  const autoCollageAttemptedLookIds = useRef(new Set<string>());
   const flatLayAttemptedItemIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -813,7 +871,6 @@ export function App() {
       detail.look.fixed_presentation ||
       !rendersQuery.isSuccess ||
       usableOrInFlightCollage ||
-      autoCollageAttemptedLookIds.current.has(detail.look.id) ||
       !detail.components.some((component) => component.item_id !== null) ||
       (detail.look.status !== "ready" && detail.look.status !== "partial")
     ) {
@@ -833,7 +890,6 @@ export function App() {
       : `auto-${kind}:${detail.look.id}:${detail.look.updated_at}`;
     if (autoRenderKey.current === key) return;
     autoRenderKey.current = key;
-    autoCollageAttemptedLookIds.current.add(detail.look.id);
     renderMutation.mutate({
       lookId: detail.look.id,
       kind,
@@ -882,7 +938,14 @@ export function App() {
       if (look.fixed_presentation) return false;
       const query = lookRenderQueries[index];
       if (!query?.isSuccess || ensuredPixelLookIds.current.has(look.id)) return false;
-      return !query.data.some((render) => render.kind === "pixel_cover");
+      return !query.data.some(
+        (render) =>
+          render.kind === "pixel_cover" &&
+          (render.status === "queued" ||
+            render.status === "running" ||
+            ((render.status === "succeeded" || render.status === "degraded") &&
+              Boolean(render.output_image_url)))
+      );
     });
     if (!candidate) return;
     ensuredPixelLookIds.current.add(candidate.id);
@@ -1069,7 +1132,13 @@ export function App() {
         hidden={destination === "feed" || destination === "world"}
       >
         {destination !== "feed" ? (
-          <header className={`wardrobe-header${destination === "wardrobe" ? " wardrobe-header--home" : ""}`}>
+          <header
+            className={`wardrobe-header${
+              destination === "wardrobe"
+                ? " wardrobe-header--home"
+                : " wardrobe-header--section"
+            }`}
+          >
             {destination === "wardrobe" ? (
               <div className="wardrobe-header__intro">
                 <h1 id="wardrobe-title" className="pixel-title wardrobe-header__title">
@@ -1082,20 +1151,20 @@ export function App() {
                   <strong>{looks.length}</strong> 套穿搭
                 </p>
               </div>
+            ) : destination === "ai" ? (
+              <div className="wardrobe-header__intro">
+                <h1 className="pixel-title wardrobe-header__title">AI推荐</h1>
+                <p className="subtitle wardrobe-header__summary">今天你想穿什么？</p>
+              </div>
             ) : (
-              <>
-                <h1
-                  className={`pixel-title wardrobe-header__title${
-                    destination === "profile" ? " wardrobe-header__title--profile" : ""
-                  }`}
-                >
-                  {destination === "ai" ? "AI 推荐" : "我的"}
+              <div className="wardrobe-header__intro">
+                <h1 className="pixel-title wardrobe-header__title wardrobe-header__title--profile">
+                  我的
                 </h1>
                 <p className="subtitle wardrobe-header__summary">
-                  拥有的和喜欢的，<br />
-                  都是可搭配的数字资产
+                  拥有的和喜欢的，都是可搭配的数字资产
                 </p>
-              </>
+              </div>
             )}
             {/* AI 页的右上角是这次聊天的出口，不是再去刷 Feed——
                 正在跟闺蜜聊搭配的人，想回看的是聊过什么。 */}
@@ -1105,7 +1174,8 @@ export function App() {
                 className="wardrobe-header__feed"
                 onClick={() => setAiHistoryOpen(true)}
               >
-                对话记录 ›
+                <span className="wardrobe-header__feed-plus" aria-hidden="true">＋</span>
+                <span>对话记录</span>
               </button>
             ) : (
               <button
@@ -1140,12 +1210,13 @@ export function App() {
 
         {destination === "wardrobe" ? (
           <Suspense fallback={<DeferredScreenFallback />}>
-            <WardrobeScreen
+              <WardrobeScreen
               view={wardrobeViewMode}
               onViewChange={setWardrobeViewMode}
               looks={looks}
-              pixelCovers={pixelCovers}
-              collageCovers={collageCovers}
+                pixelCovers={pixelCovers}
+                collageCovers={collageCovers}
+                lookRenders={lookRenders}
               items={items}
               pending={pending}
               itemsLoading={itemsQuery.isLoading}
@@ -1212,6 +1283,8 @@ export function App() {
           <Suspense fallback={<DeferredScreenFallback />}>
             <ProfileScreen
               itemCount={items.length + pending.length}
+              photoAlbum={photoAlbum}
+              onPhotoAlbumChange={setPhotoAlbum}
               onNotice={setNotice}
             />
           </Suspense>
@@ -1260,11 +1333,13 @@ export function App() {
             <ItemDetail
             item={selectedItem}
             saving={updateMutation.isPending}
+            deleting={deleteItemMutation.isPending}
             onClose={() => setSelectedItem(null)}
             onSave={(itemId, changes) =>
               updateMutation.mutate({ itemId, changes })
             }
             onDeleteSource={(itemId) => deleteMutation.mutate(itemId)}
+            onDeleteItem={(itemId) => deleteItemMutation.mutate(itemId)}
             onBuildOutfit={(itemId) => {
               setAiAnchorItemId(itemId);
               setSelectedItem(null);
@@ -1313,8 +1388,11 @@ export function App() {
                     : null
               }
               tryOnUploading={tryOnMutation.isPending}
+              photoAlbum={photoAlbum}
+              onPhotoAlbumChange={setPhotoAlbum}
               deletingTryOnPhoto={deleteTryOnPhotoMutation.isPending}
               deletingSource={false}
+              deletingLook={deleteLookMutation.isPending}
               retrying={lookRetryMutation.isPending}
               saving={lookReasonMutation.isPending}
               onClose={() => {
@@ -1346,6 +1424,12 @@ export function App() {
               }
               onDeleteTryOnPhoto={(artifactId) =>
                 deleteTryOnPhotoMutation.mutate(artifactId)
+              }
+              onDeleteLook={(lookId, scope) =>
+                deleteLookMutation.mutate({
+                  lookId,
+                  deleteItems: scope === "look_and_items"
+                })
               }
               onAdvancePurchaseDemand={(demandId, status) =>
                 purchaseDemandMutation.mutate({ demandId, status })

@@ -72,7 +72,7 @@ def test_collage_transparent_background_is_explicit() -> None:
     assert pixel_rgba(image, (0, 0))[3] == 0
 
 
-def test_collage_uses_a_large_primary_item_and_a_right_hand_stack() -> None:
+def test_collage_balances_primary_items_and_a_right_hand_rail() -> None:
     first = payload("first", (250, 0, 0), size=(80, 80))
     second = payload("second", (0, 0, 250), size=(80, 80))
     third = payload("third", (0, 200, 80), size=(80, 80))
@@ -85,9 +85,9 @@ def test_collage_uses_a_large_primary_item_and_a_right_hand_stack() -> None:
 
     image = decode(renderer.render([first, second, third]).body).convert("RGBA")
 
-    assert pixel_rgba(image, (100, 213))[:3] == (250, 0, 0)
-    assert pixel_rgba(image, (249, 100))[:3] == (0, 0, 250)
-    assert pixel_rgba(image, (249, 320))[:3] == (0, 200, 80)
+    assert pixel_rgba(image, (95, 100))[:3] == (250, 0, 0)
+    assert pixel_rgba(image, (95, 300))[:3] == (0, 0, 250)
+    assert pixel_rgba(image, (240, 213))[:3] == (0, 200, 80)
 
 
 def test_collage_rejects_empty_or_too_many_inputs() -> None:
@@ -96,5 +96,5 @@ def test_collage_rejects_empty_or_too_many_inputs() -> None:
     with pytest.raises(CollageRenderError, match="at least one"):
         renderer.render([])
 
-    with pytest.raises(CollageRenderError, match="at most six"):
-        renderer.render([payload(str(index), (index, index, index)) for index in range(7)])
+    with pytest.raises(CollageRenderError, match="at most eight"):
+        renderer.render([payload(str(index), (index, index, index)) for index in range(9)])

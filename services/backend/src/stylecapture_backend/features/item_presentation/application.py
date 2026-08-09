@@ -23,10 +23,10 @@ from stylecapture_backend.features.render.domain import (
 )
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
 
-PIXEL_ITEM_SIGNATURE_VERSION = "item-pixel-v4"
+PIXEL_ITEM_SIGNATURE_VERSION = "item-pixel-v5"
 PIXEL_ITEM_PROMPT_VERSION = "stylecapture-item-pixel-2026-08-09-clean-subject"
 PIXEL_ITEM_CAPABILITY_ID = "item.pixel_presentation"
-PIXEL_ITEM_SCHEMA_VERSION = "ornate-asymmetric-pixel-card-square-v3"
+PIXEL_ITEM_SCHEMA_VERSION = "ornate-asymmetric-pixel-card-square-v4"
 FLAT_LAY_ITEM_SIGNATURE_VERSION = "item-flat-lay-v2"
 FLAT_LAY_ITEM_CAPABILITY_ID = "item.generated_flat_lay"
 FLAT_LAY_ITEM_SCHEMA_VERSION = "seedream-white-3x4-v1"

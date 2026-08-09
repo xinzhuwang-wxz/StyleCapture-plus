@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Protocol
+from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Response, status
@@ -54,6 +54,8 @@ class RenderArtifactResponse(BaseModel):
     subject_attached: bool
     personalized: bool
     output_image_url: str | None
+    sprite_image_url: str | None = None
+    sprite_status: Literal["not_applicable", "pending", "ready", "failed"] = "not_applicable"
     fallback_artifact_id: UUID | None
     failure_code: str | None
     failure_message: str | None
@@ -88,6 +90,12 @@ class RenderArtifactResponse(BaseModel):
             output_image_url=(
                 f"/v1/render-artifacts/{view.id}/image" if view.object_key is not None else None
             ),
+            sprite_image_url=(
+                f"/v1/render-artifacts/{view.id}/sprite"
+                if view.sprite_object_key is not None
+                else None
+            ),
+            sprite_status=view.sprite_status,
             fallback_artifact_id=view.fallback_artifact_id,
             failure_code=view.failure_code,
             failure_message=(
@@ -154,6 +162,9 @@ def build_render_router(
             RenderArtifactKind.COLLAGE,
             look_display_hash=look_display_hash(detail, user_id),
         )
+        views = await services.renders.list_for_look(user_id=user_id, look_id=look_id)
+        for view in views:
+            _dispatch_if_needed(services, view)
         return RenderArtifactListResponse(
             renders=[
                 RenderArtifactResponse.from_view(
@@ -163,7 +174,7 @@ def build_render_router(
                         or view.input_hash == current_collage_signature.hash
                     ),
                 )
-                for view in await services.renders.list_for_look(user_id=user_id, look_id=look_id)
+                for view in views
             ]
         )
 
@@ -269,6 +280,31 @@ def build_render_router(
             },
         )
 
+    @router.get(
+        "/v1/render-artifacts/{artifact_id}/sprite",
+        responses=STABLE_ERROR_RESPONSES,
+    )
+    async def get_render_sprite(
+        artifact_id: UUID,
+        user_id: UUID = principal,
+    ) -> Response:
+        view = await services.renders.get(user_id=user_id, artifact_id=artifact_id)
+        if view.kind is not RenderArtifactKind.PIXEL_COVER or view.sprite_object_key is None:
+            raise RenderArtifactNotFound("Transparent pixel sprite is not ready")
+        try:
+            stored = services.objects.describe(view.sprite_object_key)
+            body = services.objects.read(view.sprite_object_key)
+        except (FileNotFoundError, KeyError) as error:
+            raise RenderArtifactNotFound("Transparent pixel sprite is unavailable") from error
+        return Response(
+            content=body,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "private, no-store",
+                "ETag": f'"{stored.sha256}"',
+            },
+        )
+
     @router.delete(
         "/v1/render-artifacts/{artifact_id}/subject",
         status_code=status.HTTP_204_NO_CONTENT,
@@ -304,10 +340,24 @@ def _dispatch_if_queued(
     services: RenderHttpServices,
     view: RenderArtifactView,
 ) -> None:
+    _dispatch_if_needed(services, view)
+
+
+def _dispatch_if_needed(
+    services: RenderHttpServices,
+    view: RenderArtifactView,
+) -> None:
     if (
         services.dispatcher is not None
         and view.dispatch_required
-        and view.status is RenderArtifactStatus.QUEUED
+        and (
+            view.status is RenderArtifactStatus.QUEUED
+            or (
+                view.kind is RenderArtifactKind.PIXEL_COVER
+                and view.status is RenderArtifactStatus.SUCCEEDED
+                and view.sprite_status == "pending"
+            )
+        )
     ):
         services.dispatcher.enqueue_render(
             user_id=view.user_id,
