@@ -257,7 +257,16 @@ describe("StyleCapture garment ingest", () => {
     expect(
       await screen.findByRole("heading", { name: "我的衣橱" })
     ).toBeVisible();
-    expect(screen.getByRole("navigation", { name: "主要功能" })).toBeVisible();
+    const navigation = screen.getByRole("navigation", { name: "主要功能" });
+    expect(navigation).toBeVisible();
+    const navigationButtons = within(navigation).getAllByRole("button");
+    expect(navigationButtons).toHaveLength(5);
+    expect(navigationButtons[0]).toHaveAccessibleName("衣橱");
+    expect(navigationButtons[1]).toHaveAccessibleName("AI");
+    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服或试试像素形象");
+    expect(navigationButtons[3]).toHaveAccessibleName("像素世界");
+    expect(navigationButtons[4]).toHaveAccessibleName("我的");
+    expect(within(navigation).queryByRole("button", { name: "分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刷灵感 Feed" })).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
@@ -637,7 +646,7 @@ describe("StyleCapture garment ingest", () => {
     expect(scrollContainer).not.toBeNull();
     scrollContainer!.scrollTop = 640;
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "AI" }));
 
     await waitFor(() => expect(scrollContainer!.scrollTop).toBe(0));
   });
