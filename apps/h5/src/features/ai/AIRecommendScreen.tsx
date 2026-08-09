@@ -517,10 +517,6 @@ export function AIRecommendScreen({
     return (
       <ChatHistorySheet
         records={history}
-        onOpenLook={(lookId) => {
-          onHistoryOpenChange?.(false);
-          onOpenLook(lookId);
-        }}
         onReopen={(record) => {
           // 回到那次对话：把说过的话铺回线程，并接着用同一条记录，
           // 免得同一次聊天在列表里裂成两条。

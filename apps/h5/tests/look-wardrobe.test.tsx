@@ -291,6 +291,12 @@ describe("Look wardrobe states", () => {
     );
 
     expect(screen.getByRole("img", { name: "真人试穿穿搭卡片" })).toBeInTheDocument();
+    expect(screen.getByText("AI试穿效果")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存到本地" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看大图" }));
+    expect(screen.getByRole("dialog", { name: "真人试穿大图" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "真人试穿大图" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭真人试穿大图" }));
     fireEvent.click(screen.getByRole("button", { name: "生成像素卡片" }));
     expect(onGenerate).toHaveBeenCalledWith(
       pendingLook.id,
@@ -617,7 +623,7 @@ describe("Look wardrobe states", () => {
     expect(screen.queryByText("color")).not.toBeInTheDocument();
   });
 
-  it("labels curated and human-reviewed relationship analysis as manual", () => {
+  it("keeps implementation provenance out of the relationship analysis UI", () => {
     const detail = readyDetail();
     detail.analysis = {
       ...detail.analysis!,
@@ -641,7 +647,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("人工整理 · 示例搭配解析")).toBeInTheDocument();
+    expect(screen.queryByText("人工整理 · 示例搭配解析")).not.toBeInTheDocument();
     expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
   });
 
@@ -718,7 +724,7 @@ describe("Look wardrobe states", () => {
     expect(onGenerate).not.toHaveBeenCalled();
   });
 
-  it("keeps the AI label for real model relationship analysis", () => {
+  it("keeps model provenance out of real relationship analysis", () => {
     render(
       <LookDetail
         detail={readyDetail()}
@@ -735,7 +741,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.getByText("AI 理解")).toBeInTheDocument();
+    expect(screen.queryByText("AI 理解")).not.toBeInTheDocument();
     expect(
       screen.queryByText("人工整理 · 示例搭配解析")
     ).not.toBeInTheDocument();
