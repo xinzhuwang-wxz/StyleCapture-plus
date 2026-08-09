@@ -51,6 +51,21 @@ describe("theme party scene", () => {
     });
   });
 
+  it("uses a server-generated transparent sprite without cutting it out again", () => {
+    const scene = createCommunityScene({
+      lookId: "look-transparent",
+      assetUrl: "/v1/render-artifacts/pixel/sprite",
+      label: "透明像素小人",
+      kind: "transparent-render-sprite"
+    });
+
+    expect(wornLook(scene)).toMatchObject({
+      id: "wardrobe-look-transparent",
+      assetUrl: "/v1/render-artifacts/pixel/sprite",
+      needsBackdropRemoval: false
+    });
+  });
+
   it("keeps original animated characters and adds every wardrobe pixel cover", () => {
     const scene = createCommunityScene([
       {

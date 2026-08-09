@@ -365,7 +365,10 @@ export function App() {
         state: { data?: RenderArtifact[] };
       }) =>
         query.state.data?.some(
-          (render) => render.status === "queued" || render.status === "running"
+          (render) =>
+            render.status === "queued" ||
+            render.status === "running" ||
+            (render.kind === "pixel_cover" && render.sprite_status === "pending")
         )
           ? 1_500
           : false
@@ -404,15 +407,18 @@ export function App() {
       looks.flatMap((look, index) => {
         const cover = pixelCovers[look.id];
         if (cover?.status !== "succeeded" || !cover.output_image_url) return [];
+        const transparentSprite = cover.sprite_image_url ?? null;
         return [
           {
             lookId: look.id,
-            assetUrl: cover.output_image_url,
+            assetUrl: transparentSprite ?? cover.output_image_url,
             label:
               look.source === "feed_saved"
                 ? `Feed 穿搭 ${index + 1}`
                 : `我的穿搭 ${index + 1}`,
-            kind: "public-render-artifact" as const,
+            kind: transparentSprite
+              ? ("transparent-render-sprite" as const)
+              : ("public-render-artifact" as const),
             tags: [
               look.source === "feed_saved" ? "Feed 灵感" : "我的搭配",
               "像素封面"

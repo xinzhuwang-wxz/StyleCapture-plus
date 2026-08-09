@@ -92,6 +92,8 @@ function renderArtifact(
     personalized: false,
     output_image_url:
       "/v1/render-artifacts/55555555-5555-4555-8555-555555555555/image",
+    sprite_image_url: null,
+    sprite_status: "not_applicable",
     fallback_artifact_id: null,
     failure_code: null,
     failure_message: null,

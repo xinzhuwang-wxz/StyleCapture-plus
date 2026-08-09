@@ -11,7 +11,11 @@ export type CommunityAvatarSource = {
   lookId?: string;
   assetUrl: string;
   label: string;
-  kind: "demo-fallback" | "local-upload" | "public-render-artifact";
+  kind:
+    | "demo-fallback"
+    | "local-upload"
+    | "public-render-artifact"
+    | "transparent-render-sprite";
   tags?: readonly string[];
   description?: string;
 };
@@ -201,7 +205,9 @@ export const MY_LOOK_ID = "my-look";
 
 function myLook(source: CommunityAvatarSource, index = 0): PartyLook {
   const isWardrobeLook =
-    source.kind === "public-render-artifact" && Boolean(source.lookId);
+    (source.kind === "public-render-artifact" ||
+      source.kind === "transparent-render-sprite") &&
+    Boolean(source.lookId);
   return {
     id: isWardrobeLook ? `wardrobe-${source.lookId}` : MY_LOOK_ID,
     title: source.label || "我的像素 Look",
@@ -211,10 +217,13 @@ function myLook(source: CommunityAvatarSource, index = 0): PartyLook {
     sourceLabel:
       source.kind === "local-upload"
         ? "我的上传 Look · 仅本机"
-        : source.kind === "public-render-artifact"
+        : source.kind === "public-render-artifact" ||
+            source.kind === "transparent-render-sprite"
           ? "我的公开像素 Look"
           : "我的示例形象 · 接口可替换",
-    needsBackdropRemoval: source.kind !== "demo-fallback",
+    needsBackdropRemoval:
+      source.kind !== "demo-fallback" &&
+      source.kind !== "transparent-render-sprite",
     tags: source.tags?.length
       ? source.tags
       : ["我的衣橱", "可分享封面"],

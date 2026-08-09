@@ -196,6 +196,15 @@ class SuccessfulPixelGenerator:
         )
 
 
+class RecordingSpriteExtractor:
+    def __init__(self) -> None:
+        self.source: ImagePayload | None = None
+
+    def extract(self, image: ImagePayload) -> ImagePayload:
+        self.source = image
+        return payload("derived/render-sprites/pixel.png", (10, 20, 30))
+
+
 class SuccessfulTryOnGenerator:
     def __init__(self) -> None:
         self.categories: list[str] = []
@@ -505,6 +514,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     repository = MemoryRenderRepository([collage, pixel])
     renders = RenderApplication(artifacts=repository)
     pixel_generator = SuccessfulPixelGenerator()
+    sprite_extractor = RecordingSpriteExtractor()
     processor = RenderProcessor(
         artifacts=repository,
         renders=renders,
@@ -515,6 +525,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
         pixel_generator=pixel_generator,
         try_on_generator=None,
         fixed_model_object_key=None,
+        pixel_sprite_extractor=sprite_extractor,
     )
 
     await processor.process(user_id=user_id, artifact_id=collage.id)
@@ -526,6 +537,10 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_collage.output is not None
     assert stored_pixel.status is RenderArtifactStatus.SUCCEEDED
     assert stored_pixel.output is not None
+    assert stored_pixel.sprite_output is not None
+    assert stored_pixel.sprite_output.object_key.startswith("derived/render-sprites/")
+    assert stored_pixel.sprite_output.content_type == "image/png"
+    assert sprite_extractor.source is not None
     assert stored_pixel.share_eligible is True
     assert stored_pixel.provider_trace is not None
     assert stored_pixel.provider_trace.provider == "test-private"
@@ -554,6 +569,57 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert pixel_generator.images[-1].object_key.endswith("anchor-casual-dark-pixel.png")
     assert pixel_generator.seed is not None
     assert pixel_generator.guidance_scale is None
+
+
+@pytest.mark.asyncio
+async def test_processor_backfills_a_sprite_for_an_existing_pixel_card() -> None:
+    user_id, detail, item, objects = fixture()
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="backfill-collage",
+    )
+    pixel = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        request_key="backfill-pixel",
+        source_artifact_id=collage.id,
+    )
+    repository = MemoryRenderRepository([collage, pixel])
+    base_arguments = {
+        "artifacts": repository,
+        "renders": RenderApplication(artifacts=repository),
+        "looks": MemoryLookRepository(detail),
+        "wardrobe": MemoryWardrobeRepository(item),
+        "objects": objects,
+        "collages": PillowLookCollageRenderer(canvas_size=320),
+        "try_on_generator": None,
+        "fixed_model_object_key": None,
+    }
+    first_processor = RenderProcessor(
+        **base_arguments,  # type: ignore[arg-type]
+        pixel_generator=SuccessfulPixelGenerator(),
+    )
+
+    await first_processor.process(user_id=user_id, artifact_id=collage.id)
+    await first_processor.process(user_id=user_id, artifact_id=pixel.id)
+    assert repository.artifacts[pixel.id].sprite_output is None
+
+    extractor = RecordingSpriteExtractor()
+    backfill_processor = RenderProcessor(
+        **base_arguments,  # type: ignore[arg-type]
+        pixel_generator=None,
+        pixel_sprite_extractor=extractor,
+    )
+    await backfill_processor.process(user_id=user_id, artifact_id=pixel.id)
+
+    stored = repository.artifacts[pixel.id]
+    assert stored.status is RenderArtifactStatus.SUCCEEDED
+    assert stored.sprite_output is not None
+    assert stored.sprite_output.object_key.startswith("derived/render-sprites/")
+    assert extractor.source is not None
 
 
 @pytest.mark.asyncio

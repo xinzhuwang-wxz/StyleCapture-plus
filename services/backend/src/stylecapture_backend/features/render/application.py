@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from stylecapture_backend.features.render.domain import (
@@ -32,6 +33,9 @@ class RenderArtifactView:
     object_key: str | None
     content_hash: str | None
     content_type: str | None
+    sprite_object_key: str | None
+    sprite_content_hash: str | None
+    sprite_content_type: str | None
     source_artifact_id: UUID | None
     fallback_artifact_id: UUID | None
     failure_code: str | None
@@ -41,8 +45,19 @@ class RenderArtifactView:
     updated_at: datetime
     subject_object_key: str | None
     subject_used: bool
+    sprite_extraction_failed: bool
     dispatch_required: bool = False
     cache_hit: bool = False
+
+    @property
+    def sprite_status(self) -> Literal["not_applicable", "pending", "ready", "failed"]:
+        if self.kind is not RenderArtifactKind.PIXEL_COVER:
+            return "not_applicable"
+        if self.sprite_object_key is not None:
+            return "ready"
+        if self.status is not RenderArtifactStatus.SUCCEEDED:
+            return "pending"
+        return "failed" if self.sprite_extraction_failed else "pending"
 
 
 class RenderApplication:
@@ -68,7 +83,15 @@ class RenderApplication:
             input_signature=input_signature,
         )
         if cached is not None and cached.user_id == user_id:
-            return _view(cached, cache_hit=True)
+            return _view(
+                cached,
+                cache_hit=True,
+                dispatch_required=(
+                    cached.kind is RenderArtifactKind.PIXEL_COVER
+                    and cached.sprite_output is None
+                    and not cached.sprite_extraction_failed
+                ),
+            )
         artifact = RenderArtifact.queued(
             user_id=user_id,
             look_id=look_id,
@@ -91,7 +114,15 @@ class RenderApplication:
 
     async def list_for_look(self, *, user_id: UUID, look_id: UUID) -> list[RenderArtifactView]:
         return [
-            _view(artifact)
+            _view(
+                artifact,
+                dispatch_required=(
+                    artifact.kind is RenderArtifactKind.PIXEL_COVER
+                    and artifact.status is RenderArtifactStatus.SUCCEEDED
+                    and artifact.sprite_output is None
+                    and not artifact.sprite_extraction_failed
+                ),
+            )
             for artifact in await self._artifacts.list_for_look(user_id=user_id, look_id=look_id)
         ]
 
@@ -131,9 +162,38 @@ class RenderApplication:
         user_id: UUID,
         artifact_id: UUID,
         output: RenderOutput,
+        sprite_output: RenderOutput | None = None,
+        sprite_extraction_failed: bool = False,
     ) -> RenderArtifactView:
         artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
-        return _view(await self._artifacts.save(artifact.mark_succeeded(output)))
+        return _view(
+            await self._artifacts.save(
+                artifact.mark_succeeded(
+                    output,
+                    sprite_output=sprite_output,
+                    sprite_extraction_failed=sprite_extraction_failed,
+                )
+            )
+        )
+
+    async def attach_sprite(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        sprite_output: RenderOutput,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
+        return _view(await self._artifacts.save(artifact.attach_sprite(sprite_output)))
+
+    async def mark_sprite_extraction_failed(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+    ) -> RenderArtifactView:
+        artifact = await self._require_artifact(user_id=user_id, artifact_id=artifact_id)
+        return _view(await self._artifacts.save(artifact.mark_sprite_extraction_failed()))
 
     async def mark_failed(
         self,
@@ -185,6 +245,15 @@ def _view(
         object_key=artifact.output.object_key if artifact.output is not None else None,
         content_hash=artifact.output.content_hash if artifact.output is not None else None,
         content_type=artifact.output.content_type if artifact.output is not None else None,
+        sprite_object_key=(
+            artifact.sprite_output.object_key if artifact.sprite_output is not None else None
+        ),
+        sprite_content_hash=(
+            artifact.sprite_output.content_hash if artifact.sprite_output is not None else None
+        ),
+        sprite_content_type=(
+            artifact.sprite_output.content_type if artifact.sprite_output is not None else None
+        ),
         source_artifact_id=artifact.source_artifact_id,
         fallback_artifact_id=artifact.fallback_artifact_id,
         failure_code=artifact.failure_code,
@@ -197,6 +266,7 @@ def _view(
             artifact.provider_trace is not None
             and artifact.provider_trace.parameters.get("personalization") == "user_photo"
         ),
+        sprite_extraction_failed=artifact.sprite_extraction_failed,
         dispatch_required=dispatch_required,
         cache_hit=cache_hit,
     )
