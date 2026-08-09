@@ -244,9 +244,7 @@ class RenderProcessor:
                 content_object_key = detail.look.display_object_key
                 input_source_kind = "look_display"
         try:
-            content_source = normalize_provider_image(
-                self._objects.read_image(content_object_key)
-            )
+            content_source = normalize_provider_image(self._objects.read_image(content_object_key))
         except (FileNotFoundError, KeyError):
             if input_source_kind != "look_display":
                 raise
