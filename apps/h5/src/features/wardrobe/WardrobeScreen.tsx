@@ -16,7 +16,7 @@ import { LookCard } from "./LookCard";
 import "./wardrobe.css";
 
 type Filter = "all" | "owned" | "inspiration";
-type WardrobeView = "looks" | "items";
+export type WardrobeView = "looks" | "items";
 
 const FILTER_OPTIONS: readonly [Filter, string][] = [
   ["all", "全部"],
@@ -25,8 +25,11 @@ const FILTER_OPTIONS: readonly [Filter, string][] = [
 ];
 
 export function WardrobeScreen({
+  view,
+  onViewChange,
   looks,
   pixelCovers,
+  collageCovers,
   items,
   pending,
   itemsLoading,
@@ -44,8 +47,11 @@ export function WardrobeScreen({
   onSaveCombo,
   onNotice
 }: {
+  view: WardrobeView;
+  onViewChange: (view: WardrobeView) => void;
   looks: Look[];
   pixelCovers: Record<string, RenderArtifact>;
+  collageCovers: Record<string, RenderArtifact>;
   items: Item[];
   pending: PendingItem[];
   itemsLoading: boolean;
@@ -87,14 +93,13 @@ export function WardrobeScreen({
       return next;
     });
   }
-  const [view, setView] = useState<WardrobeView>("looks");
   const [filter, setFilter] = useState<Filter>("all");
   const filterLabel = FILTER_OPTIONS.find(([value]) => value === filter)?.[1] ?? "全部";
   useEffect(() => {
     if (view === "looks" && looks.length === 0 && items.length + pending.length > 0) {
-      setView("items");
+      onViewChange("items");
     }
-  }, [items.length, looks.length, pending.length, view]);
+  }, [items.length, looks.length, onViewChange, pending.length, view]);
   useEffect(() => {
     if (!filterOpen) return;
 
@@ -170,7 +175,7 @@ export function WardrobeScreen({
             aria-selected={view === "looks"}
             role="tab"
             onClick={() => {
-              setView("looks");
+              onViewChange("looks");
               setFilterOpen(false);
             }}
           >
@@ -181,7 +186,7 @@ export function WardrobeScreen({
             className={view === "items" ? "is-selected" : ""}
             aria-selected={view === "items"}
             role="tab"
-            onClick={() => setView("items")}
+            onClick={() => onViewChange("items")}
           >
             按单品
           </button>
@@ -274,6 +279,7 @@ export function WardrobeScreen({
                   key={look.id}
                   look={look}
                   pixelCover={pixelCovers[look.id] ?? null}
+                  collageCover={collageCovers[look.id] ?? null}
                   onOpen={() => onOpenLook(look)}
                 />
               ))

@@ -23,10 +23,10 @@ from stylecapture_backend.features.render.domain import (
 )
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
 
-PIXEL_ITEM_SIGNATURE_VERSION = "item-pixel-v2"
-PIXEL_ITEM_PROMPT_VERSION = "stylecapture-item-pixel-2026-07-26"
+PIXEL_ITEM_SIGNATURE_VERSION = "item-pixel-v3"
+PIXEL_ITEM_PROMPT_VERSION = "stylecapture-item-pixel-2026-08-09-colorways"
 PIXEL_ITEM_CAPABILITY_ID = "item.pixel_presentation"
-PIXEL_ITEM_SCHEMA_VERSION = "generated-image-v1"
+PIXEL_ITEM_SCHEMA_VERSION = "colorway-pixel-card-square-v2"
 FLAT_LAY_ITEM_SIGNATURE_VERSION = "item-flat-lay-v2"
 FLAT_LAY_ITEM_CAPABILITY_ID = "item.generated_flat_lay"
 FLAT_LAY_ITEM_SCHEMA_VERSION = "seedream-white-3x4-v1"
@@ -118,6 +118,22 @@ class ItemPresentationApplication:
         if asset is None:
             raise ItemPresentationNotFound("Item presentation asset not found")
         return _view(asset)
+
+    async def get_current_flat_lay_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID,
+    ) -> ItemPresentationView | None:
+        """Return the current generated Item hero without creating new work."""
+        item = await self._wardrobe.get_item(user_id, item_id)
+        existing = await self._assets.find_current(
+            user_id=user_id,
+            item_id=item_id,
+            kind=ItemPresentationKind.FLAT_LAY_ITEM,
+            input_signature=flat_lay_item_signature(item),
+        )
+        return _view(existing) if existing is not None else None
 
     async def retry_pixel_item(
         self,

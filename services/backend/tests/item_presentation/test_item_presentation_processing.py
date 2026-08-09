@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from hashlib import sha256
 from io import BytesIO
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,10 +27,11 @@ from stylecapture_backend.features.item_presentation.domain import (
 )
 from stylecapture_backend.features.item_presentation.processing import (
     ItemPresentationProcessor,
+    normalize_pixel_card_output,
 )
 from stylecapture_backend.features.render.domain import RenderInputSignature, RenderProviderTrace
 from stylecapture_backend.features.render.infrastructure.collage import PillowLookCollageRenderer
-from stylecapture_backend.features.render.ports import GeneratedImage
+from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
 from stylecapture_backend.features.wardrobe.domain import ItemAttributes, ItemStatus, WardrobeItem
 
 
@@ -110,9 +112,14 @@ class SuccessfulGenerator:
         size: str = "1024x1024",
     ) -> GeneratedImage:
         assert "只出现一个目标单品" in prompt
+        assert "背景必须明显呈现这组柔和色相" in prompt
         assert len(images) == 1
         self.images = tuple(images)
-        body = b"real-provider-item-pixel-output"
+        rendered = Image.new("RGB", (2048, 2048), (238, 238, 238))
+        rendered.paste((223, 157, 38), (500, 480, 1548, 1580))
+        buffer = BytesIO()
+        rendered.save(buffer, format="PNG")
+        body = buffer.getvalue()
         return GeneratedImage(
             body=body,
             content_type="image/png",
@@ -221,10 +228,69 @@ async def test_item_pixel_records_capability_prompt_and_schema_versions() -> Non
     assert stored.provider_trace is not None
     assert stored.provider_trace.parameters["capability_id"] == "item.pixel_presentation"
     assert stored.provider_trace.parameters["capability_alias"] == "image_generation"
-    assert (
-        stored.provider_trace.parameters["prompt_version"] == "stylecapture-item-pixel-2026-07-26"
+    assert stored.provider_trace.parameters["prompt_version"] == (
+        "stylecapture-item-pixel-2026-08-09-colorways"
     )
-    assert stored.provider_trace.parameters["schema_version"] == "generated-image-v1"
+    assert stored.provider_trace.parameters["schema_version"] == ("colorway-pixel-card-square-v2")
+    assert stored.provider_trace.parameters["output_canvas"] == "1024x1024"
+    assert stored.provider_trace.parameters["background_palette"] in {
+        "蜜桃",
+        "丁香紫",
+        "晴空蓝",
+        "薄荷绿",
+        "奶油黄",
+        "莓果粉",
+    }
+
+
+def test_pixel_card_recolors_connected_gray_background_with_stable_variety() -> None:
+    rendered = Image.new("RGB", (2048, 2048), (238, 238, 238))
+    rendered.paste((190, 40, 55), (620, 440, 1428, 1640))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm", model="image_generation", parameters={}
+        ),
+    )
+
+    first, first_quality = normalize_pixel_card_output(generated, seed="item-a")
+    second, second_quality = normalize_pixel_card_output(generated, seed="item-c")
+
+    assert first_quality["background_palette"] != second_quality["background_palette"]
+    recolored_ratio = first_quality["background_recolored_ratio"]
+    assert isinstance(recolored_ratio, float)
+    assert recolored_ratio > 0.5
+    with Image.open(BytesIO(first.body)) as first_card:
+        assert first_card.size == (1024, 1024)
+        corner = cast(tuple[int, int, int], first_card.getpixel((12, 12)))
+        assert max(corner) - min(corner) >= 8
+        subject = cast(tuple[int, int, int], first_card.getpixel((512, 512)))
+        assert subject[0] > 150 and subject[1] < 90
+    with Image.open(BytesIO(second.body)) as second_card:
+        assert second_card.getpixel((12, 12)) != corner
+
+
+def test_pixel_card_rejects_non_square_provider_output() -> None:
+    rendered = Image.new("RGB", (1728, 2304), "white")
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm", model="image_generation", parameters={}
+        ),
+    )
+
+    with pytest.raises(RenderProviderError, match="square"):
+        normalize_pixel_card_output(generated)
 
 
 @pytest.mark.asyncio

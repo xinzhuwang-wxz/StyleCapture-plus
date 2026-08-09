@@ -1014,6 +1014,7 @@ export interface components {
             display_order: number;
             /** Item Id */
             item_id: string | null;
+            item_image_status?: components["schemas"]["ItemPresentationStatus"] | null;
             /** Item Image Url */
             item_image_url: string | null;
             /** Layer */
@@ -1374,6 +1375,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Current
+             * @default true
+             */
+            current: boolean;
             /** Failure Code */
             failure_code: string | null;
             /** Failure Message */

@@ -1,6 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import type { Ownership, SourceKind } from "../../api/client";
 
@@ -52,7 +51,7 @@ export function CaptureSheet({
     setIntent(null);
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.scrollTo({ top: 0 });
+    if (dialogRef.current) dialogRef.current.scrollTop = 0;
     cancelButtonRef.current?.focus({ preventScroll: true });
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busyRef.current) {
@@ -87,12 +86,7 @@ export function CaptureSheet({
     };
   }, [selection]);
 
-  const host =
-    typeof document === "undefined"
-      ? null
-      : document.querySelector(".pixel-screen");
-
-  const sheet = (
+  return (
     <AnimatePresence>
       {selection ? (
         <motion.div
@@ -362,8 +356,6 @@ export function CaptureSheet({
       ) : null}
     </AnimatePresence>
   );
-
-  return host ? createPortal(sheet, host) : sheet;
 }
 
 function canBrowserPreview(file: File): boolean {

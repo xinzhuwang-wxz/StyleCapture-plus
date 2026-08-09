@@ -168,6 +168,7 @@ render_processor = RenderProcessor(
         poll_timeout_seconds=settings.render_poll_timeout_seconds,
     ),
     fixed_model_object_key=settings.fixed_model_object_key,
+    item_presentations=item_presentation_application,
 )
 render_task = register_render_task(
     celery,

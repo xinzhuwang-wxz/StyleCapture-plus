@@ -86,6 +86,7 @@ function renderArtifact(
     look_id: pendingLook.id,
     kind: "collage",
     status: "succeeded",
+    current: true,
     presentation_label: "真实单品拼贴",
     subject_attached: false,
     personalized: false,
@@ -107,12 +108,25 @@ describe("Look wardrobe states", () => {
   it("shows an honest processing placeholder instead of the full source frame", () => {
     render(<LookCard look={pendingLook} onOpen={vi.fn()} />);
 
-    expect(screen.queryByRole("img", { name: "收藏的整套穿搭" })).not.toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "像素穿搭封面生成中" })
-    ).toHaveAttribute("data-image-kind", "look-pixel-pending");
+      screen.getByRole("img", { name: "单品拼贴封面占位" })
+    ).toHaveAttribute("data-image-kind", "look-source-placeholder");
     expect(screen.getByText("解析中")).toBeInTheDocument();
     expect(screen.getByText("穿搭已保存 · 正在整理")).toBeInTheDocument();
+  });
+
+  it("uses a blurred real collage while no pixel cover is selected", () => {
+    render(
+      <LookCard
+        look={{ ...pendingLook, status: "ready" }}
+        collageCover={renderArtifact()}
+        onOpen={vi.fn()}
+      />
+    );
+
+    const fallback = screen.getByRole("img", { name: "单品拼贴封面占位" });
+    expect(fallback).toHaveAttribute("data-image-kind", "look-collage-placeholder");
+    expect(fallback).toHaveClass("look-card__fallback-cover");
   });
 
   it("uses a successful shareable pixel artifact as the wardrobe cover", () => {
@@ -417,7 +431,7 @@ describe("Look wardrobe states", () => {
     expect(
       screen.getByRole("img", { name: "真实单品拼贴生成中" })
     ).toBeInTheDocument();
-    expect(screen.getByText("真实单品拼贴排队中")).toBeInTheDocument();
+    expect(screen.getByText("单品图生成中，请稍后")).toBeInTheDocument();
     expect(
       screen.queryByRole("img", { name: "收藏的真实整套穿搭" })
     ).not.toBeInTheDocument();
@@ -611,7 +625,7 @@ describe("Look wardrobe states", () => {
       />
     );
 
-    expect(screen.queryByText("真实单品拼贴排队中")).not.toBeInTheDocument();
+    expect(screen.queryByText("单品图生成中，请稍后")).not.toBeInTheDocument();
     const flatlay = screen.getByLabelText("套装单品平面拼贴");
     expect(flatlay.querySelector('img[alt="上装"]')).toHaveAttribute(
       "src",
