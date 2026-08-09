@@ -631,6 +631,39 @@ describe("Look wardrobe states", () => {
     expect(onTryOn).not.toHaveBeenCalled();
   });
 
+  it("shows the backend body-coverage rejection instead of a generic try-on error", () => {
+    const reason =
+      "照片只到大腿，请重新上传一张至少连续露出颈肩、躯干、髋部、膝盖和小腿的照片。";
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact({
+            kind: "try_on",
+            status: "degraded",
+            presentation_label: "真人试穿暂时不可用",
+            output_image_url: null,
+            subject_attached: true,
+            failure_code: "try_on_source_photo_ineligible",
+            failure_message: reason,
+            retryable: false
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
   it("deletes only the original Look photo after an explicit confirmation", () => {
     const onDeleteSource = vi.fn();
     render(

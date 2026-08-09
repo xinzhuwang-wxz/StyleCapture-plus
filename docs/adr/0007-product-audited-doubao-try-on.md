@@ -31,6 +31,11 @@ fallback contracts remain useful and must not move into H5 or the Skill.
    contract invalidates older generated-result cache entries.
 6. The standalone ZIP remains supported. This product integration is a server-side adapter and
    does not expose provider models, endpoints or credentials through H5 or Product API schemas.
+7. The Skill rejects insufficient body framing before paid generation and persists a stable,
+   user-readable rejection reason through the RenderArtifact API.
+8. The Skill resolves an explicit application plan before generation. Shoes are omitted when the
+   source does not show both feet; the body may not be reframed to accommodate them. Replacement
+   garment silhouette and ease are hard-audited independently of the source garment fit.
 
 ## Consequences
 
@@ -45,8 +50,8 @@ fallback contracts remain useful and must not move into H5 or the Skill.
 
 ## Verification
 
-- Offline Skill contract tests enforce exact-face geometry language and an identity threshold of
-  at least 88.
+- Offline Skill contract tests enforce exact visible-face geometry, body framing, footwear policy,
+  garment silhouette, and an identity threshold of at least 95.
 - Provider adapter tests verify secret transport, hard-pass gating and sanitized trace metadata.
 - Render processing tests verify the audited Skill takes precedence over both legacy providers.
 - A user-authorized real-image retry remains the required visual acceptance check.

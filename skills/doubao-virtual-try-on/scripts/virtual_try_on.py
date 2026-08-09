@@ -25,7 +25,7 @@ from typing import Any
 DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 DEFAULT_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260428"
 DEFAULT_IMAGE_MODEL = "doubao-seedream-5-0-260128"
-VERSION = "1.3.0"
+VERSION = "1.4.1"
 TRANSIENT_HTTP_CODES = {408, 409, 429, 500, 502, 503, 504}
 MAX_IMAGE_DOWNLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -255,36 +255,69 @@ def analyze_inputs(
     prompt = f"""Prepare a photorealistic virtual try-on generation from the labeled images.
 Return only valid JSON with this schema:
 {{
+  "source_photo_eligibility": {{
+    "eligible": true,
+    "body_coverage": {{
+      "neck_and_shoulders": true,
+      "torso": true,
+      "hips": true,
+      "knees": true,
+      "calves": true,
+      "feet": false
+    }},
+    "rejection_code": null,
+    "user_message": ""
+  }},
   "person_identity": "observable identity, face, hair, skin tone and body-proportion traits",
+  "body_geometry_visibility": {{
+    "shoulders": "visible|partly_visible|concealed",
+    "chest": "visible|partly_visible|concealed",
+    "waist": "visible|partly_visible|concealed",
+    "hips": "visible|partly_visible|concealed"
+  }},
+  "body_geometry_policy": "one short evidence-based instruction",
   "outfit_items": [
-    {{"name": "...", "color": "...", "material": "...", "shape_and_details": "...",
+    {{"name": "...", "category": "garment|shoes|bag|accessory|other",
+      "color": "...", "color_signature": "hue, undertone, lightness and surface variation",
+      "material": "...", "silhouette_and_ease": "...",
+      "shape_and_details": "...",
       "wearing_instruction": "..."}}
   ],
-  "composition": "recommended pose, crop, camera, background and lighting",
-  "generation_prompt": "complete Chinese image-generation instruction"
+  "outfit_application_plan": {{
+    "outfit_has_shoes": false,
+    "apply_shoes": false,
+    "skipped_categories": [],
+    "silhouette_constraints": ["..."]
+  }},
+  "composition": "observable source pose, crop, camera, background and lighting"
 }}
 
-Requirements for generation_prompt:
-- State that IMAGE 1 is the only source of identity, facial features, hairstyle, skin tone and
-  body proportions. Keep the exact same person, not a merely similar person.
-- Lock observable facial geometry: face shape and jawline, hairline, eyebrow shape and spacing,
-  eye shape and spacing, eyelids, nose bridge and width, lip shape, mouth corners, ears, skin
-  tone, age cues, glasses and distinctive details. Preserve expression, makeup and hairstyle.
-- Prohibit beautification, face slimming, eye enlargement, nose reshaping, skin smoothing or
-  whitening, age/gender changes, and any reinterpretation of the face. Except where a new collar
-  meets hair or skin, preserve IMAGE 1's head and face region instead of repainting it.
-- State that IMAGE 2 is the only source of replacement clothing and accessories. The person must
-  naturally wear or carry every visible outfit-board item exactly once in the correct place.
-- Replace all clothes and accessories from IMAGE 1. Do not retain an item from IMAGE 1 unless the
-  same item is visible in IMAGE 2.
-- Describe each item precisely, including color, material, cut, hardware, neckline, hem, heel,
-  strap and bag structure when visible.
-- Reconstruct a believable full body if IMAGE 1 is cropped. Keep anatomy, hands, fingers, legs,
-  feet, garment construction and object scale realistic.
-- Produce one single vertical photorealistic camera image. No collage, split screen, item layout,
-  text, logo addition, extra garments, duplicated objects, floating items or illustration style.
-- Preserve a plausible version of IMAGE 1's environment unless the style instruction says
-  otherwise.
+Analysis requirements:
+- First judge source_photo_eligibility from IMAGE 1 using only visible evidence. The photo is
+  eligible only when the primary person's body is continuously shown from neck and shoulders
+  through torso, hips, both knees and most of both calves. Clothes may cover those body parts;
+  the requirement is that their position and extent are present in frame. Do not infer cropped
+  anatomy. A photo ending above the knees or around the upper thighs is ineligible. Face
+  sharpness, glasses, makeup, stickers and other face occlusion are not rejection reasons.
+- For an ineligible photo, set rejection_code to "insufficient_body_coverage" and write a short
+  Chinese user_message that names the missing/cropped region and asks for a new photo showing at
+  least neck, shoulders, torso, hips, knees and calves. Still return the complete JSON object.
+- Independently report whether both feet and their current footwear are fully visible in IMAGE 1.
+  If IMAGE 2 contains shoes but IMAGE 1 ends at the calves or ankles without showing both feet,
+  set apply_shoes=false and include "shoes" in skipped_categories. Do not reject an otherwise
+  eligible neck-through-calves photo for missing feet.
+- For every garment, describe its true silhouette and wearing ease from IMAGE 2: fitted, regular,
+  relaxed, oversized, boxy, flared, structured, draped, or another visibly supported term. Do not
+  copy the source garment's tightness onto the replacement garment.
+- Judge shoulder, chest, waist and hip contour visibility separately. Visible means the person's
+  contour is supported by the image, not merely the outer edge of loose source clothing.
+- When a body width is concealed, do not guess an idealized or stereotypical female shape. Write a
+  conservative policy that preserves visible skeletal landmarks and vertical positions without
+  enlarging, slimming or reshaping chest, waist or hips.
+- For every item, describe color from visible pixels rather than a generic color name. Include hue,
+  warm/neutral/cool undertone, relative lightness, and heather/marl/mottled variation when present.
+- Keep the analysis factual and compact. Do not author a prose generation prompt; the script builds
+  the final prioritized prompt deterministically.
 {style_instruction}
 """
     return chat(
@@ -294,6 +327,168 @@ Requirements for generation_prompt:
         prompt=prompt,
         labeled_images=images,
     )
+
+
+REQUIRED_BODY_REGIONS = (
+    "neck_and_shoulders",
+    "torso",
+    "hips",
+    "knees",
+    "calves",
+)
+
+
+def source_photo_rejection(analysis: dict[str, Any]) -> tuple[str, str] | None:
+    """Return a stable rejection code/message when the body framing cannot support try-on."""
+    eligibility = analysis.get("source_photo_eligibility")
+    if not isinstance(eligibility, dict):
+        return (
+            "try_on_source_photo_ineligible",
+            "无法确认照片中的身体取景是否完整，请重新上传一张至少连续露出颈肩、躯干、髋部、膝盖和小腿的照片。",
+        )
+    coverage = eligibility.get("body_coverage")
+    coverage_complete = isinstance(coverage, dict) and all(
+        coverage.get(region) is True for region in REQUIRED_BODY_REGIONS
+    )
+    if eligibility.get("eligible") is True and coverage_complete:
+        return None
+    message = eligibility.get("user_message")
+    if not isinstance(message, str) or not message.strip():
+        message = (
+            "照片中的身体取景不完整，无法可靠保持真实头身比例。"
+            "请重新上传一张至少连续露出颈肩、躯干、髋部、膝盖和小腿的照片。"
+        )
+    return "try_on_source_photo_ineligible", message.strip()[:240]
+
+
+def resolved_application_plan(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Resolve compact clothing/body policies from visible evidence, not model preference."""
+    eligibility = analysis.get("source_photo_eligibility")
+    coverage = eligibility.get("body_coverage") if isinstance(eligibility, dict) else None
+    feet_visible = isinstance(coverage, dict) and coverage.get("feet") is True
+    items = analysis.get("outfit_items")
+    item_rows = items if isinstance(items, list) else []
+    reported_plan = analysis.get("outfit_application_plan")
+    plan = reported_plan if isinstance(reported_plan, dict) else {}
+    outfit_has_shoes = plan.get("outfit_has_shoes") is True or any(
+        isinstance(item, dict)
+        and (
+            str(item.get("category", "")).strip().lower()
+            in {"shoe", "shoes", "footwear", "鞋", "鞋履"}
+            or "鞋" in str(item.get("name", ""))
+        )
+        for item in item_rows
+    )
+    silhouette_constraints = [
+        str(item.get("silhouette_and_ease", "")).strip()
+        for item in item_rows
+        if isinstance(item, dict) and str(item.get("silhouette_and_ease", "")).strip()
+    ]
+    reported_constraints = plan.get("silhouette_constraints")
+    if isinstance(reported_constraints, list):
+        silhouette_constraints.extend(
+            str(value).strip() for value in reported_constraints if str(value).strip()
+        )
+    color_constraints = []
+    for item in item_rows:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "item")).strip() or "item"
+        color = str(item.get("color_signature") or item.get("color") or "").strip()
+        if color:
+            color_constraints.append(f"{name}: {color}")
+    body_visibility = analysis.get("body_geometry_visibility")
+    if not isinstance(body_visibility, dict):
+        body_visibility = {}
+    body_policy = str(analysis.get("body_geometry_policy", "")).strip()
+    apply_shoes = outfit_has_shoes and feet_visible
+    return {
+        "source_feet_visible": feet_visible,
+        "outfit_has_shoes": outfit_has_shoes,
+        "apply_shoes": apply_shoes,
+        "skipped_categories": ["shoes"] if outfit_has_shoes and not feet_visible else [],
+        "silhouette_constraints": list(dict.fromkeys(silhouette_constraints)),
+        "color_constraints": list(dict.fromkeys(color_constraints)),
+        "body_geometry_visibility": body_visibility,
+        "body_geometry_policy": body_policy,
+    }
+
+
+def build_generation_prompt(analysis: dict[str, Any], plan: dict[str, Any]) -> str:
+    """Build one short prioritized prompt instead of stacking model-authored prose."""
+    identity = str(analysis.get("person_identity", "")).strip()
+    items = json.dumps(analysis.get("outfit_items", []), ensure_ascii=False)
+    silhouette = json.dumps(plan.get("silhouette_constraints", []), ensure_ascii=False)
+    colors = json.dumps(plan.get("color_constraints", []), ensure_ascii=False)
+    visibility = json.dumps(plan.get("body_geometry_visibility", {}), ensure_ascii=False)
+    body_policy = str(plan.get("body_geometry_policy", "")).strip() or (
+        "Preserve visible skeletal landmarks and use conservative neutral volume for concealed "
+        "widths; do not enlarge, slim, or reshape the chest, waist, or hips."
+    )
+    if plan.get("outfit_has_shoes") is True and plan.get("apply_shoes") is not True:
+        shoe_instruction = (
+            "Omit IMAGE 2 footwear because both source feet are not visible; do not reframe, "
+            "extend, compress, or invent anatomy to include it."
+        )
+    else:
+        shoe_instruction = "Apply IMAGE 2 footwear only to source feet already visible in frame."
+    return f"""Create one photorealistic virtual try-on. Follow priorities in order.
+
+P1 PERSON AND FRAME — IMAGE 1 is the only person reference.
+Keep the exact same visible face, hair, glasses/occlusion, pose, skeleton, limb and torso lengths,
+head/body scale, camera and crop. Do not beautify or reconstruct the person. Identity notes:
+{identity}
+
+P2 BODY VOLUME — clothing changes; the person's body does not.
+Observed contour visibility: {visibility}
+{body_policy}
+Never use loose source-clothing edges as body contours or impose a stereotypical body shape.
+
+P3 TARGET OUTFIT — IMAGE 2 pixels are the only clothing truth.
+Items: {items}
+Exact color signatures: {colors}
+Exact silhouettes/ease: {silhouette}
+Preserve hue, undertone, relative lightness, marl/heather variation, material, cut, volume and
+construction. Do not neutralize, whiten, cool, warm, tighten or loosen a target garment.
+{shoe_instruction}
+
+P4 OUTPUT — replace source clothes with each non-skipped item once. Return one natural camera
+photo with the source environment, no collage, labels, floating items or added objects.
+"""
+
+
+def write_rejection_manifest(
+    *,
+    output_dir: Path,
+    args: argparse.Namespace,
+    person_path: Path,
+    outfit_path: Path,
+    style_path: Path | None,
+    code: str,
+    message: str,
+) -> dict[str, Any]:
+    manifest = {
+        "models": {
+            "understanding": args.understanding_model,
+            "generation": args.image_model,
+        },
+        "inputs": {
+            "person_image": str(person_path),
+            "outfit_board": str(outfit_path),
+            "style_reference": str(style_path) if style_path else None,
+        },
+        "attempts": [],
+        "selected_attempt": None,
+        "hard_pass": False,
+        "quality_status": "input_rejected",
+        "failure_code": code,
+        "user_message": message,
+        "result": None,
+    }
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return manifest
 
 
 def generate_image(
@@ -386,12 +581,41 @@ def audit_result(
     person_url: str,
     outfit_url: str,
     result_url: str,
+    application_plan: dict[str, Any],
 ) -> dict[str, Any]:
     prompt = """Audit the generated virtual try-on conservatively using visible evidence.
 Return only valid JSON with exactly this structure:
 {
-  "identity_preservation": {"score": 0, "notes": "..."},
-  "outfit_fidelity": {"score": 0, "matched": [], "missing_or_wrong": []},
+  "identity_preservation": {
+    "score": 0,
+    "source_face_visibility": "clear|soft|partial|obscured",
+    "exact_same_person": false,
+    "visible_identity_cues_preserved": false,
+    "facial_features_changed": true,
+    "beautification_detected": true,
+    "source_occlusion_preserved": false,
+    "notes": "..."
+  },
+  "body_framing": {
+    "score": 0,
+    "head_through_calves_visible": false,
+    "natural_head_to_body_ratio": false,
+    "no_vertical_compression": false,
+    "source_pose_and_camera_preserved": false,
+    "notes": "..."
+  },
+  "outfit_fidelity": {
+    "score": 0,
+    "silhouette_and_ease_preserved": false,
+    "source_garment_fit_leaked": true,
+    "matched": [],
+    "missing_or_wrong": []
+  },
+  "application_policy": {
+    "shoe_policy_followed": false,
+    "no_body_reframing_for_footwear": false,
+    "notes": "..."
+  },
   "photorealism": {"score": 0, "artifacts": []},
   "overall_score": 0,
   "pass": false,
@@ -401,10 +625,28 @@ Return only valid JSON with exactly this structure:
 Compare IMAGE 3's person only against IMAGE 1 and IMAGE 3's clothing/items only against IMAGE 2.
 Do not award identity points for merely matching gender, ethnicity, hair color or general vibe.
 Compare exact face shape, jawline, eye spacing and shape, eyebrows, nose, mouth, hairline, ears,
-glasses, skin tone and age cues. Check every board item, colors, materials, cut, hardware, item
-count, shoes, bag, anatomy, hands, feet and unintended carry-over from IMAGE 1's original
-clothes/accessories. Pass only when overall_score >= 88, identity_preservation.score >= 88,
-outfit_fidelity.score >= 80, and there is no severe anatomical or object-duplication artifact."""
+glasses, skin tone and age cues. Face sharpness is not a quality requirement. Label an otherwise
+visible but low-resolution or slightly blurred face as "soft", not "partial" or "obscured", and
+still require exact_same_person=true. When the source face is actually covered or cut off, require
+the same visible identity cues and the same occlusion; fail if the result invents, reveals or
+repaints hidden facial features. Mark facial_features_changed=true for any visible five-feature
+geometry drift, and beautification_detected=true for face slimming, eye enlargement, nose
+reshaping, skin smoothing/whitening or age change.
+
+Compare source and result framing. Require a natural head-to-body ratio, no shortened/compressed
+torso or legs, the body visible continuously through the calves, and the source pose, camera
+distance and crop preserved. Check every board item, colors, materials, cut, hardware, item count,
+shoes, bag, anatomy, hands, feet and unintended carry-over from IMAGE 1's original
+clothes/accessories. Pass only when overall_score >= 92, identity_preservation.score >= 95,
+body_framing.score >= 90, outfit_fidelity.score >= 80, all required identity/body booleans pass,
+the resolved shoe policy is followed, silhouette_and_ease_preserved=true,
+source_garment_fit_leaked=false, and there is no severe anatomical or object-duplication artifact.
+Do not penalize an intentionally skipped shoe when apply_shoes=false. Instead fail if shoes were
+forced into a source crop that did not show both feet, or if the body/canvas was reframed to show
+them. Fail a loose target garment that became fitted to the source garment's outline."""
+    prompt += "\n\nResolved application policy:\n" + json.dumps(
+        application_plan, ensure_ascii=False
+    )
     audit = chat(
         api_key=api_key,
         api_base=api_base,
@@ -418,7 +660,9 @@ outfit_fidelity.score >= 80, and there is no severe anatomical or object-duplica
     )
     for key in (
         "identity_preservation",
+        "body_framing",
         "outfit_fidelity",
+        "application_policy",
         "photorealism",
         "overall_score",
         "pass",
@@ -438,12 +682,53 @@ def overall_score(audit: dict[str, Any]) -> float:
 
 def audit_passes(audit: dict[str, Any]) -> bool:
     try:
-        identity = float(audit["identity_preservation"]["score"])
-        outfit = float(audit["outfit_fidelity"]["score"])
+        identity_block = audit["identity_preservation"]
+        identity = float(identity_block["score"])
+        body = audit["body_framing"]
+        body_score = float(body["score"])
+        outfit_block = audit["outfit_fidelity"]
+        outfit = float(outfit_block["score"])
+        policy = audit["application_policy"]
     except (KeyError, TypeError, ValueError):
         return False
+    face_visibility = identity_block.get("source_face_visibility")
+    face_preserved = (
+        identity_block.get("visible_identity_cues_preserved") is True
+        and identity_block.get("facial_features_changed") is False
+        and identity_block.get("beautification_detected") is False
+        and (
+            identity_block.get("exact_same_person") is True
+            if face_visibility in {"clear", "soft"}
+            else identity_block.get("source_occlusion_preserved") is True
+        )
+    )
+    body_preserved = all(
+        body.get(field) is True
+        for field in (
+            "head_through_calves_visible",
+            "natural_head_to_body_ratio",
+            "no_vertical_compression",
+            "source_pose_and_camera_preserved",
+        )
+    )
+    outfit_shape_preserved = (
+        outfit_block.get("silhouette_and_ease_preserved") is True
+        and outfit_block.get("source_garment_fit_leaked") is False
+    )
+    application_policy_followed = (
+        policy.get("shoe_policy_followed") is True
+        and policy.get("no_body_reframing_for_footwear") is True
+    )
     return (
-        audit.get("pass") is True and overall_score(audit) >= 88 and identity >= 88 and outfit >= 80
+        audit.get("pass") is True
+        and overall_score(audit) >= 92
+        and identity >= 95
+        and body_score >= 90
+        and outfit >= 80
+        and face_preserved
+        and body_preserved
+        and outfit_shape_preserved
+        and application_policy_followed
     )
 
 
@@ -480,9 +765,22 @@ def main() -> int:
     )
     analysis_path = output_dir / "analysis.json"
     analysis_path.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
-    base_prompt = str(analysis.get("generation_prompt", "")).strip()
-    if not base_prompt:
-        raise ValueError("Analysis JSON contains no generation_prompt")
+    rejection = source_photo_rejection(analysis)
+    if rejection is not None:
+        code, message = rejection
+        manifest = write_rejection_manifest(
+            output_dir=output_dir,
+            args=args,
+            person_path=person_path,
+            outfit_path=outfit_path,
+            style_path=style_path,
+            code=code,
+            message=message,
+        )
+        print(json.dumps(manifest, ensure_ascii=False, indent=2))
+        return 2
+    application_plan = resolved_application_plan(analysis)
+    base_prompt = build_generation_prompt(analysis, application_plan)
 
     attempts: list[dict[str, Any]] = []
     retry_changes: list[Any] = []
@@ -521,6 +819,7 @@ def main() -> int:
             person_url=person_url,
             outfit_url=outfit_url,
             result_url=result_url,
+            application_plan=application_plan,
         )
         audit_path = output_dir / f"audit-attempt-{number}.json"
         audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -556,6 +855,7 @@ def main() -> int:
             "outfit_board": str(outfit_path),
             "style_reference": str(style_path) if style_path else None,
         },
+        "application_plan": application_plan,
         "attempts": attempts,
         "selected_attempt": best["attempt"],
         "hard_pass": bool(best["pass"]),

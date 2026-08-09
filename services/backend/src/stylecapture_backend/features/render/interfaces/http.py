@@ -98,9 +98,7 @@ class RenderArtifactResponse(BaseModel):
             sprite_status=view.sprite_status,
             fallback_artifact_id=view.fallback_artifact_id,
             failure_code=view.failure_code,
-            failure_message=(
-                "真实效果图暂时没有生成。可以重试。" if view.failure_code is not None else None
-            ),
+            failure_message=view.failure_message,
             retryable=view.status in {RenderArtifactStatus.FAILED, RenderArtifactStatus.DEGRADED},
             share_eligible=view.share_eligible,
             cache_hit=view.cache_hit,

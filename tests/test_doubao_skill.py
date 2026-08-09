@@ -71,16 +71,192 @@ class DoubaoSkillContractTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(version_run.returncode, 0, version_run.stderr)
-            self.assertIn("1.3.0", version_run.stdout)
+            self.assertIn("1.4.1", version_run.stdout)
 
     def test_single_try_on_contract_strictly_locks_exact_face_geometry(self) -> None:
         core = load_script_module("virtual_try_on")
         source = Path(core.__file__).read_text(encoding="utf-8")
 
-        self.assertIn("Keep the exact same person, not a merely similar person", source)
-        self.assertIn("face shape and jawline", source)
-        self.assertIn("identity_preservation.score >= 88", source)
-        self.assertIn("overall_score >= 88", source)
+        self.assertIn("Keep the exact same visible face", source)
+        self.assertIn("face shape, jawline", source)
+        self.assertIn("identity_preservation.score >= 95", source)
+        self.assertIn("overall_score >= 92", source)
+        self.assertIn("Omit IMAGE 2 footwear", source)
+        self.assertIn("source garment's tightness", source)
+
+    def test_source_photo_gate_ignores_face_clarity_but_requires_body_coverage(self) -> None:
+        core = load_script_module("virtual_try_on")
+        eligible = {
+            "source_photo_eligibility": {
+                "eligible": True,
+                "body_coverage": {
+                    "neck_and_shoulders": True,
+                    "torso": True,
+                    "hips": True,
+                    "knees": True,
+                    "calves": True,
+                    "feet": False,
+                },
+            }
+        }
+        self.assertIsNone(core.source_photo_rejection(eligible))
+
+        eligible["source_photo_eligibility"]["body_coverage"]["knees"] = False
+        self.assertIsNotNone(core.source_photo_rejection(eligible))
+
+    def test_application_plan_skips_shoes_when_source_feet_are_not_visible(self) -> None:
+        core = load_script_module("virtual_try_on")
+        analysis = {
+            "source_photo_eligibility": {
+                "eligible": True,
+                "body_coverage": {
+                    "neck_and_shoulders": True,
+                    "torso": True,
+                    "hips": True,
+                    "knees": True,
+                    "calves": True,
+                    "feet": False,
+                },
+            },
+            "outfit_items": [
+                {"name": "运动鞋", "category": "shoes"},
+                {
+                    "name": "宽松球衣",
+                    "category": "garment",
+                    "silhouette_and_ease": "relaxed oversized fit",
+                },
+            ],
+        }
+        plan = core.resolved_application_plan(analysis)
+        self.assertTrue(plan["outfit_has_shoes"])
+        self.assertFalse(plan["apply_shoes"])
+        self.assertEqual(plan["skipped_categories"], ["shoes"])
+        self.assertIn("relaxed oversized fit", plan["silhouette_constraints"])
+
+    def test_generation_prompt_is_short_prioritized_and_color_body_aware(self) -> None:
+        core = load_script_module("virtual_try_on")
+        analysis = {
+            "person_identity": "same visible face and glasses",
+            "body_geometry_visibility": {
+                "shoulders": "visible",
+                "chest": "concealed",
+                "waist": "concealed",
+                "hips": "partly_visible",
+            },
+            "body_geometry_policy": (
+                "Keep source shoulder and hip landmarks; use conservative neutral torso volume."
+            ),
+            "source_photo_eligibility": {"body_coverage": {"feet": True}},
+            "outfit_items": [
+                {
+                    "name": "针织上衣",
+                    "category": "garment",
+                    "color": "浅灰",
+                    "color_signature": "warm light heather gray, not white or cool gray",
+                    "silhouette_and_ease": "close fit without changing the wearer's body",
+                }
+            ],
+        }
+        plan = core.resolved_application_plan(analysis)
+        prompt = core.build_generation_prompt(analysis, plan)
+
+        self.assertIn("P1 PERSON AND FRAME", prompt)
+        self.assertIn("P2 BODY VOLUME", prompt)
+        self.assertIn("P3 TARGET OUTFIT", prompt)
+        self.assertIn("warm light heather gray, not white or cool gray", prompt)
+        self.assertIn("use conservative neutral torso volume", prompt)
+        self.assertIn("Do not neutralize, whiten, cool, warm", prompt)
+        self.assertNotIn("stereotypical female", prompt)
+        self.assertLess(len(prompt), 3500)
+
+    def test_soft_visible_face_still_requires_exact_identity(self) -> None:
+        core = load_script_module("virtual_try_on")
+        audit = {
+            "identity_preservation": {
+                "score": 96,
+                "source_face_visibility": "soft",
+                "exact_same_person": False,
+                "visible_identity_cues_preserved": True,
+                "facial_features_changed": False,
+                "beautification_detected": False,
+                "source_occlusion_preserved": True,
+            },
+            "body_framing": {
+                "score": 95,
+                "head_through_calves_visible": True,
+                "natural_head_to_body_ratio": True,
+                "no_vertical_compression": True,
+                "source_pose_and_camera_preserved": True,
+            },
+            "outfit_fidelity": {
+                "score": 90,
+                "silhouette_and_ease_preserved": True,
+                "source_garment_fit_leaked": False,
+            },
+            "application_policy": {
+                "shoe_policy_followed": True,
+                "no_body_reframing_for_footwear": True,
+            },
+            "photorealism": {"score": 90, "artifacts": []},
+            "overall_score": 95,
+            "pass": True,
+        }
+        self.assertFalse(core.audit_passes(audit))
+        audit["identity_preservation"]["exact_same_person"] = True
+        self.assertTrue(core.audit_passes(audit))
+
+    def test_ineligible_source_stops_before_paid_generation(self) -> None:
+        core = load_script_module("virtual_try_on")
+        with tempfile.TemporaryDirectory() as temporary:
+            person = Path(temporary) / "person.png"
+            outfit = Path(temporary) / "outfit.png"
+            person.write_bytes(b"png")
+            outfit.write_bytes(b"png")
+            output = Path(temporary) / "out"
+            args = unittest.mock.Mock(
+                person_image=person,
+                outfit_board=outfit,
+                output_dir=output,
+                style_reference=None,
+                api_base="https://ark.example.com/api/v3",
+                understanding_model="understanding",
+                image_model="image",
+                max_attempts=1,
+                size="2K",
+                watermark=False,
+            )
+            generation = mock.Mock()
+            with (
+                mock.patch.object(core, "parse_args", return_value=args),
+                mock.patch.dict(core.os.environ, {"ARK_API_KEY": "test-key"}),
+                mock.patch.object(core, "require_image", side_effect=lambda path, label: path),
+                mock.patch.object(core, "image_data_url", return_value="data:image/png;base64,x"),
+                mock.patch.object(
+                    core,
+                    "analyze_inputs",
+                    return_value={
+                        "source_photo_eligibility": {
+                            "eligible": False,
+                            "body_coverage": {
+                                "neck_and_shoulders": True,
+                                "torso": True,
+                                "hips": True,
+                                "knees": False,
+                                "calves": False,
+                                "feet": False,
+                            },
+                            "user_message": "照片只到大腿，请重新上传露出膝盖和小腿的照片。",  # noqa: RUF001
+                        }
+                    },
+                ),
+                mock.patch.object(core, "generate_image", generation),
+            ):
+                self.assertEqual(core.main(), 2)
+
+            generation.assert_not_called()
+            manifest = (output / "manifest.json").read_text(encoding="utf-8")
+            self.assertIn('"quality_status": "input_rejected"', manifest)
+            self.assertIn("照片只到大腿", manifest)
 
     def test_download_rejects_non_https_private_and_local_urls(self) -> None:
         core = load_script_module("virtual_try_on")
@@ -191,8 +367,34 @@ class DoubaoSkillContractTest(unittest.TestCase):
                 watermark=False,
             )
             failing_audit = {
-                "identity_preservation": {"score": 10, "notes": "wrong"},
-                "outfit_fidelity": {"score": 10, "matched": [], "missing_or_wrong": []},
+                "identity_preservation": {
+                    "score": 10,
+                    "source_face_visibility": "clear",
+                    "exact_same_person": False,
+                    "visible_identity_cues_preserved": False,
+                    "facial_features_changed": True,
+                    "beautification_detected": True,
+                    "source_occlusion_preserved": False,
+                    "notes": "wrong",
+                },
+                "body_framing": {
+                    "score": 10,
+                    "head_through_calves_visible": False,
+                    "natural_head_to_body_ratio": False,
+                    "no_vertical_compression": False,
+                    "source_pose_and_camera_preserved": False,
+                },
+                "outfit_fidelity": {
+                    "score": 10,
+                    "silhouette_and_ease_preserved": False,
+                    "source_garment_fit_leaked": True,
+                    "matched": [],
+                    "missing_or_wrong": [],
+                },
+                "application_policy": {
+                    "shoe_policy_followed": False,
+                    "no_body_reframing_for_footwear": False,
+                },
                 "photorealism": {"score": 10, "artifacts": []},
                 "overall_score": 10,
                 "pass": False,
@@ -206,7 +408,20 @@ class DoubaoSkillContractTest(unittest.TestCase):
                 mock.patch.object(
                     core,
                     "analyze_inputs",
-                    return_value={"generation_prompt": "prompt"},
+                    return_value={
+                        "source_photo_eligibility": {
+                            "eligible": True,
+                            "body_coverage": {
+                                "neck_and_shoulders": True,
+                                "torso": True,
+                                "hips": True,
+                                "knees": True,
+                                "calves": True,
+                                "feet": False,
+                            },
+                        },
+                        "outfit_items": [],
+                    },
                 ),
                 mock.patch.object(
                     core,

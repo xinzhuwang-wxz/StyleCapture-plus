@@ -22,8 +22,8 @@ skills/doubao-virtual-try-on/
 
 - `virtual_try_on.py` handles one outfit board.
 - `batch_virtual_try_on.py` handles two or more outfits for the same person. It
-  creates one canonical identity/body/camera anchor and reuses it for every
-  look, then performs a strict cross-look consistency audit.
+  reuses the accepted source framing for every look, then performs a strict
+  cross-look consistency audit.
 - Both entry points require only Python 3.10+ and its standard library.
 
 ## Install
@@ -44,7 +44,7 @@ cp -R skills/doubao-virtual-try-on "$HOME/.codex/skills/"
 Or unzip the packaged archive into `$HOME/.codex/skills`:
 
 ```bash
-unzip dist/skills/doubao-virtual-try-on-v1.3.0.zip -d "$HOME/.codex/skills"
+unzip dist/skills/doubao-virtual-try-on-v1.4.1.zip -d "$HOME/.codex/skills"
 ```
 
 Restart Codex after installation. Invoke the skill as
@@ -98,11 +98,10 @@ python3 skills/doubao-virtual-try-on/scripts/batch_virtual_try_on.py \
   --output-dir "/absolute/path/output/batch"
 ```
 
-Batch mode locks the source face, shared body anchor, pose, head scale, camera
-distance, crop, and background across looks. A cropped source portrait can
-produce a consistent inferred body, but it cannot recover the person's unknown
-real height or limb proportions. Supply a clear full-body source when true body
-fidelity matters.
+Batch mode locks the source face, visible body landmarks, pose, head scale,
+camera distance, crop, and background across looks. It does not invent a
+canonical body from a cropped portrait. The same neck-through-calves eligibility
+gate used by single-look mode applies before paid generation.
 
 ## CLI contract
 
@@ -225,7 +224,8 @@ quota, and writes its diagnostics under the chosen output directory.
   recommendations; use a clearer outfit board with separated items.
 - Face or head-size drift across looks: use batch mode in one call. Never run
   each outfit independently.
-- Body shape differs from the person: provide a clear full-body reference. A
-  cropped portrait only supports a consistent inferred body.
+- Body shape differs from the person: use a source that passes the
+  neck-through-calves gate. The workflow preserves visible landmarks and does
+  not synthesize a replacement body from a cropped portrait.
 - `cross_look_pass` is false: inspect the outlier indices in
   `cross-look-audit.json` and regenerate those looks before sharing the set.

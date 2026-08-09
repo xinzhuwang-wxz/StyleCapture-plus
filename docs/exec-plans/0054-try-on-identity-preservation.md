@@ -24,7 +24,14 @@ generated image may change the outfit, but it must preserve the same identifiabl
 4. Only a Skill manifest with `hard_pass=true` is stored as a successful try-on. Otherwise the
    RenderArtifact honestly degrades to the real Item collage and never falls back to the old
    LiteLLM/FASHN execution path.
-5. Skill version `1.3.0` participates in the RenderArtifact input signature.
+5. Skill version `1.4.1` participates in the RenderArtifact input signature.
+6. The understanding step is a hard preflight: it rejects photos cropped before the calves, but
+   does not reject soft or occluded faces. Visible facial geometry and existing occlusion remain
+   immutable identity evidence.
+7. A neck-through-calves photo remains eligible when feet are outside the frame. In that case the
+   resolved application plan omits requested shoes instead of inventing feet or compressing legs.
+8. Target garment silhouette and wearing ease are audited independently from the source garment;
+   fitted source clothes must not make a loose target garment fitted.
 
 ## Verification plan
 
@@ -41,6 +48,8 @@ generated image may change the outfit, but it must preserve the same identifiabl
 - [x] Replace its configured generator with the repository Skill workflow.
 - [x] Strengthen identity constraints, audit threshold and pipeline version.
 - [x] Add adapter and processing contract tests.
+- [x] Reject insufficient body framing before generation and return the specific reason to H5.
+- [x] Add deterministic footwear omission and target-silhouette audit rules.
 - [x] Complete targeted automated verification: 38 tests, Ruff and focused mypy pass.
 - [ ] User verifies one real reference photo from the H5 flow.
 
@@ -52,3 +61,18 @@ generated image may change the outfit, but it must preserve the same identifiabl
 - Docker Compose YAML parses with the Ark key present in both Worker profiles, and the versioned
   Skill package validates successfully.
 - No paid Ark generation was triggered during implementation or automated verification.
+
+## User evidence and correction
+
+Testing showed two failure classes that a generic "full body" instruction did not cover. First,
+the generator shortened the legs to force shoes into a source photo that ended at the calves.
+Second, it copied the tight source top's outline onto a loose replacement top. Version 1.4.0 makes
+both cases explicit application-policy and hard-audit failures rather than best-effort prose.
+
+Follow-up testing found that stacking a model-authored generation prompt with deterministic rules
+created long, repetitive instructions and still allowed color and torso-volume drift. Version
+1.4.1 makes the understanding call return only structured contour visibility, target color and
+silhouette facts. The script now emits one compact priority-ordered prompt. Concealed chest, waist
+and hip widths use conservative neutral continuity rather than a stereotypical body inference.
+This iteration intentionally does not add new fine-grained structure-audit thresholds; it first
+isolates the effect of the clearer generation contract while retaining the existing general audit.
