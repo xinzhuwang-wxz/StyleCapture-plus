@@ -477,3 +477,125 @@
   background: transparent;
   border: none;
 }
+
+/* Share sheet intentionally stays inside the pixel phone frame. */
+.share-card {
+  z-index: 80;
+  padding: 1rem;
+  overflow: auto;
+  background: rgb(38 25 60 / 48%);
+  backdrop-filter: blur(7px);
+}
+
+.share-card__inner {
+  max-width: 22.75rem;
+}
+
+.share-card__paper {
+  padding: 1.4rem 1.05rem 1.15rem;
+  border: 1px solid #eee7fa;
+  border-radius: 1.75rem;
+  background: linear-gradient(155deg, #fff 0%, #fdfaff 100%);
+  box-shadow: 0 1.35rem 3rem rgb(49 30 80 / 28%);
+  text-align: center;
+}
+
+.share-card__paper h2 {
+  margin: 0;
+  padding: 0 2rem;
+  color: var(--ink);
+  font-size: clamp(1.2rem, 5vw, 1.5rem);
+  letter-spacing: -0.04em;
+}
+
+.share-card__subtitle {
+  margin: 0.45rem 0 0;
+  color: #81759a;
+  font-size: 0.69rem;
+  line-height: 1.5;
+}
+
+.share-card__close {
+  position: absolute;
+  top: 0.68rem;
+  right: 0.72rem;
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8e80ad;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.share-card__frame {
+  width: min(100%, 13.75rem);
+  margin: 1rem auto 1.1rem;
+  border: 2px solid #eadff8;
+  border-radius: 1.15rem;
+  background: #fff;
+  box-shadow: 0 0.45rem 1.25rem rgb(58 34 93 / 12%);
+}
+
+.share-card__frame img,
+.share-card__frame-busy {
+  aspect-ratio: 3 / 4;
+}
+
+.share-card__frame img {
+  display: block;
+  border-radius: 1rem;
+}
+
+.share-card__frame-busy {
+  font-size: 0.68rem;
+}
+
+.share-card__note {
+  position: static;
+  margin: 0 0 0.7rem;
+  padding: 0;
+  background: transparent;
+  color: #a1756e;
+  font-size: 0.63rem;
+  line-height: 1.45;
+}
+
+.share-card__actions {
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  margin-top: 0;
+}
+
+.share-card__actions > button {
+  min-height: 2.85rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 760;
+}
+
+.share-card__douyin {
+  border: 1px solid #7751ea;
+  background: linear-gradient(135deg, #7047e6, #9159eb);
+  box-shadow: 0 0.4rem 0.9rem rgb(105 63 215 / 20%);
+}
+
+.share-card__save {
+  border-color: #f2ca78 !important;
+  background: #fff2cb;
+  color: #895b1c;
+}
+
+.share-card__dismiss {
+  border-color: #d9cee9 !important;
+  background: #fff;
+  color: var(--purple-700);
+}
