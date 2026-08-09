@@ -98,6 +98,16 @@ class MemoryLookRepository:
     async def save_component(self, component: LookComponent) -> LookComponent:
         return component
 
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> None:
+        del look_id, user_id, delete_items
+        return None
+
     async def save_bundle(
         self,
         look: Look,

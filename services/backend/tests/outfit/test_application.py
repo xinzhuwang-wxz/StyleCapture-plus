@@ -204,6 +204,16 @@ class LookRepositoryStub:
             ),
         )
 
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> None:
+        del look_id, user_id, delete_items
+        return None
+
 
 class PresentationSchedulerStub:
     def __init__(

@@ -389,7 +389,7 @@ class SqlAlchemyLookRepository:
                             ItemRecord.user_id == user_id,
                         )
                     )
-                    if deleted.rowcount:
+                    if cast(int, getattr(deleted, "rowcount", 0)) > 0:
                         deleted_item_ids.append(item_id)
 
             await session.commit()
