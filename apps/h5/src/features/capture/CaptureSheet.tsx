@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { Ownership, SourceKind } from "../../api/client";
 
@@ -51,7 +52,8 @@ export function CaptureSheet({
     setIntent(null);
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    cancelButtonRef.current?.focus();
+    dialogRef.current?.scrollTo({ top: 0 });
+    cancelButtonRef.current?.focus({ preventScroll: true });
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busyRef.current) {
         event.preventDefault();
@@ -78,11 +80,19 @@ export function CaptureSheet({
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.setTimeout(() => previousFocusRef.current?.focus(), 0);
+      window.setTimeout(
+        () => previousFocusRef.current?.focus({ preventScroll: true }),
+        0
+      );
     };
   }, [selection]);
 
-  return (
+  const host =
+    typeof document === "undefined"
+      ? null
+      : document.querySelector(".pixel-screen");
+
+  const sheet = (
     <AnimatePresence>
       {selection ? (
         <motion.div
@@ -97,7 +107,7 @@ export function CaptureSheet({
         >
           <motion.section
             ref={dialogRef}
-            className="pixel-sheet__content"
+            className="pixel-sheet__content capture-sheet__content"
             role="dialog"
             aria-modal="true"
             aria-labelledby="capture-sheet-title"
@@ -153,7 +163,7 @@ export function CaptureSheet({
             <div
               style={{
                 position: "relative",
-                height: "12rem",
+                height: "var(--capture-preview-height, 12rem)",
                 border: "3px solid var(--pixel-border)",
                 boxShadow: "4px 4px 0 rgba(0,0,0,0.3)",
                 overflow: "hidden",
@@ -193,7 +203,11 @@ export function CaptureSheet({
 
             <fieldset
               disabled={busy}
-              style={{ border: "none", padding: 0, margin: "0 0 var(--px-4)" }}
+              style={{
+                border: "none",
+                padding: 0,
+                margin: "0 0 var(--capture-section-gap, var(--px-4))"
+              }}
             >
               <legend
                 style={{
@@ -247,19 +261,16 @@ export function CaptureSheet({
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
-                  gap: "var(--px-3)",
-                  marginBottom: "var(--px-4)"
+                  gap: "var(--capture-option-gap, var(--px-3))",
+                  marginBottom: "var(--capture-section-gap, var(--px-4))"
                 }}
               >
                 <button
                   type="button"
                   className="pixel-button"
                   style={{
-                    flexDirection: "column",
-                    padding: "var(--px-3) var(--px-3)",
-                    minHeight: "4.8rem",
-                    alignItems: "flex-start",
-                    gap: "0.2rem",
+                    padding: "var(--px-2) var(--px-3)",
+                    minHeight: "3.25rem",
                     background:
                       ownership === "owned"
                         ? "var(--pixel-accent)"
@@ -276,28 +287,15 @@ export function CaptureSheet({
                   aria-pressed={ownership === "owned"}
                   onClick={() => setOwnership("owned")}
                 >
-                  <span style={{ fontSize: "1.25rem", lineHeight: 1 }}>⭐</span>
-                  <strong style={{ fontSize: "0.72rem", lineHeight: 1.2 }}>已拥有</strong>
-                  <small
-                    style={{
-                      fontSize: "0.55rem",
-                      opacity: 0.7,
-                      fontFamily: "var(--font-body)",
-                      lineHeight: 1.3
-                    }}
-                  >
-                    已拥有，可参与搭配
-                  </small>
+                  <span style={{ fontSize: "1.15rem", lineHeight: 1 }}>⭐</span>
+                  <strong style={{ fontSize: "0.78rem", lineHeight: 1 }}>已拥有</strong>
                 </button>
                 <button
                   type="button"
                   className="pixel-button"
                   style={{
-                    flexDirection: "column",
-                    padding: "var(--px-3) var(--px-3)",
-                    minHeight: "4.8rem",
-                    alignItems: "flex-start",
-                    gap: "0.2rem",
+                    padding: "var(--px-2) var(--px-3)",
+                    minHeight: "3.25rem",
                     background:
                       ownership === "inspiration"
                         ? "var(--pixel-primary)"
@@ -312,18 +310,8 @@ export function CaptureSheet({
                   aria-pressed={ownership === "inspiration"}
                   onClick={() => setOwnership("inspiration")}
                 >
-                  <span style={{ fontSize: "1.25rem", lineHeight: 1 }}>💖</span>
-                  <strong style={{ fontSize: "0.72rem", lineHeight: 1.2 }}>待拥有</strong>
-                  <small
-                    style={{
-                      fontSize: "0.55rem",
-                      opacity: 0.7,
-                      fontFamily: "var(--font-body)",
-                      lineHeight: 1.3
-                    }}
-                  >
-                    先收藏，以后搭配
-                  </small>
+                  <span style={{ fontSize: "1.15rem", lineHeight: 1 }}>💖</span>
+                  <strong style={{ fontSize: "0.78rem", lineHeight: 1 }}>待拥有</strong>
                 </button>
               </div>
             </fieldset>
@@ -342,36 +330,40 @@ export function CaptureSheet({
               </p>
             ) : null}
 
-            <button
-              type="button"
-              className="pixel-button pixel-button--primary w-full"
-              disabled={!ownership || !intent || busy}
-              onClick={() => ownership && intent && onConfirm(ownership, intent)}
-              style={{ marginBottom: "var(--px-3)", fontSize: "0.78rem" }}
-            >
-              {busy
-                ? "🔄 正在入库…"
-                : intent === "whole_outfit"
-                  ? "✦ 保存整套并生成像素小人"
-                  : intent === "item"
-                    ? "⭐ 加入单品衣橱"
-                    : "请选择保存类型"}
-            </button>
-            <p
-              style={{
-                textAlign: "center",
-                fontSize: "0.6rem",
-                color: "var(--pixel-text-dim)",
-                fontFamily: "var(--font-pixel)"
-              }}
-            >
-              原图仅用于你的数字衣橱，可随时删除
-            </p>
+            <div className="capture-sheet__footer">
+              <button
+                type="button"
+                className="pixel-button pixel-button--primary w-full"
+                disabled={!ownership || !intent || busy}
+                onClick={() => ownership && intent && onConfirm(ownership, intent)}
+                style={{ marginBottom: "var(--px-3)", fontSize: "0.78rem" }}
+              >
+                {busy
+                  ? "🔄 正在入库…"
+                  : intent === "whole_outfit"
+                    ? "✦ 保存整套并生成像素小人"
+                    : intent === "item"
+                      ? "⭐ 加入单品衣橱"
+                      : "请选择保存类型"}
+              </button>
+              <p
+                style={{
+                  textAlign: "center",
+                  fontSize: "0.6rem",
+                  color: "var(--pixel-text-dim)",
+                  fontFamily: "var(--font-pixel)"
+                }}
+              >
+                原图仅用于你的数字衣橱，可随时删除
+              </p>
+            </div>
           </motion.section>
         </motion.div>
       ) : null}
     </AnimatePresence>
   );
+
+  return host ? createPortal(sheet, host) : sheet;
 }
 
 function canBrowserPreview(file: File): boolean {
