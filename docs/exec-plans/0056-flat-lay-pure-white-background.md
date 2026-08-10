@@ -29,7 +29,7 @@
 - [x] 浅色金属/白色主体保护测试通过。
 - [x] AI prompt、signature、schema 和 provider trace 测试通过。
 - [x] Item presentation 测试、Ruff、mypy、Skill 校验和脚本测试通过。
-- [ ] 推送分支并创建 PR，附 Issue 与验证结果。
+- [x] 推送分支并创建 PR #85，附 Issue 与验证结果。
 
 ## 视觉证据
 
