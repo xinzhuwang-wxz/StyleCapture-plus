@@ -141,14 +141,15 @@ def flat_lay_item_prompt(item: WardrobeItem) -> str:
 识别信息: 类别 {category}/{subcategory}; 主色 {colors}; 材质 {materials};
 图案 {pattern}; 版型 {silhouette}; 关键细节 {details}。{shoe_rule}{separation_rule}
 
-生成独立电商商品白底图: 严格竖版 3:4, 输出 1728x2304; 背景必须是均匀纯白色;
+生成独立电商商品白底图: 严格竖版 3:4, 输出 1728x2304; 背景必须是平坦、均匀的数字纯白 #FFFFFF;
+除目标单品外每一个背景像素都必须是 #FFFFFF。禁止灰白、米白、纸张纹理、污点、斑块、渐变、暗角和环境色;
 目标单品居中、完整轮廓全部可见、四周保留充足白边, 不裁切、不拉伸、不压扁。
 使用正面或最利于识别的轻微俯视角度, 写实高分辨率产品摄影, 忠实保留原图中
 实际可见的颜色、版型、材质、褶裥、纽扣、吊带、孔洞和结构。
 
 不要出现其他衣物、整套穿搭、人物、人体部位、皮肤、头发、眼镜、手机、背景、
 游客、衣架、模特、文字、品牌、水印、边框或道具。不要臆造看不见的花纹和结构。
-仅允许极浅、紧贴物体的自然接触阴影; 禁止灰色矩形底、大面积阴影、插画、剪纸、
+让单品自然悬浮在纯白画布上, 禁止接触阴影和投影; 禁止灰色矩形底、大面积阴影、插画、剪纸、
 贴纸、像素画和杂志拼贴。
 """.strip()
 
@@ -354,7 +355,7 @@ class ItemPresentationProcessor:
 def normalize_flat_lay_output(
     generated: GeneratedImage,
 ) -> tuple[ImagePayload, dict[str, object]]:
-    return normalize_flat_lay_image(generated.body)
+    return normalize_flat_lay_image(generated.body, clean_generated_background=True)
 
 
 def normalize_pixel_card_output(
@@ -604,6 +605,8 @@ def _draw_pixel_plus(
 
 def normalize_flat_lay_image(
     body: bytes,
+    *,
+    clean_generated_background: bool = False,
 ) -> tuple[ImagePayload, dict[str, object]]:
     try:
         with Image.open(BytesIO(body)) as opened:
@@ -620,6 +623,10 @@ def normalize_flat_lay_image(
             "Generated item image is not the required 1728x2304 portrait canvas",
             retryable=True,
         )
+
+    cleanup: dict[str, object] = {}
+    if clean_generated_background:
+        image, cleanup = _clean_generated_flat_lay_background(image)
 
     near_white = _near_white_mask(image, threshold=245)
     border_width = max(1, min(image.size) // 100)
@@ -641,22 +648,31 @@ def normalize_flat_lay_image(
             retryable=True,
         )
 
-    connected_background_mask = _connected_soft_background_mask(
-        image,
-        max_channel_distance=170,
-    )
-    exact_white_mask = _near_white_mask(image, threshold=248)
-    clean_background_mask = ImageChops.lighter(
-        exact_white_mask,
-        connected_background_mask,
-    )
-    normalized = Image.composite(
-        Image.new("RGB", image.size, "white"),
-        image,
-        clean_background_mask,
-    )
-    pure_white_ratio = clean_background_mask.histogram()[255] / (image.width * image.height)
-    if pure_white_ratio < 0.5:
+    if clean_generated_background:
+        normalized = image
+        exact_white_mask = _near_white_mask(normalized, threshold=255)
+        pure_white_ratio = exact_white_mask.histogram()[255] / (image.width * image.height)
+        normalization_metrics = cleanup
+        minimum_white_ratio = 0.55
+    else:
+        connected_background_mask = _connected_soft_background_mask(
+            image,
+            max_channel_distance=170,
+        )
+        exact_white_mask = _near_white_mask(image, threshold=248)
+        clean_background_mask = ImageChops.lighter(
+            exact_white_mask,
+            connected_background_mask,
+        )
+        normalized = Image.composite(
+            Image.new("RGB", image.size, "white"),
+            image,
+            clean_background_mask,
+        )
+        pure_white_ratio = clean_background_mask.histogram()[255] / (image.width * image.height)
+        normalization_metrics = {"background_cleaned_ratio": round(pure_white_ratio, 4)}
+        minimum_white_ratio = 0.5
+    if pure_white_ratio < minimum_white_ratio:
         raise RenderProviderError(
             "flat_lay_background_invalid",
             "Generated item image does not contain enough white background",
@@ -680,12 +696,115 @@ def normalize_flat_lay_image(
             sha256=sha256(body).hexdigest(),
         ),
         {
-            "quality_gate": "white-3x4-v1",
+            "quality_gate": ("pure-white-3x4-v2" if clean_generated_background else "white-3x4-v1"),
             "border_white_ratio": round(border_white_ratio, 4),
             "pure_white_ratio": round(pure_white_ratio, 4),
-            "background_cleaned_ratio": round(pure_white_ratio, 4),
+            **normalization_metrics,
         },
     )
+
+
+def _clean_generated_flat_lay_background(
+    image: Image.Image,
+) -> tuple[Image.Image, dict[str, object]]:
+    width, height = image.size
+    analysis_scale = 4
+    analysis_size = (width // analysis_scale, height // analysis_scale)
+    analysis = image.resize(analysis_size, Image.Resampling.NEAREST)
+    definite_foreground = ImageChops.invert(
+        _near_neutral_light_mask(
+            analysis,
+            minimum_channel=225,
+            maximum_chroma=30,
+        )
+    )
+    foreground_barrier = definite_foreground.filter(ImageFilter.MaxFilter(9))
+    open_background = ImageChops.invert(foreground_barrier)
+    connected_background = open_background.copy()
+    analysis_width, analysis_height = analysis.size
+    step_x = max(1, analysis_width // 8)
+    step_y = max(1, analysis_height // 8)
+    seeds = (
+        [(x, 0) for x in range(0, analysis_width, step_x)]
+        + [(x, analysis_height - 1) for x in range(0, analysis_width, step_x)]
+        + [(0, y) for y in range(0, analysis_height, step_y)]
+        + [(analysis_width - 1, y) for y in range(0, analysis_height, step_y)]
+    )
+    for point in seeds:
+        if connected_background.getpixel(point) == 255:
+            ImageDraw.floodfill(connected_background, point, 128, thresh=0)
+    external_background = connected_background.point(lambda value: 255 if value == 128 else 0)
+    subject_protection_analysis = ImageChops.invert(external_background)
+    subject_bbox = subject_protection_analysis.getbbox()
+    if subject_bbox is None:
+        raise RenderProviderError(
+            "flat_lay_subject_invalid",
+            "Generated item image does not contain a detectable centered product",
+            retryable=True,
+        )
+
+    left, top, right, bottom = subject_bbox
+    if right - left > analysis_width * 0.9 or bottom - top > analysis_height * 0.9:
+        raise RenderProviderError(
+            "flat_lay_background_invalid",
+            "Generated item does not leave enough clean background around the product",
+            retryable=True,
+        )
+    protected_bbox = (
+        left * analysis_scale,
+        top * analysis_scale,
+        min(width, right * analysis_scale),
+        min(height, bottom * analysis_scale),
+    )
+    subject_protection = subject_protection_analysis.resize(
+        image.size,
+        Image.Resampling.NEAREST,
+    )
+    full_resolution_foreground = ImageChops.invert(
+        _near_neutral_light_mask(
+            image,
+            minimum_channel=225,
+            maximum_chroma=30,
+        )
+    )
+    subject_protection = ImageChops.lighter(
+        subject_protection,
+        full_resolution_foreground,
+    )
+    background_mask = ImageChops.invert(subject_protection)
+    cleaned = Image.composite(
+        Image.new("RGB", image.size, "white"),
+        image,
+        background_mask,
+    )
+
+    changed = (
+        ImageChops.difference(cleaned, image)
+        .convert("L")
+        .point(lambda value: 255 if value > 0 else 0)
+    )
+    total_pixels = width * height
+    return cleaned, {
+        "background_cleanup": "silhouette-protected-pure-white-v2",
+        "background_analysis_grid": f"{analysis_width}x{analysis_height}",
+        "background_changed_ratio": round(changed.histogram()[255] / total_pixels, 4),
+        "protected_product_bbox": ",".join(str(value) for value in protected_bbox),
+    }
+
+
+def _near_neutral_light_mask(
+    image: Image.Image,
+    *,
+    minimum_channel: int,
+    maximum_chroma: int,
+) -> Image.Image:
+    red, green, blue = image.split()
+    brightest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+    darkest = ImageChops.darker(ImageChops.darker(red, green), blue)
+    light = darkest.point(lambda value: 255 if value >= minimum_channel else 0)
+    chroma = ImageChops.subtract(brightest, darkest)
+    neutral = chroma.point(lambda value: 255 if value <= maximum_chroma else 0)
+    return ImageChops.multiply(light, neutral)
 
 
 def _near_white_mask(image: Image.Image, *, threshold: int) -> Image.Image:

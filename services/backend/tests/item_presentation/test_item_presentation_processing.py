@@ -28,6 +28,7 @@ from stylecapture_backend.features.item_presentation.domain import (
 from stylecapture_backend.features.item_presentation.processing import (
     ItemPresentationProcessor,
     normalize_flat_lay_image,
+    normalize_flat_lay_output,
     normalize_pixel_card_output,
 )
 from stylecapture_backend.features.render.domain import RenderInputSignature, RenderProviderTrace
@@ -148,6 +149,9 @@ class FlatLayGenerator:
     ) -> GeneratedImage:
         assert "严格竖版 3:4" in prompt
         assert "不要把其他单品的肩带、腰带、系带" in prompt
+        assert "数字纯白 #FFFFFF" in prompt
+        assert "灰白、米白、纸张纹理、污点、斑块、渐变" in prompt
+        assert "禁止接触阴影和投影" in prompt
         self.images = tuple(images)
         self.size = size
         rendered = Image.new("RGB", (1728, 2304), (253, 253, 253))
@@ -176,6 +180,101 @@ class FailIfCalledGenerator:
         size: str = "1024x1024",
     ) -> GeneratedImage:
         raise AssertionError("refined alpha cutouts must not call the image provider")
+
+
+def test_ai_flat_lay_whitens_gray_blotches_without_erasing_light_item() -> None:
+    rendered = Image.new("RGB", (1728, 2304), "white")
+    rendered.paste((236, 236, 236), (150, 420, 360, 720))
+    rendered.paste((228, 228, 228), (1360, 1480, 1560, 1760))
+    rendered.paste((180, 176, 170), (590, 520, 1138, 1784))
+    rendered.paste((232, 230, 226), (620, 550, 1108, 1754))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm",
+            model="image_generation",
+            parameters={},
+        ),
+    )
+
+    normalized, quality = normalize_flat_lay_output(generated)
+
+    assert quality["quality_gate"] == "pure-white-3x4-v2"
+    assert quality["background_cleanup"] == "silhouette-protected-pure-white-v2"
+    with Image.open(BytesIO(normalized.body)) as image:
+        assert image.getpixel((200, 500)) == (255, 255, 255)
+        assert image.getpixel((1450, 1600)) == (255, 255, 255)
+        assert image.getpixel((800, 900)) == (232, 230, 226)
+
+
+def test_ai_flat_lay_preserves_a_thin_pale_necklace() -> None:
+    rendered = Image.new("RGB", (1728, 2304), "white")
+    draw = ImageDraw.Draw(rendered)
+    necklace = (218, 214, 204)
+    draw.line(((620, 520), (864, 1420), (1108, 520)), fill=necklace, width=12)
+    draw.ellipse((815, 1370, 913, 1468), fill=(58, 42, 35))
+    draw.rectangle((120, 900, 320, 1180), fill=(234, 234, 234))
+    assert rendered.getpixel((742, 970)) == necklace
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm",
+            model="image_generation",
+            parameters={},
+        ),
+    )
+
+    normalized, quality = normalize_flat_lay_output(generated)
+
+    with Image.open(BytesIO(normalized.body)) as image:
+        assert image.getpixel((742, 970)) == necklace, quality
+        assert image.getpixel((200, 1000)) == (255, 255, 255)
+
+
+def test_ai_flat_lay_does_not_bleach_a_nearly_white_garment() -> None:
+    rendered = Image.new("RGB", (1728, 2304), "white")
+    draw = ImageDraw.Draw(rendered)
+    garment = (250, 250, 248)
+    draw.rounded_rectangle(
+        (470, 440, 1258, 1840),
+        radius=120,
+        fill=garment,
+        outline=(218, 216, 210),
+        width=10,
+    )
+    for y in range(650, 1650, 180):
+        draw.ellipse((850, y, 866, y + 16), fill=(155, 112, 82))
+    draw.rectangle((90, 820, 300, 1120), fill=(235, 235, 235))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm",
+            model="image_generation",
+            parameters={},
+        ),
+    )
+
+    normalized, _ = normalize_flat_lay_output(generated)
+
+    with Image.open(BytesIO(normalized.body)) as image:
+        assert image.getpixel((700, 900)) == garment
+        assert image.getpixel((858, 650)) == (155, 112, 82)
+        assert image.getpixel((180, 950)) == (255, 255, 255)
 
 
 @pytest.mark.asyncio
@@ -531,8 +630,15 @@ async def test_flat_lay_uses_original_source_when_display_is_not_a_refined_cutou
 
     stored = repository.assets[asset.id]
     assert stored.status is ItemPresentationStatus.SUCCEEDED
+    assert stored.input_signature.version == "item-flat-lay-v3"
     assert generator.images[0].object_key == source.object_key
     assert generator.size == "1728x2304"
+    assert stored.provider_trace is not None
+    assert stored.provider_trace.parameters["schema_version"] == ("seedream-pure-white-3x4-v2")
+    assert stored.provider_trace.parameters["quality_gate"] == "pure-white-3x4-v2"
+    assert stored.provider_trace.parameters["background_cleanup"] == (
+        "silhouette-protected-pure-white-v2"
+    )
     assert stored.output is not None
     assert stored.output.object_key.startswith(f"derived/items/flat-lay/{user_id}/{item.id}/")
     output = objects.images[stored.output.object_key]
