@@ -101,4 +101,71 @@ describe("Feed capture client", () => {
       }
     });
   });
+
+  it("refreshes the session and retries wardrobe lists after a stale browser session", async () => {
+    const requests: string[] = [];
+    let looksCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request =
+          input instanceof Request
+            ? input
+            : new Request(
+                typeof input === "string"
+                  ? new URL(input, "http://localhost")
+                  : input,
+                init
+              );
+        const path = new URL(request.url).pathname;
+        requests.push(`${request.method} ${path}`);
+        if (path === "/v1/session") {
+          return Response.json(
+            { user_id: "11111111-1111-4111-8111-111111111111" },
+            { status: 201 }
+          );
+        }
+        if (path === "/v1/looks") {
+          looksCalls += 1;
+          if (looksCalls === 1) {
+            return Response.json({ looks: [] });
+          }
+          if (looksCalls === 2) {
+            return Response.json(
+              {
+                error: {
+                  code: "session_invalid",
+                  message: "Session is required"
+                }
+              },
+              { status: 401 }
+            );
+          }
+          return Response.json({
+            looks: [
+              {
+                id: "22222222-2222-4222-8222-222222222222",
+                capture_id: null,
+                status: "ready",
+                source: "user_created",
+                display_image_url: "/v1/looks/22222222-2222-4222-8222-222222222222/image",
+                source_image_url: null
+              }
+            ]
+          });
+        }
+        return new Response(null, { status: 404 });
+      })
+    );
+
+    await expect(wardrobeApi.listLooks()).resolves.toEqual([]);
+    await expect(wardrobeApi.listLooks()).resolves.toMatchObject([
+      { id: "22222222-2222-4222-8222-222222222222" }
+    ]);
+    expect(requests.slice(-3)).toEqual([
+      "GET /v1/looks",
+      "POST /v1/session",
+      "GET /v1/looks"
+    ]);
+  });
 });

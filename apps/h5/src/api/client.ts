@@ -82,14 +82,24 @@ export class ProductApiError extends Error {
   }
 }
 
-async function ensureSession(): Promise<void> {
+async function ensureSession(forceRefresh = false): Promise<void> {
+  if (forceRefresh) {
+    sessionPromise = null;
+  }
   if (!sessionPromise) {
     sessionPromise = fetch("/v1/session", {
       method: "POST",
       credentials: "same-origin"
-    }).then((response) => {
+    }).then(async (response) => {
       if (!response.ok) {
-        throw new ProductApiError("session_unavailable", "暂时无法建立私人衣橱会话");
+        const body = await response.text().catch(() => "");
+        const detail = body.trim()
+          ? `HTTP ${response.status}: ${body.trim().slice(0, 160)}`
+          : `HTTP ${response.status}`;
+        throw new ProductApiError(
+          "session_unavailable",
+          `暂时无法建立私人衣橱会话（${detail}）`
+        );
       }
     });
     sessionPromise.catch(() => {
@@ -97,6 +107,22 @@ async function ensureSession(): Promise<void> {
     });
   }
   return sessionPromise;
+}
+
+function isSessionInvalid(error: unknown): boolean {
+  return (error as ApiErrorPayload | undefined)?.error?.code === "session_invalid";
+}
+
+async function withSessionRetry<T>(
+  request: () => Promise<{ data?: T; error?: unknown }>
+): Promise<{ data?: T; error?: unknown }> {
+  await ensureSession();
+  const response = await request();
+  if (!response.data && isSessionInvalid(response.error)) {
+    await ensureSession(true);
+    return request();
+  }
+  return response;
 }
 
 export function validateImage(file: File): string | null {
@@ -409,8 +435,7 @@ async function ensureItemPixelPresentation(itemId: string): Promise<ItemPresenta
   await ensureSession();
   const response = await client.POST("/v1/items/{item_id}/presentations/pixel", {
     params: {
-      path: { item_id: itemId },
-      header: { "Idempotency-Key": `item-pixel:${itemId}` }
+      path: { item_id: itemId }
     }
   });
   if (!response.data) {
@@ -423,8 +448,7 @@ async function ensureItemFlatLayPresentation(itemId: string): Promise<ItemPresen
   await ensureSession();
   const response = await client.POST("/v1/items/{item_id}/presentations/flat-lay", {
     params: {
-      path: { item_id: itemId },
-      header: { "Idempotency-Key": `item-flat-lay:${itemId}` }
+      path: { item_id: itemId }
     }
   });
   if (!response.data) {
@@ -501,10 +525,11 @@ async function ingestFeedFrame(
 }
 
 async function listItems(): Promise<Item[]> {
-  await ensureSession();
-  const response = await client.GET("/v1/items", {
-    params: {}
-  });
+  const response = await withSessionRetry(() =>
+    client.GET("/v1/items", {
+      params: {}
+    })
+  );
   if (!response.data) {
     throwApiError(response.error, "衣橱暂时无法加载");
   }
@@ -512,8 +537,9 @@ async function listItems(): Promise<Item[]> {
 }
 
 async function listLooks(): Promise<Look[]> {
-  await ensureSession();
-  const response = await client.GET("/v1/looks", { params: {} });
+  const response = await withSessionRetry(() =>
+    client.GET("/v1/looks", { params: {} })
+  );
   if (!response.data) {
     throwApiError(response.error, "穿搭衣橱暂时无法加载");
   }

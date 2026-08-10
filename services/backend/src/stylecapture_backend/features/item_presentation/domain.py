@@ -125,7 +125,7 @@ class ItemPresentationAsset:
         )
 
     def retry(self) -> ItemPresentationAsset:
-        if self.status is not ItemPresentationStatus.FAILED:
+        if self.status in {ItemPresentationStatus.QUEUED, ItemPresentationStatus.RUNNING}:
             return self
         return replace(
             self,

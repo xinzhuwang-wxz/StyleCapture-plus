@@ -191,32 +191,38 @@ async function drawAndConfirm(intent: "item" | "whole_outfit" = "item") {
     height: 800,
     toJSON: () => ({})
   });
-  firePointer(overlay, "pointerdown", {
-    pointerId: 1,
-    clientX: 40,
-    clientY: 80
-  });
-  firePointer(overlay, "pointermove", {
-    pointerId: 1,
-    clientX: 180,
-    clientY: 80
-  });
-  firePointer(overlay, "pointermove", {
-    pointerId: 1,
-    clientX: 180,
-    clientY: 300
-  });
-  firePointer(overlay, "pointerup", {
-    pointerId: 1,
-    clientX: 40,
-    clientY: 80
-  });
-  await act(async () => {
-    await new Promise((resolve) => window.setTimeout(resolve, 710));
-  });
-  if (intent === "whole_outfit") {
+  vi.useFakeTimers();
+  try {
+    firePointer(overlay, "pointerdown", {
+      pointerId: 1,
+      clientX: 40,
+      clientY: 80
+    });
+    firePointer(overlay, "pointermove", {
+      pointerId: 1,
+      clientX: 180,
+      clientY: 80
+    });
+    firePointer(overlay, "pointermove", {
+      pointerId: 1,
+      clientX: 180,
+      clientY: 300
+    });
+    firePointer(overlay, "pointerup", {
+      pointerId: 1,
+      clientX: 40,
+      clientY: 80
+    });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "存整套" }));
+      await vi.advanceTimersByTimeAsync(710);
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+  if (intent === "whole_outfit") {
+    const wholeOutfitButton = screen.getByRole("button", { name: "存整套" });
+    await act(async () => {
+      fireEvent.click(wholeOutfitButton);
       await Promise.resolve();
     });
   }

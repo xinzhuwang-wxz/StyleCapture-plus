@@ -25,7 +25,11 @@ from stylecapture_backend.features.item_presentation.interfaces.http import (
 from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationIdempotencyConflict,
 )
-from stylecapture_backend.features.render.domain import RenderInputSignature
+from stylecapture_backend.features.render.domain import (
+    RenderInputSignature,
+    RenderOutput,
+    RenderProviderTrace,
+)
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.domain import ItemAttributes, ItemStatus, WardrobeItem
 from stylecapture_backend.main import BackendServices, create_app
@@ -216,4 +220,25 @@ async def test_item_pixel_presentation_http_creates_queued_task() -> None:
         assert retry.json()["status"] == "queued"
         assert retry.json()["failure_message"] is None
         assert retry.json()["retryable"] is False
+        assert dispatcher.calls == [(user_id, UUID(payload["id"]))]
+
+        succeeded = repository.assets[UUID(payload["id"])].mark_succeeded(
+            output=RenderOutput(
+                object_key="derived/items/pixel/clean.png",
+                content_hash="b" * 64,
+                content_type="image/png",
+            ),
+            provider_trace=RenderProviderTrace(
+                provider="test",
+                model="item-pixel-retry",
+                parameters={},
+            ),
+        )
+        await repository.save(succeeded)
+        dispatcher.calls.clear()
+        retry_succeeded = await client.post(f"/v1/items/{item.id}/presentations/pixel/retry")
+
+        assert retry_succeeded.status_code == 202
+        assert retry_succeeded.json()["status"] == "queued"
+        assert retry_succeeded.json()["output_image_url"] is None
         assert dispatcher.calls == [(user_id, UUID(payload["id"]))]

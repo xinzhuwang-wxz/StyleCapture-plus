@@ -80,6 +80,7 @@ vi.mock("../src/api/client", async (importOriginal) => {
       getJob: vi.fn(),
       retryJob: vi.fn(),
       retryItem: vi.fn(),
+      retryItemPixel: vi.fn(),
       updateItem: vi.fn(),
       deleteSource: vi.fn(),
       displayImage: vi.fn(),
@@ -209,6 +210,18 @@ describe("StyleCapture garment ingest", () => {
     api.displayImage.mockResolvedValue("blob:item");
     api.sourceImage.mockResolvedValue("blob:item-source");
     api.ensureItemFlatLayPresentation.mockResolvedValue(failedFlatLay);
+    api.retryItemPixel.mockResolvedValue({
+      id: "99999999-9999-4999-8999-999999999999",
+      item_id: wardrobeItem.id,
+      kind: "pixel_item",
+      status: "queued",
+      output_image_url: null,
+      failure_code: null,
+      failure_message: null,
+      retryable: false,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:01:00Z"
+    });
     api.createPixelTrial.mockResolvedValue({
       id: "77777777-7777-4777-8777-777777777777",
       status: "queued",
@@ -267,11 +280,17 @@ describe("StyleCapture garment ingest", () => {
     expect(navigationButtons).toHaveLength(5);
     expect(navigationButtons[0]).toHaveAccessibleName("衣橱");
     expect(navigationButtons[1]).toHaveAccessibleName("AI");
-    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服或试试像素形象");
+    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服");
     expect(navigationButtons[3]).toHaveAccessibleName("像素世界");
     expect(navigationButtons[4]).toHaveAccessibleName("我的");
     expect(within(navigation).queryByRole("button", { name: "分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刷灵感 Feed" })).toBeVisible();
+
+    await userEvent.click(navigationButtons[2]);
+
+    expect(screen.getByRole("button", { name: /拍下真实衣服/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /从相册导入/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /试试像素形象/ })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
 
@@ -457,7 +476,7 @@ describe("StyleCapture garment ingest", () => {
     const actionDialog = await screen.findByRole("dialog", { name: "上装" });
     expect(within(actionDialog).getByText("衣橱单品")).toBeVisible();
 
-    await user.click(within(actionDialog).getByRole("button", { name: "已拥有，去搭配" }));
+    await user.click(within(actionDialog).getByRole("button", { name: "用这件搭一套" }));
     expect(await screen.findByText("今天你想穿什么？")).toBeVisible();
     expect(screen.queryByRole("dialog", { name: "穿搭详情" })).not.toBeInTheDocument();
   });
@@ -685,6 +704,48 @@ describe("StyleCapture garment ingest", () => {
     );
     expect(await screen.findByRole("dialog", { name: "穿搭详情" })).toBeVisible();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it("retries a failed automatic pixel cover with a new idempotency key", async () => {
+    const look: Look = {
+      id: "11111111-1111-4111-8111-111111111111",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      status: "ready",
+      source: "user_created",
+      display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image",
+      source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
+      display_ready: true,
+      source_available: true,
+      fixed_presentation: false,
+      created_at: "2026-07-25T00:00:00Z",
+      updated_at: "2026-07-25T00:01:00Z"
+    };
+    const degradedPixel: RenderArtifact = {
+      ...collageRender,
+      id: "77777777-7777-4777-8777-777777777777",
+      look_id: look.id,
+      kind: "pixel_cover",
+      status: "degraded",
+      output_image_url:
+        "/v1/render-artifacts/77777777-7777-4777-8777-777777777777/image",
+      failure_code: "provider_unavailable",
+      failure_message: "AI provider was unavailable",
+      retryable: true,
+      updated_at: "2026-07-25T00:02:00Z"
+    };
+    api.listLooks.mockResolvedValue([look]);
+    api.listRenders.mockResolvedValue([degradedPixel]);
+    api.createRender.mockImplementation(() => new Promise<RenderArtifact>(() => undefined));
+
+    renderApp();
+
+    await waitFor(() =>
+      expect(api.createRender).toHaveBeenCalledWith(
+        look.id,
+        "pixel_cover",
+        `auto-pixel-retry:${look.id}:${degradedPixel.id}:${degradedPixel.updated_at}`
+      )
+    );
   });
 
   it("retries one failed automatic collage with a new idempotency key", async () => {
@@ -1032,6 +1093,34 @@ describe("StyleCapture garment ingest", () => {
     expect(source.closest(".detail-image")).toHaveAttribute("data-generating", "true");
   });
 
+  it("keeps the item pixel retry button in progress after the backend accepts the job", async () => {
+    const user = userEvent.setup();
+    const queuedPixelItem: Item = {
+      ...wardrobeItem,
+      pixel_image_status: "queued",
+      pixel_image_url: null,
+      updated_at: "2026-07-25T00:01:00Z"
+    };
+    api.listItems.mockResolvedValueOnce([wardrobeItem]).mockResolvedValue([queuedPixelItem]);
+    renderApp();
+
+    await user.click(await screen.findByRole("tab", { name: "按单品" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: /^米白色针织上衣 已整理 上装/
+      })
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "重新生成像素封面" })
+    );
+
+    await waitFor(() => expect(api.retryItemPixel).toHaveBeenCalledWith(wardrobeItem.id));
+    const progressButton = await screen.findByRole("button", {
+      name: /排队中.*已排队，等待开始/
+    });
+    expect(progressButton).toBeDisabled();
+  });
+
   it("keeps wardrobe load errors distinct from an empty wardrobe and allows retry", async () => {
     const user = userEvent.setup();
     api.listItems
@@ -1240,7 +1329,7 @@ describe("StyleCapture garment ingest", () => {
     };
     window.localStorage.setItem(
       "stylecapture:look-pixel-covers:v1",
-      JSON.stringify({ [look.id]: null })
+      JSON.stringify({ [look.id]: "deleted-pixel-cover" })
     );
     api.listLooks.mockResolvedValue([look]);
     api.listRenders.mockResolvedValue([collageRender, pixel, tryOn, tryOnPixel]);
@@ -1248,7 +1337,7 @@ describe("StyleCapture garment ingest", () => {
 
     expect(
       await screen.findByRole("img", { name: "已生成的像素穿搭封面" })
-    ).toHaveAttribute("src", pixel.output_image_url);
+    ).toHaveAttribute("src", tryOnPixel.output_image_url);
     await user.click(await screen.findByRole("button", { name: "我的" }));
     const managePhotos = await screen.findByRole("button", { name: "管理 ›" });
     expect(screen.queryByText("AI 真人试穿参考")).not.toBeInTheDocument();
@@ -1270,12 +1359,11 @@ describe("StyleCapture garment ingest", () => {
       .getByRole("img", { name: "第 2 个像素小人" })
       .closest("article");
     expect(tryOnPixelCard).not.toBeNull();
-    await user.click(
+    expect(
       within(tryOnPixelCard as HTMLElement).getByRole("button", {
-        name: "设为穿搭封面"
+        name: "当前穿搭封面"
       })
-    );
-    expect(await screen.findByText("已设为这套穿搭的像素封面")).toBeInTheDocument();
+    ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "衣橱" }));
     expect(
       await screen.findByRole("img", { name: "已生成的像素穿搭封面" })

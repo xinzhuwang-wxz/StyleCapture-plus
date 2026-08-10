@@ -45,6 +45,8 @@ export function WardrobeScreen({
   looksLoading,
   itemsError,
   looksError,
+  itemsErrorDetail,
+  looksErrorDetail,
   onRetryItems,
   onRetryLooks,
   onOpen,
@@ -68,6 +70,8 @@ export function WardrobeScreen({
   looksLoading: boolean;
   itemsError: boolean;
   looksError: boolean;
+  itemsErrorDetail?: string | null;
+  looksErrorDetail?: string | null;
   onRetryItems: () => void;
   onRetryLooks: () => void;
   onOpen: (item: Item) => void;
@@ -151,6 +155,7 @@ export function WardrobeScreen({
   );
   const loading = view === "looks" ? looksLoading : itemsLoading;
   const hasError = view === "looks" ? looksError : itemsError;
+  const errorDetail = view === "looks" ? looksErrorDetail : itemsErrorDetail;
   const empty =
     !loading &&
     !hasError &&
@@ -286,6 +291,9 @@ export function WardrobeScreen({
               ? "穿搭列表读取失败。请重试加载，不会把已有套装显示成空衣橱。"
               : "单品列表读取失败。请重试加载，不会把已有单品显示成空衣橱。"}
           </p>
+          {errorDetail ? (
+            <p className="wardrobe-error-detail">诊断：{errorDetail}</p>
+          ) : null}
           <button
             type="button"
             className="wardrobe-error-retry"
