@@ -8,7 +8,7 @@ from statistics import median
 from typing import Protocol, cast
 from uuid import UUID
 
-from PIL import Image, ImageChops, ImageDraw, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, UnidentifiedImageError
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.item_presentation.application import (
     FLAT_LAY_ITEM_CAPABILITY_ID,
@@ -82,6 +82,9 @@ PIXEL_CARD_PALETTES = (
 )
 
 
+PIXEL_CARD_OUTLINE_COLOR = (104, 78, 56)
+
+
 def pixel_card_palette(seed: UUID | str) -> PixelCardPalette:
     stable_hash = 0
     for character in str(seed):
@@ -104,6 +107,7 @@ def pixel_item_prompt(item: WardrobeItem) -> str:
 忠实保留原单品的主色、轮廓、图案、领口、袖型、褶皱、吊带和结构, 不新增看不见的部件。
 
 像素风规则: 使用清晰硬边的 16-bit / 32-bit 商品像素画, 轮廓由深一档同色像素描边,
+外轮廓禁止使用突兀纯黑描边; 用低饱和深棕或比主体深一档的柔和同色像素收边。
 内部用有限色阶表达材质和褶皱; 像素块大小一致, 禁止局部写实、局部像素的混合风格,
 禁止模糊、抗锯齿、油画、3D 渲染、照片质感、矢量插画或平滑渐变。
 
@@ -392,9 +396,17 @@ def normalize_pixel_card_output(
             retryable=True,
         )
 
+    halo = _dark_halo_score(image)
+    if halo is not None:
+        raise RenderProviderError(
+            "pixel_card_halo_invalid",
+            "Generated pixel item contains a dark halo around the garment",
+            retryable=True,
+        )
+
     palette = pixel_card_palette(seed)
     pixelated = image.resize((256, 256), Image.Resampling.BOX)
-    pixelated, background_ratio = _compose_pixel_card(pixelated, palette)
+    pixelated, background_ratio, softened_outline_ratio = _compose_pixel_card(pixelated, palette)
     if background_ratio < 0.15:
         raise RenderProviderError(
             "pixel_card_background_invalid",
@@ -418,6 +430,8 @@ def normalize_pixel_card_output(
             "light_border_ratio": round(light_border_ratio, 4),
             "background_palette": palette.name,
             "background_recolored_ratio": round(background_ratio, 4),
+            "softened_outline_ratio": round(softened_outline_ratio, 4),
+            "outline_color": "#684E38",
             "pixel_grid": "256x256",
             "decorations": "stylecapture-ornate-asymmetric-frame-v4",
             "decoration_count": 6,
@@ -428,49 +442,42 @@ def normalize_pixel_card_output(
 def _compose_pixel_card(
     image: Image.Image,
     palette: PixelCardPalette,
-) -> tuple[Image.Image, float]:
-    preview = image.resize((64, 64), Image.Resampling.BOX)
-    border_pixels: list[tuple[int, int, int]] = (
-        [_rgb_pixel(preview, (x, 0)) for x in range(preview.width)]
-        + [_rgb_pixel(preview, (x, preview.height - 1)) for x in range(preview.width)]
-        + [_rgb_pixel(preview, (0, y)) for y in range(1, preview.height - 1)]
-        + [_rgb_pixel(preview, (preview.width - 1, y)) for y in range(1, preview.height - 1)]
-    )
-    background = (
-        int(median(pixel[0] for pixel in border_pixels)),
-        int(median(pixel[1] for pixel in border_pixels)),
-        int(median(pixel[2] for pixel in border_pixels)),
-    )
-    channels = image.split()
-    differences = [
-        ImageChops.difference(channel, Image.new("L", image.size, background[index]))
-        for index, channel in enumerate(channels)
-    ]
-    distance = ImageChops.lighter(
-        ImageChops.lighter(differences[0], differences[1]), differences[2]
-    )
-    close_to_edge_color = distance.point(lambda value: 255 if value <= 72 else 0)
-    light_enough = _light_background_mask(image, threshold=168)
-    candidates = ImageChops.multiply(close_to_edge_color, light_enough)
-
-    connected = candidates.copy()
-    step = max(1, image.width // 16)
-    seeds = (
-        [(x, 0) for x in range(0, image.width, step)]
-        + [(x, image.height - 1) for x in range(0, image.width, step)]
-        + [(0, y) for y in range(0, image.height, step)]
-        + [(image.width - 1, y) for y in range(0, image.height, step)]
-    )
-    for point in seeds:
-        if connected.getpixel(point) == 255:
-            ImageDraw.floodfill(connected, point, 128, thresh=0)
-    mask = connected.point(lambda value: 255 if value == 128 else 0)
-
+) -> tuple[Image.Image, float, float]:
+    mask = _connected_soft_background_mask(image, max_channel_distance=170)
     subject_mask = ImageChops.invert(mask)
+    image, softened_outline_ratio = _soften_perimeter_outline(image, subject_mask, mask)
     backdrop = _pixel_card_template(image.size, palette)
     recolored = Image.composite(image, backdrop, subject_mask)
     recolored_ratio = mask.histogram()[255] / (image.width * image.height)
-    return recolored, recolored_ratio
+    return recolored, recolored_ratio, softened_outline_ratio
+
+
+def _soften_perimeter_outline(
+    image: Image.Image,
+    subject_mask: Image.Image,
+    background_mask: Image.Image,
+) -> tuple[Image.Image, float]:
+    luminance = image.convert("L")
+    dark = luminance.point(lambda value: 255 if value <= 82 else 0)
+    light_subject = ImageChops.multiply(
+        subject_mask,
+        luminance.point(lambda value: 255 if value >= 118 else 0),
+    )
+    near_light_subject = light_subject.filter(ImageFilter.MaxFilter(7))
+    near_background = background_mask.filter(ImageFilter.MaxFilter(5))
+    perimeter_dark = ImageChops.multiply(
+        ImageChops.multiply(ImageChops.multiply(subject_mask, dark), near_background),
+        near_light_subject,
+    )
+    softened_pixels = perimeter_dark.histogram()[255]
+    if softened_pixels == 0:
+        return image, 0.0
+    softened = Image.composite(
+        Image.new("RGB", image.size, PIXEL_CARD_OUTLINE_COLOR),
+        image,
+        perimeter_dark,
+    )
+    return softened, softened_pixels / (image.width * image.height)
 
 
 def _pixel_card_template(
@@ -634,17 +641,32 @@ def normalize_flat_lay_image(
             retryable=True,
         )
 
+    connected_background_mask = _connected_soft_background_mask(
+        image,
+        max_channel_distance=170,
+    )
     exact_white_mask = _near_white_mask(image, threshold=248)
+    clean_background_mask = ImageChops.lighter(
+        exact_white_mask,
+        connected_background_mask,
+    )
     normalized = Image.composite(
         Image.new("RGB", image.size, "white"),
         image,
-        exact_white_mask,
+        clean_background_mask,
     )
-    pure_white_ratio = exact_white_mask.histogram()[255] / (image.width * image.height)
+    pure_white_ratio = clean_background_mask.histogram()[255] / (image.width * image.height)
     if pure_white_ratio < 0.5:
         raise RenderProviderError(
             "flat_lay_background_invalid",
             "Generated item image does not contain enough white background",
+            retryable=True,
+        )
+    halo = _dark_halo_score(image)
+    if halo is not None:
+        raise RenderProviderError(
+            "flat_lay_halo_invalid",
+            "Generated item image contains a dark halo around the garment",
             retryable=True,
         )
     output = BytesIO()
@@ -661,6 +683,7 @@ def normalize_flat_lay_image(
             "quality_gate": "white-3x4-v1",
             "border_white_ratio": round(border_white_ratio, 4),
             "pure_white_ratio": round(pure_white_ratio, 4),
+            "background_cleaned_ratio": round(pure_white_ratio, 4),
         },
     )
 
@@ -673,6 +696,131 @@ def _near_white_mask(image: Image.Image, *, threshold: int) -> Image.Image:
 
 def _light_background_mask(image: Image.Image, *, threshold: int) -> Image.Image:
     return image.convert("L").point(lambda value: 255 if value >= threshold else 0)
+
+
+def _connected_soft_background_mask(
+    image: Image.Image,
+    *,
+    max_channel_distance: int,
+) -> Image.Image:
+    rgb = image.convert("RGB")
+    preview = rgb.resize((64, 64), Image.Resampling.BOX)
+    border_pixels: list[tuple[int, int, int]] = (
+        [_rgb_pixel(preview, (x, 0)) for x in range(preview.width)]
+        + [_rgb_pixel(preview, (x, preview.height - 1)) for x in range(preview.width)]
+        + [_rgb_pixel(preview, (0, y)) for y in range(1, preview.height - 1)]
+        + [_rgb_pixel(preview, (preview.width - 1, y)) for y in range(1, preview.height - 1)]
+    )
+    background = (
+        int(median(pixel[0] for pixel in border_pixels)),
+        int(median(pixel[1] for pixel in border_pixels)),
+        int(median(pixel[2] for pixel in border_pixels)),
+    )
+    channels = rgb.split()
+    differences = [
+        ImageChops.difference(channel, Image.new("L", rgb.size, background[index]))
+        for index, channel in enumerate(channels)
+    ]
+    distance = ImageChops.lighter(
+        ImageChops.lighter(differences[0], differences[1]), differences[2]
+    )
+    close_to_edge_color = distance.point(lambda value: 255 if value <= max_channel_distance else 0)
+    light_enough = _light_background_mask(rgb, threshold=82)
+    red, green, blue = channels
+    chroma = ImageChops.lighter(
+        ImageChops.lighter(
+            ImageChops.difference(red, green),
+            ImageChops.difference(red, blue),
+        ),
+        ImageChops.difference(green, blue),
+    )
+    low_chroma = chroma.point(lambda value: 255 if value <= 54 else 0)
+    candidates = ImageChops.multiply(
+        ImageChops.multiply(close_to_edge_color, light_enough),
+        low_chroma,
+    )
+
+    connected = candidates.copy()
+    step = max(1, min(rgb.size) // 16)
+    seeds = (
+        [(x, 0) for x in range(0, rgb.width, step)]
+        + [(x, rgb.height - 1) for x in range(0, rgb.width, step)]
+        + [(0, y) for y in range(0, rgb.height, step)]
+        + [(rgb.width - 1, y) for y in range(0, rgb.height, step)]
+    )
+    for point in seeds:
+        if connected.getpixel(point) == 255:
+            ImageDraw.floodfill(connected, point, 128, thresh=0)
+    return connected.point(lambda value: 255 if value == 128 else 0)
+
+
+def _dark_halo_score(image: Image.Image) -> dict[str, object] | None:
+    """Detect thin dark rings on otherwise light product-card backgrounds.
+
+    The check deliberately ignores large dark subjects. It only fires when dark
+    pixels form a narrow outline on three or more sides of a larger non-dark
+    foreground, which matches the black-ring artifact without rejecting black
+    garments.
+    """
+    width, height = image.size
+    if width < 128 or height < 128:
+        return None
+    sample_width = 256
+    sample_height = max(128, round(height * sample_width / width))
+    sample = image.resize((sample_width, sample_height), Image.Resampling.BOX)
+    luminance = sample.convert("L")
+    foreground = luminance.point(lambda value: 255 if value < 245 else 0)
+    bbox = foreground.getbbox()
+    if bbox is None:
+        return None
+    left, top, right, bottom = bbox
+    foreground_area = foreground.crop(bbox).histogram()[255]
+    if foreground_area <= 0:
+        return None
+
+    dark = luminance.point(lambda value: 255 if value <= 72 else 0)
+    dark_area = dark.crop(bbox).histogram()[255]
+    dark_ratio = dark_area / foreground_area
+    if dark_ratio < 0.015 or dark_ratio > 0.28:
+        return None
+
+    inset = max(3, min(right - left, bottom - top) // 18)
+    side_regions = {
+        "left": (left, top, min(right, left + inset), bottom),
+        "right": (max(left, right - inset), top, right, bottom),
+        "top": (left, top, right, min(bottom, top + inset)),
+        "bottom": (left, max(top, bottom - inset), right, bottom),
+    }
+    touched_sides = 0
+    for region in side_regions.values():
+        region_width = max(0, region[2] - region[0])
+        region_height = max(0, region[3] - region[1])
+        if region_width == 0 or region_height == 0:
+            continue
+        side_ratio = dark.crop(region).histogram()[255] / (region_width * region_height)
+        if side_ratio >= 0.18:
+            touched_sides += 1
+    if touched_sides < 3:
+        return None
+
+    core_inset = max(inset * 2, 8)
+    core = (
+        min(right, left + core_inset),
+        min(bottom, top + core_inset),
+        max(left, right - core_inset),
+        max(top, bottom - core_inset),
+    )
+    if core[0] >= core[2] or core[1] >= core[3]:
+        return None
+    core_area = (core[2] - core[0]) * (core[3] - core[1])
+    core_dark_ratio = dark.crop(core).histogram()[255] / core_area
+    if core_dark_ratio >= dark_ratio * 0.7:
+        return None
+    return {
+        "dark_ratio": round(dark_ratio, 4),
+        "touched_sides": touched_sides,
+        "core_dark_ratio": round(core_dark_ratio, 4),
+    }
 
 
 def _has_refined_segmentation(metadata: Mapping[str, object]) -> bool:

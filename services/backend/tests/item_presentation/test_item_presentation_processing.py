@@ -8,7 +8,7 @@ from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 from pillow_heif import from_pillow
 from stylecapture_backend.features.capture.domain import (
     CaptureSourceKind,
@@ -27,6 +27,7 @@ from stylecapture_backend.features.item_presentation.domain import (
 )
 from stylecapture_backend.features.item_presentation.processing import (
     ItemPresentationProcessor,
+    normalize_flat_lay_image,
     normalize_pixel_card_output,
 )
 from stylecapture_backend.features.render.domain import RenderInputSignature, RenderProviderTrace
@@ -286,6 +287,55 @@ def test_pixel_card_recolors_connected_gray_background_with_stable_variety() -> 
         assert second_card.getpixel((12, 12)) != first_outer
 
 
+def test_pixel_card_softens_perimeter_black_outline_on_light_items() -> None:
+    rendered = Image.new("RGB", (2048, 2048), (238, 238, 238))
+    draw = ImageDraw.Draw(rendered)
+    draw.rectangle((620, 520, 660, 1528), fill=(20, 18, 16))
+    draw.rectangle((660, 520, 1428, 1528), fill=(226, 196, 124))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm", model="image_generation", parameters={}
+        ),
+    )
+
+    normalized, quality = normalize_pixel_card_output(generated, seed="light-shirt")
+
+    assert quality["outline_color"] == "#684E38"
+    assert cast(float, quality["softened_outline_ratio"]) > 0
+    with Image.open(BytesIO(normalized.body)) as card:
+        assert card.getpixel((320, 512)) == (104, 78, 56)
+
+
+def test_pixel_card_keeps_dark_item_edges_dark() -> None:
+    rendered = Image.new("RGB", (2048, 2048), (238, 238, 238))
+    draw = ImageDraw.Draw(rendered)
+    draw.rectangle((620, 520, 1428, 1528), fill=(22, 22, 24))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm", model="image_generation", parameters={}
+        ),
+    )
+
+    normalized, quality = normalize_pixel_card_output(generated, seed="black-shoes")
+
+    assert quality["softened_outline_ratio"] == 0
+    with Image.open(BytesIO(normalized.body)) as card:
+        edge = cast(tuple[int, int, int], card.getpixel((316, 512)))
+        assert max(edge) <= 40
+
+
 def test_pixel_card_rejects_non_square_provider_output() -> None:
     rendered = Image.new("RGB", (1728, 2304), "white")
     buffer = BytesIO()
@@ -302,6 +352,87 @@ def test_pixel_card_rejects_non_square_provider_output() -> None:
 
     with pytest.raises(RenderProviderError, match="square"):
         normalize_pixel_card_output(generated)
+
+
+def test_pixel_card_rejects_thin_dark_halo_around_light_item() -> None:
+    rendered = Image.new("RGB", (2048, 2048), (248, 248, 248))
+    draw = ImageDraw.Draw(rendered)
+    draw.rectangle((590, 410, 1458, 1668), fill=(28, 24, 24))
+    draw.rectangle((640, 460, 1408, 1618), fill=(232, 154, 74))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm", model="image_generation", parameters={}
+        ),
+    )
+
+    with pytest.raises(RenderProviderError, match="halo"):
+        normalize_pixel_card_output(generated)
+
+
+def test_pixel_card_cleans_broad_gray_background_haze() -> None:
+    rendered = Image.new("RGB", (2048, 2048), (248, 248, 248))
+    haze = Image.new("RGBA", rendered.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(haze)
+    draw.ellipse((360, 250, 1688, 1788), fill=(30, 26, 28, 138))
+    haze = haze.filter(ImageFilter.GaussianBlur(radius=180))
+    rendered = Image.alpha_composite(rendered.convert("RGBA"), haze).convert("RGB")
+    draw = ImageDraw.Draw(rendered)
+    draw.rectangle((650, 520, 1398, 1608), fill=(232, 154, 74))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+    body = buffer.getvalue()
+    generated = GeneratedImage(
+        body=body,
+        content_type="image/png",
+        sha256=sha256(body).hexdigest(),
+        provider_trace=RenderProviderTrace(
+            provider="litellm", model="image_generation", parameters={}
+        ),
+    )
+
+    normalized, quality = normalize_pixel_card_output(generated)
+
+    assert cast(float, quality["background_recolored_ratio"]) > 0.55
+    with Image.open(BytesIO(normalized.body)) as card:
+        left_haze_area = cast(tuple[int, int, int], card.getpixel((230, 512)))
+        assert min(left_haze_area) > 210
+
+
+def test_flat_lay_rejects_thin_dark_halo_on_white_background() -> None:
+    rendered = Image.new("RGB", (1728, 2304), (255, 255, 255))
+    draw = ImageDraw.Draw(rendered)
+    draw.rectangle((470, 530, 1258, 1774), fill=(22, 20, 20))
+    draw.rectangle((520, 580, 1208, 1724), fill=(86, 162, 205))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+
+    with pytest.raises(RenderProviderError, match="halo"):
+        normalize_flat_lay_image(buffer.getvalue())
+
+
+def test_flat_lay_cleans_broad_gray_background_haze() -> None:
+    rendered = Image.new("RGB", (1728, 2304), (255, 255, 255))
+    haze = Image.new("RGBA", rendered.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(haze)
+    draw.ellipse((250, 300, 1478, 1950), fill=(30, 26, 28, 126))
+    haze = haze.filter(ImageFilter.GaussianBlur(radius=150))
+    rendered = Image.alpha_composite(rendered.convert("RGBA"), haze).convert("RGB")
+    draw = ImageDraw.Draw(rendered)
+    draw.rectangle((520, 580, 1208, 1724), fill=(86, 162, 205))
+    buffer = BytesIO()
+    rendered.save(buffer, format="PNG")
+
+    normalized, quality = normalize_flat_lay_image(buffer.getvalue())
+
+    assert cast(float, quality["background_cleaned_ratio"]) > 0.5
+    with Image.open(BytesIO(normalized.body)) as flat_lay:
+        assert flat_lay.getpixel((360, 1152)) == (255, 255, 255)
 
 
 @pytest.mark.asyncio

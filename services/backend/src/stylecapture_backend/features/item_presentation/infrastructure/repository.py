@@ -97,8 +97,10 @@ class SqlAlchemyItemPresentationRepository:
                 values = _asset_values(asset)
                 if record is not None:
                     current_status = ItemPresentationStatus(record.status)
-                    if current_status is ItemPresentationStatus.SUCCEEDED and (
-                        current_status is not asset.status
+                    if (
+                        current_status is ItemPresentationStatus.SUCCEEDED
+                        and asset.status is not ItemPresentationStatus.QUEUED
+                        and current_status is not asset.status
                     ):
                         return _asset_from_record(record)
                     if (
