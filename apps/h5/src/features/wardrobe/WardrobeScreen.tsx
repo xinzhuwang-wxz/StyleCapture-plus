@@ -56,7 +56,8 @@ export function WardrobeScreen({
   onRetryPending,
   onDismissPending,
   onSaveCombo,
-  onNotice
+  onNotice,
+  onSecondaryPageChange
 }: {
   view: WardrobeView;
   onViewChange: (view: WardrobeView) => void;
@@ -89,6 +90,7 @@ export function WardrobeScreen({
     intent: "cover" | "try_on"
   ) => Promise<void> | void;
   onNotice?: (message: string) => void;
+  onSecondaryPageChange?: (open: boolean) => void;
 }) {
   const [basket, setBasket] = useState<readonly BasketEntry[]>([]);
   const [basketOpen, setBasketOpen] = useState(false);
@@ -96,6 +98,11 @@ export function WardrobeScreen({
   const [savingCombo, setSavingCombo] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onSecondaryPageChange?.(basketOpen);
+    return () => onSecondaryPageChange?.(false);
+  }, [basketOpen, onSecondaryPageChange]);
 
   function toggleInBasket(item: Item, label: string) {
     setBasket((current) => {

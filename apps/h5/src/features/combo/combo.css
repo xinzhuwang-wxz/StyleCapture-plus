@@ -180,6 +180,40 @@
   line-height: 1.6;
 }
 
+.combo-detail__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--px-2);
+  margin-bottom: var(--px-2);
+}
+
+.combo-detail__actions .pixel-button {
+  min-height: 48px;
+  padding-inline: 0.75rem;
+  color: var(--pixel-primary-dark);
+  background: #fff;
+  border: 1.5px solid #d9c9f5;
+  border-radius: 12px;
+  box-shadow: none;
+  transform: none;
+}
+
+.combo-detail__actions .pixel-button:first-child {
+  background: #f2edfb;
+  border-color: #cdb8f2;
+}
+
+.combo-detail__actions .pixel-button:last-child {
+  grid-column: 1 / -1;
+}
+
+.combo-detail__actions .pixel-button:disabled {
+  color: #aaa3b8;
+  background: #f7f5fa;
+  border-color: #ebe6f2;
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .combo-cabinet__body,
   .combo-cabinet__door {

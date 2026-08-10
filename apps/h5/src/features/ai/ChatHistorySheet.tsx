@@ -35,7 +35,7 @@ export function ChatHistorySheet({
 
       {records.length === 0 ? (
         <p className="profile__summary">
-          和 AI 闺蜜聊过之后，每次的主题和最终选定的搭配会记在这里，只存在这台设备上。
+          和 AI 聊过之后，每次的主题和最终选定的搭配会记在这里，只存在这台设备上。
         </p>
       ) : (
         <ul className="chat-history">

@@ -3,6 +3,7 @@ import {
   METRIC_FIELDS,
   bodyProfileStore,
   clampMetric,
+  defaultMetricValue,
   defaultBodyProfile,
   isDefaultBodyProfile,
   readBodyProfile,
@@ -36,6 +37,9 @@ describe("body profile", () => {
       ...defaultBodyProfile(),
       nickname: "小甜甜",
       height: 168,
+      bust: 86,
+      waist: 65,
+      hip: 91,
       shape: "沙漏形" as const
     };
     expect(writeBodyProfile(profile)).toEqual({ ok: true });
@@ -67,6 +71,18 @@ describe("body profile", () => {
     expect(readBodyProfile()).toEqual(defaultBodyProfile());
   });
 
+  it("round-trips optional measurements and body shape as empty", () => {
+    const profile = defaultBodyProfile();
+    expect(writeBodyProfile(profile)).toEqual({ ok: true });
+    expect(readBodyProfile()).toEqual(profile);
+    expect(profile).toMatchObject({
+      bust: null,
+      waist: null,
+      hip: null,
+      shape: null
+    });
+  });
+
   it("rejects a stored profile that is missing a field", () => {
     const { waist, ...incomplete } = defaultBodyProfile();
     void waist;
@@ -83,17 +99,23 @@ describe("body profile", () => {
       expect(clampMetric(field.key, field.max + 50)).toBe(field.max);
       expect(clampMetric(field.key, field.min + 1.4)).toBe(field.min + 1);
       expect(clampMetric(field.key, Number.NaN)).toBe(
-        defaultBodyProfile()[field.key]
+        defaultMetricValue(field.key)
       );
     });
   });
 
-  it("keeps every default inside its own range and shape list", () => {
+  it("keeps required defaults in range and leaves optional data empty", () => {
     const base = defaultBodyProfile();
-    METRIC_FIELDS.forEach((field) => {
+    METRIC_FIELDS.filter((field) => field.group === "a").forEach((field) => {
       expect(base[field.key]).toBeGreaterThanOrEqual(field.min);
       expect(base[field.key]).toBeLessThanOrEqual(field.max);
     });
-    expect(BODY_SHAPES).toContain(base.shape);
+    expect(base).toMatchObject({
+      bust: null,
+      waist: null,
+      hip: null,
+      shape: null
+    });
+    expect(BODY_SHAPES).not.toContain(base.shape);
   });
 });

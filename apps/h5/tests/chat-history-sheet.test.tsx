@@ -17,6 +17,14 @@ const record: ChatRecord = {
 };
 
 describe("ChatHistorySheet", () => {
+  it("uses neutral AI wording in the empty state", () => {
+    render(
+      <ChatHistorySheet records={[]} onReopen={vi.fn()} onClose={vi.fn()} />
+    );
+    expect(screen.getByText(/和 AI 聊过之后/)).toBeInTheDocument();
+    expect(screen.queryByText(/闺蜜/)).not.toBeInTheDocument();
+  });
+
   it("uses an unboxed timeline row and reopens the conversation when clicked", () => {
     const onReopen = vi.fn();
     render(

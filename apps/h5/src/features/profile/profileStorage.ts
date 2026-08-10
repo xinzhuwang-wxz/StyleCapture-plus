@@ -51,24 +51,36 @@ export type BodyProfile = {
   age: number;
   height: number;
   weight: number;
-  bust: number;
-  waist: number;
-  hip: number;
-  shape: BodyShape;
+  bust: number | null;
+  waist: number | null;
+  hip: number | null;
+  shape: BodyShape | null;
 };
 
 const NICKNAME_MAX = 12;
+const METRIC_DEFAULTS: Record<MetricField["key"], number> = {
+  age: 24,
+  height: 165,
+  weight: 48,
+  bust: 84,
+  waist: 64,
+  hip: 90
+};
+
+export function defaultMetricValue(key: MetricField["key"]): number {
+  return METRIC_DEFAULTS[key];
+}
 
 export function defaultBodyProfile(): BodyProfile {
   return {
     nickname: "我",
-    age: 24,
-    height: 165,
-    weight: 48,
-    bust: 84,
-    waist: 64,
-    hip: 90,
-    shape: "梨形"
+    age: METRIC_DEFAULTS.age,
+    height: METRIC_DEFAULTS.height,
+    weight: METRIC_DEFAULTS.weight,
+    bust: null,
+    waist: null,
+    hip: null,
+    shape: null
   };
 }
 
@@ -81,7 +93,7 @@ function fieldRange(key: MetricField["key"]): MetricField {
 /** 把任意数字夹到该项的合法范围内，供滚轮与输入框共用。 */
 export function clampMetric(key: MetricField["key"], value: number): number {
   const { min, max } = fieldRange(key);
-  if (!Number.isFinite(value)) return defaultBodyProfile()[key];
+  if (!Number.isFinite(value)) return defaultMetricValue(key);
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
@@ -95,11 +107,18 @@ export const bodyProfileStore: LocalStoreDefinition<BodyProfile> = {
     const nickname = asTrimmedString(record.nickname, NICKNAME_MAX);
     if (!nickname) return null;
 
-    const shape = BODY_SHAPES.find((entry) => entry === record.shape);
-    if (!shape) return null;
+    const shape =
+      record.shape === null
+        ? null
+        : BODY_SHAPES.find((entry) => entry === record.shape) ?? undefined;
+    if (shape === undefined) return null;
 
-    const metrics: Partial<Record<MetricField["key"], number>> = {};
+    const metrics: Partial<Record<MetricField["key"], number | null>> = {};
     for (const field of METRIC_FIELDS) {
+      if (field.group === "b" && record[field.key] === null) {
+        metrics[field.key] = null;
+        continue;
+      }
       const value = asIntInRange(record[field.key], field.min, field.max);
       if (value === null) return null;
       metrics[field.key] = value;
@@ -111,9 +130,9 @@ export const bodyProfileStore: LocalStoreDefinition<BodyProfile> = {
       age: metrics.age!,
       height: metrics.height!,
       weight: metrics.weight!,
-      bust: metrics.bust!,
-      waist: metrics.waist!,
-      hip: metrics.hip!
+      bust: metrics.bust ?? null,
+      waist: metrics.waist ?? null,
+      hip: metrics.hip ?? null
     };
   }
 };

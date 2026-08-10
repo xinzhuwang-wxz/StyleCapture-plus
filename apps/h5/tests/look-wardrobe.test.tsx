@@ -511,6 +511,54 @@ describe("Look wardrobe states", () => {
     expect(screen.getAllByText("后台生成中")).toHaveLength(2);
   });
 
+  it("does not move the detail viewport when a try-on finishes in the background", () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    const sharedProps = {
+      detail: readyDetail(),
+      loading: false,
+      rendersLoading: false,
+      retrying: false,
+      saving: false,
+      onClose: vi.fn(),
+      onReturnToSource: vi.fn(),
+      onRetry: vi.fn(),
+      onSaveReason: vi.fn()
+    };
+    const running = renderArtifact({
+      id: "99999999-9999-4999-8999-999999999999",
+      kind: "try_on",
+      status: "running",
+      output_image_url: null
+    });
+    const { rerender } = render(
+      <LookDetail {...sharedProps} renders={[running]} generatingKind="try_on" />
+    );
+
+    rerender(
+      <LookDetail
+        {...sharedProps}
+        renders={[
+          {
+            ...running,
+            status: "succeeded",
+            output_image_url: "/v1/render-artifacts/try-on/image"
+          }
+        ]}
+        generatingKind={null}
+      />
+    );
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    vi.useRealTimers();
+  });
+
   it("keeps the frontend item layout when a backend collage render succeeds", () => {
     const onGenerate = vi.fn();
     render(

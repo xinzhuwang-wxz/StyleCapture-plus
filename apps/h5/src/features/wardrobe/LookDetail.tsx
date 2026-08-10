@@ -61,7 +61,6 @@ function DetailContent({
   purchaseDemandsLoading = false,
   updatingPurchaseDemandId = null,
   generatingKind = null,
-  tryOnUploading = false,
   deletingTryOnPhoto = false,
   deletingSource = false,
   deletingLook = false,
@@ -96,7 +95,6 @@ function DetailContent({
   const [pixelTaskOpen, setPixelTaskOpen] = useState(false);
   const [pixelTaskCollapsed, setPixelTaskCollapsed] = useState(false);
   const [pixelCoverConfirmed, setPixelCoverConfirmed] = useState(false);
-  const [awaitingTryOnResult, setAwaitingTryOnResult] = useState(false);
   const [tryOnPreviewOpen, setTryOnPreviewOpen] = useState(false);
   const [confirmingSourceDelete, setConfirmingSourceDelete] = useState(false);
   const [deletingLookOpen, setDeletingLookOpen] = useState(false);
@@ -151,7 +149,6 @@ function DetailContent({
     setPixelTaskOpen(false);
     setPixelTaskCollapsed(false);
     setPixelCoverConfirmed(false);
-    setAwaitingTryOnResult(false);
     setTryOnPreviewOpen(false);
     setConfirmingSourceDelete(false);
     setDeletingLookOpen(false);
@@ -163,7 +160,15 @@ function DetailContent({
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
-    closeButtonRef.current?.focus();
+    closeButtonRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+        previouslyFocused.focus({ preventScroll: true });
+      }
+    };
+  }, [detail.look.id]);
+
+  useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -175,9 +180,6 @@ function DetailContent({
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       window.removeEventListener("keydown", closeOnEscape);
-      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
-        previouslyFocused.focus();
-      }
     };
   }, [
     deletingLookOpen,
@@ -210,20 +212,6 @@ function DetailContent({
   const pixelTaskFailed =
     latestTryOnPixel?.status === "failed" || latestTryOnPixel?.status === "degraded";
   const pixelTaskReady = Boolean(tryOnPixelCover) && !pixelTaskBusy;
-
-  useEffect(() => {
-    if (tryOnUploading || generatingKind === "try_on") {
-      setAwaitingTryOnResult(true);
-    }
-  }, [generatingKind, tryOnUploading]);
-
-  useEffect(() => {
-    if (!awaitingTryOnResult || !completedTryOn) return;
-    setAwaitingTryOnResult(false);
-    window.setTimeout(() => {
-      tryOnResultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 80);
-  }, [awaitingTryOnResult, completedTryOn]);
 
   useEffect(() => {
     if (generatingKind !== "pixel_cover") return;

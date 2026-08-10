@@ -9,6 +9,7 @@ type MetricWheelProps = {
   field: MetricField;
   value: number;
   onChange: (value: number) => void;
+  onClear?: () => void;
 };
 
 /**
@@ -19,7 +20,12 @@ type MetricWheelProps = {
  * aria-valuenow/min/max，能用上下键、翻页键、Home/End 调整。两条路径改的是
  * 同一个值，不存在只有某一种输入方式才能填的字段。
  */
-export function MetricWheel({ field, value, onChange }: MetricWheelProps) {
+export function MetricWheel({
+  field,
+  value,
+  onChange,
+  onClear
+}: MetricWheelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   // 区分「用户在滑」和「我们把列表滚到位」，否则程序化滚动会回弹成一次改值。
   const settling = useRef(false);
@@ -99,6 +105,16 @@ export function MetricWheel({ field, value, onChange }: MetricWheelProps) {
         ))}
       </div>
       <p className={`wheel__unit wheel__unit--${tone}`}>{field.unit}</p>
+      {onClear ? (
+        <button
+          type="button"
+          className="wheel__clear"
+          aria-label={`不填写${field.label}`}
+          onClick={onClear}
+        >
+          不清楚
+        </button>
+      ) : null}
     </div>
   );
 }
