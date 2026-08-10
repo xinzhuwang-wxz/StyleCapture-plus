@@ -9,7 +9,7 @@ from stylecapture_backend.features.item_presentation.domain import ItemPresentat
 from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationIdempotencyConflict,
 )
-from stylecapture_backend.features.look.domain import Look, LookComponent
+from stylecapture_backend.features.look.domain import Look, LookComponent, LookDeletionResult
 from stylecapture_backend.features.render.domain import RenderArtifact
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.domain import WardrobeItem
@@ -91,6 +91,9 @@ class MemoryLooks:
     ) -> Look | None:
         return self.looks.get((capture_id, source_selection_key))
 
+    async def list_for_user(self, user_id: UUID) -> list[Look]:
+        return [look for look in self.looks.values() if look.user_id == user_id]
+
     async def save(self, look: Look) -> Look:
         self.save_calls += 1
         capture_id = cast(UUID, look.capture_id)
@@ -99,6 +102,30 @@ class MemoryLooks:
 
     async def save_component(self, component: LookComponent) -> LookComponent:
         return component
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None:
+        identity = next(
+            (
+                key
+                for key, look in self.looks.items()
+                if look.id == look_id and look.user_id == user_id
+            ),
+            None,
+        )
+        if identity is None:
+            return None
+        del self.looks[identity]
+        return LookDeletionResult(
+            look_id=look_id,
+            deleted_item_ids=(),
+            preserved_shared_item_ids=(),
+        )
 
 
 class MemoryObjects:
@@ -194,8 +221,14 @@ class MemoryRenders:
 def test_curated_manifest_tracks_real_and_pixel_assets() -> None:
     assets_root = Path(curated_demo.__file__).resolve().parents[3] / "demo_assets"
 
-    assert len(curated_demo.SEED_ITEMS) == 28
-    assert len(curated_demo.SEED_LOOKS) == 9
+    assert len(curated_demo.SEED_ITEMS) == 20
+    assert len(curated_demo.SEED_LOOKS) == 6
+    assert curated_demo.RETIRED_SEED_ITEM_KEYS.isdisjoint(
+        item.key for item in curated_demo.SEED_ITEMS
+    )
+    assert curated_demo.RETIRED_SEED_LOOK_KEYS.isdisjoint(
+        look.key for look in curated_demo.SEED_LOOKS
+    )
     for item in curated_demo.SEED_ITEMS:
         assert (assets_root / item.file_name).is_file()
         assert item.pixel_file_name is not None
@@ -204,6 +237,84 @@ def test_curated_manifest_tracks_real_and_pixel_assets() -> None:
         assert (assets_root / look.file_name).is_file()
         assert look.pixel_file_name is not None
         assert (assets_root / look.pixel_file_name).is_file()
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_removes_only_retired_seed_content_for_existing_user(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for file_name in ("retired-item.jpg", "active-item.jpg", "retired-look.jpg", "active-look.jpg"):
+        (tmp_path / file_name).write_bytes(file_name.encode())
+    retired_item = SeedItem(
+        key="white_tank_top",
+        file_name="retired-item.jpg",
+        name="已下线单品",
+        category="tops",
+        subcategory="背心",
+        ownership=curated_demo.OwnershipState.OWNED,
+        colors=("白色",),
+        styles=("休闲",),
+        source_ref="https://example.test/retired",
+    )
+    active_item = SeedItem(
+        key="active_top",
+        file_name="active-item.jpg",
+        name="保留单品",
+        category="tops",
+        subcategory="上衣",
+        ownership=curated_demo.OwnershipState.OWNED,
+        colors=("黑色",),
+        styles=("通勤",),
+        source_ref="https://example.test/active",
+    )
+    retired_look = SeedLook(
+        key="weekend_denim",
+        file_name="retired-look.jpg",
+        title="已下线穿搭",
+        item_keys=(retired_item.key,),
+        scene="周末",
+        style="休闲",
+        layering="单层",
+    )
+    active_look = SeedLook(
+        key="active_look",
+        file_name="active-look.jpg",
+        title="保留穿搭",
+        item_keys=(active_item.key,),
+        scene="通勤",
+        style="简约",
+        layering="单层",
+    )
+    wardrobe = MemoryWardrobe()
+    looks = MemoryLooks()
+    bootstrapper = CuratedDemoWardrobeBootstrapper(
+        captures=MemoryCaptures(),  # type: ignore[arg-type]
+        wardrobe=wardrobe,
+        looks=looks,
+        objects=MemoryObjects(),
+        assets_root=tmp_path,
+    )
+    user_id = uuid4()
+
+    monkeypatch.setattr(curated_demo, "RETIRED_SEED_ITEM_KEYS", frozenset())
+    monkeypatch.setattr(curated_demo, "RETIRED_SEED_LOOK_KEYS", frozenset())
+    monkeypatch.setattr(curated_demo, "SEED_ITEMS", (retired_item, active_item))
+    monkeypatch.setattr(curated_demo, "SEED_LOOKS", (retired_look, active_look))
+    await bootstrapper.ensure_for_user(user_id)
+
+    monkeypatch.setattr(curated_demo, "RETIRED_SEED_ITEM_KEYS", frozenset({retired_item.key}))
+    monkeypatch.setattr(curated_demo, "RETIRED_SEED_LOOK_KEYS", frozenset({retired_look.key}))
+    monkeypatch.setattr(curated_demo, "SEED_ITEMS", ())
+    monkeypatch.setattr(curated_demo, "SEED_LOOKS", ())
+    await bootstrapper.ensure_for_user(user_id)
+
+    assert {item.model_metadata["seed_key"] for item in wardrobe.items.values()} == {
+        active_item.key
+    }
+    assert {look.source_selection_key for look in looks.looks.values()} == {
+        f"seed_{active_look.key}"
+    }
 
 
 def test_user_curated_items_have_searchable_tags_and_source_pairing() -> None:

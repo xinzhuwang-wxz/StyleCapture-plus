@@ -32,6 +32,7 @@ from stylecapture_backend.features.look.domain import (
     LookAnalysisField,
     LookAnalysisMetadata,
     LookComponent,
+    LookDeletionResult,
     LookSource,
     LookStatus,
 )
@@ -53,6 +54,8 @@ from stylecapture_backend.features.wardrobe.domain import (
 
 
 class DemoWardrobeRepository(Protocol):
+    async def list_for_user(self, user_id: UUID) -> list[WardrobeItem]: ...
+
     async def get_by_capture(
         self,
         capture_id: UUID,
@@ -61,8 +64,12 @@ class DemoWardrobeRepository(Protocol):
 
     async def save(self, item: WardrobeItem) -> WardrobeItem: ...
 
+    async def delete_for_user(self, item_id: UUID, user_id: UUID) -> bool: ...
+
 
 class DemoLookRepository(Protocol):
+    async def list_for_user(self, user_id: UUID) -> list[Look]: ...
+
     async def get_by_capture(
         self,
         capture_id: UUID,
@@ -72,6 +79,14 @@ class DemoLookRepository(Protocol):
     async def save(self, look: Look) -> Look: ...
 
     async def save_component(self, component: LookComponent) -> LookComponent: ...
+
+    async def delete_for_user(
+        self,
+        look_id: UUID,
+        user_id: UUID,
+        *,
+        delete_items: bool,
+    ) -> LookDeletionResult | None: ...
 
 
 class DemoObjectWriter(Protocol):
@@ -219,6 +234,25 @@ def _nested_optional_str(entry: dict[str, object], key: str, nested_key: str) ->
 SEED_ITEMS, SEED_LOOKS = _load_seed_manifest(
     Path(__file__).resolve().parents[3] / "demo_assets" / "seed-manifest.json"
 )
+RETIRED_SEED_LOOK_KEYS = frozenset(
+    {
+        "weekend_denim",
+        "city_commute",
+        "evening_blue",
+    }
+)
+RETIRED_SEED_ITEM_KEYS = frozenset(
+    {
+        "white_tank_top",
+        "light_blue_jeans",
+        "beige_blazer",
+        "white_cable_sweater",
+        "beige_trousers",
+        "black_city_coat",
+        "blue_evening_dress",
+        "leather_shoes",
+    }
+)
 SHOWCASE_SEED_ORDER = {
     item.key: order
     for order, item in enumerate(item for item in SEED_ITEMS if item.key.startswith("user_"))
@@ -264,6 +298,7 @@ class CuratedDemoWardrobeBootstrapper:
         self._renders = renders
 
     async def ensure_for_user(self, user_id: UUID) -> None:
+        await self._remove_retired_seed_content(user_id)
         stored_items: dict[str, WardrobeItem] = {}
         for item_definition in SEED_ITEMS:
             stored_items[item_definition.key] = await self._ensure_item(
@@ -272,6 +307,26 @@ class CuratedDemoWardrobeBootstrapper:
             )
         for look_definition in SEED_LOOKS:
             await self._ensure_look(user_id, look_definition, stored_items)
+
+    async def _remove_retired_seed_content(self, user_id: UUID) -> None:
+        retired_selection_keys = {f"seed_{seed_key}" for seed_key in RETIRED_SEED_LOOK_KEYS}
+        for look in await self._looks.list_for_user(user_id):
+            if (
+                look.source is LookSource.FEED_SAVED
+                and look.source_selection_key in retired_selection_keys
+            ):
+                await self._looks.delete_for_user(
+                    look.id,
+                    user_id,
+                    delete_items=True,
+                )
+
+        for item in await self._wardrobe.list_for_user(user_id):
+            if (
+                item.model_metadata.get("annotation_provenance") == "curated_seed"
+                and item.model_metadata.get("seed_key") in RETIRED_SEED_ITEM_KEYS
+            ):
+                await self._wardrobe.delete_for_user(item.id, user_id)
 
     async def _ensure_item(self, user_id: UUID, definition: SeedItem) -> WardrobeItem:
         source_file_name = _seed_source_file_name(self._assets_root, definition)
