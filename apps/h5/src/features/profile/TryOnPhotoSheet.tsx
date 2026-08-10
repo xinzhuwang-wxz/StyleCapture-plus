@@ -228,7 +228,11 @@ export function TryOnPhotoSheet({
             <div className="tryon-photo-picker__empty">
               <strong>还没有形象照</strong>
               <p>新建一张正面全身照后，就能在每套穿搭中重复使用。</p>
-              <button type="button" onClick={() => setMode("new")}>
+              <button
+                className="tryon-photo-picker__create-button"
+                type="button"
+                onClick={() => setMode("new")}
+              >
                 新建形象
               </button>
             </div>
