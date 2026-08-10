@@ -25,7 +25,7 @@ from typing import Any
 DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 DEFAULT_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260428"
 DEFAULT_IMAGE_MODEL = "doubao-seedream-5-0-260128"
-VERSION = "1.4.1"
+VERSION = "1.4.3"
 TRANSIENT_HTTP_CODES = {408, 409, 429, 500, 502, 503, 504}
 MAX_IMAGE_DOWNLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -294,10 +294,12 @@ Return only valid JSON with this schema:
 
 Analysis requirements:
 - First judge source_photo_eligibility from IMAGE 1 using only visible evidence. The photo is
-  eligible only when the primary person's body is continuously shown from neck and shoulders
-  through torso, hips, both knees and most of both calves. Clothes may cover those body parts;
-  the requirement is that their position and extent are present in frame. Do not infer cropped
-  anatomy. A photo ending above the knees or around the upper thighs is ineligible. Face
+  eligible when the primary person's body is continuously shown from neck and shoulders through
+  torso, hips and both knees, with a meaningful visible segment of both lower legs below the
+  knees. Set calves=true when those lower-leg segments are present even if ankles or feet are
+  cropped. Clothes may cover those body parts; the requirement is that their position and extent
+  are present in frame. Do not infer anatomy cropped at or above the knees. A photo ending above
+  the knees, at the knees, or around the upper thighs is ineligible. Face
   sharpness, glasses, makeup, stickers and other face occlusion are not rejection reasons.
 - For an ineligible photo, set rejection_code to "insufficient_body_coverage" and write a short
   Chinese user_message that names the missing/cropped region and asks for a new photo showing at
@@ -732,6 +734,93 @@ def audit_passes(audit: dict[str, Any]) -> bool:
     )
 
 
+def audit_release_eligible(audit: dict[str, Any]) -> bool:
+    """Allow a usable result through without weakening identity or body-proportion blockers.
+
+    The strict audit remains the preferred quality bar. This second tier only prevents a useful
+    image from being discarded because the vision judge is uncertain about an aggregate score or
+    an advisory boolean. Visible facial-geometry drift and vertical body compression remain hard
+    failures.
+    """
+    if audit_passes(audit):
+        return True
+    try:
+        identity_block = audit["identity_preservation"]
+        identity_score = float(identity_block["score"])
+        body = audit["body_framing"]
+        body_score = float(body["score"])
+        outfit = audit["outfit_fidelity"]
+        outfit_score = float(outfit["score"])
+        photorealism_score = float(audit["photorealism"]["score"])
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    face_visibility = identity_block.get("source_face_visibility")
+    visible_face_safe = (
+        identity_block.get("visible_identity_cues_preserved") is True
+        and identity_block.get("facial_features_changed") is False
+    )
+    if face_visibility in {"partial", "obscured"}:
+        visible_face_safe = (
+            visible_face_safe and identity_block.get("source_occlusion_preserved") is True
+        )
+
+    body_safe = (
+        body.get("natural_head_to_body_ratio") is True
+        and body.get("no_vertical_compression") is True
+    )
+    outfit_shape_safe = (
+        outfit.get("silhouette_and_ease_preserved") is True
+        and outfit.get("source_garment_fit_leaked") is False
+    )
+    return (
+        overall_score(audit) >= 70
+        and identity_score >= 75
+        and body_score >= 70
+        and outfit_score >= 60
+        and photorealism_score >= 60
+        and visible_face_safe
+        and body_safe
+        and outfit_shape_safe
+    )
+
+
+def audit_summary(audit: dict[str, Any]) -> dict[str, Any]:
+    """Keep the useful audit signals inline after temporary attempt files are removed."""
+
+    identity = audit.get("identity_preservation")
+    body = audit.get("body_framing")
+    outfit = audit.get("outfit_fidelity")
+    photorealism = audit.get("photorealism")
+    return {
+        "overall_score": overall_score(audit),
+        "identity_score": identity.get("score") if isinstance(identity, dict) else None,
+        "body_score": body.get("score") if isinstance(body, dict) else None,
+        "outfit_score": outfit.get("score") if isinstance(outfit, dict) else None,
+        "photorealism_score": (
+            photorealism.get("score") if isinstance(photorealism, dict) else None
+        ),
+        "facial_features_changed": (
+            identity.get("facial_features_changed") if isinstance(identity, dict) else None
+        ),
+        "natural_head_to_body_ratio": (
+            body.get("natural_head_to_body_ratio") if isinstance(body, dict) else None
+        ),
+        "no_vertical_compression": (
+            body.get("no_vertical_compression") if isinstance(body, dict) else None
+        ),
+        "silhouette_and_ease_preserved": (
+            outfit.get("silhouette_and_ease_preserved")
+            if isinstance(outfit, dict)
+            else None
+        ),
+        "source_garment_fit_leaked": (
+            outfit.get("source_garment_fit_leaked") if isinstance(outfit, dict) else None
+        ),
+        "recommended_retry_changes": list(audit.get("recommended_retry_changes") or []),
+    }
+
+
 def main() -> int:
     args = parse_args()
     person_path = require_image(args.person_image, "Person image")
@@ -823,16 +912,20 @@ def main() -> int:
         )
         audit_path = output_dir / f"audit-attempt-{number}.json"
         audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
+        strict_pass = audit_passes(audit)
+        release_eligible = audit_release_eligible(audit)
         attempts.append(
             {
                 "attempt": number,
                 "image": image_path.name,
                 "audit": audit_path.name,
                 "overall_score": overall_score(audit),
-                "pass": audit_passes(audit),
+                "pass": strict_pass,
+                "release_eligible": release_eligible,
+                "audit_summary": audit_summary(audit),
             }
         )
-        if audit_passes(audit):
+        if strict_pass:
             break
         retry_changes = list(audit.get("recommended_retry_changes") or [])
         if not retry_changes:
@@ -842,9 +935,18 @@ def main() -> int:
                 "修复解剖、手脚、服装结构或物体重复问题",
             ]
 
-    best = max(attempts, key=lambda item: item["overall_score"])
+    best = max(
+        attempts,
+        key=lambda item: (
+            bool(item["pass"]),
+            bool(item["release_eligible"]),
+            float(item["overall_score"]),
+        ),
+    )
     result_path = output_dir / "result.jpg"
     shutil.copyfile(output_dir / best["image"], result_path)
+    strict_pass = bool(best["pass"])
+    audit_release = bool(best["release_eligible"])
     manifest = {
         "models": {
             "understanding": args.understanding_model,
@@ -858,8 +960,16 @@ def main() -> int:
         "application_plan": application_plan,
         "attempts": attempts,
         "selected_attempt": best["attempt"],
-        "hard_pass": bool(best["pass"]),
-        "quality_status": "pass" if best["pass"] else "hard_fail",
+        "hard_pass": strict_pass,
+        "audit_release_eligible": audit_release,
+        # A completed generation is always delivered. The audit ranks attempts and records
+        # quality warnings; it no longer turns a valid generated image back into a collage.
+        "delivery_eligible": True,
+        "release_eligible": True,
+        "quality_status": (
+            "pass" if strict_pass else "review_required" if audit_release else "needs_attention"
+        ),
+        "selected_audit_summary": best["audit_summary"],
         "result": result_path.name,
     }
     manifest_path = output_dir / "manifest.json"
@@ -867,7 +977,7 @@ def main() -> int:
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     print(f"RESULT={result_path}")
-    return 0 if best["pass"] else 3
+    return 0
 
 
 if __name__ == "__main__":

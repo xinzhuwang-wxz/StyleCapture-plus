@@ -10,7 +10,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = "1.3.0"
+VERSION = "1.4.3"
 REQUIRED_FILES = (
     "SKILL.md",
     "agents/openai.yaml",

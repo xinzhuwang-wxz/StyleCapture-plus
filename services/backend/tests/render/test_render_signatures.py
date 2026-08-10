@@ -92,7 +92,7 @@ def test_dependent_render_signature_does_not_change_when_source_finishes() -> No
 
 def test_try_on_signature_uses_audited_doubao_skill_pipeline_version() -> None:
     assert RENDER_PIPELINE_VERSIONS[RenderArtifactKind.TRY_ON] == (
-        "doubao-virtual-try-on-skill-v1.4.1"
+        "doubao-virtual-try-on-skill-v1.4.3"
     )
 
 

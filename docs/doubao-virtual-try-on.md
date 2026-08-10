@@ -44,7 +44,7 @@ cp -R skills/doubao-virtual-try-on "$HOME/.codex/skills/"
 Or unzip the packaged archive into `$HOME/.codex/skills`:
 
 ```bash
-unzip dist/skills/doubao-virtual-try-on-v1.4.1.zip -d "$HOME/.codex/skills"
+unzip dist/skills/doubao-virtual-try-on-v1.4.3.zip -d "$HOME/.codex/skills"
 ```
 
 Restart Codex after installation. Invoke the skill as

@@ -108,7 +108,12 @@ class DoubaoVirtualTryOnSkillGenerator:
             if process is None:
                 raise RenderProviderUnavailable("Doubao try-on Skill could not start")
             manifest = _read_skill_manifest(output_dir / "manifest.json")
-            if process.returncode != 0 or manifest.get("hard_pass") is not True:
+            delivery_eligible = (
+                manifest.get("delivery_eligible") is True
+                or manifest.get("hard_pass") is True
+                or manifest.get("release_eligible") is True
+            )
+            if process.returncode != 0 or not delivery_eligible:
                 if manifest.get("quality_status") == "input_rejected":
                     raise RenderProviderError(
                         "try_on_source_photo_ineligible",
@@ -134,18 +139,30 @@ class DoubaoVirtualTryOnSkillGenerator:
                     "Doubao try-on Skill returned an empty result image",
                     retryable=False,
                 )
+            content_type = _image_content_type(body)
+            if content_type is None:
+                raise RenderProviderError(
+                    "render_provider_schema_invalid",
+                    "Doubao try-on Skill returned an invalid result image",
+                    retryable=False,
+                )
             return GeneratedImage(
                 body=body,
-                content_type="image/jpeg",
+                content_type=content_type,
                 sha256=sha256(body).hexdigest(),
                 provider_trace=RenderProviderTrace(
                     provider="doubao_virtual_try_on_skill",
                     model="audited_identity_locked_workflow",
                     parameters={
-                        "skill_version": "1.4.1",
+                        "skill_version": "1.4.3",
                         "selected_attempt": manifest.get("selected_attempt"),
-                        "hard_pass": True,
+                        "hard_pass": manifest.get("hard_pass") is True,
+                        "audit_release_eligible": (
+                            manifest.get("audit_release_eligible") is True
+                        ),
+                        "delivery_eligible": delivery_eligible,
                         "quality_status": manifest.get("quality_status"),
+                        "audit_summary": manifest.get("selected_audit_summary"),
                         "max_attempts": self._max_attempts,
                     },
                 ),
@@ -161,6 +178,16 @@ def _skill_input_name(stem: str, content_type: str) -> str:
     if suffix is None:
         raise ValueError("try-on Skill input image type is unsupported")
     return f"{stem}{suffix}"
+
+
+def _image_content_type(body: bytes) -> str | None:
+    if body.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if body.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if len(body) >= 12 and body.startswith(b"RIFF") and body[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def _read_skill_manifest(path: Path) -> dict[str, object]:

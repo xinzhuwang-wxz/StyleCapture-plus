@@ -11,7 +11,7 @@ PIXEL_COVER_SCHEMA_VERSION = "generated-image-v1"
 TRY_ON_CAPABILITY_ID = "look.virtual_try_on"
 TRY_ON_OUTPUT_SIZE = "1728x2304"
 TRY_ON_PROMPT_VERSION = "look-virtual-try-on-zh-v3"
-TRY_ON_PIPELINE_VERSION = "doubao-virtual-try-on-skill-v1.4.1"
+TRY_ON_PIPELINE_VERSION = "doubao-virtual-try-on-skill-v1.4.3"
 TRY_ON_SCHEMA_VERSION = "generated-image-v1"
 
 PIXEL_COVER_PROMPT = build_pixel_card_prompt(
