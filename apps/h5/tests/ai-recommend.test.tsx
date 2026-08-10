@@ -259,4 +259,40 @@ describe("AI recommendation recovery", () => {
     const lastCall = api.planOutfitsProgressively.mock.calls.at(-1);
     expect(lastCall?.[0].scene).toBe("周五面试；鞋子换平底");
   });
+
+  it("keeps the saved action the same size and radius as the save action", async () => {
+    const user = userEvent.setup();
+    api.planOutfitsProgressively.mockResolvedValue({
+      request_id: "save-style-request",
+      trace_id: "save-style-trace",
+      plans: [
+        {
+          id: "plan-save-style",
+          title: "通勤方案",
+          scene: "日常通勤",
+          slots: [],
+          rationale: "简洁通勤搭配",
+          style_match_score: 90,
+          missing_count: 0
+        }
+      ],
+      degraded: false,
+      degradation_reason: null,
+      explanation_state: "llm_ranked"
+    } as never);
+    vi.spyOn(api, "saveOutfitPlan").mockResolvedValue({
+      look_id: "saved-look-1"
+    } as never);
+    renderAI();
+
+    await user.type(screen.getByRole("textbox", { name: "穿搭需求" }), "日常通勤");
+    await user.click(screen.getByRole("button", { name: "生成穿搭推荐" }));
+
+    const save = await screen.findByRole("button", { name: "保存这套" });
+    expect(save).toHaveClass("ai-plan__save");
+    await user.click(save);
+
+    const saved = await screen.findByRole("button", { name: "已存入衣橱 · 查看" });
+    expect(saved).toHaveClass("ai-plan__save");
+  });
 });

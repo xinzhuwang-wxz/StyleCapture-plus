@@ -246,7 +246,7 @@ function PlanCard({
       ) : null}
       <PixelButton
         variant={saved ? "ghost" : "primary"}
-        className={saved ? "" : "ai-plan__save"}
+        className="ai-plan__save"
         disabled={saving}
         onClick={saved ? onOpen : onSave}
       >
