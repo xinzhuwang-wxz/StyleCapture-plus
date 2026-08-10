@@ -18,7 +18,11 @@ from stylecapture_backend.features.item_presentation.infrastructure.repository i
 from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationIdempotencyConflict,
 )
-from stylecapture_backend.features.render.domain import RenderInputSignature, RenderOutput
+from stylecapture_backend.features.render.domain import (
+    RenderInputSignature,
+    RenderOutput,
+    RenderProviderTrace,
+)
 from stylecapture_backend.platform.database import build_session_factory, run_migrations
 
 TEST_DATABASE_URL = os.environ.get(
@@ -195,7 +199,11 @@ async def test_save_allows_manual_retry_of_succeeded_asset() -> None:
                 content_hash="e" * 64,
                 content_type="image/png",
             ),
-            provider_trace=None,
+            provider_trace=RenderProviderTrace(
+                provider="test",
+                model="item-pixel-retry",
+                parameters={},
+            ),
         )
     )
 

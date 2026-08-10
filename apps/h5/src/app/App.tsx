@@ -58,7 +58,7 @@ const PENDING_ITEMS_STORAGE_KEY = "stylecapture:pending-items:v1";
 const SELECTED_LOOK_STORAGE_KEY = "stylecapture:selected-look:v1";
 const LOOK_PIXEL_COVERS_STORAGE_KEY = "stylecapture:look-pixel-covers:v1";
 
-function readPixelCoverSelections(): Record<string, string | null> {
+function readPixelCoverSelections(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(LOOK_PIXEL_COVERS_STORAGE_KEY);
@@ -67,8 +67,7 @@ function readPixelCoverSelections(): Record<string, string | null> {
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
     return Object.fromEntries(
       Object.entries(value).filter(
-        (entry): entry is [string, string | null] =>
-          typeof entry[1] === "string" || entry[1] === null
+        (entry): entry is [string, string] => typeof entry[1] === "string"
       )
     );
   } catch {
@@ -271,7 +270,7 @@ function DeferredScreenFallback() {
 export function App() {
   const queryClient = useQueryClient();
   const [activePixelCoverIds, setActivePixelCoverIds] = useState<
-    Record<string, string | null>
+    Record<string, string>
   >(readPixelCoverSelections);
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -455,7 +454,8 @@ export function App() {
           const cover =
             selectedId === undefined || selectedId === null
               ? candidates[0]
-              : candidates.find((artifact) => artifact.id === selectedId);
+              : candidates.find((artifact) => artifact.id === selectedId) ??
+                candidates[0];
           return cover ? [[look.id, cover] as const] : [];
         })
       ),
@@ -1637,7 +1637,7 @@ export function App() {
           ref={addMenuTrigger}
           className="pixel-nav__add"
           type="button"
-          aria-label="添加衣服或试试像素形象"
+          aria-label="添加衣服"
           onClick={() => setAddMenuOpen(true)}
         >
           <span className="nav-icon" aria-hidden="true">＋</span>
@@ -1710,18 +1710,6 @@ export function App() {
               <span aria-hidden="true">✦</span>
               <strong>从相册导入</strong>
               <small>支持实物图、穿搭照和收藏图片</small>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAddMenuOpen(false);
-                setDestination("profile");
-                setNotice("在“我的”里上传全身照，生成不入库的像素形象");
-              }}
-            >
-              <span aria-hidden="true">👾</span>
-              <strong>试试像素形象</strong>
-              <small>只生成展示，不加入数字衣橱</small>
             </button>
           </section>
         </div>

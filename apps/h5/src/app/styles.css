@@ -3589,6 +3589,14 @@ p {
   font-weight: 800;
 }
 
+.ai-plan__save.pixel-button {
+  min-height: 2rem;
+  padding: 0.38rem 0.72rem;
+  border-width: 1px;
+  border-radius: 0.72rem;
+  font-size: 0.68rem;
+}
+
 .ai-plan__save.pixel-button--primary {
   border-color: #d6c5fb;
   background: #eee7ff;

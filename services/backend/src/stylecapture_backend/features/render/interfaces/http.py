@@ -57,6 +57,7 @@ class RenderArtifactResponse(BaseModel):
     sprite_image_url: str | None = None
     sprite_status: Literal["not_applicable", "pending", "ready", "failed"] = "not_applicable"
     fallback_artifact_id: UUID | None
+    source_artifact_id: UUID | None = None
     failure_code: str | None
     failure_message: str | None
     retryable: bool
@@ -97,6 +98,7 @@ class RenderArtifactResponse(BaseModel):
             ),
             sprite_status=view.sprite_status,
             fallback_artifact_id=view.fallback_artifact_id,
+            source_artifact_id=view.source_artifact_id,
             failure_code=view.failure_code,
             failure_message=view.failure_message,
             retryable=view.status in {RenderArtifactStatus.FAILED, RenderArtifactStatus.DEGRADED},

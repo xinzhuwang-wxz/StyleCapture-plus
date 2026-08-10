@@ -25,7 +25,11 @@ from stylecapture_backend.features.item_presentation.interfaces.http import (
 from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationIdempotencyConflict,
 )
-from stylecapture_backend.features.render.domain import RenderInputSignature, RenderOutput
+from stylecapture_backend.features.render.domain import (
+    RenderInputSignature,
+    RenderOutput,
+    RenderProviderTrace,
+)
 from stylecapture_backend.features.wardrobe.application import WardrobeApplication
 from stylecapture_backend.features.wardrobe.domain import ItemAttributes, ItemStatus, WardrobeItem
 from stylecapture_backend.main import BackendServices, create_app
@@ -224,13 +228,15 @@ async def test_item_pixel_presentation_http_creates_queued_task() -> None:
                 content_hash="b" * 64,
                 content_type="image/png",
             ),
-            provider_trace=None,
+            provider_trace=RenderProviderTrace(
+                provider="test",
+                model="item-pixel-retry",
+                parameters={},
+            ),
         )
         await repository.save(succeeded)
         dispatcher.calls.clear()
-        retry_succeeded = await client.post(
-            f"/v1/items/{item.id}/presentations/pixel/retry"
-        )
+        retry_succeeded = await client.post(f"/v1/items/{item.id}/presentations/pixel/retry")
 
         assert retry_succeeded.status_code == 202
         assert retry_succeeded.json()["status"] == "queued"

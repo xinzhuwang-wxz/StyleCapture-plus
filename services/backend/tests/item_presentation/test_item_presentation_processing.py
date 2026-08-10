@@ -307,7 +307,7 @@ def test_pixel_card_softens_perimeter_black_outline_on_light_items() -> None:
     normalized, quality = normalize_pixel_card_output(generated, seed="light-shirt")
 
     assert quality["outline_color"] == "#684E38"
-    assert quality["softened_outline_ratio"] > 0
+    assert cast(float, quality["softened_outline_ratio"]) > 0
     with Image.open(BytesIO(normalized.body)) as card:
         assert card.getpixel((320, 512)) == (104, 78, 56)
 
@@ -398,7 +398,7 @@ def test_pixel_card_cleans_broad_gray_background_haze() -> None:
 
     normalized, quality = normalize_pixel_card_output(generated)
 
-    assert quality["background_recolored_ratio"] > 0.55
+    assert cast(float, quality["background_recolored_ratio"]) > 0.55
     with Image.open(BytesIO(normalized.body)) as card:
         left_haze_area = cast(tuple[int, int, int], card.getpixel((230, 512)))
         assert min(left_haze_area) > 210
@@ -430,7 +430,7 @@ def test_flat_lay_cleans_broad_gray_background_haze() -> None:
 
     normalized, quality = normalize_flat_lay_image(buffer.getvalue())
 
-    assert quality["background_cleaned_ratio"] > 0.5
+    assert cast(float, quality["background_cleaned_ratio"]) > 0.5
     with Image.open(BytesIO(normalized.body)) as flat_lay:
         assert flat_lay.getpixel((360, 1152)) == (255, 255, 255)
 

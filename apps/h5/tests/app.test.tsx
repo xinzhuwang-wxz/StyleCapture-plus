@@ -280,11 +280,17 @@ describe("StyleCapture garment ingest", () => {
     expect(navigationButtons).toHaveLength(5);
     expect(navigationButtons[0]).toHaveAccessibleName("衣橱");
     expect(navigationButtons[1]).toHaveAccessibleName("AI");
-    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服或试试像素形象");
+    expect(navigationButtons[2]).toHaveAccessibleName("添加衣服");
     expect(navigationButtons[3]).toHaveAccessibleName("像素世界");
     expect(navigationButtons[4]).toHaveAccessibleName("我的");
     expect(within(navigation).queryByRole("button", { name: "分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刷灵感 Feed" })).toBeVisible();
+
+    await userEvent.click(navigationButtons[2]);
+
+    expect(screen.getByRole("button", { name: /拍下真实衣服/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /从相册导入/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /试试像素形象/ })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "刷灵感 Feed" }));
 
@@ -1298,36 +1304,59 @@ describe("StyleCapture garment ingest", () => {
       presentation_label: "像素穿搭封面",
       output_image_url:
         "/v1/render-artifacts/77777777-7777-4777-8777-777777777777/image",
+      source_artifact_id: collageRender.id,
       share_eligible: true
+    };
+    const tryOn: RenderArtifact = {
+      ...pixel,
+      id: "99999999-9999-4999-8999-999999999999",
+      kind: "try_on",
+      output_image_url:
+        "/v1/render-artifacts/99999999-9999-4999-8999-999999999999/image",
+      source_artifact_id: collageRender.id,
+      share_eligible: false,
+      created_at: "2026-07-25T00:01:00Z",
+      updated_at: "2026-07-25T00:01:30Z"
     };
     const tryOnPixel: RenderArtifact = {
       ...pixel,
       id: "88888888-8888-4888-8888-888888888888",
       output_image_url:
         "/v1/render-artifacts/88888888-8888-4888-8888-888888888888/image",
+      source_artifact_id: tryOn.id,
       created_at: "2026-07-25T00:02:00Z",
       updated_at: "2026-07-25T00:02:30Z"
     };
     window.localStorage.setItem(
       "stylecapture:look-pixel-covers:v1",
-      JSON.stringify({ [look.id]: null })
+      JSON.stringify({ [look.id]: "deleted-pixel-cover" })
     );
     api.listLooks.mockResolvedValue([look]);
-    api.listRenders.mockResolvedValue([tryOnPixel, pixel]);
+    api.listRenders.mockResolvedValue([collageRender, pixel, tryOn, tryOnPixel]);
     renderApp();
 
+    expect(
+      await screen.findByRole("img", { name: "已生成的像素穿搭封面" })
+    ).toHaveAttribute("src", tryOnPixel.output_image_url);
     await user.click(await screen.findByRole("button", { name: "我的" }));
+    const managePhotos = await screen.findByRole("button", { name: "管理 ›" });
+    expect(screen.queryByText("AI 真人试穿参考")).not.toBeInTheDocument();
+    expect(screen.queryByText("穿搭像素资产")).not.toBeInTheDocument();
+    expect(screen.queryByText("使用提示")).not.toBeInTheDocument();
+    expect(managePhotos).toHaveClass("profile__manage");
     expect(await screen.findByRole("img", { name: "第 1 个像素小人" })).toHaveAttribute(
-      "src",
-      expect.stringContaining(tryOnPixel.id)
-    );
-    expect(screen.getByRole("img", { name: "第 2 个像素小人" })).toHaveAttribute(
       "src",
       expect.stringContaining(pixel.id)
     );
+    expect(screen.getByRole("img", { name: "第 2 个像素小人" })).toHaveAttribute(
+      "src",
+      expect.stringContaining(tryOnPixel.id)
+    );
+    expect(screen.queryByText("我的穿搭 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来自这套穿搭的像素卡片")).not.toBeInTheDocument();
     expect(screen.queryByText("像素实验室")).not.toBeInTheDocument();
     const tryOnPixelCard = screen
-      .getByRole("img", { name: "第 1 个像素小人" })
+      .getByRole("img", { name: "第 2 个像素小人" })
       .closest("article");
     expect(tryOnPixelCard).not.toBeNull();
     expect(

@@ -188,22 +188,28 @@ function DetailContent({
   ]);
 
   const latestTryOn = latestByKind.get("try_on");
-  const latestPixel = latestByKind.get("pixel_cover");
+  const tryOnPixelRenders = completedTryOn
+    ? sortedRenders.filter(
+        (render) =>
+          render.kind === "pixel_cover" &&
+          render.source_artifact_id === completedTryOn.id
+      )
+    : [];
+  const latestTryOnPixel = tryOnPixelRenders[0];
   const tryOnTaskFailed =
     latestTryOn?.status === "failed" || latestTryOn?.status === "degraded";
-  const pixelCover = sortedRenders.find(
+  const tryOnPixelCover = tryOnPixelRenders.find(
     (render) =>
-      render.kind === "pixel_cover" &&
       render.status === "succeeded" &&
       Boolean(render.output_image_url)
   );
   const pixelTaskBusy =
     generatingKind === "pixel_cover" ||
-    latestPixel?.status === "queued" ||
-    latestPixel?.status === "running";
+    latestTryOnPixel?.status === "queued" ||
+    latestTryOnPixel?.status === "running";
   const pixelTaskFailed =
-    latestPixel?.status === "failed" || latestPixel?.status === "degraded";
-  const pixelTaskReady = Boolean(pixelCover) && !pixelTaskBusy;
+    latestTryOnPixel?.status === "failed" || latestTryOnPixel?.status === "degraded";
+  const pixelTaskReady = Boolean(tryOnPixelCover) && !pixelTaskBusy;
 
   useEffect(() => {
     if (tryOnUploading || generatingKind === "try_on") {
@@ -227,10 +233,12 @@ function DetailContent({
 
   /** 只下载，不走系统面板——「保存到相册」要的就是这条。 */
   async function downloadPixelCover() {
-    if (!pixelCover?.share_eligible || !pixelCover.output_image_url) return;
+    if (!tryOnPixelCover?.share_eligible || !tryOnPixelCover.output_image_url) {
+      return;
+    }
     setShareMessage(null);
     try {
-      const response = await fetch(pixelCover.output_image_url, {
+      const response = await fetch(tryOnPixelCover.output_image_url, {
         cache: "no-store",
         credentials: "same-origin"
       });
@@ -935,11 +943,11 @@ function DetailContent({
                 </button>
               </header>
 
-              {pixelTaskReady && pixelCover?.output_image_url ? (
+              {pixelTaskReady && tryOnPixelCover?.output_image_url ? (
                 <div className="render-task-sheet__preview">
                   <img
-                    src={`${pixelCover.output_image_url}?v=${encodeURIComponent(
-                      pixelCover.updated_at
+                    src={`${tryOnPixelCover.output_image_url}?v=${encodeURIComponent(
+                      tryOnPixelCover.updated_at
                     )}`}
                     alt="已生成的像素穿搭卡片"
                     data-pixel="true"
@@ -966,18 +974,20 @@ function DetailContent({
                 </div>
               )}
 
-              {pixelTaskReady && pixelCover ? (
+              {pixelTaskReady && tryOnPixelCover ? (
                 <div className="render-task-sheet__actions">
                   <button
                     className="primary-action render-task-sheet__action render-task-sheet__action--cover"
                     type="button"
-                    disabled={pixelCoverConfirmed || activePixelCoverId === pixelCover.id}
+                    disabled={
+                      pixelCoverConfirmed || activePixelCoverId === tryOnPixelCover.id
+                    }
                     onClick={() => {
-                      onSetPixelCover?.(detail.look.id, pixelCover.id);
+                      onSetPixelCover?.(detail.look.id, tryOnPixelCover.id);
                       setPixelCoverConfirmed(true);
                     }}
                   >
-                    {pixelCoverConfirmed || activePixelCoverId === pixelCover.id
+                    {pixelCoverConfirmed || activePixelCoverId === tryOnPixelCover.id
                       ? "已设为像素封面"
                       : "设为像素封面"}
                   </button>

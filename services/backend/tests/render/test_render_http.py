@@ -319,12 +319,17 @@ async def test_user_can_delete_private_try_on_photo_without_deleting_result(
     assert requested.status_code == 202
     assert pixel.status_code == 202
     assert repository.artifacts[UUID(pixel.json()["id"])].source_artifact_id == artifact_id
+    assert pixel.json()["source_artifact_id"] == str(artifact_id)
     assert requested.json()["subject_attached"] is True
     assert requested.json()["personalized"] is False
     assert requested.json()["presentation_label"] == "我的真人试穿"
     assert deleted.status_code == 204
     assert objects.describe(subject.object_key).object_key == subject.object_key
     try_on = next(render for render in listed.json()["renders"] if render["kind"] == "try_on")
+    listed_pixel = next(
+        render for render in listed.json()["renders"] if render["kind"] == "pixel_cover"
+    )
+    assert listed_pixel["source_artifact_id"] == str(artifact_id)
     assert try_on["subject_attached"] is False
     assert try_on["personalized"] is True
     assert try_on["presentation_label"] == "我的真人试穿"

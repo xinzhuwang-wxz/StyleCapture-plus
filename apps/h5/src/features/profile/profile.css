@@ -127,23 +127,45 @@
   border-radius: 14px;
 }
 
+.profile__manage.pixel-button {
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--pixel-text-muted);
+  font-size: 0.68rem;
+  box-shadow: none;
+}
+
+.profile__manage.pixel-button:active {
+  transform: none;
+  box-shadow: none;
+}
+
 /* ─── 像素小人陈列馆 ─── */
 .profile__pixel-gallery {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: var(--px-3);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 0 0 var(--px-2);
   margin-bottom: var(--px-4);
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
 }
+
+.profile__pixel-gallery::-webkit-scrollbar { display: none; }
 
 .profile__pixel-person {
   display: grid;
-  gap: 0.35rem;
-  min-width: 0;
+  flex: 0 0 142px;
+  gap: 0.55rem;
+  min-width: 142px;
   padding: 0.55rem;
   border: 2px solid var(--pixel-border);
   border-radius: 16px;
   background: #fff;
   box-shadow: var(--pixel-shadow);
+  scroll-snap-align: start;
 }
 
 .profile__pixel-person[data-cover="true"] {
@@ -168,32 +190,6 @@
   image-rendering: pixelated;
 }
 
-.profile__pixel-person-image span {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
-  padding: 0.22rem 0.48rem;
-  border-radius: 999px;
-  background: var(--pixel-primary);
-  color: #fff;
-  font-size: 0.56rem;
-}
-
-.profile__pixel-person > strong {
-  overflow: hidden;
-  color: var(--pixel-text);
-  font-size: 0.72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile__pixel-person > small {
-  min-height: 1.8rem;
-  color: var(--pixel-text-dim);
-  font-size: 0.58rem;
-  line-height: 1.5;
-}
-
 .profile__pixel-person > button {
   min-height: 2.2rem;
   padding: 0.35rem 0.45rem;
@@ -213,7 +209,7 @@
 }
 
 .profile__pixel-gallery-empty {
-  grid-column: 1 / -1;
+  flex: 1 0 100%;
   display: grid;
   min-height: 8rem;
   place-items: center;
