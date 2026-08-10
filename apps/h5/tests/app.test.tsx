@@ -856,6 +856,7 @@ describe("StyleCapture garment ingest", () => {
     await user.click(screen.getByRole("button", { name: "我的" }));
 
     expect(await screen.findByText("已收录 0 件单品 · 0 套穿搭")).toBeVisible();
+    expect(screen.getByText("拥有的和喜欢的，都加入数字衣橱")).toBeVisible();
     expect(screen.queryByLabelText("身材资料")).not.toBeInTheDocument();
     expect(screen.queryByText(/已生成 \d+ 个像素小人/)).not.toBeInTheDocument();
 

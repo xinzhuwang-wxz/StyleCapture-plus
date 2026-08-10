@@ -1310,7 +1310,7 @@ export function App() {
                   我的
                 </h1>
                 <p className="subtitle wardrobe-header__summary">
-                  拥有的和喜欢的，都是可搭配的数字资产
+                  拥有的和喜欢的，都加入数字衣橱
                 </p>
               </div>
             ) : (

@@ -165,18 +165,18 @@ export function BodyProfileSheet({
         ))}
       </div>
 
-      <p className="profile__summary">
-        身材越准，试穿越像。这些数据只保存在这台设备上，不会上传服务器。
-      </p>
-
       {error ? (
         <div className="profile__error" role="alert">
           {error}
         </div>
       ) : null}
 
-      <div className="profile__actions">
-        <PixelButton variant="primary" onClick={save}>
+      <div className="profile__actions profile__actions--save">
+        <PixelButton
+          variant="primary"
+          className="profile__save-button"
+          onClick={save}
+        >
           保存资料
         </PixelButton>
       </div>
