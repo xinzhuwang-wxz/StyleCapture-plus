@@ -898,6 +898,8 @@ describe("StyleCapture garment ingest", () => {
     expect(confirmation.closest(".pixel-overlay")).not.toBeNull();
     expect(confirmation.closest(".pixel-app")).toBeNull();
     expect(within(confirmation).getByRole("heading", { name: "确认加入衣橱" })).toBeInTheDocument();
+    expect(within(confirmation).queryByText("👕")).not.toBeInTheDocument();
+    expect(within(confirmation).queryByText("👗")).not.toBeInTheDocument();
     const submit = within(confirmation).getByRole("button", {
       name: "请选择保存类型"
     });

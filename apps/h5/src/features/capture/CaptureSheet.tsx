@@ -173,7 +173,6 @@ export function CaptureSheet({
                   aria-pressed={intent === "item"}
                   onClick={() => setIntent("item")}
                 >
-                  <span className="capture-sheet__kind-icon" aria-hidden="true">👕</span>
                   <strong>单件衣服</strong>
                   <small>提取并标准化单品实物图，归入单品分类</small>
                 </button>
@@ -183,7 +182,6 @@ export function CaptureSheet({
                   aria-pressed={intent === "whole_outfit"}
                   onClick={() => setIntent("whole_outfit")}
                 >
-                  <span className="capture-sheet__kind-icon" aria-hidden="true">👗</span>
                   <strong>整套穿搭</strong>
                   <small>拆成多件单品，并生成像素小人</small>
                 </button>
