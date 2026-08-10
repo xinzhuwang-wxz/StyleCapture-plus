@@ -80,7 +80,7 @@ export function ComboDetailSheet({
         {audit.ok ? "这一柜可以存成一套" : audit.reason}
       </p>
 
-      <div className="profile__actions">
+      <div className="combo-detail__actions">
         <PixelButton
           variant="primary"
           disabled={!audit.ok || busy}

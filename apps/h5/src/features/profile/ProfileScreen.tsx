@@ -5,15 +5,13 @@ import { PixelButton, PixelSectionHeader } from "../../components/PixelUI";
 import { BodyProfileSheet } from "./BodyProfileSheet";
 import { PhotoManagerSheet } from "./PhotoManagerSheet";
 import { readPhotoAlbum, type PhotoAlbum } from "./photoStorage";
-import {
-  isDefaultBodyProfile,
-  readBodyProfile,
-  type BodyProfile
-} from "./profileStorage";
+import { readBodyProfile, type BodyProfile } from "./profileStorage";
 import "./profile.css";
 
 interface ProfileScreenProps {
   itemCount: number;
+  subpage?: "main" | "body" | "photos";
+  onSubpageChange?: (subpage: "main" | "body" | "photos") => void;
   photoAlbum?: PhotoAlbum;
   onPhotoAlbumChange?: (album: PhotoAlbum) => void;
   onNotice?: (message: string) => void;
@@ -25,6 +23,8 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({
   itemCount,
+  subpage = "main",
+  onSubpageChange,
   photoAlbum,
   onPhotoAlbumChange,
   onNotice,
@@ -35,11 +35,9 @@ export function ProfileScreen({
 }: ProfileScreenProps) {
   // 身材资料只在本机，读一次就够；保存后由 sheet 回传最新值。
   const [bodyProfile, setBodyProfile] = useState<BodyProfile>(readBodyProfile);
-  const [editingBody, setEditingBody] = useState(false);
   const [localAlbum, setLocalAlbum] = useState<PhotoAlbum>(readPhotoAlbum);
   const album = photoAlbum ?? localAlbum;
   const changeAlbum = onPhotoAlbumChange ?? setLocalAlbum;
-  const [managingPhotos, setManagingPhotos] = useState(false);
   const looksById = new Map(looks.map((look) => [look.id, look]));
   const pixelPeople = pixelArtifacts.flatMap((artifact) => {
     const owner = looksById.get(artifact.look_id);
@@ -53,27 +51,23 @@ export function ProfileScreen({
     return [{ look: owner, artifact }];
   });
   const profilePortraitUrl = "/assets/stylecapture-profile-portrait.png";
-  const statusCopy = pixelPeople.length
-    ? `已生成 ${pixelPeople.length} 个像素小人`
-    : "还没有生成像素小人";
-
-  if (managingPhotos) {
+  if (subpage === "photos") {
     return (
       <PhotoManagerSheet
         album={album}
         onChange={changeAlbum}
-        onClose={() => setManagingPhotos(false)}
+        onClose={() => onSubpageChange?.("main")}
         onNotice={onNotice}
       />
     );
   }
 
-  if (editingBody) {
+  if (subpage === "body") {
     return (
       <BodyProfileSheet
         profile={bodyProfile}
         onSaved={setBodyProfile}
-        onClose={() => setEditingBody(false)}
+        onClose={() => onSubpageChange?.("main")}
         onNotice={onNotice}
       />
     );
@@ -81,30 +75,15 @@ export function ProfileScreen({
 
   return (
     <div className="profile-page">
-      {/*
-        身材资料原本另起了一个板块，但这张卡本来就装得下。两处并存只是让
-        「改我的资料」有了两个入口，整张卡就是那个入口。
-      */}
-      <button
-        type="button"
-        className="profile__card profile__card--button"
-        aria-label="编辑我的个人信息"
-        onClick={() => setEditingBody(true)}
-      >
+      <section className="profile__card" aria-label="个人数字资产概览">
         <img src={profilePortraitUrl} alt="我的 StyleCapture 形象" />
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="pixel-title profile__name">{bodyProfile.nickname}</h1>
-          <span className="profile__level">
-            {itemCount > 0 ? `已收录 ${itemCount} 件单品` : "数字衣橱新用户"}
-          </span>
-          <span className="profile__body" aria-label="身材资料">
-            {isDefaultBodyProfile(bodyProfile)
-              ? "补全身材数据，上身效果更准 ›"
-              : `${bodyProfile.height} cm · ${bodyProfile.weight} kg · ${bodyProfile.bust}/${bodyProfile.waist}/${bodyProfile.hip} · ${bodyProfile.shape}`}
-          </span>
+          <p className="profile__asset-count">
+            已收录 {itemCount} 件单品 · {looks.length} 套穿搭
+          </p>
         </div>
-        <span className="profile__edit">{statusCopy}</span>
-      </button>
+      </section>
 
       <PixelSectionHeader
         title="我的形象照"
@@ -112,7 +91,7 @@ export function ProfileScreen({
           <PixelButton
             variant="ghost"
             className="profile__manage"
-            onClick={() => setManagingPhotos(true)}
+            onClick={() => onSubpageChange?.("photos")}
           >
             管理 ›
           </PixelButton>
@@ -128,7 +107,7 @@ export function ProfileScreen({
             aria-label={`第 ${index + 1} 张形象照${
               photo.id === album.activeId ? "（试穿使用中）" : ""
             }`}
-            onClick={() => setManagingPhotos(true)}
+            onClick={() => onSubpageChange?.("photos")}
           >
             <img src={photo.dataUrl} alt="" />
             {photo.id === album.activeId ? (
@@ -140,7 +119,7 @@ export function ProfileScreen({
           type="button"
           className="profile__photo-add"
           aria-label="添加形象照"
-          onClick={() => setManagingPhotos(true)}
+          onClick={() => onSubpageChange?.("photos")}
         >
           ＋
         </button>

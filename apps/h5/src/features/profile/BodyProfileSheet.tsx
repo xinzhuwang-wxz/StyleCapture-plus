@@ -6,6 +6,7 @@ import {
   BODY_SHAPES,
   METRIC_FIELDS,
   clampMetric,
+  defaultMetricValue,
   writeBodyProfile,
   type BodyProfile
 } from "./profileStorage";
@@ -89,37 +90,61 @@ export function BodyProfileSheet({
         </h2>
       </div>
       <div className="profile__wheels">
-        {METRIC_FIELDS.filter((field) => field.group === "a").map((field) => (
-          <MetricWheel
-            key={field.key}
-            field={field}
-            value={draft[field.key]}
-            onChange={(value) => setMetric(field.key, value)}
-          />
-        ))}
+        {METRIC_FIELDS.filter((field) => field.group === "a").map((field) => {
+          const value = draft[field.key];
+          return typeof value === "number" ? (
+            <MetricWheel
+              key={field.key}
+              field={field}
+              value={value}
+              onChange={(next) => setMetric(field.key, next)}
+            />
+          ) : null;
+        })}
       </div>
 
       <div className="profile__section-head">
         <h2 className="pixel-subtitle" style={{ margin: 0 }}>
           三围（cm）
         </h2>
+        <span className="pixel-label">选填，不清楚可留空</span>
       </div>
       <div className="profile__wheels">
-        {METRIC_FIELDS.filter((field) => field.group === "b").map((field) => (
-          <MetricWheel
-            key={field.key}
-            field={field}
-            value={draft[field.key]}
-            onChange={(value) => setMetric(field.key, value)}
-          />
-        ))}
+        {METRIC_FIELDS.filter((field) => field.group === "b").map((field) => {
+          const value = draft[field.key];
+          return value === null ? (
+            <button
+              key={field.key}
+              type="button"
+              className="profile__metric-empty"
+              aria-label={`填写${field.label}`}
+              onClick={() =>
+                setMetric(field.key, defaultMetricValue(field.key))
+              }
+            >
+              <span>{field.label}</span>
+              <strong>＋ 填写</strong>
+              <small>选填</small>
+            </button>
+          ) : (
+            <MetricWheel
+              key={field.key}
+              field={field}
+              value={value}
+              onChange={(next) => setMetric(field.key, next)}
+              onClear={() =>
+                setDraft((current) => ({ ...current, [field.key]: null }))
+              }
+            />
+          );
+        })}
       </div>
 
       <div className="profile__section-head">
         <h2 className="pixel-subtitle" style={{ margin: 0 }}>
           身型
         </h2>
-        <span className="pixel-label">AI 会据此调整版型建议</span>
+        <span className="pixel-label">选填，AI 会据此调整建议</span>
       </div>
       <div className="profile__shapes" role="group" aria-label="身型">
         {BODY_SHAPES.map((shape) => (
@@ -128,7 +153,12 @@ export function BodyProfileSheet({
             type="button"
             data-active={draft.shape === shape ? "true" : undefined}
             aria-pressed={draft.shape === shape}
-            onClick={() => setDraft((current) => ({ ...current, shape }))}
+            onClick={() =>
+              setDraft((current) => ({
+                ...current,
+                shape: current.shape === shape ? null : shape
+              }))
+            }
           >
             {shape}
           </button>

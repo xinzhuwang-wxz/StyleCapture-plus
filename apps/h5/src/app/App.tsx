@@ -48,6 +48,7 @@ type Destination =
   | "ai"
   | "world"
   | "profile";
+type ProfileSubpage = "main" | "body" | "photos";
 type FeedRestoreTarget = {
   videoRef: string;
   timestampMs: number;
@@ -279,6 +280,8 @@ export function App() {
   const wardrobeView = useRef<HTMLDivElement>(null);
   const restoredLookId = useRef(restoreSelectedLookId());
   const [destination, setDestination] = useState<Destination>("wardrobe");
+  const [profileSubpage, setProfileSubpage] = useState<ProfileSubpage>("main");
+  const [wardrobeSecondaryPageOpen, setWardrobeSecondaryPageOpen] = useState(false);
   const [wardrobeViewMode, setWardrobeViewMode] = useState<WardrobeView>("looks");
   const [feedRestoreTarget, setFeedRestoreTarget] =
     useState<FeedRestoreTarget | null>(null);
@@ -297,6 +300,11 @@ export function App() {
   const [uploading, setUploading] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [photoAlbum, setPhotoAlbum] = useState<PhotoAlbum>(readPhotoAlbum);
+
+  useEffect(() => {
+    if (destination !== "profile") setProfileSubpage("main");
+    if (destination !== "wardrobe") setWardrobeSecondaryPageOpen(false);
+  }, [destination]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1268,7 +1276,10 @@ export function App() {
         className="product-view product-view--wardrobe pixel-app"
         hidden={destination === "feed" || destination === "world"}
       >
-        {destination !== "feed" && !(destination === "ai" && aiHistoryOpen) ? (
+        {destination !== "feed" &&
+        !(destination === "ai" && aiHistoryOpen) &&
+        !(destination === "profile" && profileSubpage !== "main") &&
+        !(destination === "wardrobe" && wardrobeSecondaryPageOpen) ? (
           <header
             className={`wardrobe-header${
               destination === "wardrobe"
@@ -1293,7 +1304,7 @@ export function App() {
                 <h1 className="pixel-title wardrobe-header__title">AI推荐</h1>
                 <p className="subtitle wardrobe-header__summary">今天你想穿什么？</p>
               </div>
-            ) : (
+            ) : destination === "profile" ? (
               <div className="wardrobe-header__intro">
                 <h1 className="pixel-title wardrobe-header__title wardrobe-header__title--profile">
                   我的
@@ -1302,6 +1313,8 @@ export function App() {
                   拥有的和喜欢的，都是可搭配的数字资产
                 </p>
               </div>
+            ) : (
+              <div className="wardrobe-header__intro" />
             )}
             {/* AI 页的右上角是这次聊天的出口，不是再去刷 Feed——
                 正在跟闺蜜聊搭配的人，想回看的是聊过什么。 */}
@@ -1313,6 +1326,15 @@ export function App() {
               >
                 <span className="wardrobe-header__feed-plus" aria-hidden="true">＋</span>
                 <span>对话记录</span>
+              </button>
+            ) : destination === "profile" ? (
+              <button
+                type="button"
+                className="wardrobe-header__feed"
+                aria-label="管理个人数据"
+                onClick={() => setProfileSubpage("body")}
+              >
+                管理个人数据
               </button>
             ) : (
               <button
@@ -1372,6 +1394,7 @@ export function App() {
               onDismissPending={dismissPending}
               onNotice={setNotice}
               onSaveCombo={saveCombo}
+              onSecondaryPageChange={setWardrobeSecondaryPageOpen}
             />
           </Suspense>
         ) : null}
@@ -1422,6 +1445,8 @@ export function App() {
           <Suspense fallback={<DeferredScreenFallback />}>
             <ProfileScreen
               itemCount={items.length + pending.length}
+              subpage={profileSubpage}
+              onSubpageChange={setProfileSubpage}
               photoAlbum={photoAlbum}
               onPhotoAlbumChange={setPhotoAlbum}
               onNotice={setNotice}

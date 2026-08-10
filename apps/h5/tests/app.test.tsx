@@ -849,6 +849,42 @@ describe("StyleCapture garment ingest", () => {
     delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
   });
 
+  it("opens body data from the profile header and keeps profile subpages free of the parent header", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "我的" }));
+
+    expect(await screen.findByText("已收录 0 件单品 · 0 套穿搭")).toBeVisible();
+    expect(screen.queryByLabelText("身材资料")).not.toBeInTheDocument();
+    expect(screen.queryByText(/已生成 \d+ 个像素小人/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "管理个人数据" }));
+    expect(await screen.findByRole("heading", { name: "我的个人信息" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "我的" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "管理个人数据" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "‹ 返回" }));
+    await user.click(await screen.findByRole("button", { name: "管理 ›" }));
+    expect(await screen.findByRole("heading", { name: "形象照管理" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "我的" })).not.toBeInTheDocument();
+  });
+
+  it("hides the wardrobe parent header on the combo wardrobe subpage", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole("tab", { name: "按单品" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: /我的组合衣柜，已放入 0 件，点开查看/
+      })
+    );
+
+    expect(await screen.findByRole("heading", { name: "组合衣柜" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "我的衣橱" })).not.toBeInTheDocument();
+  });
+
   it("defaults a real gallery upload to owned after the asset type is chosen", async () => {
     const user = userEvent.setup();
     renderApp();

@@ -1932,6 +1932,12 @@ p {
   background: #fff;
 }
 
+.tryon-result__action--change-photo {
+  border-color: #d8c9f4;
+  background: #fff;
+  color: #6845a8;
+}
+
 .tryon-result__action:disabled {
   opacity: 0.5;
 }

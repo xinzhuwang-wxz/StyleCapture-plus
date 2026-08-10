@@ -45,14 +45,57 @@ function renderSheet(overrides: Partial<Parameters<typeof BodyProfileSheet>[0]> 
 }
 
 describe("body profile sheet", () => {
-  it("exposes every metric as a keyboard-operable spinbutton", () => {
+  it("exposes required metrics and leaves the three measurements optional", () => {
     renderSheet();
-    const labels = ["年龄", "身高", "体重", "胸围", "腰围", "臀围"];
+    const labels = ["年龄", "身高", "体重"];
     labels.forEach((label) => {
       const wheel = screen.getByRole("spinbutton", { name: label });
       expect(wheel).toHaveAttribute("aria-valuenow");
       expect(wheel).toHaveAttribute("tabindex", "0");
     });
+    ["胸围", "腰围", "臀围"].forEach((label) => {
+      expect(
+        screen.queryByRole("spinbutton", { name: label })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: `填写${label}` })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("lets the user add or clear each optional measurement independently", async () => {
+    const user = userEvent.setup();
+    renderSheet();
+
+    await user.click(screen.getByRole("button", { name: "填写胸围" }));
+    expect(screen.getByRole("spinbutton", { name: "胸围" })).toHaveAttribute(
+      "aria-valuenow",
+      "84"
+    );
+    await user.click(screen.getByRole("button", { name: "不填写胸围" }));
+    expect(screen.getByRole("button", { name: "填写胸围" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("spinbutton", { name: "胸围" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the user deselect the active body shape", async () => {
+    const user = userEvent.setup();
+    const props = renderSheet();
+    const pear = within(screen.getByRole("group", { name: "身型" })).getByRole(
+      "button",
+      { name: "梨形" }
+    );
+
+    expect(pear).toHaveAttribute("aria-pressed", "false");
+    await user.click(pear);
+    expect(pear).toHaveAttribute("aria-pressed", "true");
+    await user.click(pear);
+    expect(pear).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "保存资料" }));
+    expect(props.onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ shape: null })
+    );
   });
 
   it("adjusts a metric with the keyboard, not only by dragging", async () => {
