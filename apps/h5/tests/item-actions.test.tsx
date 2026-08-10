@@ -66,6 +66,7 @@ describe("Item detail actions", () => {
         onSave={onSave}
         onDeleteSource={vi.fn()}
         onBuildOutfit={vi.fn()}
+        onRetryPixel={vi.fn()}
         onReturnToFeed={vi.fn()}
       />
     );
@@ -102,6 +103,7 @@ describe("Item detail actions", () => {
         onSave={vi.fn()}
         onDeleteSource={vi.fn()}
         onBuildOutfit={vi.fn()}
+        onRetryPixel={vi.fn()}
         onReturnToFeed={vi.fn()}
       />
     );
@@ -127,6 +129,7 @@ describe("Item detail actions", () => {
         onDeleteSource={vi.fn()}
         onDeleteItem={onDeleteItem}
         onBuildOutfit={vi.fn()}
+        onRetryPixel={vi.fn()}
         onReturnToFeed={vi.fn()}
       />
     );
@@ -140,6 +143,48 @@ describe("Item detail actions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
     expect(onDeleteItem).toHaveBeenCalledWith(item.id);
+  });
+
+  it("lets users retry a dirty pixel preview from item detail", async () => {
+    const onRetryPixel = vi.fn();
+    render(
+      <ItemDetail
+        item={item}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDeleteSource={vi.fn()}
+        onBuildOutfit={vi.fn()}
+        onRetryPixel={onRetryPixel}
+        onReturnToFeed={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("单品图已生成")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "重新生成像素封面" }));
+
+    expect(onRetryPixel).toHaveBeenCalledWith(item);
+  });
+
+  it("disables the pixel retry button while the item is being retried", async () => {
+    render(
+      <ItemDetail
+        item={item}
+        saving={false}
+        retryingPixel={true}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDeleteSource={vi.fn()}
+        onBuildOutfit={vi.fn()}
+        onRetryPixel={vi.fn()}
+        onReturnToFeed={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("单品图已生成")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "启动中… 正在提交重试请求" })
+    ).toBeDisabled();
   });
 });
 
@@ -167,7 +212,7 @@ describe("Look item action sheet", () => {
       purchaseSearchUrl: item.purchase_search_url
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "已拥有，去搭配" }));
+    fireEvent.click(screen.getByRole("button", { name: "用这件搭一套" }));
     expect(onBuildOutfit).toHaveBeenCalledWith(item.id);
     expect(screen.queryByText("未拥有，去购买")).not.toBeInTheDocument();
   });

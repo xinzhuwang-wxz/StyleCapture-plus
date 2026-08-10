@@ -133,7 +133,7 @@ export function LookItemActionSheet({
                   disabled={!action.itemId}
                   onClick={() => action.itemId && onBuildOutfit(action.itemId)}
                 >
-                  已拥有，去搭配
+                  用这件搭一套
                 </button>
               ) : (
                 <>

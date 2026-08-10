@@ -18,7 +18,7 @@ from stylecapture_backend.features.item_presentation.infrastructure.repository i
 from stylecapture_backend.features.item_presentation.ports import (
     ItemPresentationIdempotencyConflict,
 )
-from stylecapture_backend.features.render.domain import RenderInputSignature
+from stylecapture_backend.features.render.domain import RenderInputSignature, RenderOutput
 from stylecapture_backend.platform.database import build_session_factory, run_migrations
 
 TEST_DATABASE_URL = os.environ.get(
@@ -175,3 +175,32 @@ async def test_request_key_reuse_with_different_signature_is_rejected() -> None:
                 signature_hash="d" * 64,
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_save_allows_manual_retry_of_succeeded_asset() -> None:
+    await _reset_database()
+    user_id = uuid4()
+    item_id = await _insert_item(user_id=user_id, suffix="d")
+    sessions = build_session_factory(TEST_DATABASE_URL)
+    repository = SqlAlchemyItemPresentationRepository(sessions)
+
+    requested = await repository.ensure_requested(
+        _queued(user_id=user_id, item_id=item_id, request_key="pixel-retry-after-success")
+    )
+    succeeded = await repository.save(
+        requested.mark_succeeded(
+            output=RenderOutput(
+                object_key="derived/items/pixel/succeeded.png",
+                content_hash="e" * 64,
+                content_type="image/png",
+            ),
+            provider_trace=None,
+        )
+    )
+
+    retried = await repository.save(succeeded.retry())
+
+    assert retried.id == requested.id
+    assert retried.status.value == "queued"
+    assert retried.output is None

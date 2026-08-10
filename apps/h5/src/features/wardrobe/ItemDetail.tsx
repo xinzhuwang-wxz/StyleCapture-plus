@@ -26,6 +26,8 @@ type ItemDetailProps = {
   onDeleteSource: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   onBuildOutfit: (itemId: string) => void;
+  onRetryPixel: (item: Item) => void;
+  retryingPixel?: boolean;
   onReturnToFeed: (videoRef: string, timestampMs: number) => void;
 };
 
@@ -42,6 +44,8 @@ function DetailContent({
   onDeleteSource,
   onDeleteItem,
   onBuildOutfit,
+  onRetryPixel,
+  retryingPixel = false,
   onReturnToFeed
 }: Omit<ItemDetailProps, "item"> & { item: Item }) {
   const imageUrl = useDisplayImage(item.id, `${item.status}:${item.updated_at}`);
@@ -122,6 +126,24 @@ function DetailContent({
     : flatLayGenerating
       ? sourceImageUrl ?? imageUrl
       : imageUrl;
+  const pixelGenerationActive =
+    retryingPixel ||
+    item.pixel_image_status === "queued" ||
+    item.pixel_image_status === "running";
+  const pixelRetryButtonText = retryingPixel
+    ? "启动中…"
+    : item.pixel_image_status === "queued"
+      ? "排队中…"
+      : item.pixel_image_status === "running"
+        ? "生成中…"
+        : "重新生成像素封面";
+  const pixelRetryProgressText = retryingPixel
+    ? "正在提交重试请求"
+    : item.pixel_image_status === "queued"
+      ? "已排队，等待开始"
+      : item.pixel_image_status === "running"
+        ? "AI 正在绘制像素封面"
+        : null;
 
   useEffect(() => {
     if (heroImageUrl) {
@@ -250,6 +272,17 @@ function DetailContent({
             <small>完成后会自动替换当前原图</small>
           </div>
         ) : null}
+        <button
+          className="item-detail__pixel-retry"
+          type="button"
+          disabled={pixelGenerationActive}
+          onClick={() => onRetryPixel(item)}
+        >
+          <span>{pixelRetryButtonText}</span>
+          {pixelRetryProgressText ? (
+            <small aria-live="polite">{pixelRetryProgressText}</small>
+          ) : null}
+        </button>
       </div>
 
       <div className="detail-content">
@@ -343,7 +376,7 @@ function DetailContent({
 
         <div className="item-detail__action-row">
           <button
-            className="secondary-action"
+            className="primary-action item-detail__build-button"
             type="button"
             onClick={() => onBuildOutfit(item.id)}
           >

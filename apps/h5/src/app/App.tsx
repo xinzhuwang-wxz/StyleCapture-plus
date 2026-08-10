@@ -249,6 +249,17 @@ function errorMessage(error: unknown): string {
   return "刚刚没有完成，请稍后再试";
 }
 
+function queryErrorDetail(error: unknown): string | null {
+  if (!error) return null;
+  if (error instanceof ProductApiError) {
+    return `${error.code}: ${error.message}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 function DeferredScreenFallback() {
   return (
     <div className="wardrobe-loading" role="status">
@@ -368,6 +379,21 @@ export function App() {
         : false
   });
   const items = itemsQuery.data ?? [];
+  useEffect(() => {
+    setSelectedItem((current) => {
+      if (!current) return current;
+      const latest = items.find((item) => item.id === current.id);
+      if (!latest) return current;
+      if (
+        latest.updated_at === current.updated_at &&
+        latest.pixel_image_status === current.pixel_image_status &&
+        latest.pixel_image_url === current.pixel_image_url
+      ) {
+        return current;
+      }
+      return latest;
+    });
+  }, [items]);
   const looksQuery = useQuery({
     queryKey: ["wardrobe-looks"],
     queryFn: wardrobeApi.listLooks,
@@ -417,16 +443,17 @@ export function App() {
     () =>
       Object.fromEntries(
         looks.flatMap((look, index) => {
-          const candidates = (lookRenderQueries[index]?.data ?? []).filter(
-            (render) =>
-              render.kind === "pixel_cover" &&
-              render.status === "succeeded" &&
-              Boolean(render.output_image_url)
-          );
+          const candidates = (lookRenderQueries[index]?.data ?? [])
+            .filter(
+              (render) =>
+                render.kind === "pixel_cover" &&
+                render.status === "succeeded" &&
+                Boolean(render.output_image_url)
+            )
+            .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
           const selectedId = activePixelCoverIds[look.id];
-          if (selectedId === null) return [];
           const cover =
-            selectedId === undefined
+            selectedId === undefined || selectedId === null
               ? candidates[0]
               : candidates.find((artifact) => artifact.id === selectedId);
           return cover ? [[look.id, cover] as const] : [];
@@ -626,7 +653,27 @@ export function App() {
 
   const retryPixelMutation = useMutation({
     mutationFn: (item: Item) => wardrobeApi.retryItemPixel(item.id),
-    onSuccess: () => {
+    onSuccess: (presentation) => {
+      queryClient.setQueryData<Item[]>(["wardrobe-items"], (current) =>
+        current?.map((item) =>
+          item.id === presentation.item_id
+            ? {
+                ...item,
+                pixel_image_status: presentation.status,
+                pixel_image_url: presentation.output_image_url
+              }
+            : item
+        )
+      );
+      setSelectedItem((current) =>
+        current?.id === presentation.item_id
+          ? {
+              ...current,
+              pixel_image_status: presentation.status,
+              pixel_image_url: presentation.output_image_url
+            }
+          : current
+      );
       setNotice("像素展示图已重新排队，真实单品不受影响");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items"] });
     },
@@ -837,7 +884,7 @@ export function App() {
       );
       if (render.kind === "pixel_cover") {
         setActivePixelCoverIds((current) => {
-          const next = { ...current, [render.look_id]: null };
+          const next = { ...current, [render.look_id]: render.id };
           window.localStorage.setItem(
             LOOK_PIXEL_COVERS_STORAGE_KEY,
             JSON.stringify(next)
@@ -873,7 +920,7 @@ export function App() {
       );
       if (render.kind === "pixel_cover") {
         setActivePixelCoverIds((current) => {
-          const next = { ...current, [render.look_id]: null };
+          const next = { ...current, [render.look_id]: render.id };
           window.localStorage.setItem(
             LOOK_PIXEL_COVERS_STORAGE_KEY,
             JSON.stringify(next)
@@ -1004,30 +1051,45 @@ export function App() {
     });
   }, [lookQuery.data, rendersQuery.data, rendersQuery.isSuccess]);
 
-  const ensuredPixelLookIds = useRef(new Set<string>());
+  const autoPixelKeys = useRef(new Set<string>());
 
   useEffect(() => {
     if (backgroundRenderMutation.isPending) return;
-    const candidate = looks.find((look, index) => {
-      if (look.status !== "ready" && look.status !== "partial") return false;
-      if (look.fixed_presentation) return false;
+    const candidate = looks.flatMap((look, index) => {
+      if (look.status !== "ready" && look.status !== "partial") return [];
+      if (look.fixed_presentation) return [];
       const query = lookRenderQueries[index];
-      if (!query?.isSuccess || ensuredPixelLookIds.current.has(look.id)) return false;
-      return !query.data.some(
+      if (!query?.isSuccess) return [];
+      const hasActiveOrReadyPixel = query.data.some(
         (render) =>
           render.kind === "pixel_cover" &&
           (render.status === "queued" ||
             render.status === "running" ||
-            ((render.status === "succeeded" || render.status === "degraded") &&
-              Boolean(render.output_image_url)))
+            (render.status === "succeeded" && Boolean(render.output_image_url)))
       );
+      if (hasActiveOrReadyPixel) return [];
+      const latestFailedPixel = query.data
+        .filter(
+          (render) =>
+            render.kind === "pixel_cover" &&
+            (render.status === "failed" ||
+              render.status === "degraded" ||
+              (render.status === "succeeded" && !render.output_image_url))
+        )
+        .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
+      const key = latestFailedPixel
+        ? `auto-pixel-retry:${look.id}:${latestFailedPixel.id}:${latestFailedPixel.updated_at}`
+        : `auto-pixel:${look.id}:${look.updated_at}`;
+      if (autoPixelKeys.current.has(key)) return [];
+      return [{ look, key }];
     });
-    if (!candidate) return;
-    ensuredPixelLookIds.current.add(candidate.id);
+    const next = candidate[0];
+    if (!next) return;
+    autoPixelKeys.current.add(next.key);
     backgroundRenderMutation.mutate({
-      lookId: candidate.id,
+      lookId: next.look.id,
       kind: "pixel_cover",
-      idempotencyKey: `auto-pixel:${candidate.id}:${candidate.updated_at}`
+      idempotencyKey: next.key
     });
   }, [lookRenderQueries, looks, backgroundRenderMutation.isPending]);
 
@@ -1298,6 +1360,8 @@ export function App() {
               looksLoading={looksQuery.isLoading}
               itemsError={itemsQuery.isError}
               looksError={looksQuery.isError}
+              itemsErrorDetail={queryErrorDetail(itemsQuery.error)}
+              looksErrorDetail={queryErrorDetail(looksQuery.error)}
               onRetryItems={() => void itemsQuery.refetch()}
               onRetryLooks={() => void looksQuery.refetch()}
               onOpen={setSelectedItem}
@@ -1424,6 +1488,11 @@ export function App() {
               setSelectedItem(null);
               setDestination("ai");
             }}
+            onRetryPixel={(item) => retryPixelMutation.mutate(item)}
+            retryingPixel={
+              retryPixelMutation.isPending &&
+              retryPixelMutation.variables?.id === selectedItem.id
+            }
             onReturnToFeed={(videoRef, timestampMs) => {
               setSelectedItem(null);
               setFeedRestoreTarget({
