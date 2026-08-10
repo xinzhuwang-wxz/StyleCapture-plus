@@ -1234,6 +1234,11 @@ describe("StyleCapture garment ingest", () => {
     renderApp();
 
     await user.click(await screen.findByRole("button", { name: "我的" }));
+    const managePhotos = await screen.findByRole("button", { name: "管理 ›" });
+    expect(screen.queryByText("AI 真人试穿参考")).not.toBeInTheDocument();
+    expect(screen.queryByText("穿搭像素资产")).not.toBeInTheDocument();
+    expect(screen.queryByText("使用提示")).not.toBeInTheDocument();
+    expect(managePhotos).toHaveClass("profile__manage");
     expect(await screen.findByRole("img", { name: "第 1 个像素小人" })).toHaveAttribute(
       "src",
       expect.stringContaining(tryOnPixel.id)
@@ -1242,6 +1247,8 @@ describe("StyleCapture garment ingest", () => {
       "src",
       expect.stringContaining(pixel.id)
     );
+    expect(screen.queryByText("我的穿搭 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来自这套穿搭的像素卡片")).not.toBeInTheDocument();
     expect(screen.queryByText("像素实验室")).not.toBeInTheDocument();
     const tryOnPixelCard = screen
       .getByRole("img", { name: "第 1 个像素小人" })

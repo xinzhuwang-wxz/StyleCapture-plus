@@ -40,7 +40,7 @@ export function ProfileScreen({
   const album = photoAlbum ?? localAlbum;
   const changeAlbum = onPhotoAlbumChange ?? setLocalAlbum;
   const [managingPhotos, setManagingPhotos] = useState(false);
-  const looksById = new Map(looks.map((look, index) => [look.id, { look, index }]));
+  const looksById = new Map(looks.map((look) => [look.id, look]));
   const pixelPeople = pixelArtifacts.flatMap((artifact) => {
     const owner = looksById.get(artifact.look_id);
     if (
@@ -50,7 +50,7 @@ export function ProfileScreen({
     ) {
       return [];
     }
-    return [{ look: owner.look, lookIndex: owner.index, artifact }];
+    return [{ look: owner, artifact }];
   });
   const profilePortraitUrl = "/assets/stylecapture-profile-portrait.png";
   const statusCopy = pixelPeople.length
@@ -107,10 +107,13 @@ export function ProfileScreen({
       </button>
 
       <PixelSectionHeader
-        kicker="AI 真人试穿参考"
         title="我的形象照"
         action={
-          <PixelButton variant="ghost" onClick={() => setManagingPhotos(true)}>
+          <PixelButton
+            variant="ghost"
+            className="profile__manage"
+            onClick={() => setManagingPhotos(true)}
+          >
             管理 ›
           </PixelButton>
         }
@@ -144,14 +147,13 @@ export function ProfileScreen({
       </div>
 
       <PixelSectionHeader
-        kicker="穿搭像素资产"
         title="我的像素小人"
         action={<span className="pixel-label">{pixelPeople.length} 张</span>}
       />
 
       <section className="profile__pixel-gallery" aria-label="我的像素小人陈列馆">
         {pixelPeople.length ? (
-          pixelPeople.map(({ look, lookIndex, artifact }, galleryIndex) => {
+          pixelPeople.map(({ look, artifact }, galleryIndex) => {
             const isCover = pixelCovers[look.id]?.id === artifact.id;
             return (
               <article key={artifact.id} className="profile__pixel-person" data-cover={isCover}>
@@ -163,13 +165,7 @@ export function ProfileScreen({
                     alt={`第 ${galleryIndex + 1} 个像素小人`}
                     data-pixel="true"
                   />
-                  {isCover ? <span>封面</span> : null}
                 </div>
-                <strong>
-                  {look.source === "feed_saved" ? "Feed 穿搭" : "我的穿搭"}{" "}
-                  {lookIndex + 1}
-                </strong>
-                <small>来自这套穿搭的像素卡片</small>
                 <button
                   type="button"
                   disabled={isCover}
@@ -191,16 +187,6 @@ export function ProfileScreen({
         )}
       </section>
 
-      <section className="profile__tips">
-        <h3 className="pixel-subtitle" style={{ marginBottom: "var(--px-2)" }}>
-          使用提示
-        </h3>
-        <ul>
-          <li>像素小人来自已经保存的穿搭，不再单独上传照片试验。</li>
-          <li>每张像素卡片都与对应穿搭关联，可设为那套穿搭的封面。</li>
-          <li>这里保存的默认形象照，会在穿搭详情的“真人试穿”中优先选中。</li>
-        </ul>
-      </section>
     </div>
   );
 }
