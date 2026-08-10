@@ -373,6 +373,56 @@ describe("Look wardrobe states", () => {
     expect(screen.queryByRole("img", { name: "已生成的像素穿搭卡片" })).not.toBeInTheDocument();
   });
 
+  it("lets a completed try-on choose another saved appearance and retry the same look", () => {
+    const onTryOn = vi.fn();
+    render(
+      <LookDetail
+        detail={readyDetail()}
+        loading={false}
+        renders={[
+          renderArtifact({
+            id: "99999999-9999-4999-8999-999999999999",
+            kind: "try_on",
+            presentation_label: "真人试穿",
+            output_image_url:
+              "/v1/render-artifacts/99999999-9999-4999-8999-999999999999/image",
+            updated_at: "2026-07-25T00:00:30Z"
+          })
+        ]}
+        rendersLoading={false}
+        generatingKind={null}
+        retrying={false}
+        saving={false}
+        photoAlbum={{
+          activeId: "appearance-1",
+          photos: [
+            {
+              id: "appearance-1",
+              dataUrl: "data:image/png;base64,aGVsbG8=",
+              addedAt: "2026-08-10T00:00:00Z"
+            }
+          ]
+        }}
+        onClose={vi.fn()}
+        onReturnToSource={vi.fn()}
+        onRetry={vi.fn()}
+        onSaveReason={vi.fn()}
+        onTryOn={onTryOn}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "更换形象照" }));
+    expect(
+      screen.getByRole("dialog", { name: "选择试穿形象" })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "使用这张形象试穿" }));
+    expect(onTryOn).toHaveBeenCalledWith(
+      pendingLook.id,
+      expect.objectContaining({ type: "image/png" })
+    );
+  });
+
   it("shows a calm background-progress state for pixel card generation", async () => {
     render(
       <LookDetail

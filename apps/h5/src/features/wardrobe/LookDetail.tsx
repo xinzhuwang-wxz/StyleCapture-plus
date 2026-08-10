@@ -61,6 +61,7 @@ function DetailContent({
   purchaseDemandsLoading = false,
   updatingPurchaseDemandId = null,
   generatingKind = null,
+  tryOnUploading = false,
   deletingTryOnPhoto = false,
   deletingSource = false,
   deletingLook = false,
@@ -74,6 +75,7 @@ function DetailContent({
   onGenerate,
   onSetPixelCover,
   activePixelCoverId = null,
+  onTryOn,
   onDeleteTryOnPhoto,
   onDeleteSource,
   onDeleteLook,
@@ -703,6 +705,16 @@ function DetailContent({
                     >
                       保存到本地
                     </button>
+                    {onTryOn ? (
+                      <button
+                        className="tryon-result__action tryon-result__action--change-photo"
+                        type="button"
+                        disabled={tryOnUploading}
+                        onClick={onOpenTryOnPicker}
+                      >
+                        {tryOnUploading ? "正在重新试穿…" : "更换形象照"}
+                      </button>
+                    ) : null}
                   </div>
                   <small className="tryon-result__note">仅自己可见</small>
                 </div>
