@@ -14,7 +14,8 @@ Require Python 3.10 or newer with network access to `ark.cn-beijing.volces.com`.
 Collect these semantic inputs:
 
 1. A photo whose primary person is continuously visible from neck and shoulders through both
-   knees and most of both calves. Face sharpness and existing face occlusion are acceptable; the
+   knees, with a meaningful segment of both lower legs visible below the knees. Ankles and feet
+   are optional. Face sharpness and existing face occlusion are acceptable; the
    workflow must preserve the visible facial features and the occlusion instead of inventing a
    different face. Reject photos cropped above the knees or around the upper thighs.
 2. One or more collage or flat-lay images containing the desired garments and optional shoes, bag, belt, jewelry, or other accessories.
@@ -48,7 +49,7 @@ When a target-look example exists, add:
   --style-reference "/absolute/path/example.png"
 ```
 
-The default two-attempt limit only performs the second generation when the first audit fails. To avoid any automatic paid retry, add `--max-attempts 1`.
+The default two-attempt limit only performs the second generation when the first audit is not a strict pass. A strict first result returns immediately. Otherwise, select the better audited candidate and return it within the bounded attempt budget. To avoid any automatic paid retry, add `--max-attempts 1`.
 
 5. Read `manifest.json` and `audit-attempt-N.json`. Confirm the selected attempt, scores, missing items, and any artifacts.
 6. Visually inspect `result.jpg` before presenting it. Check face identity, item count, garment colors/materials, hands, legs, feet, shoes, bag handles, and background continuity.
@@ -76,10 +77,11 @@ The batch script must:
 5. Audit each look against the source face, anchor and outfit board.
 6. Cross-audit all final looks side by side.
 
-Treat `cross_look_pass: false` as a failed batch even when individual outfits pass. Read `cross-look-audit.json`, identify outlier looks, and retry them with the listed corrections before presenting the set as consistent.
+Treat `cross_look_pass: false` as `needs_attention` even when individual outfits pass. Return the generated looks, read `cross-look-audit.json`, identify outliers, and never present the set as identity- or framing-consistent unless the cross-look audit strictly passes.
 
 Do not infer missing anatomy. When the source does not continuously show the body from neck and
-shoulders through the calves, stop before generation, explain which region is cropped, and request
+shoulders through both knees and a meaningful segment of both lower legs, stop before generation,
+explain which region is cropped, and request
 a replacement photo. A face that is soft, partially hidden, covered by glasses, or covered by a
 sticker is not by itself a rejection reason.
 
@@ -99,6 +101,12 @@ sticker is not by itself a rejection reason.
 - Preserve target colors from outfit-board pixels, including undertone, relative lightness and
   heather/marl variation. Do not reduce a nuanced warm gray or oatmeal garment to generic white or
   cool gray.
+- Use the post-generation audit to rank candidates, trigger the single bounded retry, and record
+  diagnostic warnings. Prefer a strict pass, then a review-required result, then the highest-scoring
+  generated result. Once Ark has successfully generated an image, do not discard every candidate
+  solely because the audit is conservative; return the best candidate with `quality_status` and
+  `selected_audit_summary`. Only source-photo ineligibility before generation, provider failure, or
+  a missing/invalid generated file blocks delivery.
 - Preserve visible shoulder, torso and hip landmarks. When source clothing conceals chest, waist
   or hip width, use conservative neutral continuity from visible landmarks; never infer an
   idealized body or use the loose source garment's outside edge as the person's body contour.

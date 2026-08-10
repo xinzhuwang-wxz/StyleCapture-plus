@@ -71,7 +71,7 @@ class DoubaoSkillContractTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(version_run.returncode, 0, version_run.stderr)
-            self.assertIn("1.4.1", version_run.stdout)
+            self.assertIn("1.4.3", version_run.stdout)
 
     def test_single_try_on_contract_strictly_locks_exact_face_geometry(self) -> None:
         core = load_script_module("virtual_try_on")
@@ -83,6 +83,15 @@ class DoubaoSkillContractTest(unittest.TestCase):
         self.assertIn("overall_score >= 92", source)
         self.assertIn("Omit IMAGE 2 footwear", source)
         self.assertIn("source garment's tightness", source)
+
+    def test_batch_contract_prioritizes_strict_pass_but_delivers_attention_results(self) -> None:
+        batch = load_script_module("batch_virtual_try_on")
+        source = Path(batch.__file__).read_text(encoding="utf-8")
+
+        self.assertIn('key=lambda item: (bool(item["pass"])', source)
+        self.assertIn('manifest["delivery_eligible"] = True', source)
+        self.assertIn('manifest["quality_status"] = "pass"', source)
+        self.assertNotIn('return 0 if manifest["hard_pass"] else 3', source)
 
     def test_source_photo_gate_ignores_face_clarity_but_requires_body_coverage(self) -> None:
         core = load_script_module("virtual_try_on")
@@ -204,6 +213,48 @@ class DoubaoSkillContractTest(unittest.TestCase):
         self.assertFalse(core.audit_passes(audit))
         audit["identity_preservation"]["exact_same_person"] = True
         self.assertTrue(core.audit_passes(audit))
+
+    def test_review_tier_keeps_usable_result_without_weakening_hard_blockers(self) -> None:
+        core = load_script_module("virtual_try_on")
+        audit = {
+            "identity_preservation": {
+                "score": 82,
+                "source_face_visibility": "soft",
+                "exact_same_person": False,
+                "visible_identity_cues_preserved": True,
+                "facial_features_changed": False,
+                "beautification_detected": True,
+                "source_occlusion_preserved": True,
+            },
+            "body_framing": {
+                "score": 78,
+                "head_through_calves_visible": True,
+                "natural_head_to_body_ratio": True,
+                "no_vertical_compression": True,
+                "source_pose_and_camera_preserved": False,
+            },
+            "outfit_fidelity": {
+                "score": 72,
+                "silhouette_and_ease_preserved": True,
+                "source_garment_fit_leaked": False,
+            },
+            "application_policy": {
+                "shoe_policy_followed": True,
+                "no_body_reframing_for_footwear": True,
+            },
+            "photorealism": {"score": 75, "artifacts": []},
+            "overall_score": 78,
+            "pass": False,
+        }
+
+        self.assertFalse(core.audit_passes(audit))
+        self.assertTrue(core.audit_release_eligible(audit))
+
+        audit["identity_preservation"]["facial_features_changed"] = True
+        self.assertFalse(core.audit_release_eligible(audit))
+        audit["identity_preservation"]["facial_features_changed"] = False
+        audit["body_framing"]["no_vertical_compression"] = False
+        self.assertFalse(core.audit_release_eligible(audit))
 
     def test_ineligible_source_stops_before_paid_generation(self) -> None:
         core = load_script_module("virtual_try_on")
@@ -346,7 +397,7 @@ class DoubaoSkillContractTest(unittest.TestCase):
         self.assertNotIn("X-Amz-Signature", serialized)
         self.assertNotIn("b64_json': 'secret-image", serialized)
 
-    def test_single_try_on_returns_hard_fail_exit_when_best_audit_fails(self) -> None:
+    def test_single_try_on_delivers_best_generated_image_when_audit_needs_attention(self) -> None:
         core = load_script_module("virtual_try_on")
         with tempfile.TemporaryDirectory() as temporary:
             person = Path(temporary) / "person.png"
@@ -435,19 +486,23 @@ class DoubaoSkillContractTest(unittest.TestCase):
                 ),
                 mock.patch.object(core, "audit_result", return_value=failing_audit),
             ):
-                self.assertEqual(core.main(), 3)
+                self.assertEqual(core.main(), 0)
 
             manifest = (output / "manifest.json").read_text(encoding="utf-8")
             self.assertIn('"hard_pass": false', manifest)
-            self.assertIn('"quality_status": "hard_fail"', manifest)
+            self.assertIn('"delivery_eligible": true', manifest)
+            self.assertIn('"quality_status": "needs_attention"', manifest)
+            self.assertIn('"identity_score": 10', manifest)
 
     def test_packager_emits_expected_archive_without_cache_files(self) -> None:
+        packager = REPO_ROOT / "scripts" / "package_doubao_skill.py"
+        self.assertIn('VERSION = "1.4.3"', packager.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "skill.zip"
             run = subprocess.run(
                 [
                     sys.executable,
-                    str(REPO_ROOT / "scripts" / "package_doubao_skill.py"),
+                    str(packager),
                     "--output",
                     str(output),
                 ],

@@ -279,8 +279,8 @@ sequenceDiagram
 
 ### 8.1 真人试穿
 
-- 产品 `look.virtual_try_on` 默认执行 `doubao-virtual-try-on` Skill 的分析、生成、身份/服装审计与有界重试流程；只有审计硬通过的结果才能作为成功试穿图保存。
-- LiteLLM/FASHN/FastFit 适配器保留为历史兼容与质量研究实现，但标准 Compose Worker 不把它们配置为产品试穿回退；Skill 未通过时明确降级为真实单品拼贴。
+- 产品 `look.virtual_try_on` 默认执行 `doubao-virtual-try-on` Skill 的分析、生成、身份/服装审计与有界重试流程。审计负责触发最多一次重试、候选排序和风险记录；只要生成文件有效，就交付最佳候选并在 provider trace 中标记 `pass`、`review_required` 或 `needs_attention`。
+- LiteLLM/FASHN/FastFit 适配器保留为历史兼容与质量研究实现，但标准 Compose Worker 不把它们配置为产品试穿回退。只有输入照片不合格、Provider/API 调用失败或没有有效生成文件时，才明确降级为真实单品拼贴。
 - 用户上传的全身参考照是可选资料；没有参考照时显示固定模特或真实单品拼贴，不假装是用户本人。
 - 现场演示允许命中同一真实输入的内容哈希缓存，但缓存必须来自此前真实任务，并显示 cached 状态；禁止 hardcode 某个请求返回预制图。
 - FastFit 当前许可证只允许非商业 Demo；商业化前必须取得授权或替换。

@@ -29,23 +29,41 @@ class FakeSkillProcess:
         returncode: int = 0,
         quality_status: str | None = None,
         user_message: str | None = None,
+        hard_pass: bool | None = None,
+        release_eligible: bool | None = None,
+        delivery_eligible: bool | None = None,
+        audit_release_eligible: bool | None = None,
+        audit_summary: dict[str, object] | None = None,
+        result_body: bytes | None = None,
     ) -> None:
         self.returncode = returncode
         self._output_dir = output_dir
         self._quality_status = quality_status
         self._user_message = user_message
+        self._hard_pass = hard_pass
+        self._release_eligible = release_eligible
+        self._delivery_eligible = delivery_eligible
+        self._audit_release_eligible = audit_release_eligible
+        self._audit_summary = audit_summary
+        self._result_body = png_body() if result_body is None else result_body
 
     async def communicate(self) -> tuple[bytes, bytes]:
         self._output_dir.mkdir(parents=True)
-        (self._output_dir / "result.jpg").write_bytes(png_body())
+        (self._output_dir / "result.jpg").write_bytes(self._result_body)
         (self._output_dir / "manifest.json").write_text(
             json.dumps(
                 {
-                    "hard_pass": self.returncode == 0,
+                    "hard_pass": (
+                        self.returncode == 0 if self._hard_pass is None else self._hard_pass
+                    ),
+                    "release_eligible": self._release_eligible,
+                    "delivery_eligible": self._delivery_eligible,
+                    "audit_release_eligible": self._audit_release_eligible,
                     "quality_status": self._quality_status
                     or ("pass" if self.returncode == 0 else "hard_fail"),
                     "selected_attempt": 2,
                     "user_message": self._user_message,
+                    "selected_audit_summary": self._audit_summary,
                 }
             ),
             encoding="utf-8",
@@ -81,7 +99,7 @@ async def test_doubao_skill_generator_runs_audited_skill_and_returns_only_passed
         outfit_board=image_payload(color=(4, 5, 6)),
     )
 
-    assert generated.content_type == "image/jpeg"
+    assert generated.content_type == "image/png"
     assert generated.provider_trace.provider == "doubao_virtual_try_on_skill"
     assert generated.provider_trace.parameters["hard_pass"] is True
     assert generated.provider_trace.parameters["selected_attempt"] == 2
@@ -93,7 +111,7 @@ async def test_doubao_skill_generator_runs_audited_skill_and_returns_only_passed
 
 
 @pytest.mark.asyncio
-async def test_doubao_skill_generator_rejects_a_result_that_failed_audit(
+async def test_doubao_skill_generator_returns_review_required_result(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -102,7 +120,89 @@ async def test_doubao_skill_generator_rejects_a_result_that_failed_audit(
 
     async def create_process(*args: object, **kwargs: object) -> FakeSkillProcess:
         output_dir = Path(str(args[args.index("--output-dir") + 1]))
-        return FakeSkillProcess(output_dir, returncode=3)
+        return FakeSkillProcess(
+            output_dir,
+            quality_status="review_required",
+            hard_pass=False,
+            delivery_eligible=True,
+            audit_release_eligible=True,
+        )
+
+    monkeypatch.setattr(providers.asyncio, "create_subprocess_exec", create_process)
+    generator = DoubaoVirtualTryOnSkillGenerator(
+        skill_path=skill_path,
+        api_key="ark-secret",
+        understanding_model="understanding-model",
+        image_model="image-model",
+        timeout_seconds=10,
+    )
+
+    generated = await generator.try_on(
+        model_image=image_payload(color=(1, 2, 3)),
+        outfit_board=image_payload(color=(4, 5, 6)),
+    )
+
+    assert generated.provider_trace.parameters["hard_pass"] is False
+    assert generated.provider_trace.parameters["audit_release_eligible"] is True
+    assert generated.provider_trace.parameters["delivery_eligible"] is True
+    assert generated.provider_trace.parameters["quality_status"] == "review_required"
+
+
+@pytest.mark.asyncio
+async def test_doubao_skill_generator_returns_best_generated_result_needing_attention(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill_path = tmp_path / "virtual_try_on.py"
+    skill_path.write_text("# test entry", encoding="utf-8")
+
+    async def create_process(*args: object, **kwargs: object) -> FakeSkillProcess:
+        output_dir = Path(str(args[args.index("--output-dir") + 1]))
+        return FakeSkillProcess(
+            output_dir,
+            quality_status="needs_attention",
+            hard_pass=False,
+            delivery_eligible=True,
+            audit_release_eligible=False,
+            audit_summary={"identity_score": 10},
+        )
+
+    monkeypatch.setattr(providers.asyncio, "create_subprocess_exec", create_process)
+    generator = DoubaoVirtualTryOnSkillGenerator(
+        skill_path=skill_path,
+        api_key="ark-secret",
+        understanding_model="understanding-model",
+        image_model="image-model",
+        timeout_seconds=10,
+    )
+
+    generated = await generator.try_on(
+        model_image=image_payload(color=(1, 2, 3)),
+        outfit_board=image_payload(color=(4, 5, 6)),
+    )
+
+    assert generated.provider_trace.parameters["hard_pass"] is False
+    assert generated.provider_trace.parameters["audit_release_eligible"] is False
+    assert generated.provider_trace.parameters["delivery_eligible"] is True
+    assert generated.provider_trace.parameters["quality_status"] == "needs_attention"
+    assert generated.provider_trace.parameters["audit_summary"] == {"identity_score": 10}
+
+
+@pytest.mark.asyncio
+async def test_doubao_skill_generator_rejects_invalid_generated_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill_path = tmp_path / "virtual_try_on.py"
+    skill_path.write_text("# test entry", encoding="utf-8")
+
+    async def create_process(*args: object, **kwargs: object) -> FakeSkillProcess:
+        output_dir = Path(str(args[args.index("--output-dir") + 1]))
+        return FakeSkillProcess(
+            output_dir,
+            delivery_eligible=True,
+            result_body=b"not-an-image",
+        )
 
     monkeypatch.setattr(providers.asyncio, "create_subprocess_exec", create_process)
     generator = DoubaoVirtualTryOnSkillGenerator(
@@ -119,8 +219,8 @@ async def test_doubao_skill_generator_rejects_a_result_that_failed_audit(
             outfit_board=image_payload(color=(4, 5, 6)),
         )
 
-    assert captured.value.code == "try_on_identity_audit_failed"
-    assert captured.value.retryable is False
+    assert captured.value.code == "render_provider_schema_invalid"
+    assert "invalid result image" in str(captured.value)
 
 
 @pytest.mark.asyncio

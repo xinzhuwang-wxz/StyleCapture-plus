@@ -256,7 +256,7 @@ class SuccessfulAuditedTryOnGenerator:
             provider_trace=RenderProviderTrace(
                 provider="doubao_virtual_try_on_skill",
                 model="audited_identity_locked_workflow",
-                parameters={"skill_version": "1.4.1", "hard_pass": True},
+                parameters={"skill_version": "1.4.3", "hard_pass": True},
             ),
         )
 
@@ -1129,7 +1129,7 @@ async def test_personal_try_on_prefers_audited_doubao_skill_workflow() -> None:
     assert stored.provider_trace.parameters["capability_alias"] == ("doubao_virtual_try_on_skill")
     assert stored.provider_trace.parameters["strategy"] == ("analyze_generate_audit_retry")
     assert stored.provider_trace.parameters["prompt_version"] == (
-        "doubao-virtual-try-on-skill-v1.4.1"
+        "doubao-virtual-try-on-skill-v1.4.3"
     )
 
 
