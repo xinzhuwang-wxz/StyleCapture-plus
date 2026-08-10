@@ -157,9 +157,7 @@ class DoubaoVirtualTryOnSkillGenerator:
                         "skill_version": "1.4.3",
                         "selected_attempt": manifest.get("selected_attempt"),
                         "hard_pass": manifest.get("hard_pass") is True,
-                        "audit_release_eligible": (
-                            manifest.get("audit_release_eligible") is True
-                        ),
+                        "audit_release_eligible": (manifest.get("audit_release_eligible") is True),
                         "delivery_eligible": delivery_eligible,
                         "quality_status": manifest.get("quality_status"),
                         "audit_summary": manifest.get("selected_audit_summary"),
