@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -110,16 +112,24 @@ async def test_lists_only_the_current_users_items_and_returns_source_kind() -> N
 
 
 @pytest.mark.asyncio
-async def test_lists_reviewed_showcase_items_before_later_user_captures() -> None:
+async def test_lists_newest_items_first_regardless_of_showcase_metadata() -> None:
     user_id = uuid4()
-    uploaded = make_item(user_id=user_id)
-    showcase_second = make_item(user_id=user_id).with_model_metadata({"showcase_order": 1})
-    showcase_first = make_item(user_id=user_id).with_model_metadata({"showcase_order": 0})
+    oldest_showcase = make_item(user_id=user_id).with_model_metadata({"showcase_order": 0})
+    middle_showcase = make_item(user_id=user_id).with_model_metadata({"showcase_order": 1})
+    newest_upload = make_item(user_id=user_id)
+    middle_showcase = replace(
+        middle_showcase,
+        created_at=oldest_showcase.created_at + timedelta(minutes=1),
+    )
+    newest_upload = replace(
+        newest_upload,
+        created_at=oldest_showcase.created_at + timedelta(minutes=2),
+    )
     application = WardrobeApplication(
-        wardrobe=MemoryWardrobe([uploaded, showcase_second, showcase_first]),
+        wardrobe=MemoryWardrobe([oldest_showcase, middle_showcase, newest_upload]),
         sources=MemorySources(
             ImagePayload(
-                object_key=uploaded.source_object_key,
+                object_key=newest_upload.source_object_key,
                 content_type="image/jpeg",
                 body=b"image",
                 sha256="a" * 64,
@@ -129,7 +139,7 @@ async def test_lists_reviewed_showcase_items_before_later_user_captures() -> Non
 
     items = await application.list_items(user_id)
 
-    assert items == [showcase_first, showcase_second, uploaded]
+    assert items == [newest_upload, middle_showcase, oldest_showcase]
 
 
 @pytest.mark.asyncio

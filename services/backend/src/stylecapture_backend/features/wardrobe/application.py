@@ -82,15 +82,6 @@ class WardrobeDeletionInProgressError(RuntimeError):
     """A running worker still owns the item and could recreate deleted rows."""
 
 
-def _wardrobe_display_order(item: WardrobeItem) -> tuple[int, int]:
-    """Keep reviewed showcase assets first without disturbing new-item recency."""
-
-    raw_order = item.model_metadata.get("showcase_order")
-    if isinstance(raw_order, int) and not isinstance(raw_order, bool) and raw_order >= 0:
-        return (0, raw_order)
-    return (1, 0)
-
-
 class WardrobeApplication:
     def __init__(
         self,
@@ -107,7 +98,7 @@ class WardrobeApplication:
 
     async def list_items(self, user_id: UUID) -> list[WardrobeItem]:
         items = await self._wardrobe.list_for_user(user_id)
-        return sorted(items, key=_wardrobe_display_order)
+        return sorted(items, key=lambda item: item.created_at, reverse=True)
 
     async def get_item(self, user_id: UUID, item_id: UUID) -> WardrobeItem:
         item = await self._wardrobe.get_for_user(item_id, user_id)
