@@ -2,7 +2,7 @@
 
 Base URL: https://119.45.216.38/
 Viewport: 390x844
-Fixture: services/backend/src/stylecapture_backend/demo_assets/look-city-commute.jpg
+Fixture: apps/h5/public/feed/posters/pexels-7681932.jpg
 
 Observed lifecycle:
 - PR12 add menu opens the profile pixel trial entry.
