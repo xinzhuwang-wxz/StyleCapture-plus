@@ -13,7 +13,7 @@ const evidenceDirectory = path.join(
 );
 const fullBodyFixture = path.join(
   repositoryRoot,
-  "services/backend/src/stylecapture_backend/demo_assets/look-city-commute.jpg"
+  "apps/h5/public/feed/posters/pexels-7681932.jpg"
 );
 const invalidFixture = path.join(evidenceDirectory, "invalid-upload.txt");
 
@@ -63,7 +63,7 @@ async function wardrobeCounts(page: Page) {
 async function waitForSeededCounts(page: Page) {
   await expect
     .poll(async () => wardrobeCounts(page), { timeout: 30_000 })
-    .toMatchObject({ items: "28", looks: "3" });
+    .toMatchObject({ items: "20", looks: "6" });
   return wardrobeCounts(page);
 }
 

@@ -38,6 +38,7 @@ from stylecapture_backend.features.outfit.infrastructure.reranker import (
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ASSET_ROOT = REPOSITORY_ROOT / "services/backend/src/stylecapture_backend/demo_assets"
+FEED_POSTER_ROOT = REPOSITORY_ROOT / "apps/h5/public/feed/posters"
 DEFAULT_GATEWAY_URL = "http://127.0.0.1:4000/v1"
 LOCAL_GATEWAY_DEFAULT = "local-litellm-gateway-key-change-before-production"
 PRICE_SOURCE = "https://www.volcengine.com/docs/84458/1585097?lang=zh&redirect=1"
@@ -124,7 +125,7 @@ class LookCase:
 LOOK_CASES = (
     LookCase(
         key="city_commute",
-        path=ASSET_ROOT / "look-city-commute.jpg",
+        path=FEED_POSTER_ROOT / "pexels-7681932.jpg",
         source_ref="https://www.pexels.com/video/7681932/",
         roles=("tops", "bottoms", "outerwear", "shoes"),
         expected_terms={
@@ -136,7 +137,7 @@ LOOK_CASES = (
     ),
     LookCase(
         key="evening_blue",
-        path=ASSET_ROOT / "look-evening-blue.jpg",
+        path=FEED_POSTER_ROOT / "pexels-15396483.jpg",
         source_ref="https://www.pexels.com/video/15396483/",
         roles=("dresses", "shoes"),
         expected_terms={
@@ -148,7 +149,7 @@ LOOK_CASES = (
     ),
     LookCase(
         key="weekend_denim",
-        path=ASSET_ROOT / "look-weekend-denim.jpg",
+        path=FEED_POSTER_ROOT / "pexels-7760056.jpg",
         source_ref="https://www.pexels.com/video/7760056/",
         roles=("tops", "bottoms", "outerwear", "shoes"),
         expected_terms={
