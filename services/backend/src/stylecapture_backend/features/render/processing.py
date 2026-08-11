@@ -340,18 +340,17 @@ class RenderProcessor:
                 await self._store_success(artifact, _generated_payload(generated))
                 return
             except RenderProviderError as error:
-                reason = (
-                    str(error)
-                    if error.code == "try_on_source_photo_ineligible"
-                    else "真人试穿未通过身份、比例或服装保真审计，已保留真实单品拼贴。"  # noqa: RUF001
+                await self._degrade(
+                    artifact,
+                    fallback,
+                    _audited_try_on_failure_message(error),
                 )
-                await self._degrade(artifact, fallback, reason)
                 return
             except ValueError:
                 await self._degrade(
                     artifact,
                     fallback,
-                    "真人试穿未通过身份或服装保真审计。已保留真实单品拼贴",
+                    "本次试穿图生成失败，请重新尝试。",  # noqa: RUF001
                 )
                 return
 
@@ -679,6 +678,18 @@ def _generated_payload(generated: GeneratedImage) -> ImagePayload:
         body=generated.body,
         sha256=content_hash,
     )
+
+
+def _audited_try_on_failure_message(error: RenderProviderError) -> str:
+    if error.code == "try_on_source_photo_ineligible":
+        return str(error)
+    if error.code == "try_on_identity_audit_failed":
+        return "本次试穿图未达到可用质量，请重新尝试。"  # noqa: RUF001
+    if error.code == "render_provider_unavailable":
+        return "真人试穿服务暂时不可用，请稍后重试。"  # noqa: RUF001
+    if error.code == "render_provider_schema_invalid":
+        return "本次试穿图生成失败，请重新尝试。"  # noqa: RUF001
+    return "真人试穿生成失败，请稍后重试。"  # noqa: RUF001
 
 
 def _try_on_category(role: str | None) -> str | None:

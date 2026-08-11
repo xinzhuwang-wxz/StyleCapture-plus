@@ -286,6 +286,16 @@ class FailingAuditedTryOnGenerator:
         )
 
 
+class InvalidResultAuditedTryOnGenerator:
+    async def try_on(
+        self,
+        *,
+        model_image: ImagePayload,
+        outfit_board: ImagePayload,
+    ) -> GeneratedImage:
+        raise ValueError("generated result is malformed")
+
+
 class CorruptPixelGenerator:
     async def generate(
         self,
@@ -1137,8 +1147,28 @@ async def test_personal_try_on_prefers_audited_doubao_skill_workflow() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("code", "expected_message"),
+    [
+        (
+            "try_on_identity_audit_failed",
+            "本次试穿图未达到可用质量，请重新尝试。",  # noqa: RUF001
+        ),
+        (
+            "render_provider_unavailable",
+            "真人试穿服务暂时不可用，请稍后重试。",  # noqa: RUF001
+        ),
+        (
+            "render_provider_schema_invalid",
+            "本次试穿图生成失败，请重新尝试。",  # noqa: RUF001
+        ),
+    ],
+)
 @pytest.mark.asyncio
-async def test_failed_audited_try_on_degrades_without_legacy_provider_fallback() -> None:
+async def test_failed_audited_try_on_uses_specific_user_facing_message(
+    code: str,
+    expected_message: str,
+) -> None:
     user_id, detail, item, objects = fixture()
     subject = payload("originals/upload/my-full-body.png", (160, 130, 110))
     objects.images[subject.object_key] = subject
@@ -1150,7 +1180,7 @@ async def test_failed_audited_try_on_degrades_without_legacy_provider_fallback()
     )
     repository = MemoryRenderRepository([collage])
     renders = RenderApplication(artifacts=repository)
-    audited = FailingAuditedTryOnGenerator()
+    audited = FailingAuditedTryOnGenerator(code=code)
     legacy_image_generator = SuccessfulPixelGenerator()
     dedicated_try_on = SuccessfulTryOnGenerator()
     processor = RenderProcessor(
@@ -1180,6 +1210,7 @@ async def test_failed_audited_try_on_degrades_without_legacy_provider_fallback()
 
     stored = repository.artifacts[artifact.id]
     assert stored.status is RenderArtifactStatus.DEGRADED
+    assert stored.failure_message == expected_message
     assert audited.calls == 1
     assert legacy_image_generator.images == ()
     assert dedicated_try_on.categories == []
@@ -1231,6 +1262,48 @@ async def test_source_photo_rejection_reason_is_persisted_for_h5() -> None:
     stored = repository.artifacts[artifact.id]
     assert stored.status is RenderArtifactStatus.DEGRADED
     assert stored.failure_message == reason
+
+
+@pytest.mark.asyncio
+async def test_invalid_audited_try_on_result_uses_generation_failure_message() -> None:
+    user_id, detail, item, objects = fixture()
+    subject = payload("originals/upload/my-full-body.png", (160, 130, 110))
+    objects.images[subject.object_key] = subject
+    collage = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.COLLAGE,
+        request_key="collage-invalid-audited-result",
+    )
+    repository = MemoryRenderRepository([collage])
+    processor = RenderProcessor(
+        artifacts=repository,
+        renders=RenderApplication(artifacts=repository),
+        looks=MemoryLookRepository(detail),  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobeRepository(item),
+        objects=objects,
+        collages=PillowLookCollageRenderer(canvas_size=320),
+        pixel_generator=None,
+        try_on_generator=None,
+        audited_try_on_generator=InvalidResultAuditedTryOnGenerator(),
+        fixed_model_object_key=None,
+    )
+    await processor.process(user_id=user_id, artifact_id=collage.id)
+    artifact = queued(
+        user_id=user_id,
+        look_id=detail.look.id,
+        kind=RenderArtifactKind.TRY_ON,
+        request_key="personal-invalid-audited-result",
+        source_artifact_id=collage.id,
+        subject_object_key=subject.object_key,
+    )
+    repository.artifacts[artifact.id] = artifact
+
+    await processor.process(user_id=user_id, artifact_id=artifact.id)
+
+    stored = repository.artifacts[artifact.id]
+    assert stored.status is RenderArtifactStatus.DEGRADED
+    assert stored.failure_message == "本次试穿图生成失败，请重新尝试。"  # noqa: RUF001
 
 
 @pytest.mark.asyncio
