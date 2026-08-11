@@ -32,6 +32,12 @@ const LOOK_FILTER_OPTIONS: readonly [LookFilter, string][] = [
   ["ai_generated", "AI 推荐"]
 ];
 
+export function orderItemsNewestFirst(items: readonly Item[]): Item[] {
+  return [...items].sort((left, right) =>
+    right.created_at.localeCompare(left.created_at)
+  );
+}
+
 export function WardrobeScreen({
   view,
   onViewChange,
@@ -146,13 +152,13 @@ export function WardrobeScreen({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [filterOpen]);
-  const visibleItems = useMemo(
-    () =>
+  const visibleItems = useMemo(() => {
+    const matchingItems =
       itemFilter === "all"
         ? items
-        : items.filter((item) => item.ownership === itemFilter),
-    [itemFilter, items]
-  );
+        : items.filter((item) => item.ownership === itemFilter);
+    return orderItemsNewestFirst(matchingItems);
+  }, [itemFilter, items]);
   const visibleLooks = useMemo(
     () =>
       lookFilter === "all"

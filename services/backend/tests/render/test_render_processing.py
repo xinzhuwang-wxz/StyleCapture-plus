@@ -603,7 +603,7 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert stored_pixel.provider_trace.parameters["capability_alias"] == "image_generation"
     assert (
         stored_pixel.provider_trace.parameters["prompt_version"]
-        == "look-pixel-cover-zh-v11-single-content-source"
+        == "look-pixel-cover-zh-v12-no-outfit-ornaments"
     )
     assert (
         stored_pixel.provider_trace.parameters["style_reference_version"]
@@ -612,13 +612,17 @@ async def test_processor_builds_real_collage_and_pixel_cover() -> None:
     assert "第一张图是唯一内容图" in pixel_generator.prompt
     assert "最后两张图只提供画风" in pixel_generator.prompt
     assert "若第一张图是单品拼贴" in pixel_generator.prompt
+    assert "不得把拼贴单品变成背景装饰" in pixel_generator.prompt
     assert "3:4" in pixel_generator.prompt
     assert "不画完整场景" in pixel_generator.prompt
     assert "眼睛较大圆润有高光" in pixel_generator.prompt
     assert "鼻子只用" not in pixel_generator.prompt
     assert "避免大面积纯白或中性灰" in pixel_generator.prompt
     assert "单个不超过人物头宽四分之一" in pixel_generator.prompt
-    assert "图标从原场景语义抽象" in pixel_generator.prompt
+    assert "仅当内容图有明确场景标志物时" in pixel_generator.prompt
+    assert "否则只用星芒、圆点、菱形等简单符号" in pixel_generator.prompt
+    assert "服装、鞋、包和首饰只属于人物" in pixel_generator.prompt
+    assert "禁止复制为漂浮图标" in pixel_generator.prompt
     assert stored_pixel.provider_trace.parameters["schema_version"] == "generated-image-v1"
     assert len(pixel_generator.images) == 3
     assert pixel_generator.size == "1728x2304"

@@ -3334,17 +3334,6 @@ p {
   font-weight: 760;
 }
 
-.capture-sheet__kind-icon {
-  display: grid;
-  width: 2.15rem;
-  height: 2.15rem;
-  place-items: center;
-  border-radius: 50%;
-  background: #f5f0ff;
-  color: var(--purple-600);
-  font-size: 1.25rem;
-}
-
 .capture-sheet__ownership-options {
   display: grid;
   grid-template-columns: 1fr 1fr;

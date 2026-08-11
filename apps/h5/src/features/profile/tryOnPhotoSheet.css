@@ -211,10 +211,10 @@
   font-size: 0.75rem;
 }
 
-.tryon-photo-picker__empty button {
+.tryon-photo-picker__create-button {
   padding: 0.65rem 1.1rem;
-  color: #fff;
-  background: var(--pixel-primary);
-  border: 0;
+  color: var(--pixel-primary-dark);
+  background: #fff;
+  border: 2px solid var(--pixel-primary-dark);
   border-radius: 999px;
 }

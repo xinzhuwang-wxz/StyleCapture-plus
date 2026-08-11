@@ -36,40 +36,6 @@
       "curated_seed_reason": "Manually selected as a non-commercial review Feed runway example."
     },
     {
-      "asset_id": "pexels-5655044",
-      "source_page_url": "https://www.pexels.com/video/a-woman-practicing-a-mode-catwalk-5655044/",
-      "source_platform": "pexels",
-      "creator_name": "cottonbro studio",
-      "license_name": "Pexels License",
-      "license_url": "https://www.pexels.com/license/",
-      "local_path": "media/pexels-5655044.mp4",
-      "content_type": "video",
-      "category_bucket": "runway",
-      "orientation": "vertical",
-      "sha256": "086206e188456c627148962a7e7068181685a67db2d99874bb79668403bad8e6",
-      "replacement_note": "Replace with another vertical runway video under the same license.",
-      "fixed_regression": false,
-      "annotation_provenance": "curated_seed",
-      "curated_seed_reason": "Manually selected as a non-commercial review Feed runway example."
-    },
-    {
-      "asset_id": "pexels-19862866",
-      "source_page_url": "https://www.pexels.com/video/fashion-model-19862866/",
-      "source_platform": "pexels",
-      "creator_name": "Bubble Media",
-      "license_name": "Pexels License",
-      "license_url": "https://www.pexels.com/license/",
-      "local_path": "media/pexels-19862866.mp4",
-      "content_type": "video",
-      "category_bucket": "runway",
-      "orientation": "vertical",
-      "sha256": "594745e82c4083f2f94ef9e1fd0193205f4fd2394c323f87c80e6b6493f2e9fe",
-      "replacement_note": "Replace with another vertical runway video under the same license.",
-      "fixed_regression": true,
-      "annotation_provenance": "curated_seed",
-      "curated_seed_reason": "Manually selected as a fixed runway regression case for the non-commercial review Feed."
-    },
-    {
       "asset_id": "pexels-31223596",
       "source_page_url": "https://www.pexels.com/video/elegant-fashion-model-in-pink-dress-showcase-31223596/",
       "source_platform": "pexels",
@@ -510,6 +476,40 @@
       "fixed_regression": false,
       "annotation_provenance": "curated_seed",
       "curated_seed_reason": "Manually selected as a non-commercial review Feed historical example."
+    },
+    {
+      "asset_id": "pexels-5655044",
+      "source_page_url": "https://www.pexels.com/video/a-woman-practicing-a-mode-catwalk-5655044/",
+      "source_platform": "pexels",
+      "creator_name": "cottonbro studio",
+      "license_name": "Pexels License",
+      "license_url": "https://www.pexels.com/license/",
+      "local_path": "media/pexels-5655044.mp4",
+      "content_type": "video",
+      "category_bucket": "runway",
+      "orientation": "vertical",
+      "sha256": "086206e188456c627148962a7e7068181685a67db2d99874bb79668403bad8e6",
+      "replacement_note": "Replace with another vertical runway video under the same license.",
+      "fixed_regression": false,
+      "annotation_provenance": "curated_seed",
+      "curated_seed_reason": "Manually selected as a non-commercial review Feed runway example."
+    },
+    {
+      "asset_id": "pexels-19862866",
+      "source_page_url": "https://www.pexels.com/video/fashion-model-19862866/",
+      "source_platform": "pexels",
+      "creator_name": "Bubble Media",
+      "license_name": "Pexels License",
+      "license_url": "https://www.pexels.com/license/",
+      "local_path": "media/pexels-19862866.mp4",
+      "content_type": "video",
+      "category_bucket": "runway",
+      "orientation": "vertical",
+      "sha256": "594745e82c4083f2f94ef9e1fd0193205f4fd2394c323f87c80e6b6493f2e9fe",
+      "replacement_note": "Replace with another vertical runway video under the same license.",
+      "fixed_regression": true,
+      "annotation_provenance": "curated_seed",
+      "curated_seed_reason": "Manually selected as a fixed runway regression case for the non-commercial review Feed."
     }
   ]
 }

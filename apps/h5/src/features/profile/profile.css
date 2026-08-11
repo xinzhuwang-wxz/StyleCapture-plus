@@ -282,6 +282,23 @@
   grid-column: 1 / -1;
 }
 
+.profile__actions--save {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.profile__save-button.pixel-button--primary {
+  width: 100%;
+  min-height: 3.25rem;
+  color: var(--pixel-primary-dark);
+  background: #fff;
+  border-color: var(--pixel-primary-dark);
+  box-shadow: none;
+}
+
+.profile__save-button.pixel-button--primary:active {
+  box-shadow: none;
+}
+
 .profile__error {
   padding: 8px 10px;
   margin-bottom: var(--px-3);

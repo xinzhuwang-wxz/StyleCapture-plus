@@ -183,8 +183,11 @@ describe("body profile sheet", () => {
     expect(props.onClose).not.toHaveBeenCalled();
   });
 
-  it("tells the user the data stays on this device", () => {
+  it("uses one full-width outlined save action without the redundant summary", () => {
     renderSheet();
-    expect(screen.getByText(/不会上传服务器/)).toBeInTheDocument();
+    expect(screen.queryByText(/身材越准/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存资料" })).toHaveClass(
+      "profile__save-button"
+    );
   });
 });

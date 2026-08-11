@@ -25,6 +25,22 @@ beforeEach(() => {
 });
 
 describe("try-on photo picker", () => {
+  it("uses an outlined create action when the album is empty", () => {
+    render(
+      <TryOnPhotoSheet
+        album={{ photos: [], activeId: null }}
+        onAlbumChange={vi.fn()}
+        onChoose={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "使用已有形象" }));
+    expect(screen.getByRole("button", { name: "新建形象" })).toHaveClass(
+      "tryon-photo-picker__create-button"
+    );
+  });
+
   it("uses an existing photo from the same album as My profile", () => {
     const onChoose = vi.fn();
     const album: PhotoAlbum = {
