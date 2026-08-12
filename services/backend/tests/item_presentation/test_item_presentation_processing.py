@@ -258,7 +258,9 @@ async def test_deleted_presentation_cancels_a_queued_worker_without_error() -> N
     )
     repository = VanishingPresentations(asset)
     processor = ItemPresentationProcessor(
-        presentations=ItemPresentationApplication(assets=repository, wardrobe=OneItemWardrobe(item)),
+        presentations=ItemPresentationApplication(
+            assets=repository, wardrobe=OneItemWardrobe(item)
+        ),
         wardrobe=OneItemWardrobe(item),
         objects=MemoryObjects(),
         generator=FailIfCalledGenerator(),
