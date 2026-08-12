@@ -8,6 +8,17 @@ const repositoryRoot = path.resolve(
   "../../.."
 );
 const evidenceDirectory = path.join(repositoryRoot, "docs/evidence/issue-6/feed");
+let savedLookToCleanUp: string | null = null;
+
+test.afterEach(async ({ page }) => {
+  if (savedLookToCleanUp === null) return;
+  await page
+    .evaluate(async (lookId) => {
+      await fetch(`/v1/looks/${lookId}?delete_items=true`, { method: "DELETE" });
+    }, savedLookToCleanUp)
+    .catch(() => undefined);
+  savedLookToCleanUp = null;
+});
 
 async function saveEvidence(page: Page, name: string) {
   fs.mkdirSync(evidenceDirectory, { recursive: true });
@@ -231,6 +242,7 @@ test.describe("Issue 6 public Feed lasso", () => {
     await expect(page.getByTestId("feed")).toBeVisible();
 
     const savedLookId = await saveWholeOutfitBySwipe(page);
+    savedLookToCleanUp = savedLookId;
     await saveEvidence(page, "06-right-swipe-saved-toast");
 
     await openWardrobeAndCountLooks(page);
@@ -240,8 +252,8 @@ test.describe("Issue 6 public Feed lasso", () => {
       .poll(() => page.locator(".look-card").count(), { timeout: 30_000 })
       .toBeGreaterThan(existingLooks);
     await expect(savedLook).toContainText("Feed 穿搭灵感");
-    await expect(savedLook).not.toContainText("正在拆解", { timeout: 150_000 });
-    await expect(savedLook).toContainText(/搭配已解析|已收藏 · 待补全|解析失败/);
+    await expect(savedLook).not.toContainText("正在整理", { timeout: 150_000 });
+    await expect(savedLook).toContainText("灵感收藏 · 已整理");
     await savedLook.click();
     await expect(page.getByText("Feed 穿搭灵感").first()).toBeVisible();
     await saveEvidence(page, "07-wardrobe-recovered-look");

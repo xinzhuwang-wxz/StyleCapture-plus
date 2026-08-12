@@ -6,7 +6,6 @@ const evidence = (name: string) =>
 
 async function enterPixelWorld(page: import("@playwright/test").Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "数字衣橱" }).click();
   await page.getByRole("button", { name: "像素世界" }).click();
   await expect(
     page.getByLabel("花房夜宴像素世界，点击地面走动，点击角色查看他的 Look")
