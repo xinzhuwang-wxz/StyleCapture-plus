@@ -10,10 +10,10 @@ test("accepts a real iPhone HEIC upload through the public wardrobe flow", async
   test.setTimeout(120_000);
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible();
 
   const chooserPromise = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "添加衣服或试试像素形象" }).click();
+  await page.getByRole("button", { name: "添加衣服" }).click();
   await page.getByRole("dialog", { name: "添加到 StyleCapture" }).getByText("从相册导入").click();
   const chooser = await chooserPromise;
   await chooser.setFiles(heicFixture);

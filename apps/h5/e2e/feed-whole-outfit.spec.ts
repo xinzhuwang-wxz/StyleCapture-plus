@@ -43,7 +43,7 @@ async function openWardrobeAndCountLooks(page: Page) {
     { timeout: 15_000 }
   ).catch(() => null);
   await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible();
   await looksLoaded;
   await expect(page.locator(".wardrobe-loading")).toHaveCount(0);
   return page.locator(".look-card").count();

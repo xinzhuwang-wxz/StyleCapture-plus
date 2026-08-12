@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -7,6 +8,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Protocol, cast
 from uuid import UUID
+from weakref import WeakValueDictionary
 
 from stylecapture_backend.features.capture.domain import (
     Capture,
@@ -296,8 +298,17 @@ class CuratedDemoWardrobeBootstrapper:
         self._assets_root = assets_root
         self._item_presentations = item_presentations
         self._renders = renders
+        self._user_locks: WeakValueDictionary[UUID, asyncio.Lock] = WeakValueDictionary()
 
     async def ensure_for_user(self, user_id: UUID) -> None:
+        lock = self._user_locks.get(user_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._user_locks[user_id] = lock
+        async with lock:
+            await self._ensure_for_user(user_id)
+
+    async def _ensure_for_user(self, user_id: UUID) -> None:
         await self._remove_retired_seed_content(user_id)
         stored_items: dict[str, WardrobeItem] = {}
         for item_definition in SEED_ITEMS:

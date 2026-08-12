@@ -34,10 +34,10 @@ async function openProfile(page: Page) {
   const enterWardrobe = page.getByText("进入数字衣橱", { exact: true });
   await expect(enterWardrobe).toBeVisible({ timeout: 20_000 });
   await enterWardrobe.click();
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
-  await page.getByRole("button", { name: "添加衣服或试试像素形象" }).click();
+  await page.getByRole("button", { name: "添加衣服" }).click();
   const addDialog = page.getByRole("dialog", { name: "添加到 StyleCapture" });
   await expect(addDialog).toBeVisible();
   await addDialog.getByText("试试像素形象").click();

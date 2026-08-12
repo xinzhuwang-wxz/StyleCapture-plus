@@ -30,7 +30,7 @@ async function shot(page: Page, name: string) {
 test("capture the restyled screens", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   // 衣橱现在就是首页（main 的「让数字衣橱成为稳定的产品首页」），不再有入口按钮。
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
   await shot(page, "01-wardrobe-looks");
@@ -41,7 +41,7 @@ test("capture the restyled screens", async ({ page }) => {
   ).toBeVisible({ timeout: 20_000 });
   await shot(page, "03-wardrobe-items");
 
-  await page.getByRole("button", { name: "添加衣服或试试像素形象" }).click();
+  await page.getByRole("button", { name: "添加衣服" }).click();
   const addDialog = page.getByRole("dialog", { name: "添加到 StyleCapture" });
   await expect(addDialog).toBeVisible();
   await shot(page, "04-add-sheet");

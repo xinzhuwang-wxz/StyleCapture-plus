@@ -86,7 +86,7 @@ async function openWardrobeHome(
     wardrobe.locator(".wardrobe-card").first().waitFor({ state: "visible", timeout: 3_000 }).catch(() => undefined)
   ]);
   timings.wardrobeFirstFeedback = Date.now() - t0;
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
   await expect(wardrobe.locator(".wardrobe-card").first()).toBeVisible({
@@ -110,7 +110,7 @@ test.describe("public mobile navigation", () => {
 
       await expect(page.getByRole("tab", { name: "按穿搭" })).toBeVisible();
       await expect(page.getByRole("tab", { name: "按单品" })).toBeVisible();
-      await expect(page.getByText("我的数字衣橱")).toBeVisible();
+      await expect(page.getByText("我的衣橱", { exact: true })).toBeVisible();
       await expect(page.locator(".wardrobe-section .wardrobe-card").first()).toBeVisible();
       await page.getByRole("button", { name: "刷灵感 Feed", exact: true }).click();
       await expect(page.getByRole("region", { name: "穿搭灵感" })).toBeVisible();
@@ -125,7 +125,7 @@ test.describe("public mobile navigation", () => {
   }) => {
     await page.setViewportSize({ width: 1024, height: 844 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
       timeout: 20_000
     });
 
@@ -155,28 +155,18 @@ test.describe("public mobile navigation", () => {
     await expect(page.locator(".item-card").first()).toBeVisible({
       timeout: 20_000
     });
-    await expect(page.getByText("我的衣服").first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText("衣橱里还没有");
     await page.locator(".item-card .item-card__open").first().click();
     const detail = page.getByRole("dialog", { name: "单品详情" });
     await expect(detail).toBeVisible();
-    await expect(
-      detail.locator('img[data-image-kind="wardrobe-display"]')
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(detail.locator(".detail-image img")).toBeVisible({ timeout: 20_000 });
     await saveEvidence(page, "03-wardrobe-items");
   });
 
-  test("opens analysis and AI tabs with real Chinese product copy", async ({
+  test("opens AI and pixel-world tabs with real Chinese product copy", async ({
     page
   }) => {
-    await openWardrobeHome(page, "analysis-ai");
-
-    await page.getByRole("button", { name: "分析", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "穿搭分析" }).first()).toBeVisible();
-    await expect(page.getByText("我的单品")).toBeVisible();
-    await expect(page.locator("body")).not.toContainText("undefined");
-    await expect(page.locator("body")).not.toContainText("待接入");
-    await saveEvidence(page, "04-analysis");
+    await openWardrobeHome(page, "ai-world");
 
     await page.getByRole("button", { name: "AI", exact: true }).click();
     await expect(page.getByRole("heading", { name: /AI|推荐|穿搭/ })).toBeVisible();
@@ -184,26 +174,29 @@ test.describe("public mobile navigation", () => {
     await expect(page.locator('[aria-label="快捷场景"]')).toBeVisible();
     await expect(page.locator("body")).not.toContainText("真实推荐待接入");
     await saveEvidence(page, "05-ai");
+
+    await page.getByRole("button", { name: "像素世界", exact: true }).click();
+    await expect(page.getByRole("region", { name: "像素世界" })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("undefined");
+    await saveEvidence(page, "04-pixel-world");
   });
 
-  test("opens the add menu and profile try-it entry", async ({ page }) => {
+  test("opens the add menu and profile entry", async ({ page }) => {
     await openWardrobeHome(page, "add-profile");
 
-    await page
-      .getByRole("button", { name: "添加衣服或试试像素形象" })
-      .click();
+    await page.getByRole("button", { name: "添加衣服" }).click();
     const addDialog = page.getByRole("dialog", { name: "添加到 StyleCapture" });
     await expect(addDialog).toBeVisible();
     await expect(addDialog.getByText("拍下真实衣服")).toBeVisible();
     await expect(addDialog.getByText("从相册导入")).toBeVisible();
-    await expect(addDialog.getByText("试试像素形象")).toBeVisible();
     await saveEvidence(page, "06-add-menu");
 
-    await addDialog.getByText("试试像素形象").click();
-    await expect(page.getByRole("heading", { name: "我的 StyleCapture" })).toBeVisible();
-    await expect(page.getByText("只生成像素图，不写入数字衣橱")).toBeVisible();
-    await expect(page.getByRole("button", { name: "选择全身照生成像素形象" })).toBeVisible();
-    await saveEvidence(page, "07-profile-try-it");
+    await addDialog.getByRole("button", { name: "关闭", exact: true }).click();
+    await page.getByRole("button", { name: "我的", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "我的", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "个人数字资产概览" })).toBeVisible();
+    await expect(page.getByText(/已收录 \d+ 件单品/)).toBeVisible();
+    await saveEvidence(page, "07-profile");
   });
 
   test("returns from wardrobe to the public feed without duplicate blank tabs", async ({
