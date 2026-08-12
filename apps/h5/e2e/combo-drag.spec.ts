@@ -16,7 +16,7 @@ async function shot(page: Page, name: string) {
 
 async function openItems(page: Page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
   await page.getByRole("tab", { name: "按单品" }).click();

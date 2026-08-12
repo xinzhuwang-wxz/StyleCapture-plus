@@ -7,7 +7,7 @@ test("a failed screen chunk degrades to a retry, not a blank page", async ({
   await page.route("**/LookDetail*", (route) => route.abort());
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
   await page.locator(".look-card").first().click();

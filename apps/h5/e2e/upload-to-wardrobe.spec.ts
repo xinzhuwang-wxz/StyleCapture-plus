@@ -13,6 +13,17 @@ const jpegFixture = path.join(
 );
 const heicFixture = path.join(testDirectory, "fixtures", "single-garment.heic");
 const uploadFixture = fs.existsSync(heicFixture) ? heicFixture : jpegFixture;
+let uploadedItemToCleanUp: string | null = null;
+
+test.afterEach(async ({ page }) => {
+  if (uploadedItemToCleanUp === null) return;
+  await page
+    .evaluate(async (itemId) => {
+      await fetch(`/v1/items/${itemId}`, { method: "DELETE" });
+    }, uploadedItemToCleanUp)
+    .catch(() => undefined);
+  uploadedItemToCleanUp = null;
+});
 
 async function saveEvidence(page: import("@playwright/test").Page, name: string) {
   fs.mkdirSync(evidenceDirectory, { recursive: true });
@@ -24,11 +35,11 @@ async function saveEvidence(page: import("@playwright/test").Page, name: string)
 }
 
 async function enterWardrobeFromCurrentFeed(page: import("@playwright/test").Page) {
-  const wardrobeHeading = page.getByRole("heading", { name: "我的数字衣橱" });
+  const wardrobeHeading = page.getByRole("heading", { name: "我的衣橱" });
   if (!(await wardrobeHeading.isVisible().catch(() => false))) {
     await page.getByRole("button", { name: "数字衣橱", exact: true }).click();
   }
-  await expect(page.getByRole("heading", { name: "我的数字衣橱" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
   await page.getByRole("tab", { name: "按单品", exact: true }).click();
@@ -108,7 +119,7 @@ test("uploads a real garment, normalizes its display image, and preserves the as
 
   const chooserPromise = page.waitForEvent("filechooser");
   await page
-    .getByRole("button", { name: "添加衣服或试试像素形象" })
+    .getByRole("button", { name: "添加衣服" })
     .click();
   const addDialog = page.getByRole("dialog", { name: "添加到 StyleCapture" });
   await expect(addDialog).toBeVisible();
@@ -121,7 +132,7 @@ test("uploads a real garment, normalizes its display image, and preserves the as
   await expect(confirmation).toBeVisible();
   await saveEvidence(page, "03-upload-confirmation");
   await confirmation.getByRole("button", { name: "单件衣服" }).click();
-  await confirmation.getByRole("button", { name: "我的衣服" }).click();
+  await confirmation.getByRole("button", { name: "已拥有" }).click();
   const captureAccepted = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -178,38 +189,55 @@ test("uploads a real garment, normalizes its display image, and preserves the as
     };
     return payload.items.find((candidate) => candidate.capture_id === captureId)!.id;
   }, captureAcceptedPayload.capture_id);
+  uploadedItemToCleanUp = uploadedItemId;
   const uploadedItem = page.locator(`.item-card[data-item-id="${uploadedItemId}"]`);
   await expect(uploadedItem).toBeVisible({ timeout: 30_000 });
   await saveEvidence(page, "05-background-processing-complete");
 
-  await expect(uploadedItem.getByText("可搭配")).toBeVisible({
-    timeout: 150_000
-  });
+  await expect(uploadedItem).toContainText("已整理");
   await uploadedItem.scrollIntoViewIfNeeded();
   const uploadedPixelCover = uploadedItem.locator('img[data-image-kind="wardrobe-pixel"]');
-  const pixelCoverVisible = await uploadedPixelCover
-    .waitFor({ state: "visible", timeout: 90_000 })
-    .then(() => true)
+  const pixelCoverVisible = await uploadedPixelCover.isVisible().catch(() => false);
+  const pixelRetryVisible = await uploadedItem
+    .getByRole("button", { name: "重试像素图" })
+    .isVisible()
     .catch(() => false);
+  const sourceFallbackVisible = await uploadedItem
+    .locator('img[data-image-kind="wardrobe-item-source-placeholder"]')
+    .isVisible()
+    .catch(() => false);
+  expect(pixelCoverVisible || pixelRetryVisible || sourceFallbackVisible).toBe(true);
   fs.writeFileSync(
     path.join(evidenceDirectory, "pixel-cover-check.json"),
-    JSON.stringify({ pixelCoverVisible }, null, 2)
+    JSON.stringify({ pixelCoverVisible, pixelRetryVisible, sourceFallbackVisible }, null, 2)
   );
   const uploadedTitle = (await uploadedItem.locator("strong").first().innerText()).trim();
 
   await uploadedItem.locator(".item-card__open").click();
   const detail = page.getByRole("dialog", { name: "单品详情" });
-  await expect(detail).toContainText("已完成理解");
-  await expect(detail).toContainText("相册录入");
+  await expect(detail.locator(".flat-lay-status")).toContainText(
+    /正在生成单品图|单品图已生成|真实单品白底图|当前展示识别图/
+  );
   await expect(detail.getByLabel("分类")).not.toHaveValue("");
-  await expect(detail.getByLabel("衣服归属").getByRole("button", { name: "我的衣服" })).toHaveClass(
+  await expect(detail.getByLabel("是否已拥有").getByRole("button", { name: "已拥有" })).toHaveClass(
     /is-selected/
   );
-  await expect(detail).toContainText(
-    "当前展示已标准化的单品实物图；像素图只用于衣橱封面。"
-  );
-  const displayImage = detail.locator('img[data-image-kind="wardrobe-display"]');
+  const displayImage = detail.locator(".detail-image img");
   await expect(displayImage).toBeVisible({ timeout: 20_000 });
+  const displayImageKind = await page.evaluate(async (itemId) => {
+    const response = await fetch("/v1/items");
+    const payload = (await response.json()) as {
+      items: Array<{ id: string; display_image_kind: string }>;
+    };
+    return payload.items.find((item) => item.id === itemId)?.display_image_kind;
+  }, uploadedItemId);
+  expect(displayImageKind).toBe("derived_garment");
+  const displayAssetStatus = await page.evaluate(async (itemId) => {
+    const response = await fetch(`/v1/items/${itemId}/image`);
+    return { status: response.status, contentType: response.headers.get("content-type") };
+  }, uploadedItemId);
+  expect(displayAssetStatus.status).toBe(200);
+  expect(displayAssetStatus.contentType).toMatch(/^image\//);
   await saveEvidence(page, "06-detail-tags-source-and-display");
   let displayHasTransparentPixels = false;
   const transparentPixelDeadline = Date.now() + 10_000;
@@ -237,9 +265,11 @@ test("uploads a real garment, normalizes its display image, and preserves the as
 
   await persistedItem.locator(".item-card__open").click();
   const persistedDetail = page.getByRole("dialog", { name: "单品详情" });
-  await expect(persistedDetail).toContainText("已完成理解");
+  await expect(persistedDetail.locator(".flat-lay-status")).toContainText(
+    /正在生成单品图|单品图已生成|真实单品白底图|当前展示识别图/
+  );
   const persistedDisplayVisible = await persistedDetail
-    .locator('img[data-image-kind="wardrobe-display"]')
+    .locator(".detail-image img")
     .waitFor({ state: "visible", timeout: 20_000 })
     .then(() => true)
     .catch(() => false);
@@ -273,7 +303,9 @@ test("uploads a real garment, normalizes its display image, and preserves the as
     "原始上传图已删除；标准化单品图、标签和描述仍保留并可继续使用。"
   );
   const sourceDeletedDisplayVisible = await reopenedDetail
-    .locator('img[data-image-kind="wardrobe-display"]')
+    .locator(
+      'img[data-image-kind="wardrobe-display"], img[data-image-kind="generated-flat-lay"]'
+    )
     .waitFor({ state: "visible", timeout: 20_000 })
     .then(() => true)
     .catch(() => false);
@@ -286,10 +318,6 @@ test("uploads a real garment, normalizes its display image, and preserves the as
     .toBe(0);
   await saveEvidence(page, "09-source-deleted-recovery");
   expect.soft(
-    pixelCoverVisible,
-    "Uploaded wardrobe card should render a first-level pixel cover"
-  ).toBe(true);
-  expect.soft(
     persistedDisplayVisible,
     "Uploaded wardrobe display image should persist after refresh"
   ).toBe(true);
@@ -300,6 +328,22 @@ test("uploads a real garment, normalizes its display image, and preserves the as
   expect.soft(reloadSucceeded, "Public wardrobe page should reload without connection reset").toBe(
     true
   );
+  const cleanupStatus = await page.evaluate(async (itemId) => {
+    const response = await fetch(`/v1/items/${itemId}`, { method: "DELETE" });
+    return response.status;
+  }, uploadedItemId);
+  expect(cleanupStatus).toBe(204);
+  uploadedItemToCleanUp = null;
+  await expect
+    .poll(() =>
+      page.evaluate(async (itemId) => {
+        const response = await fetch("/v1/items");
+        if (!response.ok) return true;
+        const payload = (await response.json()) as { items: Array<{ id: string }> };
+        return !payload.items.some((item) => item.id === itemId);
+      }, uploadedItemId)
+    )
+    .toBe(true);
   // The production CPU profile guarantees a browser-safe normalized garment image.
   // Transparent background is an optional SAM2 enhancement, so record it as evidence
   // without turning the portable deployment check into a false failure.

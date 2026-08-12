@@ -111,6 +111,66 @@ def test_private_source_asset_uses_originals_prefix_and_is_readable(tmp_path: Pa
     assert store.read_image(stored.object_key) == stored
 
 
+def test_curated_seed_assets_share_immutable_bytes_across_users(tmp_path: Path) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    body = png_bytes()
+    image = ImagePayload(
+        object_key="curated-seed/source/衣服.png",
+        content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
+
+    first = store.write_private_source_image(
+        image,
+        owner_id=OWNER_ID,
+        prefix="originals/curated-seed/user-1",
+    )
+    second = store.write_private_source_image(
+        image,
+        owner_id=UUID("22222222-2222-4222-8222-222222222222"),
+        prefix="originals/curated-seed/user-2",
+    )
+
+    first_path = tmp_path / first.object_key
+    second_path = tmp_path / second.object_key
+    assert first_path.stat().st_ino == second_path.stat().st_ino
+    store.delete(first.object_key)
+    assert store.read(second.object_key) == body
+
+
+def test_non_curated_assets_keep_independent_storage(tmp_path: Path) -> None:
+    store = LocalObjectStore(
+        root=tmp_path,
+        signing_secret="test-signing-secret-with-enough-entropy",
+    )
+    body = png_bytes()
+    image = ImagePayload(
+        object_key="generated/item.png",
+        content_type="image/png",
+        body=body,
+        sha256=sha256(body).hexdigest(),
+    )
+
+    first = store.write_derived_image(
+        image,
+        owner_id=OWNER_ID,
+        prefix="derived/items/user-1",
+    )
+    second = store.write_derived_image(
+        image,
+        owner_id=UUID("22222222-2222-4222-8222-222222222222"),
+        prefix="derived/items/user-2",
+    )
+
+    assert (tmp_path / first.object_key).stat().st_ino != (
+        tmp_path / second.object_key
+    ).stat().st_ino
+
+
 def test_upload_token_cannot_be_replayed_after_success(tmp_path: Path) -> None:
     store = LocalObjectStore(
         root=tmp_path,

@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -36,6 +37,27 @@ class MemoryCaptures:
         if identity not in self.submissions:
             self.submissions[identity] = CaptureSubmission(capture=capture, job=job)
         return self.submissions[identity]
+
+
+class ConcurrentCaptureProbe(MemoryCaptures):
+    def __init__(self) -> None:
+        super().__init__()
+        self.active_calls = 0
+        self.max_active_calls = 0
+
+    async def save_submission(
+        self,
+        capture: Capture,
+        job: ProcessingJob,
+        idempotency_key: str,
+    ) -> CaptureSubmission:
+        self.active_calls += 1
+        self.max_active_calls = max(self.max_active_calls, self.active_calls)
+        try:
+            await asyncio.sleep(0)
+            return await super().save_submission(capture, job, idempotency_key)
+        finally:
+            self.active_calls -= 1
 
 
 class MemoryWardrobe:
@@ -160,6 +182,48 @@ class MemoryObjects:
         )
         self.images.append(stored)
         return stored
+
+
+@pytest.mark.asyncio
+async def test_same_user_demo_seed_is_single_flight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "top.jpg").write_bytes(b"curated top")
+    monkeypatch.setattr(
+        curated_demo,
+        "SEED_ITEMS",
+        (
+            SeedItem(
+                key="top",
+                file_name="top.jpg",
+                name="示例上衣",
+                category="tops",
+                subcategory="针织衫",
+                ownership=curated_demo.OwnershipState.OWNED,
+                colors=("象牙白",),
+                styles=("温柔",),
+                source_ref="https://example.test/top",
+            ),
+        ),
+    )
+    monkeypatch.setattr(curated_demo, "SEED_LOOKS", ())
+    captures = ConcurrentCaptureProbe()
+    bootstrapper = CuratedDemoWardrobeBootstrapper(
+        captures=captures,  # type: ignore[arg-type]
+        wardrobe=MemoryWardrobe(),
+        looks=MemoryLooks(),
+        objects=MemoryObjects(),
+        assets_root=tmp_path,
+    )
+    user_id = uuid4()
+
+    await asyncio.gather(
+        bootstrapper.ensure_for_user(user_id),
+        bootstrapper.ensure_for_user(user_id),
+    )
+
+    assert captures.max_active_calls == 1
 
 
 class MemorySourceStore:

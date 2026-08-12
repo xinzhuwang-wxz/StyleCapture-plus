@@ -4,6 +4,7 @@ import base64
 import fcntl
 import hmac
 import json
+import os
 import secrets
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -448,7 +449,14 @@ class LocalObjectStore:
         temporary_path = object_path.with_suffix(f"{object_path.suffix}.uploading-{nonce}")
         temporary_metadata_path = metadata_path.with_suffix(f".json.uploading-{nonce}")
         try:
-            temporary_path.write_bytes(body)
+            if self._is_curated_seed_object(stored.object_key):
+                self._link_curated_seed_bytes(
+                    temporary_path=temporary_path,
+                    stored=stored,
+                    body=body,
+                )
+            else:
+                temporary_path.write_bytes(body)
             temporary_path.replace(object_path)
             payload: dict[str, object] = {
                 "byte_size": stored.byte_size,
@@ -468,6 +476,41 @@ class LocalObjectStore:
         finally:
             temporary_path.unlink(missing_ok=True)
             temporary_metadata_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _is_curated_seed_object(object_key: str) -> bool:
+        return object_key.startswith(("originals/curated-seed/", "derived/curated-seed/"))
+
+    def _link_curated_seed_bytes(
+        self,
+        *,
+        temporary_path: Path,
+        stored: StoredObject,
+        body: bytes,
+    ) -> None:
+        blob_root = self._root / ".curated-seed-blobs"
+        blob_root.mkdir(parents=True, exist_ok=True)
+        blob_path = blob_root / stored.sha256
+        lock_path = blob_root / f"{stored.sha256}.lock"
+        with lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                if blob_path.exists():
+                    if sha256(blob_path.read_bytes()).hexdigest() != stored.sha256:
+                        raise CaptureError(
+                            "curated_seed_blob_conflict",
+                            "The curated seed cache contains different bytes",
+                        )
+                else:
+                    temporary_blob = blob_path.with_suffix(f".creating-{secrets.token_hex(8)}")
+                    try:
+                        temporary_blob.write_bytes(body)
+                        temporary_blob.replace(blob_path)
+                    finally:
+                        temporary_blob.unlink(missing_ok=True)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        os.link(blob_path, temporary_path)
 
     @contextmanager
     def _upload_quota_lock(self) -> Iterator[None]:
