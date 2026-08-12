@@ -34,10 +34,13 @@ export function LookCard({
   const fallbackCoverUrl = collageReady
     ? collageCover.output_image_url
     : look.display_image_url ?? look.source_image_url;
-  const hasInFlightRender = renders.some(
-    (render) => render.status === "queued" || render.status === "running"
+  const hasInFlightCoverRender = renders.some(
+    (render) =>
+      (render.kind === "collage" || render.kind === "pixel_cover") &&
+      (render.status === "queued" || render.status === "running")
   );
-  const organizing = look.status !== "ready" || hasInFlightRender;
+  const organizing =
+    look.status !== "ready" || (!coverReady && hasInFlightCoverRender);
   return (
     <motion.article
       className="item-card look-card pixel-card wardrobe-card"

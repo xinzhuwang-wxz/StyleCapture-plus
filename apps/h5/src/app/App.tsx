@@ -459,11 +459,23 @@ export function App() {
             )
             .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
           const selectedId = activePixelCoverIds[look.id];
+          const tryOnIds = new Set(
+            (lookRenderQueries[index]?.data ?? [])
+              .filter((render) => render.kind === "try_on")
+              .map((render) => render.id)
+          );
+          const automaticCover =
+            candidates.find(
+              (artifact) =>
+                artifact.source_artifact_id === null ||
+                artifact.source_artifact_id === undefined ||
+                !tryOnIds.has(artifact.source_artifact_id)
+            ) ?? candidates[0];
           const cover =
             selectedId === undefined || selectedId === null
-              ? candidates[0]
+              ? automaticCover
               : candidates.find((artifact) => artifact.id === selectedId) ??
-                candidates[0];
+                automaticCover;
           return cover ? [[look.id, cover] as const] : [];
         })
       ),
@@ -890,16 +902,6 @@ export function App() {
           ...current.filter((candidate) => candidate.id !== render.id)
         ]
       );
-      if (render.kind === "pixel_cover") {
-        setActivePixelCoverIds((current) => {
-          const next = { ...current, [render.look_id]: render.id };
-          window.localStorage.setItem(
-            LOOK_PIXEL_COVERS_STORAGE_KEY,
-            JSON.stringify(next)
-          );
-          return next;
-        });
-      }
     },
     onError: (error) => setNotice(errorMessage(error)),
     onSettled: (_data, _error, variables) => {
@@ -926,16 +928,6 @@ export function App() {
           ...current.filter((candidate) => candidate.id !== render.id)
         ]
       );
-      if (render.kind === "pixel_cover") {
-        setActivePixelCoverIds((current) => {
-          const next = { ...current, [render.look_id]: render.id };
-          window.localStorage.setItem(
-            LOOK_PIXEL_COVERS_STORAGE_KEY,
-            JSON.stringify(next)
-          );
-          return next;
-        });
-      }
     },
     onSettled: (_data, _error, variables) => {
       void queryClient.invalidateQueries({

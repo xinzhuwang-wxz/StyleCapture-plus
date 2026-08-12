@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -176,6 +177,35 @@ class SqlAlchemyRenderArtifactRepository:
                 ).scalar_one()
                 await session.commit()
                 return _artifact_from_record(stored)
+        except OperationalError as error:
+            raise RenderPersistenceUnavailable(
+                "Render artifact persistence is temporarily unavailable"
+            ) from error
+
+    async def claim_queued_for_recovery(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        stale_before: datetime,
+    ) -> RenderArtifact | None:
+        try:
+            async with self._sessions() as session:
+                record = (
+                    await session.execute(
+                        update(RenderArtifactRecord)
+                        .where(
+                            RenderArtifactRecord.id == artifact_id,
+                            RenderArtifactRecord.user_id == user_id,
+                            RenderArtifactRecord.status == RenderArtifactStatus.QUEUED.value,
+                            RenderArtifactRecord.updated_at <= stale_before,
+                        )
+                        .values(updated_at=datetime.now(UTC))
+                        .returning(RenderArtifactRecord)
+                    )
+                ).scalar_one_or_none()
+                await session.commit()
+                return _artifact_from_record(record) if record is not None else None
         except OperationalError as error:
             raise RenderPersistenceUnavailable(
                 "Render artifact persistence is temporarily unavailable"

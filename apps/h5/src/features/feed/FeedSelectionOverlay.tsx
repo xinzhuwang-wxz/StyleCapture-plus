@@ -158,6 +158,14 @@ export function FeedSelectionOverlay(props: FeedSelectionOverlayProps) {
     return () => window.clearTimeout(timeout);
   }, [props.gestureGuideToken, reduceMotion, session.phase]);
 
+  useEffect(() => {
+    if (session.selections.length === 1) {
+      setIntent("whole_outfit");
+    } else if (session.selections.length > 1) {
+      setIntent("item_selections");
+    }
+  }, [session.selections.length]);
+
   const contentBoxFor = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
     return contentBoxForContainedVideo(

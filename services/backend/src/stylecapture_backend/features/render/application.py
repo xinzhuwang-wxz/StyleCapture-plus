@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -61,6 +61,8 @@ class RenderArtifactView:
 
 
 class RenderApplication:
+    _queue_recovery_after = timedelta(seconds=60)
+
     def __init__(self, *, artifacts: RenderArtifactRepository) -> None:
         self._artifacts = artifacts
 
@@ -113,18 +115,38 @@ class RenderApplication:
         )
 
     async def list_for_look(self, *, user_id: UUID, look_id: UUID) -> list[RenderArtifactView]:
-        return [
-            _view(
-                artifact,
-                dispatch_required=(
-                    artifact.kind is RenderArtifactKind.PIXEL_COVER
-                    and artifact.status is RenderArtifactStatus.SUCCEEDED
-                    and artifact.sprite_output is None
-                    and not artifact.sprite_extraction_failed
-                ),
+        views: list[RenderArtifactView] = []
+        for artifact in await self._artifacts.list_for_look(
+            user_id=user_id,
+            look_id=look_id,
+        ):
+            queued_for_recovery = (
+                artifact.status is RenderArtifactStatus.QUEUED
+                and datetime.now(UTC) - artifact.updated_at >= self._queue_recovery_after
             )
-            for artifact in await self._artifacts.list_for_look(user_id=user_id, look_id=look_id)
-        ]
+            if queued_for_recovery:
+                recovered = await self._artifacts.claim_queued_for_recovery(
+                    user_id=user_id,
+                    artifact_id=artifact.id,
+                    stale_before=datetime.now(UTC) - self._queue_recovery_after,
+                )
+                queued_for_recovery = recovered is not None
+                artifact = recovered or artifact
+            views.append(
+                _view(
+                    artifact,
+                    dispatch_required=(
+                        queued_for_recovery
+                        or (
+                            artifact.kind is RenderArtifactKind.PIXEL_COVER
+                            and artifact.status is RenderArtifactStatus.SUCCEEDED
+                            and artifact.sprite_output is None
+                            and not artifact.sprite_extraction_failed
+                        )
+                    ),
+                )
+            )
+        return views
 
     async def get(self, *, user_id: UUID, artifact_id: UUID) -> RenderArtifactView:
         artifact = await self._artifacts.get_for_user(user_id=user_id, artifact_id=artifact_id)

@@ -225,6 +225,12 @@ async function drawAndConfirm(intent: "item" | "whole_outfit" = "item") {
       fireEvent.click(wholeOutfitButton);
       await Promise.resolve();
     });
+  } else {
+    const itemButton = screen.getByRole("button", { name: "存单品" });
+    await act(async () => {
+      fireEvent.click(itemButton);
+      await Promise.resolve();
+    });
   }
   const saveButton = await screen.findByRole(
     "button",
