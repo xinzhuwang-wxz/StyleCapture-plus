@@ -208,8 +208,8 @@ class ItemPresentationProcessor:
                 message="该展示类型暂时不支持生成",
             )
             return
-        await self._presentations.mark_running(user_id=user_id, asset_id=asset_id)
         try:
+            await self._presentations.mark_running(user_id=user_id, asset_id=asset_id)
             item = await self._wardrobe.get_item(user_id, asset.item_id)
             if asset.kind is ItemPresentationKind.FLAT_LAY_ITEM:
                 pillow_result = self._render_refined_cutout(item)
@@ -307,6 +307,10 @@ class ItemPresentationProcessor:
                     **quality,
                 ),
             )
+        except ItemPresentationNotFound:
+            # The user may delete the item after its presentation task was queued.
+            # Treat that late worker as a normal cancellation rather than an error.
+            return
         except (FileNotFoundError, KeyError):
             await self._presentations.mark_failed(
                 user_id=user_id,

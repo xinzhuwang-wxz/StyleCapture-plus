@@ -103,6 +103,19 @@ class MemoryPresentations:
         return asset if asset is not None and asset.user_id == user_id else None
 
 
+class VanishingPresentations(MemoryPresentations):
+    async def get_for_user(
+        self,
+        *,
+        user_id: UUID,
+        asset_id: UUID,
+    ) -> ItemPresentationAsset | None:
+        asset = await super().get_for_user(user_id=user_id, asset_id=asset_id)
+        if asset is not None:
+            self.assets.pop(asset_id, None)
+        return asset
+
+
 class OneItemWardrobe:
     def __init__(self, item: WardrobeItem) -> None:
         self.item = item
@@ -214,6 +227,44 @@ class FailIfCalledGenerator:
         size: str = "1024x1024",
     ) -> GeneratedImage:
         raise AssertionError("refined alpha cutouts must not call the image provider")
+
+
+@pytest.mark.asyncio
+async def test_deleted_presentation_cancels_a_queued_worker_without_error() -> None:
+    user_id = uuid4()
+    item = WardrobeItem(
+        id=uuid4(),
+        user_id=user_id,
+        capture_id=uuid4(),
+        selection_key="deleted-item",
+        source_object_key="originals/upload/deleted.png",
+        display_object_key=None,
+        source_available=True,
+        source_kind=CaptureSourceKind.UPLOAD,
+        ownership=OwnershipState.OWNED,
+        status=ItemStatus.READY,
+        attributes=ItemAttributes(),
+        model_metadata={},
+        embedding=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    asset = ItemPresentationAsset.queued(
+        user_id=user_id,
+        item_id=item.id,
+        kind=ItemPresentationKind.PIXEL_ITEM,
+        input_signature=pixel_item_signature(item),
+        request_key="deleted-before-worker-start",
+    )
+    repository = VanishingPresentations(asset)
+    processor = ItemPresentationProcessor(
+        presentations=ItemPresentationApplication(assets=repository, wardrobe=OneItemWardrobe(item)),
+        wardrobe=OneItemWardrobe(item),
+        objects=MemoryObjects(),
+        generator=FailIfCalledGenerator(),
+    )
+
+    await processor.process(user_id=user_id, asset_id=asset.id)
 
 
 def test_ai_flat_lay_whitens_gray_blotches_without_erasing_light_item() -> None:

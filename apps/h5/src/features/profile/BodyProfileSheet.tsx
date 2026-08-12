@@ -21,8 +21,7 @@ type BodyProfileSheetProps = {
 /**
  * 「我的个人信息」二级页。
  *
- * 这些数字只用来让版型建议和真人上身效果更准，所以全程留在本机，界面上也
- * 明说这一点——身体数据要让人一眼看出去了哪里。
+ * 这些数字只用来让版型建议和真人上身效果更准。
  */
 export function BodyProfileSheet({
   profile,
@@ -56,7 +55,7 @@ export function BodyProfileSheet({
     }
     setError(null);
     onSaved(next);
-    onNotice?.("身材资料已保存在本机");
+    onNotice?.("身材资料已保存");
     onClose();
   }
 

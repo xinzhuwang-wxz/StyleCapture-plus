@@ -31,26 +31,18 @@ function writeFinding(name: string, content: string) {
 
 async function openProfile(page: Page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  const enterWardrobe = page.getByText("进入数字衣橱", { exact: true });
-  await expect(enterWardrobe).toBeVisible({ timeout: 20_000 });
-  await enterWardrobe.click();
   await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
-  await page.getByRole("button", { name: "添加衣服" }).click();
-  const addDialog = page.getByRole("dialog", { name: "添加到 StyleCapture" });
-  await expect(addDialog).toBeVisible();
-  await addDialog.getByText("试试像素形象").click();
-  await expect(
-    page.getByRole("heading", { name: "我的 StyleCapture" })
-  ).toBeVisible();
+  await page.getByRole("button", { name: "我的", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "我的", exact: true })).toBeVisible();
 }
 
 test("body metrics survive a refresh and a corrupted store", async ({ page }) => {
   await openProfile(page);
   await saveEvidence(page, "01-profile-before-metrics");
 
-  await page.getByRole("button", { name: "编辑资料 ›" }).click();
+  await page.getByRole("button", { name: "管理个人数据" }).click();
   const sheet = page.getByLabel("我的个人信息");
   await expect(sheet).toBeVisible();
   await saveEvidence(page, "02-body-metrics-sheet");
@@ -66,15 +58,29 @@ test("body metrics survive a refresh and a corrupted store", async ({ page }) =>
   await sheet.getByRole("button", { name: "沙漏形" }).click();
   await sheet.getByRole("button", { name: "保存资料" }).click();
   await expect(sheet).toBeHidden();
-
-  const summary = page.getByLabel("身材资料");
-  await expect(summary).toContainText(`${chosenHeight} cm`);
-  await expect(summary).toContainText("沙漏形");
+  await expect(page.getByRole("alert")).toContainText("身材资料已保存");
+  await page.getByRole("button", { name: "管理个人数据" }).click();
+  await expect(page.getByRole("spinbutton", { name: "身高" })).toHaveAttribute(
+    "aria-valuenow",
+    chosenHeight ?? ""
+  );
+  await expect(page.getByRole("button", { name: "沙漏形" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await saveEvidence(page, "03-body-metrics-saved");
 
   // Round trip: it has to still be there after a reload, not just in React state.
   await openProfile(page);
-  await expect(page.getByLabel("身材资料")).toContainText(`${chosenHeight} cm`);
+  await page.getByRole("button", { name: "管理个人数据" }).click();
+  await expect(page.getByRole("spinbutton", { name: "身高" })).toHaveAttribute(
+    "aria-valuenow",
+    chosenHeight ?? ""
+  );
+  await expect(page.getByRole("button", { name: "沙漏形" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await saveEvidence(page, "04-body-metrics-after-refresh");
 
   const stored = await page.evaluate(
@@ -89,7 +95,11 @@ test("body metrics survive a refresh and a corrupted store", async ({ page }) =>
     window.localStorage.setItem(key, "{ this is not json");
   }, BODY_KEY);
   await openProfile(page);
-  await expect(page.getByLabel("身材资料")).toContainText("补全身材数据");
+  await page.getByRole("button", { name: "管理个人数据" }).click();
+  await expect(page.getByRole("button", { name: "沙漏形" })).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
   await saveEvidence(page, "05-body-metrics-recovered-from-corruption");
 
   writeFinding(
@@ -134,7 +144,7 @@ test("the photo album refuses a non-image and recovers", async ({ page }) => {
   await saveEvidence(page, "08-photo-accepted-after-rejection");
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByText("进入数字衣橱", { exact: true })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
   const persisted = await page.evaluate(
@@ -147,9 +157,9 @@ test("the photo album refuses a non-image and recovers", async ({ page }) => {
 
 test("a combo can be built without ever dragging", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  const enterWardrobe = page.getByText("进入数字衣橱", { exact: true });
-  await expect(enterWardrobe).toBeVisible({ timeout: 20_000 });
-  await enterWardrobe.click();
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
+    timeout: 20_000
+  });
   await page.getByRole("tab", { name: "按单品" }).click();
 
   const addButtons = page.getByRole("button", { name: /加入组合衣柜/ });
@@ -180,7 +190,9 @@ test("the combo refuses a conflicting pairing and saves a valid one", async ({
   page
 }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByText("进入数字衣橱", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
+    timeout: 20_000
+  });
   await page.getByRole("tab", { name: "按单品" }).click();
 
   const addButtons = page.getByRole("button", { name: /加入组合衣柜/ });
@@ -197,15 +209,16 @@ test("the combo refuses a conflicting pairing and saves a valid one", async ({
   if (dressCount >= 2) {
     await dresses.first().click();
     await dresses.first().click();
-    const audit = page.getByRole("status").filter({ hasText: "连衣裙" });
-    await expect(audit.first()).toBeVisible();
+    await page.getByRole("button", { name: /我的组合衣柜/ }).click();
+    const combo = page.getByLabel("组合衣柜");
+    const audit = combo.getByRole("status");
+    await expect(audit).toContainText("选了 2 条连衣裙");
     await saveEvidence(page, "13-combo-conflict-reported");
 
     // Recovery: taking one back out must clear the complaint.
-    await page.getByRole("button", { name: /移出组合衣柜.*连衣裙/ }).first().click();
-    await expect(page.getByRole("status").filter({ hasText: "连衣裙" })).toHaveCount(
-      0
-    );
+    await combo.getByRole("button", { name: /把.*连衣裙.*移出组合/ }).first().click();
+    await expect(audit).not.toContainText("连衣裙");
+    await expect(audit).toContainText("至少选 2 件");
     await saveEvidence(page, "14-combo-conflict-cleared");
   } else {
     writeFinding(
@@ -219,7 +232,9 @@ test("the share sheet offers only what an H5 can actually do", async ({
   page
 }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByText("进入数字衣橱", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
+    timeout: 20_000
+  });
   const looks = page.locator(".look-card");
   await expect(looks.first()).toBeVisible({ timeout: 20_000 });
   const lookCount = await looks.count();

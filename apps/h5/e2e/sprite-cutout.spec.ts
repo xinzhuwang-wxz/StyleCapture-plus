@@ -7,6 +7,10 @@ const outDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../docs/evidence/fixes"
 );
+const configuredBaseUrl = process.env.STYLECAPTURE_E2E_BASE_URL;
+const runsAgainstProductionBundle = configuredBaseUrl
+  ? !["127.0.0.1", "localhost"].includes(new URL(configuredBaseUrl).hostname)
+  : false;
 
 /**
  * 像素封面的底是饱和的粉紫渐变，还撒着亮点。原来的去底按颜色判断（近白、
@@ -16,6 +20,10 @@ const outDir = path.resolve(
 test("a saturated gradient backdrop is cut away, the figure survives", async ({
   page
 }) => {
+  test.skip(
+    runsAgainstProductionBundle,
+    "This source-module algorithm check runs against the local Vite server; the production bundle does not expose /src modules"
+  );
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   const result = await page.evaluate(async () => {

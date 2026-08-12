@@ -127,7 +127,7 @@ describe("body profile sheet", () => {
     expect(age).toHaveAttribute("aria-valuenow", "45");
   });
 
-  it("saves to this device and reports it, then closes", async () => {
+  it("saves the profile and reports success, then closes", async () => {
     const user = userEvent.setup();
     const props = renderSheet();
 
@@ -147,7 +147,7 @@ describe("body profile sheet", () => {
     expect(props.onSaved).toHaveBeenCalledWith(
       expect.objectContaining({ nickname: "小甜甜", shape: "沙漏形" })
     );
-    expect(props.onNotice).toHaveBeenCalledWith("身材资料已保存在本机");
+    expect(props.onNotice).toHaveBeenCalledWith("身材资料已保存");
     expect(props.onClose).toHaveBeenCalled();
   });
 
