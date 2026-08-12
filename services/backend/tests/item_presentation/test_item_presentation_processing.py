@@ -17,6 +17,8 @@ from stylecapture_backend.features.capture.domain import (
 )
 from stylecapture_backend.features.item_presentation.application import (
     ItemPresentationApplication,
+    _flat_lay_request_key,
+    _request_key,
     flat_lay_item_signature,
     pixel_item_signature,
 )
@@ -35,6 +37,38 @@ from stylecapture_backend.features.render.domain import RenderInputSignature, Re
 from stylecapture_backend.features.render.infrastructure.collage import PillowLookCollageRenderer
 from stylecapture_backend.features.render.ports import GeneratedImage, RenderProviderError
 from stylecapture_backend.features.wardrobe.domain import ItemAttributes, ItemStatus, WardrobeItem
+
+
+def test_pixel_request_key_changes_when_only_signature_version_changes() -> None:
+    item_id = uuid4()
+    content_hash = "a" * 64
+
+    previous = _request_key(
+        item_id=item_id,
+        signature=RenderInputSignature(version="item-pixel-v4", hash=content_hash),
+    )
+    current = _request_key(
+        item_id=item_id,
+        signature=RenderInputSignature(version="item-pixel-v5", hash=content_hash),
+    )
+
+    assert previous != current
+
+
+def test_flat_lay_request_key_changes_when_only_signature_version_changes() -> None:
+    item_id = uuid4()
+    content_hash = "b" * 64
+
+    previous = _flat_lay_request_key(
+        item_id=item_id,
+        signature=RenderInputSignature(version="item-flat-lay-v2", hash=content_hash),
+    )
+    current = _flat_lay_request_key(
+        item_id=item_id,
+        signature=RenderInputSignature(version="item-flat-lay-v3", hash=content_hash),
+    )
+
+    assert previous != current
 
 
 class MemoryPresentations:

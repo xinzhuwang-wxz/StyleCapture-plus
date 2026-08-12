@@ -451,7 +451,10 @@ class CuratedDemoWardrobeBootstrapper:
                 item_id=item.id,
                 kind=ItemPresentationKind.PIXEL_ITEM,
                 input_signature=signature,
-                request_key=(f"curated-seed:item-pixel:{definition.key}:{signature.hash[:16]}"),
+                request_key=(
+                    f"curated-seed:item-pixel:{definition.key}:"
+                    f"{signature.version}:{signature.hash[:16]}"
+                ),
             )
         )
         if requested.output is not None:

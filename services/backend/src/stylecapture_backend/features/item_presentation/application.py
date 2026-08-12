@@ -288,11 +288,11 @@ def flat_lay_item_signature(item: WardrobeItem) -> RenderInputSignature:
 
 
 def _request_key(*, item_id: UUID, signature: RenderInputSignature) -> str:
-    return f"item-pixel:{item_id}:{signature.hash[:24]}"
+    return f"item-pixel:{item_id}:{signature.version}:{signature.hash[:24]}"
 
 
 def _flat_lay_request_key(*, item_id: UUID, signature: RenderInputSignature) -> str:
-    return f"item-flat-lay:{item_id}:{signature.hash[:24]}"
+    return f"item-flat-lay:{item_id}:{signature.version}:{signature.hash[:24]}"
 
 
 def _view(
