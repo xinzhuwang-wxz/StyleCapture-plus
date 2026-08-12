@@ -200,7 +200,7 @@ describe("FeedSelectionOverlay", () => {
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onConfirm).toHaveBeenCalledWith({
       frame,
-      intent: "item_selections",
+      intent: "whole_outfit",
       selections: [
         expect.objectContaining({
           id: "selection-1",
@@ -222,6 +222,29 @@ describe("FeedSelectionOverlay", () => {
     act(() => vi.advanceTimersByTime(700));
 
     fireEvent.click(screen.getByRole("button", { name: "存整套" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "保存整套到数字衣橱" })
+    );
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: "whole_outfit" })
+    );
+  });
+
+  it("defaults one lifted outfit selection to saving the whole look", () => {
+    const { onConfirm, overlay } = renderOverlay();
+    drawLoop(overlay, 1, [
+      { x: 40, y: 80 },
+      { x: 360, y: 80 },
+      { x: 360, y: 700 },
+      { x: 40, y: 80 }
+    ]);
+    act(() => vi.advanceTimersByTime(700));
+
+    expect(screen.getByRole("button", { name: "存整套" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "保存整套到数字衣橱" })
     );
@@ -318,12 +341,12 @@ describe("FeedSelectionOverlay", () => {
 
     const itemIntent = screen.getByRole("button", { name: "存单品" });
     const outfitIntent = screen.getByRole("button", { name: "存整套" });
-    expect(itemIntent).toHaveAttribute("aria-pressed", "true");
-    expect(outfitIntent).toHaveAttribute("aria-pressed", "false");
-
-    fireEvent.click(outfitIntent);
     expect(itemIntent).toHaveAttribute("aria-pressed", "false");
     expect(outfitIntent).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(itemIntent);
+    expect(itemIntent).toHaveAttribute("aria-pressed", "true");
+    expect(outfitIntent).toHaveAttribute("aria-pressed", "false");
   });
 
   it("dismisses without a write when the lifted subject is swiped left", () => {
@@ -373,7 +396,7 @@ describe("FeedSelectionOverlay", () => {
     act(() => vi.advanceTimersByTime(700));
 
     fireEvent.click(
-      screen.getByRole("button", { name: "保存圈选到数字衣橱" })
+      screen.getByRole("button", { name: "保存整套到数字衣橱" })
     );
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onDismiss).not.toHaveBeenCalled();

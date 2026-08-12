@@ -58,6 +58,20 @@ class MemoryRenderRepository:
         self.artifacts[artifact.id] = artifact
         return artifact
 
+    async def claim_queued_for_recovery(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        stale_before: datetime,
+    ) -> RenderArtifact | None:
+        artifact = self.artifacts.get(artifact_id)
+        if artifact is None or artifact.user_id != user_id or artifact.updated_at > stale_before:
+            return None
+        recovered = replace(artifact, updated_at=datetime.now(UTC))
+        self.artifacts[artifact_id] = recovered
+        return recovered
+
     async def find_cache_hit(
         self,
         *,

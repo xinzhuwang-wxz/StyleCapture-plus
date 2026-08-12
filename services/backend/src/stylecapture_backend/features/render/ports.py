@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -68,6 +69,14 @@ class RenderArtifactRepository(Protocol):
     async def ensure_requested(self, artifact: RenderArtifact) -> RenderArtifact: ...
 
     async def save(self, artifact: RenderArtifact) -> RenderArtifact: ...
+
+    async def claim_queued_for_recovery(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        stale_before: datetime,
+    ) -> RenderArtifact | None: ...
 
     async def find_cache_hit(
         self,

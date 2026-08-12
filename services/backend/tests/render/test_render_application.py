@@ -1,3 +1,5 @@
+from dataclasses import replace
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -21,6 +23,20 @@ class QueuedRepository:
     async def save(self, artifact: RenderArtifact) -> RenderArtifact:
         self.artifact = artifact
         return artifact
+
+    async def claim_queued_for_recovery(
+        self,
+        *,
+        user_id: UUID,
+        artifact_id: UUID,
+        stale_before: datetime,
+    ) -> RenderArtifact | None:
+        if self.artifact is None or self.artifact.updated_at > stale_before:
+            return None
+        self.artifact = replace(
+            self.artifact, updated_at=datetime.now(self.artifact.updated_at.tzinfo)
+        )
+        return self.artifact
 
     async def find_cache_hit(
         self,
@@ -70,3 +86,29 @@ async def test_existing_queued_artifact_is_redispatched_after_broker_failure() -
     assert first.id == retried.id
     assert first.dispatch_required is True
     assert retried.dispatch_required is True
+
+
+@pytest.mark.asyncio
+async def test_listing_a_queued_artifact_requests_broker_recovery() -> None:
+    repository = QueuedRepository()
+    application = RenderApplication(artifacts=repository)
+    user_id = uuid4()
+    look_id = uuid4()
+    await application.create_or_get(
+        user_id=user_id,
+        look_id=look_id,
+        kind=RenderArtifactKind.PIXEL_COVER,
+        input_signature=RenderInputSignature(version="render-v1", hash="b" * 64),
+        request_key="lost-after-persist",
+    )
+    assert repository.artifact is not None
+    repository.artifact = replace(
+        repository.artifact,
+        updated_at=repository.artifact.updated_at - timedelta(minutes=2),
+    )
+
+    listed = await application.list_for_look(user_id=user_id, look_id=look_id)
+    duplicate_list = await application.list_for_look(user_id=user_id, look_id=look_id)
+
+    assert listed[0].dispatch_required is True
+    assert duplicate_list[0].dispatch_required is False

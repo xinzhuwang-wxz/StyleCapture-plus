@@ -157,6 +157,34 @@ describe("Look wardrobe states", () => {
     expect(screen.getByText("灵感收藏 · 已整理")).toBeInTheDocument();
   });
 
+  it("keeps a ready pixel cover settled while a try-on is still running", () => {
+    render(
+      <LookCard
+        look={{
+          ...pendingLook,
+          status: "ready",
+          display_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/image"
+        }}
+        pixelCover={renderArtifact({
+          kind: "pixel_cover",
+          share_eligible: true
+        })}
+        renders={[
+          renderArtifact({
+            id: "99999999-9999-4999-8999-999999999999",
+            kind: "try_on",
+            status: "running",
+            output_image_url: null
+          })
+        ]}
+        onOpen={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("灵感收藏 · 已整理")).toBeInTheDocument();
+    expect(document.querySelector(".processing-sheen")).not.toBeInTheDocument();
+  });
+
   it("keeps a partial Look retryable without losing its source evidence", () => {
     const onRetry = vi.fn();
     render(
