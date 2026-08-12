@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
@@ -477,6 +478,57 @@ async def test_bootstrap_imports_pixel_assets_without_runtime_generation(
     ]
     assert objects.images[4].content_type == "image/png"
     assert len({image.object_key for image in objects.images}) == 5
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_uses_a_new_request_key_after_pixel_signature_version_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "top.jpg").write_bytes(b"curated top")
+    (tmp_path / "top.png").write_bytes(b"curated top pixel")
+    definition = SeedItem(
+        key="top",
+        file_name="top.jpg",
+        pixel_file_name="top.png",
+        name="示例上衣",
+        category="tops",
+        subcategory="针织衫",
+        ownership=curated_demo.OwnershipState.OWNED,
+        colors=("象牙白",),
+        styles=("温柔",),
+        source_ref="https://example.test/top",
+    )
+    monkeypatch.setattr(curated_demo, "SEED_ITEMS", (definition,))
+    monkeypatch.setattr(curated_demo, "SEED_LOOKS", ())
+    presentations = MemoryItemPresentations()
+    wardrobe = MemoryWardrobe()
+    bootstrapper = CuratedDemoWardrobeBootstrapper(
+        captures=MemoryCaptures(),  # type: ignore[arg-type]
+        wardrobe=wardrobe,
+        looks=MemoryLooks(),
+        objects=MemoryObjects(),
+        assets_root=tmp_path,
+        item_presentations=presentations,
+    )
+    user_id = uuid4()
+
+    await bootstrapper.ensure_for_user(user_id)
+    stored = next(iter(presentations.assets.values()))
+    presentations.assets.clear()
+    legacy_request_key = (
+        f"curated-seed:item-pixel:{definition.key}:{stored.input_signature.hash[:16]}"
+    )
+    presentations.assets[(stored.item_id, legacy_request_key)] = replace(
+        stored,
+        input_signature=replace(stored.input_signature, version="item-pixel-v4"),
+        request_key=legacy_request_key,
+    )
+
+    await bootstrapper.ensure_for_user(user_id)
+
+    request_keys = {asset.request_key for asset in presentations.assets.values()}
+    assert len(request_keys) == 2
 
 
 @pytest.mark.asyncio
