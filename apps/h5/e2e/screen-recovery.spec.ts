@@ -10,6 +10,7 @@ test("a failed screen chunk degrades to a retry, not a blank page", async ({
   await expect(page.getByRole("heading", { name: "我的衣橱" })).toBeVisible({
     timeout: 20_000
   });
+  await page.getByRole("tab", { name: "按穿搭" }).click();
   await page.locator(".look-card").first().click();
 
   const alert = page.getByRole("alert");

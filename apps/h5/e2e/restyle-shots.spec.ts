@@ -46,13 +46,14 @@ test("capture the restyled screens", async ({ page }) => {
   await expect(addDialog).toBeVisible();
   await shot(page, "04-add-sheet");
 
-  await addDialog.getByText("试试像素形象").click();
+  await addDialog.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.getByRole("button", { name: "我的", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "我的 StyleCapture" })
+    page.getByRole("heading", { name: "我的", exact: true })
   ).toBeVisible();
   await shot(page, "05-profile");
 
-  await page.getByRole("button", { name: "编辑资料 ›" }).click();
+  await page.getByRole("button", { name: "管理个人数据" }).click();
   await expect(page.getByLabel("我的个人信息")).toBeVisible();
   await shot(page, "06-body-metrics");
 

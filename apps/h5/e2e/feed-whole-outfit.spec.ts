@@ -130,7 +130,9 @@ async function saveWholeOutfitBySwipe(page: Page) {
   const liftedSelection = page.getByRole("group", { name: "已圈选的穿搭主体" });
   await expect(liftedSelection).toBeVisible({ timeout: 5_000 });
   await expect(page.getByRole("status", { name: "左划取消，右划加入" })).toBeVisible();
-  await page.getByRole("button", { name: "存整套" }).click();
+  await expect(
+    page.getByRole("button", { name: "存整套", exact: true })
+  ).toHaveAttribute("aria-pressed", "true");
   await saveEvidence(page, "05-whole-outfit-selected");
   const captureAccepted = page.waitForResponse(
     (response) =>
