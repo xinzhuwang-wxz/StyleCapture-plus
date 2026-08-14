@@ -7,6 +7,7 @@ from PIL import Image
 from stylecapture_backend.features.capture.domain import ImagePayload
 from stylecapture_backend.features.capture.processing import ProviderError
 from stylecapture_backend.features.look.infrastructure.outfit_analysis import (
+    LEGACY_LOOK_ANALYSIS_SCHEMA_VERSION,
     LOOK_ANALYSIS_PROMPT_VERSION,
     LOOK_ANALYSIS_SCHEMA_VERSION,
     LiteLLMOutfitAnalyzer,
@@ -15,6 +16,7 @@ from stylecapture_backend.features.look.infrastructure.outfit_analysis import (
 
 VALID_ANALYSIS = """
 {
+  "title": {"value": "米白松弛感", "confidence": 0.94},
   "color": {"value": "米白与藏青", "confidence": 0.91},
   "silhouette": {"value": "宽松直筒", "confidence": 0.87},
   "material": {"value": "亚麻与棉", "confidence": 0.82},
@@ -25,8 +27,14 @@ VALID_ANALYSIS = """
 }
 """
 
+LEGACY_ANALYSIS = VALID_ANALYSIS.replace(
+    '  "title": {"value": "米白松弛感", "confidence": 0.94},\n',
+    "",
+)
+
 ENGLISH_ANALYSIS = """
 {
+  "title": {"value": "relaxed cream", "confidence": 0.94},
   "color": {"value": "cream and navy", "confidence": 0.91},
   "silhouette": {"value": "relaxed", "confidence": 0.87},
   "material": {"value": "linen and cotton", "confidence": 0.82},
@@ -86,11 +94,25 @@ def test_parse_look_analysis_accepts_strict_expected_schema() -> None:
     )
 
     assert analysis.color.value == "米白与藏青"
+    assert analysis.title is not None
+    assert analysis.title.value == "米白松弛感"
     assert analysis.style.confidence == 0.92
     assert analysis.metadata.capability_alias == "outfit_analysis"
     assert analysis.metadata.model_version == "outfit-analysis-model-v1"
     assert analysis.metadata.prompt_version == LOOK_ANALYSIS_PROMPT_VERSION
     assert analysis.metadata.schema_version == LOOK_ANALYSIS_SCHEMA_VERSION
+
+
+def test_parse_look_analysis_keeps_legacy_style_as_a_rollout_fallback() -> None:
+    analysis = parse_look_analysis(
+        LEGACY_ANALYSIS,
+        capability_alias="outfit_analysis",
+        latency_ms=13,
+    )
+
+    assert analysis.title is None
+    assert analysis.display_name == "极简休闲"
+    assert analysis.metadata.schema_version == LEGACY_LOOK_ANALYSIS_SCHEMA_VERSION
 
 
 @pytest.mark.asyncio
@@ -107,6 +129,7 @@ async def test_litellm_outfit_analyzer_requests_chinese_user_facing_values() -> 
 
     system_prompt = completion.calls[0]["messages"][0]["content"]
     assert "Simplified Chinese" in system_prompt
+    assert "four to six Chinese characters" in system_prompt
     assert "keep only the required JSON keys in English" in system_prompt
 
 
@@ -117,6 +140,7 @@ async def test_litellm_outfit_analyzer_requests_chinese_user_facing_values() -> 
         VALID_ANALYSIS.replace('"style"', '"styles"', 1),
         VALID_ANALYSIS.replace('"confidence": 0.92', '"confidence": 1.2'),
         VALID_ANALYSIS.replace('"极简休闲"', '""'),
+        VALID_ANALYSIS.replace('"米白松弛感"', '"这个标题明显超过六个字"'),
         VALID_ANALYSIS.replace("\n}", ', "provider_secret": "sk-sensitive-value"\\n}'),
     ],
 )

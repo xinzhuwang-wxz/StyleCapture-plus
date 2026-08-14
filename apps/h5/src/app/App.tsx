@@ -515,7 +515,7 @@ export function App() {
   );
   const communityLooks = useMemo<CommunityAvatarSource[]>(
     () =>
-      looks.flatMap((look, index) => {
+      looks.flatMap((look) => {
         const cover = pixelCovers[look.id];
         if (cover?.status !== "succeeded" || !cover.output_image_url) return [];
         const transparentSprite = cover.sprite_image_url ?? null;
@@ -523,10 +523,7 @@ export function App() {
           {
             lookId: look.id,
             assetUrl: transparentSprite ?? cover.output_image_url,
-            label:
-              look.source === "feed_saved"
-                ? `Feed 穿搭 ${index + 1}`
-                : `我的穿搭 ${index + 1}`,
+            label: look.display_name,
             kind: transparentSprite
               ? ("transparent-render-sprite" as const)
               : ("public-render-artifact" as const),

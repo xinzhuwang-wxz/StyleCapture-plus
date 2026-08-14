@@ -21,12 +21,14 @@ from stylecapture_backend.features.look.domain import (
 )
 from stylecapture_backend.features.wardrobe.taxonomy import TAXONOMY_VERSION
 
-LOOK_ANALYSIS_PROMPT_VERSION = "outfit-analysis-zh-v2"
+LOOK_ANALYSIS_PROMPT_VERSION = "outfit-analysis-zh-v3"
 LOOK_ANALYSIS_MODEL_VERSION = "outfit-analysis-model-v1"
-LOOK_ANALYSIS_SCHEMA_VERSION = "look-analysis-v1"
+LOOK_ANALYSIS_SCHEMA_VERSION = "look-analysis-v2"
+LEGACY_LOOK_ANALYSIS_SCHEMA_VERSION = "look-analysis-v1"
 
 _FIELD_NAMES = frozenset(
     {
+        "title",
         "color",
         "silhouette",
         "material",
@@ -36,6 +38,7 @@ _FIELD_NAMES = frozenset(
         "style",
     }
 )
+_LEGACY_FIELD_NAMES = _FIELD_NAMES - {"title"}
 
 CompletionCall = Callable[..., Awaitable[object]]
 
@@ -141,18 +144,30 @@ def parse_look_analysis(
     payload = json.loads(content)
     if not isinstance(payload, dict):
         raise ValueError("look analysis must be an object")
-    if set(payload) != _FIELD_NAMES:
+    payload_fields = frozenset(payload)
+    if payload_fields not in {_FIELD_NAMES, _LEGACY_FIELD_NAMES}:
         raise ValueError("look analysis contains unsupported fields")
 
     fields = {
         name: _field_from_payload(cast(Mapping[str, object], payload[name]))
-        for name in _FIELD_NAMES
+        for name in payload_fields
     }
+    title = fields.get("title")
+    if title is not None:
+        normalized_title = title.value.strip()
+        if not 4 <= len(normalized_title) <= 6 or any(
+            not "\u3400" <= character <= "\u9fff" for character in normalized_title
+        ):
+            raise ValueError("look analysis title must contain four to six Chinese characters")
     metadata = LookAnalysisMetadata(
         capability_alias=capability_alias,
         model_version=LOOK_ANALYSIS_MODEL_VERSION,
         prompt_version=LOOK_ANALYSIS_PROMPT_VERSION,
-        schema_version=LOOK_ANALYSIS_SCHEMA_VERSION,
+        schema_version=(
+            LOOK_ANALYSIS_SCHEMA_VERSION
+            if title is not None
+            else LEGACY_LOOK_ANALYSIS_SCHEMA_VERSION
+        ),
         taxonomy_version=TAXONOMY_VERSION,
         latency_ms=latency_ms,
     )
@@ -165,6 +180,7 @@ def parse_look_analysis(
         scene=fields["scene"],
         style=fields["style"],
         metadata=metadata,
+        title=title,
     )
 
 
@@ -200,10 +216,11 @@ def _messages(
             "content": (
                 "Analyze the outfit relationships visible in the image. Use only visible "
                 "evidence and the listed reliable components. Return strict JSON only, with "
-                "exactly these top-level keys: color, silhouette, material, layering, "
+                "exactly these top-level keys: title, color, silhouette, material, layering, "
                 "focal_point, scene, style. Each value must be an object with string value "
                 "written in concise, natural Simplified Chinese and numeric confidence "
-                "between 0 and 1. All user-facing values must be Chinese; keep only the "
+                "between 0 and 1. The title must be a distinctive outfit name of four to six Chinese characters, "
+                "grounded in the visible overall style, color, or occasion. All user-facing values must be Chinese; keep only the "
                 "required JSON keys in English. Do not include provider names, "
                 "secrets, hidden chain of thought, markdown, or extra keys."
             ),

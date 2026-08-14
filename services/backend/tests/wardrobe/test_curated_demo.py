@@ -456,6 +456,8 @@ async def test_reopening_a_session_does_not_mutate_curated_look_version(
 
     await bootstrapper.ensure_for_user(user_id)
     first = next(iter(looks.looks.values()))
+    assert first.analysis is not None
+    assert first.analysis.display_name == "示例穿搭"
     await bootstrapper.ensure_for_user(user_id)
     second = next(iter(looks.looks.values()))
 

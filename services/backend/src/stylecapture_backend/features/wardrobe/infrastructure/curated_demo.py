@@ -507,6 +507,7 @@ class CuratedDemoWardrobeBootstrapper:
             anchor.capture_id,
             source_selection_key,
         )
+        expected_analysis = _seed_analysis(definition)
         if look is None:
             look = await self._looks.save(
                 Look(
@@ -518,12 +519,18 @@ class CuratedDemoWardrobeBootstrapper:
                     source_selection_key=source_selection_key,
                     source=LookSource.FEED_SAVED,
                     status=LookStatus.READY,
-                    analysis=_seed_analysis(definition),
+                    analysis=expected_analysis,
                     display_object_key=image.object_key,
                     created_at=now,
                     updated_at=now,
                 )
             )
+        elif (
+            look.analysis is not None
+            and look.analysis.metadata.capability_alias == "curated_seed"
+            and look.analysis.title != expected_analysis.title
+        ):
+            look = await self._looks.save(look.with_analysis(expected_analysis))
         polygon = (
             NormalizedPoint(0.05, 0.05),
             NormalizedPoint(0.95, 0.05),
@@ -671,4 +678,5 @@ def _seed_analysis(definition: SeedLook) -> LookAnalysis:
             taxonomy_version="wardrobe_taxonomy_v1",
             latency_ms=0,
         ),
+        title=field(definition.title),
     )

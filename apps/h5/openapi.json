@@ -1013,6 +1013,10 @@
             ],
             "title": "Display Image Url"
           },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
           "display_ready": {
             "title": "Display Ready",
             "type": "boolean"
@@ -1059,6 +1063,7 @@
           "capture_id",
           "status",
           "source",
+          "display_name",
           "display_image_url",
           "source_image_url",
           "display_ready",

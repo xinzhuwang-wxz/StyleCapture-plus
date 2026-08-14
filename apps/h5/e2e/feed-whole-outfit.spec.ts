@@ -253,11 +253,13 @@ test.describe("Issue 6 public Feed lasso", () => {
     await expect
       .poll(() => page.locator(".look-card").count(), { timeout: 30_000 })
       .toBeGreaterThan(existingLooks);
-    await expect(savedLook).toContainText("Feed 穿搭灵感");
+    await expect(savedLook.locator("strong")).toBeVisible();
+    await expect(savedLook).not.toContainText("Feed 穿搭灵感");
     await expect(savedLook).not.toContainText("正在整理", { timeout: 150_000 });
     await expect(savedLook).toContainText("灵感收藏 · 已整理");
+    await expect(savedLook.locator("strong")).not.toHaveText("穿搭整理中");
     await savedLook.click();
-    await expect(page.getByText("Feed 穿搭灵感").first()).toBeVisible();
+    await expect(page.getByText("Feed 穿搭灵感")).toHaveCount(0);
     await saveEvidence(page, "07-wardrobe-recovered-look");
   });
 });

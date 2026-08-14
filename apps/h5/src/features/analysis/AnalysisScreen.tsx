@@ -224,7 +224,7 @@ export function AnalysisScreen({
                 display: "block"
               }}
             >
-              {latestLook.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}
+              {latestLook.display_name}
             </strong>
           </div>
           <span style={{ color: "var(--pixel-text-dim)", fontSize: "0.9rem" }}>›</span>

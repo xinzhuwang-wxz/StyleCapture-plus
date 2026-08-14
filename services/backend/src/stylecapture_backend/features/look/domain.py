@@ -162,6 +162,13 @@ class LookAnalysis:
     scene: LookAnalysisField
     style: LookAnalysisField
     metadata: LookAnalysisMetadata
+    title: LookAnalysisField | None = None
+
+    @property
+    def display_name(self) -> str:
+        """Return the grounded wardrobe name without conflating it with source."""
+
+        return (self.title or self.style).value.strip()
 
 
 @dataclass(frozen=True, slots=True)

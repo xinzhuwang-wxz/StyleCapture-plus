@@ -1,11 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type {
+  Item,
   Look,
   LookDetail as LookDetailData,
   RenderArtifact
 } from "../src/api/client";
 import { LookCard } from "../src/features/wardrobe/LookCard";
+import { WardrobeItemCard } from "../src/features/wardrobe/ItemCard";
 import { LookDetail } from "../src/features/wardrobe/LookDetail";
 
 const pendingLook: Look = {
@@ -13,6 +15,7 @@ const pendingLook: Look = {
   capture_id: "22222222-2222-4222-8222-222222222222",
   status: "processing",
   source: "feed_saved",
+  display_name: "米白松弛感",
   display_image_url: null,
   source_image_url: "/v1/looks/11111111-1111-4111-8111-111111111111/source",
   display_ready: false,
@@ -107,6 +110,61 @@ function renderArtifact(
 }
 
 describe("Look wardrobe states", () => {
+  it("uses the analyzed outfit name as the primary title and keeps source secondary", () => {
+    render(<LookCard look={pendingLook} onOpen={vi.fn()} />);
+
+    expect(screen.getByText("米白松弛感").tagName).toBe("STRONG");
+    expect(screen.getByText("灵感收藏 · 正在整理")).toBeInTheDocument();
+    expect(screen.queryByText("Feed 穿搭灵感")).not.toBeInTheDocument();
+  });
+
+  it("uses the recognized item appearance as the primary title and category as metadata", () => {
+    const item: Item = {
+      id: "33333333-3333-4333-8333-333333333333",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      status: "ready",
+      ownership: "owned",
+      source_kind: "upload",
+      display_image_url: "/v1/items/33333333-3333-4333-8333-333333333333/image",
+      display_image_kind: "derived_garment",
+      source_image_url: "/v1/items/33333333-3333-4333-8333-333333333333/source",
+      source_available: true,
+      purchase_search_query: "蓝黄印花吊带连衣裙",
+      purchase_search_url: "https://www.douyin.com/search/example",
+      attributes: {
+        category: {
+          value: "dresses",
+          provenance: "model",
+          confidence: 0.92,
+          model_version: "test-model",
+          locked: false
+        },
+        description: {
+          value: "蓝黄印花吊带连衣裙",
+          provenance: "model",
+          confidence: 0.92,
+          model_version: "test-model",
+          locked: false
+        }
+      },
+      model_metadata: {},
+      created_at: "2026-08-14T00:00:00Z",
+      updated_at: "2026-08-14T00:00:00Z"
+    };
+
+    render(
+      <WardrobeItemCard
+        item={item}
+        onOpen={vi.fn()}
+        onRetry={vi.fn()}
+        onRetryPixel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("蓝黄印花吊带连衣裙").tagName).toBe("STRONG");
+    expect(screen.getByText("连衣裙 · 已拥有 · 已整理")).toBeInTheDocument();
+  });
+
   it("shows an honest processing placeholder instead of the full source frame", () => {
     render(<LookCard look={pendingLook} onOpen={vi.fn()} />);
 

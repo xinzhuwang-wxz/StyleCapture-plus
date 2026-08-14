@@ -83,7 +83,7 @@ export function LookCard({
           ) : null}
         </div>
         <div className="item-card__body wardrobe-card__meta">
-          <strong>{look.source === "feed_saved" ? "Feed 穿搭灵感" : "我的搭配"}</strong>
+          <strong>{look.display_name}</strong>
           <span>
             {SOURCE_LABELS[look.source]} · {organizing ? "正在整理" : "已整理"}
           </span>
