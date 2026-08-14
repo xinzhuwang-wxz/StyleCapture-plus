@@ -48,6 +48,14 @@ beforeEach(() => {
 });
 
 describe("reference photo album", () => {
+  it("starts a fresh session with the authorized roadshow portrait active", () => {
+    const album = readPhotoAlbum();
+    expect(album.photos).toHaveLength(1);
+    expect(album.photos[0]?.id).toBe("stylecapture-demo-reference-20260814");
+    expect(album.photos[0]?.dataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(album.activeId).toBe("stylecapture-demo-reference-20260814");
+  });
+
   it("makes the first photo the try-on reference automatically", () => {
     const album = addPhoto(emptyAlbum(), photo("a"));
     expect(album.activeId).toBe("a");

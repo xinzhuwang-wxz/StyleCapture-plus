@@ -62,6 +62,9 @@ test.describe("public profile pixel trial", () => {
 
     await expect(page.getByRole("region", { name: "个人数字资产概览" })).toBeVisible();
     await expect(page.getByText("我的形象照", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "第 1 张形象照（试穿使用中）" })
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "添加形象照" })).toBeVisible();
     await expect(page.getByRole("region", { name: "我的像素小人陈列馆" })).toBeVisible();
     await saveEvidence(page, "01-profile-entry");
@@ -77,6 +80,9 @@ test.describe("public profile pixel trial", () => {
 
     await page.getByRole("button", { name: "添加形象照" }).click();
     await expect(page.getByRole("heading", { name: "形象照管理" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "第 1 张形象照（试穿使用中）" })
+    ).toBeVisible();
 
     const invalidChooserPromise = page.waitForEvent("filechooser");
     await page.getByRole("button", { name: "＋ 上传" }).click();
@@ -90,15 +96,18 @@ test.describe("public profile pixel trial", () => {
     const chooser = await chooserPromise;
     await chooser.setFiles(fullBodyFixture);
 
-    const photo = page.getByRole("button", { name: /第 1 张形象照/ });
+    const photo = page.getByRole("button", { name: /第 2 张形象照/ });
     await expect(photo).toBeVisible();
     await photo.click();
     await page.getByRole("button", { name: "设为试穿照" }).click();
     await expect(page.getByText("已设为真人试穿参考照")).toBeVisible();
     await photo.click();
     await page.getByRole("button", { name: "删除所选" }).click();
-    await expect(page.getByText("还没有形象照")).toBeVisible();
-    await saveEvidence(page, "07-deleted");
+    await expect(
+      page.getByRole("button", { name: /第 1 张形象照/ })
+    ).toBeVisible();
+    await expect(page.getByText("还没有形象照")).toHaveCount(0);
+    await saveEvidence(page, "07-user-photo-deleted-preset-remains");
 
     await page.getByRole("button", { name: "‹ 返回" }).click();
     await expect(page.locator(".profile__asset-count")).toHaveText(initialAssetCount);
@@ -113,10 +122,11 @@ test.describe("public profile pixel trial", () => {
         `Fixture: ${path.relative(repositoryRoot, fullBodyFixture)}`,
         "",
         "Observed lifecycle:",
-        "- The current profile opens reusable try-on photo management.",
+        "- A fresh session starts with the authorized roadshow portrait active.",
+        "- The current profile opens the same reusable try-on photo management album.",
         "- Invalid non-image upload shows a recoverable validation failure.",
         "- A valid full-body photo can be selected as the try-on reference.",
-        "- Deleting the photo leaves wardrobe item and Look counts unchanged."
+        "- Deleting the user-added photo preserves the seeded portrait and leaves wardrobe item and Look counts unchanged."
       ].join("\n")
     );
   });
