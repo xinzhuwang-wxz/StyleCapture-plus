@@ -40,6 +40,24 @@ def analysis() -> LookAnalysis:
     )
 
 
+def test_look_analysis_prefers_a_generated_title_and_keeps_style_as_legacy_fallback() -> None:
+    legacy = analysis()
+    titled = LookAnalysis(
+        color=legacy.color,
+        silhouette=legacy.silhouette,
+        material=legacy.material,
+        layering=legacy.layering,
+        focal_point=legacy.focal_point,
+        scene=legacy.scene,
+        style=legacy.style,
+        metadata=legacy.metadata,
+        title=LookAnalysisField(value="米白松弛感", confidence=0.93),
+    )
+
+    assert legacy.display_name == "简洁通勤"
+    assert titled.display_name == "米白松弛感"
+
+
 def test_feed_saved_look_starts_as_a_processing_relationship_placeholder() -> None:
     user_id = uuid4()
     capture_id = uuid4()

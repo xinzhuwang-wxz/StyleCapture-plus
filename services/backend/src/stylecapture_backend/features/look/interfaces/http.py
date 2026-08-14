@@ -54,6 +54,7 @@ class LookSummaryResponse(BaseModel):
     capture_id: UUID | None
     status: LookStatus
     source: LookSource
+    display_name: str
     display_image_url: str | None
     source_image_url: str | None
     display_ready: bool
@@ -74,6 +75,9 @@ class LookSummaryResponse(BaseModel):
             capture_id=look.capture_id,
             status=look.status,
             source=look.source,
+            display_name=(
+                look.analysis.display_name if look.analysis is not None else "穿搭整理中"
+            ),
             display_image_url=(
                 f"/v1/looks/{look.id}/image" if look.display_object_key is not None else None
             ),
@@ -160,6 +164,8 @@ class LookAnalysisResponse(BaseModel):
             "scene": analysis.scene,
             "style": analysis.style,
         }
+        if analysis.title is not None:
+            fields["title"] = analysis.title
         return cls(
             values={name: field.value for name, field in fields.items()},
             confidence={name: field.confidence for name, field in fields.items()},

@@ -148,7 +148,9 @@ test.describe("public mobile navigation", () => {
     await openWardrobeHome(page, "wardrobe-seeded-assets");
 
     await expect(page.locator(".wardrobe-section .wardrobe-card").first()).toBeVisible();
-    await expect(page.getByText("Feed 穿搭灵感").first()).toBeVisible();
+    await expect(page.getByText("姜黄复古通勤").first()).toBeVisible();
+    await expect(page.getByText("灵感收藏").first()).toBeVisible();
+    await expect(page.getByText("Feed 穿搭灵感")).toHaveCount(0);
     await saveEvidence(page, "02-wardrobe-looks");
 
     await page.getByRole("tab", { name: "按单品" }).click();

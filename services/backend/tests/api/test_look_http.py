@@ -40,6 +40,9 @@ from stylecapture_backend.features.item_presentation.domain import (
 from stylecapture_backend.features.look.application import LookApplication
 from stylecapture_backend.features.look.domain import (
     Look,
+    LookAnalysis,
+    LookAnalysisField,
+    LookAnalysisMetadata,
     LookComponent,
     LookDeletionResult,
     LookDetail,
@@ -287,6 +290,27 @@ def build_client(
         capture_id=capture.id,
         source_selection_key="seed_example" if fixed_presentation else "whole-look",
     )
+    analysis_field = LookAnalysisField(value="简洁通勤", confidence=0.9)
+    look = replace(
+        look,
+        analysis=LookAnalysis(
+            color=analysis_field,
+            silhouette=analysis_field,
+            material=analysis_field,
+            layering=analysis_field,
+            focal_point=analysis_field,
+            scene=analysis_field,
+            style=analysis_field,
+            metadata=LookAnalysisMetadata(
+                capability_alias="outfit_analysis",
+                model_version="test-model",
+                prompt_version="test-prompt",
+                schema_version="look-analysis-v1",
+                taxonomy_version="wardrobe-taxonomy-v1",
+                latency_ms=1,
+            ),
+        ),
+    )
     if display_ready:
         look = replace(
             look,
@@ -354,6 +378,7 @@ async def test_owner_lists_opens_images_and_adds_optional_liking_reason() -> Non
 
     assert listed.status_code == 200
     assert listed.json()["looks"][0]["id"] == str(look.id)
+    assert listed.json()["looks"][0]["display_name"] == "简洁通勤"
     assert listed.json()["looks"][0]["display_ready"] is True
     assert listed.json()["looks"][0]["source_available"] is True
     assert detailed.status_code == 200

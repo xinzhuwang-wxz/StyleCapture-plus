@@ -1107,6 +1107,8 @@ export interface components {
             created_at: string;
             /** Display Image Url */
             display_image_url: string | null;
+            /** Display Name */
+            display_name: string;
             /** Display Ready */
             display_ready: boolean;
             /**

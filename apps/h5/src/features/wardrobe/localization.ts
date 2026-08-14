@@ -68,6 +68,7 @@ export const GARMENT_CATEGORY_OPTIONS = [
 ] as const;
 
 export const LOOK_ANALYSIS_LABELS: Record<string, string> = {
+  title: "穿搭名称",
   color: "配色",
   silhouette: "廓形",
   material: "材质",

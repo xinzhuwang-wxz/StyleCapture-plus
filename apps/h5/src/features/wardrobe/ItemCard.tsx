@@ -142,8 +142,10 @@ export function WardrobeItemCard({
           {item.status !== "ready" ? <div className="processing-sheen" aria-hidden="true" /> : null}
         </div>
         <div className="item-card__body wardrobe-card__meta">
-          <strong>{category}</strong>
-          <span>{item.status === "ready" ? `${ownershipLabel} · ${organizationLabel}` : organizationLabel}</span>
+          <strong>{description}</strong>
+          <span>
+            {category} · {item.status === "ready" ? `${ownershipLabel} · ${organizationLabel}` : organizationLabel}
+          </span>
         </div>
       </button>
       {combo ? (

@@ -553,6 +553,11 @@ def _analysis_to_json(analysis: LookAnalysis | None) -> dict[str, object] | None
             ("style", analysis.style),
         )
     }
+    if analysis.title is not None:
+        fields["title"] = {
+            "value": analysis.title.value,
+            "confidence": analysis.title.confidence,
+        }
     fields["metadata"] = {
         "capability_alias": analysis.metadata.capability_alias,
         "model_version": analysis.metadata.model_version,
@@ -592,4 +597,5 @@ def _analysis_from_json(payload: Mapping[str, object] | None) -> LookAnalysis | 
             taxonomy_version=str(raw_metadata["taxonomy_version"]),
             latency_ms=int(cast(int, raw_metadata["latency_ms"])),
         ),
+        title=(field("title") if isinstance(payload.get("title"), Mapping) else None),
     )
