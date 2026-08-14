@@ -228,14 +228,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 /* 路演桌面：保留手机为视觉中心，左右提供等尺寸扫码入口。 */
-@media (min-width: 1180px) and (min-height: 640px) and (display-mode: browser) {
+@media (min-width: 900px) and (min-height: 480px) and (display-mode: browser) {
   .pixel-stage {
     display: grid;
     grid-template-columns:
-      minmax(284px, 348px)
+      minmax(0, 1fr)
       calc(var(--phone-w) + 22px)
-      minmax(284px, 348px);
-    column-gap: clamp(3rem, 7vw, 8.5rem);
+      minmax(0, 1fr);
+    column-gap: clamp(1.25rem, 3vw, 5rem);
   }
 
   .showcase-qr {
