@@ -1,10 +1,15 @@
 /**
  * 形象照的本机相册。
  *
- * 这些是真人全身照，属于最敏感的一类数据，所以只以缩小后的 data URL 存在这台
- * 设备上，不进任何请求体。设计里写明「最多保存 6 张，可随时切换」——上限不是
- * 装饰，是 localStorage 容量的现实约束。
+ * 用户添加的真人全身照属于最敏感的一类数据，所以只以缩小后的 data URL 存在
+ * 这台设备上。产品方授权的路演参考照也在构建时内联为 data URL；它不会打开额外
+ * 的图片请求，并且只在没有本机相册记录的新会话里作为默认值出现。
+ *
+ * 设计里写明「最多保存 6 张，可随时切换」——上限不是装饰，是 localStorage
+ * 容量的现实约束。
  */
+
+import demoReferencePhotoDataUrl from "../../assets/stylecapture-demo-reference-20260814.jpg?inline";
 
 import {
   asRecord,
@@ -16,6 +21,7 @@ import {
 } from "../../storage/localStore";
 
 export const MAX_REFERENCE_PHOTOS = 6;
+export const DEMO_REFERENCE_PHOTO_ID = "stylecapture-demo-reference-20260814";
 
 export type ReferencePhoto = {
   id: string;
@@ -34,6 +40,23 @@ export function emptyAlbum(): PhotoAlbum {
   return { photos: [], activeId: null };
 }
 
+/**
+ * Fresh deployments start with the authorized roadshow portrait ready for try-on.
+ * Returning a new object keeps the local-store fallback mutation-safe.
+ */
+export function demoAlbum(): PhotoAlbum {
+  return {
+    photos: [
+      {
+        id: DEMO_REFERENCE_PHOTO_ID,
+        dataUrl: demoReferencePhotoDataUrl,
+        addedAt: "2026-08-14T00:00:00.000Z"
+      }
+    ],
+    activeId: DEMO_REFERENCE_PHOTO_ID
+  };
+}
+
 function parsePhoto(raw: unknown): ReferencePhoto | null {
   const record = asRecord(raw);
   if (!record) return null;
@@ -47,7 +70,7 @@ function parsePhoto(raw: unknown): ReferencePhoto | null {
 
 export const photoAlbumStore: LocalStoreDefinition<PhotoAlbum> = {
   key: "stylecapture:reference-photos:v1",
-  fallback: emptyAlbum,
+  fallback: demoAlbum,
   parse: (raw) => {
     const record = asRecord(raw);
     if (!record) return null;
